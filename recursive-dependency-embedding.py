@@ -14,7 +14,7 @@ def process_token(token, plain_tokens=list()):
 
 
 def process_sentence(sentence, parsed_data, offset, max_forest_count):
-    # print('sent:\t', sentence)
+    print('sent:\t', sentence)
     # print('len:\t', len(sentence))
     # print('len2:\t', sentence.end - sentence.start)
 
@@ -63,7 +63,7 @@ def articles(filename, max_articles=100):
 def read_data_csv(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
     print('parse', max_rows, 'articles')
     nlp = spacy.load('en')
-    nlp.pipeline = [nlp.parser]
+    nlp.pipeline = [nlp.tagger, nlp.parser]
 
     seq_vecs = list()
     seq_edges = list()
