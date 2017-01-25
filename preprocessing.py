@@ -102,6 +102,11 @@ def read_data(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
 seq_data, seq_types, seq_heads, seq_edges = read_data(
     data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv', article_count)
 
+print('seq_data:', len(seq_data), len(set(seq_data)))
+print('seq_types:', len(set(seq_types)))
+print('seq_heads:', len(set(seq_heads)))
+print('seq_edges:', len(set(seq_edges)))
+
 # print('max:', max(seq_forest_count))
 # seq_forest_count.sort(reverse=True)
 
