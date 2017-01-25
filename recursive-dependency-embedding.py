@@ -8,7 +8,7 @@ from spacy.en import English
 from tools import fn_timer
 
 data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
-article_count = 1
+article_count = 1000
 
 
 def process_token(token, plain_tokens=list()):
@@ -27,7 +27,7 @@ def process_sentence(sentence, parsed_data, offset, max_forest_count):
     sen_vecs = list()
     sen_heads = list()
     sen_edges = list()
-    sen_forest_count = list()
+    # sen_forest_count = list()
     # print('start:\t', parsed_data[sentence.start])
     # print('end:\t', parsed_data[sentence.end-1])
     for i in range(sentence.start, sentence.end):
@@ -39,13 +39,27 @@ def process_sentence(sentence, parsed_data, offset, max_forest_count):
         sen_heads.append(parsed_data[i].head.i - offset)
         sen_edges.append(parsed_data[i].dep)
         sen_vecs.append(parsed_data[i].vector)
-        sen_forest_count.append(forest_count)
+        # sen_forest_count.append(forest_count)
 
-    return sen_vecs, sen_heads, sen_edges, sen_forest_count
+    return sen_vecs, sen_heads, sen_edges
 
 
 csv.field_size_limit(maxsize)
 
+
+def articles(filename, max_articles=100):
+    with open(filename, 'rb') as csvfile:
+        reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
+        article_id = 0
+        for row in reader:
+            if article_id >= max_articles:
+                break
+            if (article_id * 100) % max_articles == 0:
+                # sys.stdout.write("progress: %d%%   \r" % (article_id * 100 / max_rows))
+                # sys.stdout.flush()
+                print('read article:', row['article-id'], '... ', article_id * 100 / max_articles, '%')
+            article_id += 1
+            yield row['content'].decode('utf-8')
 
 @fn_timer
 def read_data_csv(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
@@ -55,62 +69,42 @@ def read_data_csv(filename, max_rows=100, max_forest_count=10, max_sen_length=75
     seq_vecs = list()
     seq_edges = list()
     seq_heads = list()
-    seq_forest_count = list()
 
     sen_lengths = defaultdict(int)
-    with open(filename, 'rb') as csvfile:
-        reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
-        article_count = 0
-        for row in reader:
-            if article_count >= max_rows:
-                break
-            if (article_count * 100) % max_rows == 0:
-                # sys.stdout.write("progress: %d%%   \r" % (article_count * 100 / max_rows))
-                # sys.stdout.flush()
-                print('parse article:', row['article-id'], '... ', article_count * 100 / max_rows, '%')
-            content = row['content'].decode('utf-8')
+    for parsed_data in parser.pipe(articles(filename, max_rows), n_threads=4, batch_size=1000):
+        offset = 0
+        prev_root = None
+        for sentence in parsed_data.sents:
+            # skip too long sentences
+            if len(sentence) > max_sen_length:
+                offset += len(sentence)
+                continue
+            processed_sen = process_sentence(sentence, parsed_data, offset, max_forest_count)
+            # skip not processed sentences (see process_sentence)
+            if processed_sen is None:
+                offset += len(sentence)
+                continue
 
-            # parsing
-            parsed_data = parser(content)
+            sen_vecs, sen_heads, sen_edges = processed_sen
+            seq_heads += sen_heads
+            seq_edges += sen_edges
+            seq_vecs += sen_vecs
+            if prev_root is not None:
+                seq_heads[prev_root] = sentence.root.i - offset
+            prev_root = sentence.root.i - offset
 
-            offset = 0
-            prev_root = None
-            # prev_offset = 0
-            for sentence in parsed_data.sents:
-                if len(sentence) > max_sen_length:
-                    offset += len(sentence)
-
-                    continue
-
-                sen_lengths[len(sentence)] += 1
-                processed_sen = process_sentence(sentence, parsed_data, offset, max_forest_count)
-                if processed_sen is not None:
-                    sen_vecs, sen_heads, sen_edges, sen_forest_count = processed_sen
-                    seq_heads += sen_heads
-                    seq_edges += sen_edges
-                    seq_vecs += sen_vecs
-                    seq_forest_count += sen_forest_count
-                    if prev_root is not None:
-                        seq_heads[prev_root] = sentence.root.i - offset
-                    prev_root = sentence.root.i - offset
-                    # prev_offset = offset
-                # if sentence was skipped
-                else:
-                    offset += len(sentence)
-
-            article_count += 1
     print('sentence lengths:', sen_lengths)
-    return plain_tokens, seq_vecs, seq_heads, seq_edges, seq_forest_count
+    return plain_tokens, seq_vecs, seq_heads, seq_edges
 
 
-plain_tokens, seq_vecs, seq_heads, seq_edges, seq_forest_count = read_data_csv(
+plain_tokens, seq_vecs, seq_heads, seq_edges = read_data_csv(
     data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv', article_count)
 
-print('max:', max(seq_forest_count))
+# print('max:', max(seq_forest_count))
 # seq_forest_count.sort(reverse=True)
 
-d = defaultdict(int)
-for c in seq_forest_count:
-    d[c] += 1
-print('forest counts:', d)
+# d = defaultdict(int)
+# for c in seq_forest_count:
+#    d[c] += 1
+# print('forest counts:', d)
 
