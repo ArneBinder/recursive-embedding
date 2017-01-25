@@ -1,9 +1,7 @@
 from __future__ import print_function
 import csv
-from collections import defaultdict
-from sys import exit
 from sys import maxsize
-from spacy.en import English
+import spacy
 
 from tools import fn_timer
 
@@ -50,28 +48,29 @@ csv.field_size_limit(maxsize)
 def articles(filename, max_articles=100):
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
-        article_id = 0
+        i = 0
         for row in reader:
-            if article_id >= max_articles:
+            if i >= max_articles:
                 break
-            if (article_id * 100) % max_articles == 0:
-                # sys.stdout.write("progress: %d%%   \r" % (article_id * 100 / max_rows))
+            if (i * 100) % max_articles == 0:
+                # sys.stdout.write("progress: %d%%   \r" % (i * 100 / max_rows))
                 # sys.stdout.flush()
-                print('read article:', row['article-id'], '... ', article_id * 100 / max_articles, '%')
-            article_id += 1
+                print('read article:', row['article-id'], '... ', i * 100 / max_articles, '%')
+            i += 1
             yield row['content'].decode('utf-8')
 
 @fn_timer
 def read_data_csv(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
     print('parse', max_rows, 'articles')
-    parser = English()
-    plain_tokens = list()
+    nlp = spacy.load('en')
+    nlp.pipeline = [nlp.parser]
+
     seq_vecs = list()
     seq_edges = list()
     seq_heads = list()
 
-    sen_lengths = defaultdict(int)
-    for parsed_data in parser.pipe(articles(filename, max_rows), n_threads=4, batch_size=1000):
+    # sen_lengths = defaultdict(int)
+    for parsed_data in nlp.pipe(articles(filename, max_rows), n_threads=4, batch_size=1000):
         offset = 0
         prev_root = None
         for sentence in parsed_data.sents:
@@ -93,11 +92,11 @@ def read_data_csv(filename, max_rows=100, max_forest_count=10, max_sen_length=75
                 seq_heads[prev_root] = sentence.root.i - offset
             prev_root = sentence.root.i - offset
 
-    print('sentence lengths:', sen_lengths)
-    return plain_tokens, seq_vecs, seq_heads, seq_edges
+    # print('sentence lengths:', sen_lengths)
+    return seq_vecs, seq_heads, seq_edges
 
 
-plain_tokens, seq_vecs, seq_heads, seq_edges = read_data_csv(
+seq_vecs, seq_heads, seq_edges = read_data_csv(
     data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv', article_count)
 
 # print('max:', max(seq_forest_count))
