@@ -7,11 +7,7 @@ from tools import fn_timer
 import constants
 from visualize import visualize
 
-data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
-article_count = 1000
 
-
-#dep_map = {}
 
 
 def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count, dep_map):
@@ -44,8 +40,8 @@ def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_co
     return sen_data, sen_types, sen_heads, sen_edges
 
 
-def dummy_data_reader(filename, max_articles):
-    yield 'Hello world!'.decode('utf-8')
+def dummy_str_reader():
+    yield u'Hello world!'
 
 
 def articles_from_csv_reader(filename, max_articles=100):
@@ -134,12 +130,12 @@ def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
             new_heads[i] -= start
     return new_data, new_types, new_heads, new_edges
 
+data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
 
+# create data arrays
 seq_data, seq_types, seq_heads, seq_edges, data_map, edge_map = \
-    read_data(articles_from_csv_reader,
-              args={'max_articles': article_count,
-                    'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
-
+    read_data(articles_from_csv_reader, max_forest_count=10, max_sen_length=75,
+              args={'max_articles': 1000, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
 
 # take first 50 token and visualize the dependency graph
 seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 50)

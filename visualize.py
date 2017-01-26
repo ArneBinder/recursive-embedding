@@ -1,8 +1,8 @@
 import pydot
-#from IPython.display import Image, display
+# from IPython.display import Image, display
 
 
-#def view_pydot(pdot):
+# def view_pydot(pdot):
 #    plt = Image(pdot.create_png())
 #    display(plt)
 
@@ -10,9 +10,6 @@ import pydot
 def visualize(filename, seq_data, seq_heads, seq_edges, data_vocab, edge_vocab):
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
     if len(seq_data) > 0:
-        # vocab[data].orth_
-        # for i in range(len(seq_data)):
-
         nodes = [pydot.Node(i, label="'"+data_vocab[seq_data[i]].orth_+"'", style="filled", fillcolor="green") for i in range(len(seq_data))]
         for node in nodes:
             graph.add_node(node)
