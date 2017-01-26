@@ -5,9 +5,11 @@ import spacy
 
 from tools import fn_timer
 import constants
+from visualize import visualize
 
 data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
-article_count = 1000
+article_count = 1
+nlp = spacy.load('en')
 
 
 def process_sentence(sentence, parsed_data, offset, max_forest_count):
@@ -59,7 +61,7 @@ def articles_from_csv(filename, max_articles=100):
 @fn_timer
 def read_data(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
     print('parse', max_rows, 'articles')
-    nlp = spacy.load('en')
+
     nlp.pipeline = [nlp.tagger, nlp.parser]
 
     # ids of the dictionaries to query the data point referenced by seq_data
@@ -99,8 +101,30 @@ def read_data(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
     return seq_data, seq_types, seq_heads, seq_edges
 
 
+def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
+    assert all(len(seq_data) == l for l in [len(seq_types), len(seq_heads), len(seq_edges)]),\
+           'data has different length: len(seq_data) = ' + str(len(seq_data)) + ', len(seq_types) = '\
+           + str(len(seq_types)) + ', len(seq_heads) = ' + str(len(seq_heads)) + ', len(seq_edges) = '\
+           + str(len(seq_edges))
+    assert start < len(seq_data), 'start_ind = ' + str(start) + ' exceeds list size = ' + str(len(seq_data))
+
+    new_data = seq_data[start:end]
+    new_types = seq_types[start:end]
+    new_edges = seq_edges[start:end]
+    new_heads = seq_heads[start:end]
+    for i in range(len(new_heads)):
+        if new_heads[i] < start or new_heads[i] >= end:
+            new_heads[i] = i
+        else:
+            new_heads[i] -= start
+    return new_data, new_types, new_heads, new_edges
+
 seq_data, seq_types, seq_heads, seq_edges = read_data(
     data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv', article_count)
+
+seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 10)
+
+visualize('forest.png', seq_data, seq_heads, seq_edges, nlp.vocab)
 
 print('seq_data:', len(seq_data), len(set(seq_data)))
 print('seq_types:', len(set(seq_types)))
