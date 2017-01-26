@@ -43,6 +43,8 @@ def process_sentence(sentence, parsed_data, offset, max_forest_count):
 
 csv.field_size_limit(maxsize)
 
+def dummy_data(filename, max_articles):
+    yield 'Hello world!'.decode('utf-8')
 
 def articles_from_csv(filename, max_articles=100):
     print('parse', max_articles, 'articles')
