@@ -8,11 +8,13 @@ import constants
 from visualize import visualize
 
 data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
-article_count = 1
+article_count = 10
 nlp = spacy.load('en')
 
+dep_map = {}
 
-def process_sentence(sentence, parsed_data, offset, max_forest_count):
+
+def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count):
     # print('sent:\t', sentence)
     # print('len:\t', len(sentence))
     # print('len2:\t', sentence.end - sentence.start)
@@ -33,11 +35,12 @@ def process_sentence(sentence, parsed_data, offset, max_forest_count):
         if forest_count > max_forest_count:
             return None
         token = parsed_data[i]
-        sen_heads.append(token.head.i - offset)
+        sen_heads.append(token.head.i - skipped_count + offset)
         sen_edges.append(token.dep)
         sen_data.append(token.orth)
         sen_types.append(constants.WORD_EMBEDDING)
-
+        # collect dependency labels for human readable mapping
+        dep_map[token.dep] = token.dep_
     return sen_data, sen_types, sen_heads, sen_edges
 
 
@@ -76,18 +79,19 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
     # ids (sequence) of the heads (parents)
     seq_heads = list()
 
+    offset = 0
     for parsed_data in nlp.pipe(reader(**args), n_threads=4, batch_size=1000):
-        offset = 0
+        skipped_count = 0
         prev_root = None
         for sentence in parsed_data.sents:
             # skip too long sentences
             if len(sentence) > max_sen_length:
-                offset += len(sentence)
+                skipped_count += len(sentence)
                 continue
-            processed_sen = process_sentence(sentence, parsed_data, offset, max_forest_count)
+            processed_sen = process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
-                offset += len(sentence)
+                skipped_count += len(sentence)
                 continue
 
             sen_data, sen_types, sen_heads, sen_edges = processed_sen
@@ -97,9 +101,9 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
             seq_types += sen_types
 
             if prev_root is not None:
-                seq_heads[prev_root] = sentence.root.i - offset
-            prev_root = sentence.root.i - offset
-
+                seq_heads[prev_root] = sentence.root.i - skipped_count + offset
+            prev_root = sentence.root.i - skipped_count + offset
+        offset = len(seq_data)
     return seq_data, seq_types, seq_heads, seq_edges
 
 
@@ -125,9 +129,9 @@ def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
 seq_data, seq_types, seq_heads, seq_edges = read_data(articles_from_csv, args={'max_articles': article_count,
                                                                                'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
 
-seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 20)
-
-visualize('forest.png', seq_data, seq_heads, seq_edges, nlp.vocab)
+# take first 50 token and visualize the dependency graph
+seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 50)
+visualize('forest.png', seq_data, seq_heads, seq_edges, nlp.vocab, dep_map)
 
 print('seq_data:', len(seq_data), len(set(seq_data)))
 print('seq_types:', len(set(seq_types)))
