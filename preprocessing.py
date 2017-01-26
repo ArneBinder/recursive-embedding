@@ -8,13 +8,13 @@ import constants
 from visualize import visualize
 
 data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
-article_count = 10
-nlp = spacy.load('en')
-
-dep_map = {}
+article_count = 1000
 
 
-def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count):
+#dep_map = {}
+
+
+def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count, dep_map):
     # print('sent:\t', sentence)
     # print('len:\t', len(sentence))
     # print('len2:\t', sentence.end - sentence.start)
@@ -44,12 +44,12 @@ def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_co
     return sen_data, sen_types, sen_heads, sen_edges
 
 
-csv.field_size_limit(maxsize)
-
 def dummy_data(filename, max_articles):
     yield 'Hello world!'.decode('utf-8')
 
+
 def articles_from_csv(filename, max_articles=100):
+    csv.field_size_limit(maxsize)
     print('parse', max_articles, 'articles')
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
@@ -67,7 +67,9 @@ def articles_from_csv(filename, max_articles=100):
 
 @fn_timer
 def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
+    nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
+    dep_map = {}
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -88,7 +90,7 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
             if len(sentence) > max_sen_length:
                 skipped_count += len(sentence)
                 continue
-            processed_sen = process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count)
+            processed_sen = process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count, dep_map)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
                 skipped_count += len(sentence)
@@ -104,7 +106,14 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
                 seq_heads[prev_root] = sentence.root.i - skipped_count + offset
             prev_root = sentence.root.i - skipped_count + offset
         offset = len(seq_data)
-    return seq_data, seq_types, seq_heads, seq_edges
+
+    # re-map edge labels
+    mapping = dict(zip(dep_map.iterkeys(), range(len(dep_map))))
+    for i in range(len(seq_edges)):
+        seq_edges[i] = mapping[seq_edges[i]]
+    dep_map = {mapping[key]: value for key, value in dep_map.iteritems()}
+
+    return seq_data, seq_types, seq_heads, seq_edges, nlp.vocab, dep_map
 
 
 def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
@@ -126,12 +135,15 @@ def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
     return new_data, new_types, new_heads, new_edges
 
 
-seq_data, seq_types, seq_heads, seq_edges = read_data(articles_from_csv, args={'max_articles': article_count,
-                                                                               'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
+seq_data, seq_types, seq_heads, seq_edges, data_map, edge_map = \
+    read_data(articles_from_csv,
+              args={'max_articles': article_count,
+                    'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
+
 
 # take first 50 token and visualize the dependency graph
 seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 50)
-visualize('forest.png', seq_data, seq_heads, seq_edges, nlp.vocab, dep_map)
+visualize('forest.png', seq_data, seq_heads, seq_edges, data_map, edge_map)
 
 print('seq_data:', len(seq_data), len(set(seq_data)))
 print('seq_types:', len(set(seq_types)))
