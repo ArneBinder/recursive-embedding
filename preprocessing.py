@@ -45,6 +45,7 @@ csv.field_size_limit(maxsize)
 
 
 def articles_from_csv(filename, max_articles=100):
+    print('parse', max_articles, 'articles')
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
         i = 0
@@ -58,10 +59,9 @@ def articles_from_csv(filename, max_articles=100):
             i += 1
             yield row['content'].decode('utf-8')
 
-@fn_timer
-def read_data(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
-    print('parse', max_rows, 'articles')
 
+@fn_timer
+def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
     nlp.pipeline = [nlp.tagger, nlp.parser]
 
     # ids of the dictionaries to query the data point referenced by seq_data
@@ -74,7 +74,7 @@ def read_data(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
     # ids (sequence) of the heads (parents)
     seq_heads = list()
 
-    for parsed_data in nlp.pipe(articles_from_csv(filename, max_rows), n_threads=4, batch_size=1000):
+    for parsed_data in nlp.pipe(reader(**args), n_threads=4, batch_size=1000):
         offset = 0
         prev_root = None
         for sentence in parsed_data.sents:
@@ -102,10 +102,10 @@ def read_data(filename, max_rows=100, max_forest_count=10, max_sen_length=75):
 
 
 def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
-    assert all(len(seq_data) == l for l in [len(seq_types), len(seq_heads), len(seq_edges)]),\
-           'data has different length: len(seq_data) = ' + str(len(seq_data)) + ', len(seq_types) = '\
-           + str(len(seq_types)) + ', len(seq_heads) = ' + str(len(seq_heads)) + ', len(seq_edges) = '\
-           + str(len(seq_edges))
+    assert all(len(seq_data) == l for l in [len(seq_types), len(seq_heads), len(seq_edges)]), \
+        'data has different length: len(seq_data) = ' + str(len(seq_data)) + ', len(seq_types) = ' \
+        + str(len(seq_types)) + ', len(seq_heads) = ' + str(len(seq_heads)) + ', len(seq_edges) = ' \
+        + str(len(seq_edges))
     assert start < len(seq_data), 'start_ind = ' + str(start) + ' exceeds list size = ' + str(len(seq_data))
 
     new_data = seq_data[start:end]
@@ -119,10 +119,11 @@ def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
             new_heads[i] -= start
     return new_data, new_types, new_heads, new_edges
 
-seq_data, seq_types, seq_heads, seq_edges = read_data(
-    data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv', article_count)
 
-seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 10)
+seq_data, seq_types, seq_heads, seq_edges = read_data(articles_from_csv, args={'max_articles': article_count,
+                                                                               'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
+
+seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 20)
 
 visualize('forest.png', seq_data, seq_heads, seq_edges, nlp.vocab)
 
@@ -138,4 +139,3 @@ print('seq_edges:', len(set(seq_edges)))
 # for c in seq_forest_count:
 #    d[c] += 1
 # print('forest counts:', d)
-

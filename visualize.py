@@ -10,7 +10,10 @@ import pydot
 def visualize(filename, seq_data, seq_heads, seq_edges, vocab):
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
     if len(seq_data) > 0:
-        nodes = [pydot.Node(vocab[data].orth_, style="filled", fillcolor="green") for data in seq_data]
+        # vocab[data].orth_
+        # for i in range(len(seq_data)):
+
+        nodes = [pydot.Node(i, label="'"+vocab[seq_data[i]].orth_+"'", style="filled", fillcolor="green") for i in range(len(seq_data))]
         for node in nodes:
             graph.add_node(node)
 
@@ -21,6 +24,8 @@ def visualize(filename, seq_data, seq_heads, seq_edges, vocab):
 
         for i in range(len(seq_data)):
             graph.add_edge(pydot.Edge(nodes[i], nodes[seq_heads[i]], label=str(seq_edges[i])))
+
+    # print(graph.to_string())
 
     graph.write_png(filename)
     # view_pydot(graph)
