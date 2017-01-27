@@ -14,13 +14,14 @@ def visualize(filename, seq_data, seq_heads, seq_edges, data_vocab, edge_vocab):
         for node in nodes:
             graph.add_node(node)
 
+        # add invisible edges for alignment
         last_node = nodes[0]
         for node in nodes[1:]:
             graph.add_edge(pydot.Edge(last_node, node, weight=100, style='invis'))
             last_node = node
 
         for i in range(len(seq_data)):
-            graph.add_edge(pydot.Edge(nodes[i], nodes[seq_heads[i]], label=edge_vocab[seq_edges[i]]))
+            graph.add_edge(pydot.Edge(nodes[i], nodes[i + seq_heads[i]], label=edge_vocab[seq_edges[i]]))
 
     # print(graph.to_string())
 

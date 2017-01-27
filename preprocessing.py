@@ -31,7 +31,7 @@ def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_co
         if forest_count > max_forest_count:
             return None
         token = parsed_data[i]
-        sen_heads.append(token.head.i - skipped_count + offset)
+        sen_heads.append(token.head.i - i)
         sen_edges.append(token.dep)
         sen_data.append(token.orth)
         sen_types.append(constants.WORD_EMBEDDING)
@@ -99,7 +99,7 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
             seq_types += sen_types
 
             if prev_root is not None:
-                seq_heads[prev_root] = sentence.root.i - skipped_count + offset
+                seq_heads[prev_root] = sentence.root.i - skipped_count + offset - prev_root
             prev_root = sentence.root.i - skipped_count + offset
         offset = len(seq_data)
 
@@ -112,7 +112,7 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
     return seq_data, seq_types, seq_heads, seq_edges, nlp.vocab, dep_map
 
 
-def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
+def slice_forest(seq_data, seq_types, seq_heads, seq_edges, start, end):
     assert all(len(seq_data) == l for l in [len(seq_types), len(seq_heads), len(seq_edges)]), \
         'data has different length: len(seq_data) = ' + str(len(seq_data)) + ', len(seq_types) = ' \
         + str(len(seq_types)) + ', len(seq_heads) = ' + str(len(seq_heads)) + ', len(seq_edges) = ' \
@@ -123,11 +123,9 @@ def splice(seq_data, seq_types, seq_heads, seq_edges, start, end):
     new_types = seq_types[start:end]
     new_edges = seq_edges[start:end]
     new_heads = seq_heads[start:end]
-    for i in range(len(new_heads)):
-        if new_heads[i] < start or new_heads[i] >= end:
-            new_heads[i] = i
-        else:
-            new_heads[i] -= start
+    for i in range(end - start):
+        if new_heads[i] < -i or new_heads[i] >= end - start - i:
+            new_heads[i] = 0
     return new_data, new_types, new_heads, new_edges
 
 data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
@@ -135,10 +133,10 @@ data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
 # create data arrays
 seq_data, seq_types, seq_heads, seq_edges, data_map, edge_map = \
     read_data(articles_from_csv_reader, max_forest_count=10, max_sen_length=75,
-              args={'max_articles': 1000, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
+              args={'max_articles': 1, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
 
 # take first 50 token and visualize the dependency graph
-seq_data, seq_types, seq_heads, seq_edges = splice(seq_data, seq_types, seq_heads, seq_edges, 0, 50)
+seq_data, seq_types, seq_heads, seq_edges = slice_forest(seq_data, seq_types, seq_heads, seq_edges, len(seq_data)-75, len(seq_data))
 visualize('forest.png', seq_data, seq_heads, seq_edges, data_map, edge_map)
 
 print('seq_data:', len(seq_data), len(set(seq_data)))
