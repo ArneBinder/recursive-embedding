@@ -1,53 +1,38 @@
 from __future__ import print_function
-import tensorflow as tf
-import sys
+from preprocessing import read_data, slice_forest, articles_from_csv_reader, dummy_str_reader, get_word_embeddings
+from visualize import visualize
+import numpy as np
+import spacy
+import constants
 
 dim = 300
 edge_count = 60
 seq_length = 10
 
+slice_size = 75
+max_forest_count = 10
 
-graph = tf.Graph()
-with graph.as_default():
-    # input
-    seq_vecs = tf.placeholder(tf.float32, shape=[seq_length, dim])
+nlp = spacy.load('en')
+nlp.pipeline = [nlp.tagger, nlp.parser]
 
-    curr_seq_parent_ids = tf.placeholder(tf.int32, shape=[seq_length])
-    curr_seq_edges = tf.placeholder(tf.int32, shape=[seq_length])
+vecs, mapping, human_mapping = get_word_embeddings(nlp.vocab)
+# for processing parser output
+data_embedding_maps = {constants.WORD_EMBEDDING: mapping}
+# for displaying human readable tokens etc.
+data_embedding_maps_human = {constants.WORD_EMBEDDING: human_mapping}
+# data vectors
+data_vecs = {constants.WORD_EMBEDDING: vecs}
 
-    # prev_seq_vec = tf.placeholder(tf.float32, shape=[seq_length, dim])
-    prev_seq_parent_ids = tf.placeholder(tf.int32, shape=[seq_length])
-    prev_seq_edges = tf.placeholder(tf.int32, shape=[seq_length])
+data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
+# create data arrays
+(seq_data, seq_types, seq_heads, seq_edges), edge_map = \
+    read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
+              args={'max_articles': 1, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
 
-    added_edge_id = tf.placeholder(tf.in32, shape=[])
 
-    # embeddings
-    edge_weights = tf.Variable(tf.zeros([edge_count, dim, dim]))
-    edge_biases = tf.Variable(tf.zeros([edge_count, dim]))
-
-    # scoring
-    score_weights = tf.Variable(tf.zeros([2 * dim, 1]))
-    score_biases = tf.Variable(tf.zeros([2 * dim, 1]))
-
-    prev_embedding = calc_embedding(prev_seq_parent_ids, prev_seq_edges, seq_vecs, edge_weights, edge_biases)
-    correct_embedding = calc_embedding(curr_seq_parent_ids, curr_seq_edges, seq_vecs, edge_weights, edge_biases)
-    # seqs = [(curr_seq_parent_ids, curr_seq_edges)] # put correct at id=0
-    seqs = possible_seqs(prev_seq_parent_ids, curr_seq_parent_ids, added_edge_id)
-
-    highest_score = -sys.maxint - 1 # -inf
-    highest_embedding = None
-    # for seq_parents, seq_edges in seqs:
-    #	embedding = calc_embedding(seq_parents, seq_edges, seq_vecs, edge_weights, edge_biases)
-    #	score = calc_score(embedding, prev_embedding, score_weights_score_biases)
-    #	if(score > highest_score):
-    #		highest_score = score
-    #		highest_embedding = embedding
-
-    loss = calc_loss(correct_embedding, highest_embedding)
+# take first 50 token and visualize the dependency graph
+sliced_data, sliced_types, sliced_heads, sliced_edges = slice_forest(seq_data, seq_types, seq_heads, seq_edges, 0, 50)
+visualize('forest.png', sliced_data, sliced_types, sliced_heads, sliced_edges, data_embedding_maps_human, edge_map)
 
 
 
-    # TODO:
-    # * possible_seqs
-    # * calc_embedding
-    # * calc_score

@@ -1,23 +1,27 @@
 from __future__ import print_function
 import csv
 from sys import maxsize
-import spacy
+import numpy as np
 
 from tools import fn_timer
 import constants
-from visualize import visualize
+
+@fn_timer
+def get_word_embeddings(vocab):
+    vecs = np.ndarray(shape=(len(vocab)+1, vocab.vectors_length), dtype=np.float32)
+    m_human = [u'UNKNOWN']
+    vecs[0] = np.zeros(vocab.vectors_length)
+    m = {}
+    i = 1
+    for lexeme in vocab:
+        m_human.append(lexeme.orth_)
+        m[lexeme.orth] = i
+        vecs[i] = lexeme.vector
+        i += 1
+    return vecs, m, m_human
 
 
-
-
-def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count, dep_map):
-    # print('sent:\t', sentence)
-    # print('len:\t', len(sentence))
-    # print('len2:\t', sentence.end - sentence.start)
-
-    # print('i\t', parsed_data[sentence.root.i])
-    # print('root\t', sentence.root)
-    # assert (parsed_data[sentence.root.i] != sentence.root)
+def process_sentence(sentence, parsed_data, max_forest_count, dep_map, data_embedding_maps):
 
     # see read_data
     sen_data = list()
@@ -30,18 +34,26 @@ def process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_co
                         range(sentence.start, i + 1)].count(True)
         if forest_count > max_forest_count:
             return None
+
+        data_type = constants.WORD_EMBEDDING
+        sen_types.append(data_type)
         token = parsed_data[i]
         sen_heads.append(token.head.i - i)
         sen_edges.append(token.dep)
-        sen_data.append(token.orth)
-        sen_types.append(constants.WORD_EMBEDDING)
+        try:
+            x = data_embedding_maps[data_type][token.orth]
+        # word doesnt occur in dictionary
+        except KeyError:
+            x = 0
+        sen_data.append(x)
+
         # collect dependency labels for human readable mapping
         dep_map[token.dep] = token.dep_
     return sen_data, sen_types, sen_heads, sen_edges
 
 
 def dummy_str_reader():
-    yield u'Hello world!'
+    yield u'I like RTRC!'
 
 
 def articles_from_csv_reader(filename, max_articles=100):
@@ -62,9 +74,8 @@ def articles_from_csv_reader(filename, max_articles=100):
 
 
 @fn_timer
-def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
-    nlp = spacy.load('en')
-    nlp.pipeline = [nlp.tagger, nlp.parser]
+def read_data(reader, nlp, data_embedding_maps, max_forest_count=10, max_sen_length=75, args={}):
+
     dep_map = {}
 
     # ids of the dictionaries to query the data point referenced by seq_data
@@ -86,7 +97,7 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
             if len(sentence) > max_sen_length:
                 skipped_count += len(sentence)
                 continue
-            processed_sen = process_sentence(sentence, parsed_data, skipped_count, offset, max_forest_count, dep_map)
+            processed_sen = process_sentence(sentence, parsed_data, max_forest_count, dep_map, data_embedding_maps)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
                 skipped_count += len(sentence)
@@ -109,7 +120,7 @@ def read_data(reader, max_forest_count=10, max_sen_length=75, args={}):
         seq_edges[i] = mapping[seq_edges[i]]
     dep_map = {mapping[key]: value for key, value in dep_map.iteritems()}
 
-    return seq_data, seq_types, seq_heads, seq_edges, nlp.vocab, dep_map
+    return (seq_data, seq_types, seq_heads, seq_edges), dep_map
 
 
 def slice_forest(seq_data, seq_types, seq_heads, seq_edges, start, end):
@@ -123,26 +134,28 @@ def slice_forest(seq_data, seq_types, seq_heads, seq_edges, start, end):
     new_types = seq_types[start:end]
     new_edges = seq_edges[start:end]
     new_heads = seq_heads[start:end]
-    for i in range(end - start):
-        if new_heads[i] < -i or new_heads[i] >= end - start - i:
+    for i in range(len(new_data)):
+        if new_heads[i] < -i or new_heads[i] >= len(new_data) - i:
             new_heads[i] = 0
     return new_data, new_types, new_heads, new_edges
 
-data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
+
+
+# data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
 
 # create data arrays
-seq_data, seq_types, seq_heads, seq_edges, data_map, edge_map = \
-    read_data(articles_from_csv_reader, max_forest_count=10, max_sen_length=75,
-              args={'max_articles': 1, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
+# seq_data, seq_types, seq_heads, seq_edges, data_map, edge_map = \
+#    read_data(articles_from_csv_reader, max_forest_count=10, max_sen_length=75,
+#              args={'max_articles': 1, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
 
 # take first 50 token and visualize the dependency graph
-seq_data, seq_types, seq_heads, seq_edges = slice_forest(seq_data, seq_types, seq_heads, seq_edges, len(seq_data)-75, len(seq_data))
-visualize('forest.png', seq_data, seq_heads, seq_edges, data_map, edge_map)
+# seq_data, seq_types, seq_heads, seq_edges = slice_forest(seq_data, seq_types, seq_heads, seq_edges, 5, 80)
+# visualize('forest.png', seq_data, seq_heads, seq_edges, data_map, edge_map)
 
-print('seq_data:', len(seq_data), len(set(seq_data)))
-print('seq_types:', len(set(seq_types)))
-print('seq_heads:', len(set(seq_heads)))
-print('seq_edges:', len(set(seq_edges)))
+# print('seq_data:', len(seq_data), len(set(seq_data)))
+# print('seq_types:', len(set(seq_types)))
+# print('seq_heads:', len(set(seq_heads)))
+# print('seq_edges:', len(set(seq_edges)))
 
 # print('max:', max(seq_forest_count))
 # seq_forest_count.sort(reverse=True)
