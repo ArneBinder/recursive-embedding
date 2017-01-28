@@ -6,6 +6,7 @@ import numpy as np
 from tools import fn_timer
 import constants
 
+
 @fn_timer
 def get_word_embeddings(vocab):
     vecs = np.ndarray(shape=(len(vocab)+1, vocab.vectors_length), dtype=np.float32)
@@ -115,52 +116,13 @@ def read_data(reader, nlp, data_embedding_maps, max_forest_count=10, max_sen_len
         offset = len(seq_data)
 
     # re-map edge labels
-    mapping = dict(zip(dep_map.iterkeys(), range(len(dep_map))))
+    # retain 0 for inter tree "edge"
+    mapping = dict(zip(dep_map.iterkeys(), range(1, len(dep_map)+1)))
     for i in range(len(seq_edges)):
         seq_edges[i] = mapping[seq_edges[i]]
     dep_map = {mapping[key]: value for key, value in dep_map.iteritems()}
+    dep_map[0] = u'INTTREE'
 
     return (seq_data, seq_types, seq_heads, seq_edges), dep_map
 
 
-def slice_forest(seq_data, seq_types, seq_heads, seq_edges, start, end):
-    assert all(len(seq_data) == l for l in [len(seq_types), len(seq_heads), len(seq_edges)]), \
-        'data has different length: len(seq_data) = ' + str(len(seq_data)) + ', len(seq_types) = ' \
-        + str(len(seq_types)) + ', len(seq_heads) = ' + str(len(seq_heads)) + ', len(seq_edges) = ' \
-        + str(len(seq_edges))
-    assert start < len(seq_data), 'start_ind = ' + str(start) + ' exceeds list size = ' + str(len(seq_data))
-
-    new_data = seq_data[start:end]
-    new_types = seq_types[start:end]
-    new_edges = seq_edges[start:end]
-    new_heads = seq_heads[start:end]
-    for i in range(len(new_data)):
-        if new_heads[i] < -i or new_heads[i] >= len(new_data) - i:
-            new_heads[i] = 0
-    return new_data, new_types, new_heads, new_edges
-
-
-
-# data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
-
-# create data arrays
-# seq_data, seq_types, seq_heads, seq_edges, data_map, edge_map = \
-#    read_data(articles_from_csv_reader, max_forest_count=10, max_sen_length=75,
-#              args={'max_articles': 1, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
-
-# take first 50 token and visualize the dependency graph
-# seq_data, seq_types, seq_heads, seq_edges = slice_forest(seq_data, seq_types, seq_heads, seq_edges, 5, 80)
-# visualize('forest.png', seq_data, seq_heads, seq_edges, data_map, edge_map)
-
-# print('seq_data:', len(seq_data), len(set(seq_data)))
-# print('seq_types:', len(set(seq_types)))
-# print('seq_heads:', len(set(seq_heads)))
-# print('seq_edges:', len(set(seq_edges)))
-
-# print('max:', max(seq_forest_count))
-# seq_forest_count.sort(reverse=True)
-
-# d = defaultdict(int)
-# for c in seq_forest_count:
-#    d[c] += 1
-# print('forest counts:', d)

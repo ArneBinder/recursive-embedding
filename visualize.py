@@ -21,7 +21,9 @@ def visualize(filename, seq_data, sliced_types, seq_heads, seq_edges, data_mappi
             last_node = node
 
         for i in range(len(seq_data)):
-            graph.add_edge(pydot.Edge(nodes[i], nodes[i + seq_heads[i]], label=edge_vocab[seq_edges[i]]))
+            graph.add_edge(pydot.Edge(nodes[i],
+                                      nodes[i + seq_heads[i]],
+                                      label=edge_vocab[seq_edges[i]]))
 
     # print(graph.to_string())
 
