@@ -7,10 +7,11 @@ import pydot
 #    display(plt)
 
 
-def visualize(filename, seq_data, sliced_types, seq_heads, seq_edges, data_mapping, edge_vocab):
+def visualize(filename, sequence_graph, data_mapping, edge_vocab):
+    data, types, parents, edges = sequence_graph
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
-    if len(seq_data) > 0:
-        nodes = [pydot.Node(i, label="'"+data_mapping[sliced_types[i]][seq_data[i]]+"'", style="filled", fillcolor="green") for i in range(len(seq_data))]
+    if len(data) > 0:
+        nodes = [pydot.Node(i, label="'"+data_mapping[types[i]][data[i]] + "'", style="filled", fillcolor="green") for i in range(len(data))]
         for node in nodes:
             graph.add_node(node)
 
@@ -20,10 +21,10 @@ def visualize(filename, seq_data, sliced_types, seq_heads, seq_edges, data_mappi
             graph.add_edge(pydot.Edge(last_node, node, weight=100, style='invis'))
             last_node = node
 
-        for i in range(len(seq_data)):
+        for i in range(len(data)):
             graph.add_edge(pydot.Edge(nodes[i],
-                                      nodes[i + seq_heads[i]],
-                                      label=edge_vocab[seq_edges[i]]))
+                                      nodes[i + parents[i]],
+                                      label=edge_vocab[edges[i]]))
 
     # print(graph.to_string())
 
