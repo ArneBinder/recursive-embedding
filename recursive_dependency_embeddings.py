@@ -58,12 +58,13 @@ class Net(nn.Module):
         # dimension of embeddings
         self.dim = dim
 
-        self.data_vecs = data_vecs
+        self.data_vecs = {}
         self.data_weights = {}
         self.data_biases = {}
         for data_type in self.data_vecs.keys():
             vecs = data_vecs[data_type]
             _, vec_dim = vecs.shape
+            self.data_vecs[data_type] = torch.from_numpy(vecs)
             self.data_weights[data_type] = Variable(torch.zeros(vec_dim, dim), requires_grad=True)
             self.data_biases[data_type] = Variable(torch.zeros(dim), requires_grad=True)
 
