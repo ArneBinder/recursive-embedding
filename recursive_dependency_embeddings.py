@@ -86,10 +86,26 @@ class Net(nn.Module):
         for i in range(len(roots) - 1):
             parents[roots[i]] = roots[i + 1]
 
-        # TODO: implement!
+        root = roots[-1]
 
-        # dummy result
-        return Variable(torch.zeros(self.dim), requires_grad=True)
+        # calc child pointer
+        children = {}
+        for i, parent in enumerate(parents):
+            children[parent] = children.get(parent, []).append(i)
+
+        return self.calc_embedding_rec(data, types, children, edges, root)
+
+    def calc_embedding_rec(self, data, types, children, edges, idx):
+
+        embedding = self.data_vecs[types[idx]][data[idx]] * self.data_weights[types[idx]] + self.data_biases[types[idx]]
+
+        # leaf
+        if idx not in children:
+            return embedding
+
+        for child in children[idx]:
+            embedding += self.calc_embedding_rec(data, types, children, edges, child) * self.edge_weights[child] \
+                         + self.edge_biases[child]
 
     def calc_score(self, embedding, data_embedding):
         return (self.score_embedding_biases + embedding) * self.score_embedding_weights \
