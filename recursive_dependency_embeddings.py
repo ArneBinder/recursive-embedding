@@ -91,21 +91,21 @@ class Net(nn.Module):
         # calc child pointer
         children = {}
         for i, parent in enumerate(parents):
-            children[parent] = children.get(parent, []).append(i)
+            if i + parent not in children:
+                children[i + parent] = [i]
+            else:
+                children[i + parent] += [i]
 
         return self.calc_embedding_rec(data, types, children, edges, root)
 
     def calc_embedding_rec(self, data, types, children, edges, idx):
-
         embedding = self.data_vecs[types[idx]][data[idx]] * self.data_weights[types[idx]] + self.data_biases[types[idx]]
-
-        # leaf
-        if idx not in children:
+        if idx not in children:     # leaf
             return embedding
-
         for child in children[idx]:
-            embedding += self.calc_embedding_rec(data, types, children, edges, child) * self.edge_weights[child] \
-                         + self.edge_biases[child]
+            embedding += self.calc_embedding_rec(data, types, children, edges, child) * self.edge_weights[edges[child]] \
+                         + self.edge_biases[edges[child]]
+        return embedding
 
     def calc_score(self, embedding, data_embedding):
         return (self.score_embedding_biases + embedding) * self.score_embedding_weights \
@@ -134,4 +134,45 @@ class Net(nn.Module):
         # TODO: implement selection of best-scored embedding!
 
 
+def calc_embedding(data, types, parents, edges):
+    # connect roots
+    roots = [i for i, parent in enumerate(parents) if parent == 0]
+    for i in range(len(roots) - 1):
+        parents[roots[i]] = roots[i + 1]
 
+    root = roots[-1]
+
+    # calc child pointer
+    children = {}
+    for i, parent in enumerate(parents):
+        parent_pos = i + parent
+        # skip circle at root pos
+        if parent_pos == i:
+            continue
+        if parent_pos not in children:
+            children[parent_pos] = [i]
+        else:
+            children[parent_pos] += [i]
+
+    return calc_embedding_rec(data, types, children, edges, root)
+
+
+def calc_embedding_rec(data, types, children, edges, idx):
+    # embedding = data_vecs[types[idx]][data[idx]] * data_weights[types[idx]] + data_biases[types[idx]]
+    embedding = data_embedding_maps_human[types[idx]][data[idx]]
+
+    # leaf
+    if idx not in children:
+        return embedding
+
+    embedding += '['
+
+    for child in children[idx]:
+        # embedding += calc_embedding_rec(data, types, children, edges, child) * edge_weights[edges[child]] + edge_biases[edges[child]]
+        embedding += ' ' + edge_map[edges[child]] + '(' + calc_embedding_rec(data, types, children, edges, child) + ')'
+
+    embedding += ']'
+
+    return embedding
+
+print(calc_embedding(sliced_data, sliced_types, sliced_parents, sliced_edges))
