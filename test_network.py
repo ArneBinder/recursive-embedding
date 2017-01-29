@@ -10,7 +10,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.optim as optim
-from net import Net
+from net import Net, loss
+import math
+from sys import exit
 
 
 dim = 300
@@ -42,7 +44,7 @@ print('output size:', net.max_graph_count)
 
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
 
-ind = 0
+ind = 1
 data = np.array(seq_data[0:(ind+1)])
 types = np.array(seq_types[0:(ind+1)])
 parents = subgraph(seq_parents, 0, (ind+1))
@@ -50,8 +52,21 @@ edges = np.array(seq_edges[0:(ind+1)])
 
 graphs = np.array(graph_candidates(parents, ind))
 #outputs = net(Variable(torch.from_numpy(data)), Variable(torch.from_numpy(types)), Variable(torch.from_numpy(parents)), Variable(torch.from_numpy(edges)))
-outputs = net(data, types, np.array(parents), graphs)
-print('outputs:', outputs)
+outputs = net(data, types, graphs, edges)
+#print('outputs:', outputs)
+
+
+
+#print(my_loss(outputs))
+
+optimizer.zero_grad()
+loss(outputs).backward()
+optimizer.step()
+#outputs[0].squeeze().backward()
+
+#outputs.pow(2).sum().backward()
+
+exit()
 
 outputs_soft = F.softmax(outputs.unsqueeze(0))
 print('outputs_soft:', outputs_soft)
@@ -63,8 +78,8 @@ print('expected:', expected)
 loss = (outputs_soft - expected).pow(2).sum()
 print(loss.data[0])
 
-optimizer.zero_grad()
-loss.backward()
+#optimizer.zero_grad()
+#loss.backward()
 
 #loss = F.cross_entropy(outputs_soft, expected)
 #print('loss:', loss)

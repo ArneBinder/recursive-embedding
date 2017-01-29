@@ -36,9 +36,9 @@ class Net(nn.Module):
         #    self.edge_biases[i] = Variable(torch.zeros(dim), requires_grad=True)
 
         self.score_embedding_weights = Variable(torch.zeros(dim, 1), requires_grad=True)
-        self.score_embedding_biases = Variable(torch.zeros(dim), requires_grad=True)
+        self.score_embedding_biases = Variable(torch.zeros(1, dim), requires_grad=True)
         self.score_data_weights = Variable(torch.zeros(dim, 1), requires_grad=True)
-        self.score_data_biases = Variable(torch.zeros(dim), requires_grad=True)
+        self.score_data_biases = Variable(torch.zeros(1, dim), requires_grad=True)
 
     def calc_embedding(self, data, types, parents, edges):
 
@@ -65,19 +65,19 @@ class Net(nn.Module):
         return self.calc_embedding_rec(data, types, children, edges, root)
 
     def calc_embedding_rec(self, data, types, children, edges, idx):
-        embedding = torch.mm(self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]]) + self.data_biases[types[idx]]
+        embedding = self.data_vecs[types[idx]][data[idx]].unsqueeze(0).mm(self.data_weights[types[idx]]) + self.data_biases[types[idx]]
         if idx not in children:     # leaf
             return embedding
         for child in children[idx]:
-            embedding += torch.mm(self.calc_embedding_rec(data, types, children, edges, child), self.edge_weights[edges[child]]) \
+            embedding += self.calc_embedding_rec(data, types, children, edges, child).mm(self.edge_weights[edges[child]]) \
                          + self.edge_biases[edges[child]]
         return embedding
 
     def calc_score(self, embedding, data_embedding):
-        return torch.mm((self.score_embedding_biases + embedding).unsqueeze(0), self.score_embedding_weights) \
-               + torch.mm((self.score_data_biases + data_embedding).unsqueeze(0), self.score_data_weights)
+        return (self.score_embedding_biases + embedding).mm(self.score_embedding_weights) \
+               + (self.score_data_biases + data_embedding).mm(self.score_data_weights)
 
-    def forward(self, data, types, edges, graphs):
+    def forward(self, data, types, graphs, edges):
         pos = len(data) - 1
         t = types[pos]
         d = data[pos]
@@ -86,29 +86,25 @@ class Net(nn.Module):
         data_embedding += self.data_biases[t]
         correct_edge = edges[pos]
 
-        scores = Variable(torch.zeros(self.max_graph_count * self.edge_count))
+        scores = [] # Variable(torch.zeros(self.max_graph_count * self.edge_count))
+
         i = 0
         graph_count, _ = graphs.shape
         for j in range(graph_count):
         #for s, parents in np.ndenumerate(graphs):
             # calc embedding for correct graph at first
             embedding = self.calc_embedding(data, types, graphs[j], edges)
-            scores[i] = self.calc_score(embedding, data_embedding)
+            #scores[i] = self.calc_score(embedding, data_embedding)
+            scores.append(self.calc_score(embedding, data_embedding))
             i += 1
             for edge in range(self.edge_count):
                 if edge == correct_edge:    # already calculated
                     continue
                 edges[pos] = edge
                 embedding = self.calc_embedding(data, types, graphs[j], edges)
-                scores[i] = self.calc_score(embedding, data_embedding)
+                #scores[i] = self.calc_score(embedding, data_embedding)
+                scores.append(self.calc_score(embedding, data_embedding))
                 i += 1
-
-        # scores = nn.LogSoftmax().forward(scores)
-        # scores = F.softmax(scores)
-        # expected = torch.zeros(len(scores))
-        # expected[0] = 1
-        # criterion = nn.CrossEntropyLoss()
-        # loss = criterion(scores, expected)
 
         return scores
 
@@ -116,3 +112,18 @@ class Net(nn.Module):
         return self.data_weights.values() + self.data_biases.values() \
                  + [self.edge_weights, self.edge_biases, self.score_embedding_weights,
                     self.score_embedding_biases, self.score_data_weights, self.score_data_biases]
+
+
+# softmax and euclidean distance
+def loss(outputs):
+
+    s = Variable(torch.zeros(1, 1))
+    for x in outputs:
+        s += torch.exp(x)
+
+    l = (outputs[0] / s - 1).pow(2)
+
+    for x in outputs[1:]:
+        l += (x / s).pow(2)
+
+    return l
