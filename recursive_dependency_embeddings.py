@@ -55,11 +55,10 @@ for epoch in range(2):  # loop over the dataset multiple times
     while slice_start < len(seq_data):
         for i in range(slice_start, min(len(seq_data), slice_start + slice_size)):
             # get the inputs
-            data = seq_data[slice_start:i]
-            types = seq_types[slice_start:i]
+            data = np.array(seq_data[slice_start:i])
+            types = np.array(seq_types[slice_start:i])
             parents = subgraph(seq_parents, slice_start, i)
-            edges = seq_edges[slice_start:i]
-
+            edges = np.array(seq_edges[slice_start:i])
             #inputs, labels = data
 
             # wrap them in Variable
@@ -69,7 +68,7 @@ for epoch in range(2):  # loop over the dataset multiple times
             optimizer.zero_grad()
 
             # forward + backward + optimize
-            outputs = net(Variable(data), Variable(types), Variable(parents), Variable(edges))
+            outputs = net(data, types, parents, edges)
             loss = criterion(outputs, expected)
             loss.backward()
             optimizer.step()
