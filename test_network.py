@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.optim as optim
-from net import Net, loss
+from net import Net, loss_euclidean, loss_cross_entropy
 import math
 from sys import exit
 
@@ -60,7 +60,14 @@ outputs = net(data, types, graphs, edges)
 #print(my_loss(outputs))
 
 optimizer.zero_grad()
-loss(outputs).backward()
+loss_euclidean = loss_euclidean(outputs)
+print('loss_euclidean:', loss_euclidean)
+
+loss_cross_entropy = loss_cross_entropy(outputs)
+print('loss_cross_entropy:', loss_cross_entropy)
+
+loss_cross_entropy.backward()
+#loss_euclidean(outputs).backward()
 optimizer.step()
 #outputs[0].squeeze().backward()
 

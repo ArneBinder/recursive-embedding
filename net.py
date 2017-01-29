@@ -115,15 +115,25 @@ class Net(nn.Module):
 
 
 # softmax and euclidean distance
-def loss(outputs):
+# assumes data[0] contains the correct value
+def loss_euclidean(data):
 
     s = Variable(torch.zeros(1, 1))
-    for x in outputs:
+    for x in data:
         s += torch.exp(x)
 
-    l = (outputs[0] / s - 1).pow(2)
+    l = (data[0] / s - 1).pow(2)
 
-    for x in outputs[1:]:
+    for x in data[1:]:
         l += (x / s).pow(2)
 
     return l
+
+# softmax and cross entropy
+# assumes data[0] contains the correct value
+def loss_cross_entropy(data):
+    s = Variable(torch.zeros(1, 1))
+    for x in data:
+        s += torch.exp(x)
+
+    return -(data[0] / s).log()
