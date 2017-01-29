@@ -42,10 +42,13 @@ params = list(net.parameters())
 print(len(params))
 
 criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
-optimizer = optim.Adagrad(net.parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
+optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
 
 expected = Variable(torch.zeros(slice_size))
 expected[0] = 1
+
+interval_avg = 50
+num_steps = len(seq_data)
 
 for epoch in range(2):  # loop over the dataset multiple times
 
@@ -53,12 +56,13 @@ for epoch in range(2):  # loop over the dataset multiple times
     slice_start = 0
     #for i, data in enumerate(trainloader, 0):
     while slice_start < len(seq_data):
-        for i in range(slice_start, min(len(seq_data), slice_start + slice_size)):
+        for i in range(slice_start + 1, min(len(seq_data), slice_start + slice_size)):
             # get the inputs
             data = np.array(seq_data[slice_start:i])
             types = np.array(seq_types[slice_start:i])
             parents = subgraph(seq_parents, slice_start, i)
             edges = np.array(seq_edges[slice_start:i])
+            graphs = np.array(graph_candidates(parents, i - slice_start - 1))
             #inputs, labels = data
 
             # wrap them in Variable
@@ -68,15 +72,19 @@ for epoch in range(2):  # loop over the dataset multiple times
             optimizer.zero_grad()
 
             # forward + backward + optimize
-            outputs = net(data, types, parents, edges)
+            outputs = net(data, types, parents, graphs)
             loss = criterion(outputs, expected)
             loss.backward()
             optimizer.step()
 
             # print statistics
             running_loss += loss.data[0]
-            if i % 100 == 99:  # print every 2000 mini-batches
-                print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 2000))
+            #if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
+            if ((i * interval_avg) % num_steps) == 0 or i == 1:
+                #if i > 1:
+                #    average_loss = average_loss * interval_avg / num_steps
+            # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
+                print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss * interval_avg / num_steps))
                 running_loss = 0.0
 
         slice_start += slice_size

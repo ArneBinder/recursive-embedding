@@ -110,3 +110,8 @@ class Net(nn.Module):
         # loss = criterion(scores, expected)
 
         return scores
+
+    def get_parameters(self):
+        return self.data_weights.values() + self.data_biases.values() \
+                 + [self.edge_weights, self.edge_biases, self.score_embedding_weights,
+                    self.score_embedding_biases, self.score_data_weights, self.score_data_biases]
