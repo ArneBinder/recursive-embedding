@@ -2,6 +2,7 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import numpy as np
 
 
 
@@ -11,6 +12,8 @@ class Net(nn.Module):
 
         # dimension of embeddings
         self.dim = dim
+
+        self.edge_count = edge_count
 
         self.slice_size = slice_size
         self.max_forest_count = max_forest_count
@@ -22,7 +25,7 @@ class Net(nn.Module):
         for data_type in data_vecs.keys():
             vecs = data_vecs[data_type]
             _, vec_dim = vecs.shape
-            self.data_vecs[data_type] = vecs
+            self.data_vecs[data_type] = Variable(torch.from_numpy(vecs))
             self.data_weights[data_type] = Variable(torch.rand(vec_dim, dim), requires_grad=True)
             self.data_biases[data_type] = Variable(torch.rand(dim), requires_grad=True)
 
@@ -32,15 +35,15 @@ class Net(nn.Module):
         #    self.edge_weights[i] = torch.zeros(dim, dim) # Variable(torch.zeros(dim, dim), requires_grad=True)
         #    self.edge_biases[i] = Variable(torch.zeros(dim), requires_grad=True)
 
-        self.score_embedding_weights = Variable(torch.rand(1, dim), requires_grad=True)
+        self.score_embedding_weights = Variable(torch.rand(dim, 1), requires_grad=True)
         self.score_embedding_biases = Variable(torch.rand(dim), requires_grad=True)
-        self.score_data_weights = Variable(torch.rand(1, dim), requires_grad=True)
+        self.score_data_weights = Variable(torch.rand(dim, 1), requires_grad=True)
         self.score_data_biases = Variable(torch.rand(dim), requires_grad=True)
 
     def calc_embedding(self, data, types, parents, edges):
 
         # connect roots
-        roots = [i for i, parent in enumerate(parents) if parent == 0]
+        roots = [i[0] for i, parent in np.ndenumerate(parents) if parent == 0]
         for i in range(len(roots) - 1):
             parents[roots[i]] = roots[i + 1]
 
@@ -48,48 +51,55 @@ class Net(nn.Module):
 
         # calc child pointer
         children = {}
-        for i, parent in enumerate(parents):
-            if i + parent not in children:
-                children[i + parent] = [i]
+        for i, parent in np.ndenumerate(parents):
+            i = i[0]
+            parent_pos = i + parent
+            # skip circle at root pos
+            if parent_pos == i:
+                continue
+            if parent_pos not in children:
+                children[parent_pos] = [i]
             else:
-                children[i + parent] += [i]
+                children[parent_pos] += [i]
 
         return self.calc_embedding_rec(data, types, children, edges, root)
 
     def calc_embedding_rec(self, data, types, children, edges, idx):
-        embedding = self.data_vecs[types[idx]][data[idx]] * self.data_weights[types[idx]] + self.data_biases[types[idx]]
+        embedding = torch.mm(self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]]) + self.data_biases[types[idx]]
         if idx not in children:     # leaf
             return embedding
         for child in children[idx]:
-            embedding += self.calc_embedding_rec(data, types, children, edges, child) * self.edge_weights[edges[child]] \
+            embedding += torch.mm(self.calc_embedding_rec(data, types, children, edges, child), self.edge_weights[edges[child]]) \
                          + self.edge_biases[edges[child]]
         return embedding
 
     def calc_score(self, embedding, data_embedding):
-        return (self.score_embedding_biases + embedding) * self.score_embedding_weights \
-               + (self.score_data_biases + data_embedding) * self.score_data_weights
+        return torch.mm((self.score_embedding_biases + embedding).unsqueeze(0), self.score_embedding_weights) \
+               + torch.mm((self.score_data_biases + data_embedding).unsqueeze(0), self.score_data_weights)
 
     def forward(self, data, types, edges, graphs):
         pos = len(data) - 1
         t = types[pos]
         d = data[pos]
-        data_vec = torch.from_numpy(self.data_vecs[t][d])
-        data_embedding = data_vec * self.data_weights[t]
+        data_vec = self.data_vecs[t][d].unsqueeze(0)
+        data_embedding = torch.mm(data_vec, self.data_weights[t])
         data_embedding += self.data_biases[t]
         correct_edge = edges[pos]
 
         scores = Variable(torch.zeros(self.max_graph_count))
         i = 0
-        for parents in graphs:
+        graph_count, _ = graphs.shape
+        for j in range(graph_count):
+        #for s, parents in np.ndenumerate(graphs):
             # calc embedding for correct graph at first
-            embedding = self.calc_embedding(data, types, parents, edges)
+            embedding = self.calc_embedding(data, types, graphs[j], edges)
             scores[i] = self.calc_score(embedding, data_embedding)
             i += 1
             for edge in range(self.edge_count):
                 if edge == correct_edge:    # already calculated
                     continue
                 edges[pos] = edge
-                embedding = self.calc_embedding(data, types, parents, edges)
+                embedding = self.calc_embedding(data, types, graphs[j], edges)
                 scores[i] = self.calc_score(embedding, data_embedding)
                 i += 1
 

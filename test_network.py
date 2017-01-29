@@ -41,9 +41,10 @@ net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
 
 data = np.array(seq_data[0:50])
 types = np.array(seq_types[0:50])
-parents = np.array(subgraph(seq_parents, 0, 50))
+parents = subgraph(seq_parents, 0, 50)
 edges = np.array(seq_edges[0:50])
 
+graphs = np.array(graph_candidates(parents, 49))
 #outputs = net(Variable(torch.from_numpy(data)), Variable(torch.from_numpy(types)), Variable(torch.from_numpy(parents)), Variable(torch.from_numpy(edges)))
-outputs = net(data, types, parents, edges)
+outputs = net(data, types, np.array(parents), graphs)
 print(outputs)
