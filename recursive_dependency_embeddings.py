@@ -44,8 +44,12 @@ print(len(params))
 criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
 
-expected = Variable(torch.zeros(slice_size))
+print('max_graph_count: ', net.max_graph_count)
+print('edge_count: ', net.edge_count)
+
+expected = Variable(torch.zeros(net.max_graph_count * net.edge_count))
 expected[0] = 1
+expected = nn.LogSoftmax().forward(expected)
 
 interval_avg = 50
 num_steps = len(seq_data)
@@ -62,6 +66,8 @@ for epoch in range(2):  # loop over the dataset multiple times
             types = np.array(seq_types[slice_start:i])
             parents = subgraph(seq_parents, slice_start, i)
             edges = np.array(seq_edges[slice_start:i])
+            if len([i for i, parent in enumerate(parents) if parent == 0]) > net.max_forest_count:
+                continue
             graphs = np.array(graph_candidates(parents, i - slice_start - 1))
             #inputs, labels = data
 

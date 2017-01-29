@@ -17,7 +17,7 @@ class Net(nn.Module):
 
         self.slice_size = slice_size
         self.max_forest_count = max_forest_count
-        self.max_graph_count = (slice_size + 1) * 2 ** (max_forest_count - 1)
+        self.max_graph_count = (slice_size + 1) * (2 ** (max_forest_count - 1))
 
         self.data_vecs = {}
         self.data_weights = {}
@@ -86,7 +86,7 @@ class Net(nn.Module):
         data_embedding += self.data_biases[t]
         correct_edge = edges[pos]
 
-        scores = Variable(torch.zeros(self.max_graph_count))
+        scores = Variable(torch.zeros(self.max_graph_count * self.edge_count))
         i = 0
         graph_count, _ = graphs.shape
         for j in range(graph_count):
