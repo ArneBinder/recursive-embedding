@@ -1,4 +1,5 @@
 import pydot
+import matplotlib.pyplot as plt
 # from IPython.display import Image, display
 
 
@@ -30,3 +31,12 @@ def visualize(filename, sequence_graph, data_mapping, edge_vocab):
 
     graph.write_png(filename)
     # view_pydot(graph)
+
+
+def unfold_and_plot(data, width):
+    t = data.squeeze().data
+    print(len(t))
+    #unfolded = t.unfold(0,net.edge_count, net.edge_count).numpy()
+    unfolded = t.numpy().reshape((len(t)/width, width))
+    print(unfolded)
+    plt.imshow(unfolded, aspect='auto', interpolation='none')

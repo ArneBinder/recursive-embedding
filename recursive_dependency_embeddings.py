@@ -49,7 +49,7 @@ print('edge_count: ', net.edge_count)
 
 expected = Variable(torch.zeros(net.max_graph_count * net.edge_count))
 expected[0] = 1
-expected = nn.LogSoftmax().forward(expected)
+#expected = nn.LogSoftmax().forward(expected)
 
 interval_avg = 50
 num_steps = len(seq_data)

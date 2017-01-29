@@ -15,10 +15,10 @@ from net import Net
 
 dim = 300
 # edge_count = 60
-seq_length = 10
+#seq_length = 10
 
-slice_size = 75
-max_forest_count = 10
+slice_size = 30
+max_forest_count = 5
 
 nlp = spacy.load('en')
 nlp.pipeline = [nlp.tagger, nlp.parser]
@@ -31,20 +31,40 @@ data_embedding_maps_human = {constants.WORD_EMBEDDING: human_mapping}
 # data vectors
 data_vecs = {constants.WORD_EMBEDDING: vecs}
 
-data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
+data_dir = '/home/arne/devel/ML/data/'
 # create data arrays
 (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
     read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
               args={'max_articles': 1, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
 
 net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
+print('output size:', net.max_graph_count)
 
-data = np.array(seq_data[0:50])
-types = np.array(seq_types[0:50])
-parents = subgraph(seq_parents, 0, 50)
-edges = np.array(seq_edges[0:50])
+optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
 
-graphs = np.array(graph_candidates(parents, 49))
+ind = 0
+data = np.array(seq_data[0:(ind+1)])
+types = np.array(seq_types[0:(ind+1)])
+parents = subgraph(seq_parents, 0, (ind+1))
+edges = np.array(seq_edges[0:(ind+1)])
+
+graphs = np.array(graph_candidates(parents, ind))
 #outputs = net(Variable(torch.from_numpy(data)), Variable(torch.from_numpy(types)), Variable(torch.from_numpy(parents)), Variable(torch.from_numpy(edges)))
 outputs = net(data, types, np.array(parents), graphs)
-print(outputs)
+print('outputs:', outputs)
+
+outputs_soft = F.softmax(outputs.unsqueeze(0))
+print('outputs_soft:', outputs_soft)
+
+expected = Variable(torch.zeros(net.max_graph_count * net.edge_count).type(torch.FloatTensor), requires_grad=False)
+expected[0] = 1.
+print('expected:', expected)
+
+loss = (outputs_soft - expected).pow(2).sum()
+print(loss.data[0])
+
+optimizer.zero_grad()
+loss.backward()
+
+#loss = F.cross_entropy(outputs_soft, expected)
+#print('loss:', loss)
