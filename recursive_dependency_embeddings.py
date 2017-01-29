@@ -10,14 +10,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.optim as optim
-from net import Net
+from net import Net, loss_cross_entropy, loss_euclidean
 
 dim = 300
 # edge_count = 60
-seq_length = 10
+# seq_length = 10
 
-slice_size = 75
-max_forest_count = 10
+slice_size = 30
+max_forest_count = 5
 
 nlp = spacy.load('en')
 nlp.pipeline = [nlp.tagger, nlp.parser]
@@ -30,7 +30,7 @@ data_embedding_maps_human = {constants.WORD_EMBEDDING: human_mapping}
 # data vectors
 data_vecs = {constants.WORD_EMBEDDING: vecs}
 
-data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
+data_dir = '/home/arne/devel/ML/data/'
 # create data arrays
 (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
     read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
@@ -41,7 +41,7 @@ net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
 params = list(net.parameters())
 print(len(params))
 
-criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
+#criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
 
 print('max_graph_count: ', net.max_graph_count)
@@ -54,44 +54,48 @@ expected[0] = 1
 interval_avg = 50
 num_steps = len(seq_data)
 
-for epoch in range(2):  # loop over the dataset multiple times
+#for epoch in range(2):  # loop over the dataset multiple times
 
-    running_loss = 0.0
-    slice_start = 0
-    #for i, data in enumerate(trainloader, 0):
-    while slice_start < len(seq_data):
-        for i in range(slice_start + 1, min(len(seq_data), slice_start + slice_size)):
-            # get the inputs
-            data = np.array(seq_data[slice_start:i])
-            types = np.array(seq_types[slice_start:i])
-            parents = subgraph(seq_parents, slice_start, i)
-            edges = np.array(seq_edges[slice_start:i])
-            if len([i for i, parent in enumerate(parents) if parent == 0]) > net.max_forest_count:
-                continue
-            graphs = np.array(graph_candidates(parents, i - slice_start - 1))
-            #inputs, labels = data
+running_loss = 0.0
+slice_start = 0
+#for i, data in enumerate(trainloader, 0):
+while slice_start < len(seq_data):
+    for i in range(slice_start + 1, min(len(seq_data), slice_start + slice_size)):
+        # get the inputs
+        data = np.array(seq_data[slice_start:i])
+        types = np.array(seq_types[slice_start:i])
+        parents = subgraph(seq_parents, slice_start, i)
+        edges = np.array(seq_edges[slice_start:i])
+        if len([i for i, parent in enumerate(parents) if parent == 0]) > net.max_forest_count:
+            continue
+        graphs = np.array(graph_candidates(parents, i - slice_start - 1))
+        #inputs, labels = data
 
-            # wrap them in Variable
-            #inputs, labels = Variable(inputs), Variable(labels)
+        # wrap them in Variable
+        #inputs, labels = Variable(inputs), Variable(labels)
 
-            # zero the parameter gradients
-            optimizer.zero_grad()
+        # zero the parameter gradients
+        optimizer.zero_grad()
 
-            # forward + backward + optimize
-            outputs = net(data, types, parents, graphs)
-            loss = criterion(outputs, expected)
-            loss.backward()
-            optimizer.step()
+        # forward + backward + optimize
+        outputs = net(data, types, graphs, edges)
+        #loss = criterion(outputs, expected)
+        loss = net.loss_euclidean(outputs)
 
-            # print statistics
-            running_loss += loss.data[0]
-            #if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
-            if ((i * interval_avg) % num_steps) == 0 or i == 1:
-                #if i > 1:
-                #    average_loss = average_loss * interval_avg / num_steps
-            # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
-                print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss * interval_avg / num_steps))
-                running_loss = 0.0
+        loss.backward()
+        optimizer.step()
 
-        slice_start += slice_size
+        # print statistics
+        running_loss += loss.data[0]
+        #if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
+        if ((i * interval_avg) % num_steps) == 0 or i == 1:
+            #if i > 1:
+            #    average_loss = average_loss * interval_avg / num_steps
+        # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
+            print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
+            running_loss = 0.0
+        break
+
+    slice_start += slice_size
+    break
 print('Finished Training')
