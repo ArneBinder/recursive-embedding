@@ -119,12 +119,18 @@ class Net(nn.Module):
     def loss_euclidean(self, scores):
 
         s = Variable(torch.zeros(1, 1))
+        e = []
         for x in scores:
-            s += torch.exp(x)
+            x = torch.exp(x)
+            e.append(x)
+            s += x
+        n = []
+        for x in e:
+            n.append(x / s)
 
-        l = (scores[0] / s - 1).pow(2)
+        l = (e[0] / s - 1).pow(2)
 
-        for x in scores[1:]:
+        for x in e[1:]:
             l += (x / s).pow(2)
 
         return l
@@ -136,4 +142,4 @@ class Net(nn.Module):
         for x in scores:
             s += torch.exp(x)
 
-        return -(scores[0] / s).log()
+        return s.log() - scores[0]

@@ -42,6 +42,15 @@ data_dir = '/home/arne/devel/ML/data/'
 net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
 print('output size:', net.max_graph_count)
 
+
+dummy = [Variable(torch.ones(1, 1))] + [Variable(torch.zeros(1, 1)) for i in range(5)]
+#dummy[0][0][0] = 1.
+
+print('loss_cross_entropy:', net.loss_cross_entropy(dummy))
+print('loss_euclidean:', net.loss_euclidean(dummy))
+
+exit()
+
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
 
 ind = slice_size
@@ -54,18 +63,18 @@ graphs = np.array(graph_candidates(parents, ind))
 
 
 for epoch in range(3):
-    outputs = net(data, types, graphs, edges)
+    outputs = net(data, types, graphs, edges, ind)
 
     optimizer.zero_grad()
 
-    loss_euclidean = net.loss_euclidean(outputs)
-    print('loss_euclidean:', loss_euclidean.squeeze().data[0])
+    #loss_euclidean = net.loss_euclidean(outputs)
+    #print('loss_euclidean:', loss_euclidean.squeeze().data[0])
 
-    #loss_cross_entropy = loss_cross_entropy(outputs)
-    #print('loss_cross_entropy:', loss_cross_entropy)
+    loss_cross_entropy = net.loss_cross_entropy(outputs)
+    print('loss_cross_entropy:', loss_cross_entropy)
 
-    #loss_cross_entropy.backward()
-    loss_euclidean.backward()
+    loss_cross_entropy.backward()
+    #loss_euclidean.backward()
     optimizer.step()
 
 exit()
