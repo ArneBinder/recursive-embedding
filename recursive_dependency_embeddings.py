@@ -30,12 +30,14 @@ data_dir = '/home/arne/devel/ML/data/'
 # create data arrays
 (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
     read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
-              args={'max_articles': 1, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
+              args={'max_articles': 10, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
+
+print('data length:', len(seq_data))
 
 net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
 
 params = list(net.get_parameters())
-print(len(params))
+print('variables to train:', len(params))
 
 #criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
