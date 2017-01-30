@@ -15,6 +15,27 @@ import math
 from sys import exit
 
 
+expected = torch.cat((Variable(torch.zeros(1, 1).type(torch.FloatTensor)), Variable(torch.zeros(7, 1).type(torch.FloatTensor)))).type(torch.FloatTensor).squeeze()
+#expected[0][0] = 1.
+print('expected:', expected)
+dummy = [Variable(torch.ones(1, 1)), Variable(torch.ones(1, 1))] + [Variable(torch.ones(1, 1)) for i in range(6)]
+#dummy[0][0][0] = 1.
+
+#print('loss_cross_entropy:', net.loss_cross_entropy(dummy))
+#print('loss_euclidean:', net.loss_euclidean(dummy))
+
+x = torch.cat(dummy).squeeze()
+print('x:', x)
+
+loss_fn = torch.nn.L1Loss(size_average=True)
+
+l = loss_fn(x, expected)
+print('l:', l)
+
+
+exit()
+
+
 dim = 300
 # edge_count = 60
 #seq_length = 10
@@ -43,13 +64,6 @@ net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
 print('output size:', net.max_graph_count)
 
 
-dummy = [Variable(torch.ones(1, 1))] + [Variable(torch.zeros(1, 1)) for i in range(5)]
-#dummy[0][0][0] = 1.
-
-print('loss_cross_entropy:', net.loss_cross_entropy(dummy))
-print('loss_euclidean:', net.loss_euclidean(dummy))
-
-exit()
 
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
 
