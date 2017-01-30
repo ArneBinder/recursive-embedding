@@ -11,6 +11,7 @@ import datetime
 from torch.autograd import Variable
 from net import Net
 from tools import mkdir_p
+from tensorboard_logger import configure, log_value
 
 dim = 300
 # edge_count = 60
@@ -33,6 +34,8 @@ data_vecs = {constants.WORD_EMBEDDING: vecs}
 data_dir = '/home/arne/devel/ML/data/'
 log_dir = data_dir + 'summaries/train_{:%Y-%m-%d_%H:%M:%S}/'.format(datetime.datetime.now())
 mkdir_p(log_dir)
+# configure tensorboard logging
+configure(log_dir, flush_secs=1)
 
 # create data arrays
 (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
@@ -56,9 +59,9 @@ print('max_graph_count: ', net.max_graph_count)
 print('edge_count: ', net.edge_count)
 
 interval_avg = 50
-max_steps = 10 #len(seq_data)
+max_steps = 100 #len(seq_data)
 
-for epoch in range(1):
+for epoch in range(5):
     running_loss = 0.0
     slice_start = 0
     while slice_start < max_steps:
@@ -96,6 +99,7 @@ for epoch in range(1):
             # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
             #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
             print('[%d, %5d] loss: %15.3f   size: %2d' % (epoch+1, i, running_loss, i - slice_start))
+            log_value('loss', running_loss, i)
             running_loss = 0.0
 
         slice_start += slice_size
