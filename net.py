@@ -77,8 +77,8 @@ class Net(nn.Module):
         return (self.score_embedding_biases + embedding).mm(self.score_embedding_weights) \
                + (self.score_data_biases + data_embedding).mm(self.score_data_weights)
 
-    def forward(self, data, types, graphs, edges):
-        pos = len(data) - 1
+    def forward(self, data, types, graphs, edges, pos):
+        #pos = len(data) - 1
         t = types[pos]
         d = data[pos]
         data_vec = self.data_vecs[t][d].unsqueeze(0)

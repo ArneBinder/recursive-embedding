@@ -12,7 +12,7 @@ dim = 300
 # edge_count = 60
 # seq_length = 10
 
-slice_size = 30         # 75
+slice_size = 10         # 75
 max_forest_count = 5    # 10
 
 nlp = spacy.load('en')
@@ -56,21 +56,22 @@ slice_start = 0
 
 for epoch in range(1):
     while slice_start < num_steps:
-        for i in range(slice_start + 1, min(num_steps, slice_start + slice_size)):
+        t = range(slice_start + 1, min(num_steps, slice_start + slice_size + 1))
+        for i in range(slice_start + 1, min(num_steps, slice_start + slice_size + 1)):
             # get the inputs
             data = np.array(seq_data[slice_start:i])
             types = np.array(seq_types[slice_start:i])
             parents = subgraph(seq_parents, slice_start, i)
             edges = np.array(seq_edges[slice_start:i])
-            if len([i for i, parent in enumerate(parents) if parent == 0]) > net.max_forest_count:
+            if len([True for parent in parents if parent == 0]) > net.max_forest_count:
                 continue
-            graphs = np.array(graph_candidates(parents, i - slice_start))
+            graphs = np.array(graph_candidates(parents, i - slice_start - 1))
 
             # zero the parameter gradients
             optimizer.zero_grad()
 
             # forward + backward + optimize
-            outputs = net(data, types, graphs, edges)
+            outputs = net(data, types, graphs, edges, i - slice_start - 1)
             #loss = criterion(outputs, expected)
             loss = net.loss_euclidean(outputs)
             #loss = net.loss_cross_entropy(outputs)
@@ -86,7 +87,7 @@ for epoch in range(1):
                 #    average_loss = average_loss * interval_avg / num_steps
             # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
             #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
-            print('[%d, %5d] loss: %.3f size: %2d' % (epoch+1, i + 1, running_loss, i - slice_start + 1))
+            print('[%d, %5d] loss: %.3f size: %2d' % (epoch+1, i, running_loss, i - slice_start))
             running_loss = 0.0
 
         slice_start += slice_size
