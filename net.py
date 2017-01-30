@@ -26,19 +26,19 @@ class Net(nn.Module):
             vecs = data_vecs[data_type]
             _, vec_dim = vecs.shape
             self.data_vecs[data_type] = Variable(torch.from_numpy(vecs), requires_grad=False)
-            self.data_weights[data_type] = Variable(torch.zeros(vec_dim, dim), requires_grad=True)
-            self.data_biases[data_type] = Variable(torch.zeros(dim), requires_grad=True)
+            self.data_weights[data_type] = Variable(torch.rand(vec_dim, dim), requires_grad=True)
+            self.data_biases[data_type] = Variable(torch.rand(dim), requires_grad=True)
 
-        self.edge_weights = Variable(torch.zeros(edge_count, dim, dim), requires_grad=True)
-        self.edge_biases = Variable(torch.zeros(edge_count, dim), requires_grad=True)
+        self.edge_weights = Variable(torch.rand(edge_count, dim, dim), requires_grad=True)
+        self.edge_biases = Variable(torch.rand(edge_count, dim), requires_grad=True)
         #for i in range(edge_count):
         #    self.edge_weights[i] = torch.zeros(dim, dim) # Variable(torch.zeros(dim, dim), requires_grad=True)
         #    self.edge_biases[i] = Variable(torch.zeros(dim), requires_grad=True)
 
-        self.score_embedding_weights = Variable(torch.zeros(dim, 1), requires_grad=True)
-        self.score_embedding_biases = Variable(torch.zeros(1, dim), requires_grad=True)
-        self.score_data_weights = Variable(torch.zeros(dim, 1), requires_grad=True)
-        self.score_data_biases = Variable(torch.zeros(1, dim), requires_grad=True)
+        self.score_embedding_weights = Variable(torch.rand(dim, 1), requires_grad=True)
+        self.score_embedding_biases = Variable(torch.rand(1, dim), requires_grad=True)
+        self.score_data_weights = Variable(torch.rand(dim, 1), requires_grad=True)
+        self.score_data_biases = Variable(torch.rand(1, dim), requires_grad=True)
 
     def calc_embedding(self, data, types, parents, edges):
 

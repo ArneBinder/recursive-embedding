@@ -75,6 +75,7 @@ graphs = np.array(graph_candidates(parents, ind))
 for epoch in range(3):
     outputs = net(data, types, graphs, edges, ind)
     outputs_cat = torch.cat(outputs).squeeze()
+    print('outputs:', outputs_cat.unsqueeze(0))
     expected = Variable(torch.cat((torch.ones(1), torch.zeros(len(outputs)-1)))).type(torch.FloatTensor).squeeze()
 
     optimizer.zero_grad()

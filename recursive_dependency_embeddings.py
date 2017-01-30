@@ -5,7 +5,9 @@ from visualize import visualize
 import numpy as np
 import spacy
 import constants
+import torch
 import torch.optim as optim
+from torch.autograd import Variable
 from net import Net
 
 dim = 300
@@ -35,6 +37,7 @@ data_dir = '/home/arne/devel/ML/data/'
 print('data length:', len(seq_data))
 
 net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
+loss_fn = torch.nn.L1Loss(size_average=True)
 
 params = list(net.get_parameters())
 print('variables to train:', len(params))
@@ -72,8 +75,14 @@ for epoch in range(1):
 
             # forward + backward + optimize
             outputs = net(data, types, graphs, edges, i - slice_start - 1)
+            outputs_cat = torch.cat(outputs).squeeze()
+            #print('outputs:', outputs_cat.unsqueeze(0))
+            expected = Variable(torch.cat((torch.ones(1), torch.zeros(len(outputs) - 1)))).type(
+                torch.FloatTensor).squeeze()
+
+            loss = loss_fn(outputs_cat, expected)
             #loss = criterion(outputs, expected)
-            loss = net.loss_euclidean(outputs)
+            #loss = net.loss_euclidean(outputs)
             #loss = net.loss_cross_entropy(outputs)
 
             loss.backward()
@@ -87,7 +96,7 @@ for epoch in range(1):
                 #    average_loss = average_loss * interval_avg / num_steps
             # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
             #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
-            print('[%d, %5d] loss: %.3f size: %2d' % (epoch+1, i, running_loss, i - slice_start))
+            print('[%d, %5d] loss: %.3f slice_size: %2d' % (epoch+1, i, running_loss, i - slice_start))
             running_loss = 0.0
 
         slice_start += slice_size
