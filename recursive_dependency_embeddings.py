@@ -48,13 +48,8 @@ optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_deca
 print('max_graph_count: ', net.max_graph_count)
 print('edge_count: ', net.edge_count)
 
-#expected = Variable(torch.zeros(net.max_graph_count * net.edge_count))
-#expected[0] = 1
-
 interval_avg = 50
 max_steps = 100 #len(seq_data)
-
-#for epoch in range(2):  # loop over the dataset multiple times
 
 running_loss = 0.0
 slice_start = 0
@@ -81,9 +76,6 @@ for epoch in range(1):
                 torch.FloatTensor).squeeze()
 
             loss = loss_fn(outputs_cat, expected)
-            #loss = criterion(outputs, expected)
-            #loss = net.loss_euclidean(outputs)
-            #loss = net.loss_cross_entropy(outputs)
 
             loss.backward()
             optimizer.step()
@@ -96,7 +88,7 @@ for epoch in range(1):
                 #    average_loss = average_loss * interval_avg / num_steps
             # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
             #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
-            print('[%d, %5d] loss: %.3f slice_size: %2d' % (epoch+1, i, running_loss, i - slice_start))
+            print('[%d, %5d] loss: %15.3f slice_size: %2d' % (epoch+1, i, running_loss, i - slice_start))
             running_loss = 0.0
 
         slice_start += slice_size

@@ -112,34 +112,3 @@ class Net(nn.Module):
         return self.data_weights.values() + self.data_biases.values() \
                  + [self.edge_weights, self.edge_biases, self.score_embedding_weights,
                     self.score_embedding_biases, self.score_data_weights, self.score_data_biases]
-
-
-    # softmax and euclidean distance
-    # assumes data[0] contains the correct value
-    def loss_euclidean(self, scores):
-
-        s = Variable(torch.zeros(1, 1))
-        e = []
-        for x in scores:
-            x = torch.exp(x)
-            e.append(x)
-            s += x
-        n = []
-        for x in e:
-            n.append(x / s)
-
-        l = (e[0] / s - 1).pow(2)
-
-        for x in e[1:]:
-            l += (x / s).pow(2)
-
-        return l
-
-    # softmax and cross entropy
-    # assumes data[0] contains the correct value
-    def loss_cross_entropy(self, scores):
-        s = Variable(torch.zeros(1, 1))
-        for x in scores:
-            s += torch.exp(x)
-
-        return s.log() - scores[0]
