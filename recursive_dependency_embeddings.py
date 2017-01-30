@@ -47,17 +47,15 @@ print('edge_count: ', net.edge_count)
 #expected[0] = 1
 
 interval_avg = 50
-num_steps = 100#len(seq_data)
+max_steps = 100 #len(seq_data)
 
 #for epoch in range(2):  # loop over the dataset multiple times
 
 running_loss = 0.0
 slice_start = 0
-
 for epoch in range(1):
-    while slice_start < num_steps:
-        t = range(slice_start + 1, min(num_steps, slice_start + slice_size + 1))
-        for i in range(slice_start + 1, min(num_steps, slice_start + slice_size + 1)):
+    while slice_start < max_steps:
+        for i in range(slice_start + 1, min(max_steps, len(seq_data) + 1, slice_start + slice_size + 1)):
             # get the inputs
             data = np.array(seq_data[slice_start:i])
             types = np.array(seq_types[slice_start:i])
