@@ -5,10 +5,6 @@ from visualize import visualize
 import numpy as np
 import spacy
 import constants
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
 import torch.optim as optim
 from net import Net
 
@@ -47,9 +43,8 @@ optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_deca
 print('max_graph_count: ', net.max_graph_count)
 print('edge_count: ', net.edge_count)
 
-expected = Variable(torch.zeros(net.max_graph_count * net.edge_count))
-expected[0] = 1
-#expected = nn.LogSoftmax().forward(expected)
+#expected = Variable(torch.zeros(net.max_graph_count * net.edge_count))
+#expected[0] = 1
 
 interval_avg = 50
 num_steps = 10#len(seq_data)
@@ -77,6 +72,7 @@ while slice_start < num_steps:
         outputs = net(data, types, graphs, edges)
         #loss = criterion(outputs, expected)
         loss = net.loss_euclidean(outputs)
+        #loss = net.loss_cross_entropy(outputs)
 
         loss.backward()
         optimizer.step()
