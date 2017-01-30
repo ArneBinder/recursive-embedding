@@ -7,8 +7,10 @@ import spacy
 import constants
 import torch
 import torch.optim as optim
+import datetime
 from torch.autograd import Variable
 from net import Net
+from tools import mkdir_p
 
 dim = 300
 # edge_count = 60
@@ -29,6 +31,9 @@ data_embedding_maps_human = {constants.WORD_EMBEDDING: human_mapping}
 data_vecs = {constants.WORD_EMBEDDING: vecs}
 
 data_dir = '/home/arne/devel/ML/data/'
+log_dir = data_dir + 'summaries/train_{:%Y-%m-%d_%H:%M:%S}/'.format(datetime.datetime.now())
+mkdir_p(log_dir)
+
 # create data arrays
 (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
     read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
@@ -51,11 +56,11 @@ print('max_graph_count: ', net.max_graph_count)
 print('edge_count: ', net.edge_count)
 
 interval_avg = 50
-max_steps = 100 #len(seq_data)
+max_steps = 10 #len(seq_data)
 
-running_loss = 0.0
-slice_start = 0
 for epoch in range(1):
+    running_loss = 0.0
+    slice_start = 0
     while slice_start < max_steps:
         for i in range(slice_start + 1, min(max_steps, len(seq_data) + 1, slice_start + slice_size + 1)):
             # get the inputs
@@ -94,5 +99,9 @@ for epoch in range(1):
             running_loss = 0.0
 
         slice_start += slice_size
+    model_fn = log_dir + 'model-' + '{:03d}'.format(epoch)
+    print('write model to '+model_fn)
+    with open(model_fn, 'w') as f:
+        torch.save(net, f)
 
 print('Finished Training')
