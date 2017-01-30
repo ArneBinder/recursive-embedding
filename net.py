@@ -71,7 +71,7 @@ class Net(nn.Module):
         for child in children[idx]:
             embedding += self.calc_embedding_rec(data, types, children, edges, child).mm(self.edge_weights[edges[child]]) \
                          + self.edge_biases[edges[child]]
-        return embedding
+        return embedding.clamp(min=0)
 
     def calc_score(self, embedding, data_embedding):
         return (self.score_embedding_biases + embedding).mm(self.score_embedding_weights) \

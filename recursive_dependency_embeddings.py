@@ -12,7 +12,7 @@ dim = 300
 # edge_count = 60
 # seq_length = 10
 
-slice_size = 10         # 75
+slice_size = 20         # 75
 max_forest_count = 5    # 10
 
 nlp = spacy.load('en')
