@@ -14,26 +14,21 @@ from net import Net
 import math
 from sys import exit
 
-
-expected = torch.cat((Variable(torch.zeros(1, 1).type(torch.FloatTensor)), Variable(torch.zeros(7, 1).type(torch.FloatTensor)))).type(torch.FloatTensor).squeeze()
-#expected[0][0] = 1.
-print('expected:', expected)
-dummy = [Variable(torch.ones(1, 1)), Variable(torch.ones(1, 1))] + [Variable(torch.ones(1, 1)) for i in range(6)]
-#dummy[0][0][0] = 1.
-
-#print('loss_cross_entropy:', net.loss_cross_entropy(dummy))
-#print('loss_euclidean:', net.loss_euclidean(dummy))
-
-x = torch.cat(dummy).squeeze()
-print('x:', x)
-
-loss_fn = torch.nn.L1Loss(size_average=True)
-
-l = loss_fn(x, expected)
-print('l:', l)
-
-
-exit()
+#
+# expected = torch.cat((Variable(torch.ones(1, 1)), Variable(torch.zeros(7, 1)))).type(torch.FloatTensor).squeeze()
+# print('expected:', expected)
+# dummy = [Variable(torch.ones(1, 1)), Variable(torch.zeros(1, 1))] + [Variable(torch.zeros(1, 1)) for i in range(6)]
+#
+# x = torch.cat(dummy).squeeze()
+# print('x:', x)
+#
+# loss_fn = torch.nn.L1Loss(size_average=True)
+#
+# l = loss_fn(x, expected)
+# print('l:', l)
+#
+#
+# exit()
 
 
 dim = 300
@@ -62,6 +57,7 @@ data_dir = '/home/arne/devel/ML/data/'
 
 net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
 print('output size:', net.max_graph_count)
+loss_fn = torch.nn.L1Loss(size_average=True)
 
 
 
@@ -78,16 +74,21 @@ graphs = np.array(graph_candidates(parents, ind))
 
 for epoch in range(3):
     outputs = net(data, types, graphs, edges, ind)
+    outputs_cat = torch.cat(outputs).squeeze()
+    expected = Variable(torch.cat((torch.ones(1), torch.zeros(len(outputs)-1)))).type(torch.FloatTensor).squeeze()
 
     optimizer.zero_grad()
 
+    loss = loss_fn(outputs_cat, expected)
+    print('loss:', loss.data[0])
+    loss.backward()
     #loss_euclidean = net.loss_euclidean(outputs)
     #print('loss_euclidean:', loss_euclidean.squeeze().data[0])
 
-    loss_cross_entropy = net.loss_cross_entropy(outputs)
-    print('loss_cross_entropy:', loss_cross_entropy)
+    #loss_cross_entropy = net.loss_cross_entropy(outputs)
+    #print('loss_cross_entropy:', loss_cross_entropy)
 
-    loss_cross_entropy.backward()
+    #loss_cross_entropy.backward()
     #loss_euclidean.backward()
     optimizer.step()
 
