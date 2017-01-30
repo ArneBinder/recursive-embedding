@@ -34,7 +34,7 @@ data_dir = '/home/arne/devel/ML/data/'
 
 net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
 
-params = list(net.parameters())
+params = list(net.get_parameters())
 print(len(params))
 
 #criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
@@ -47,47 +47,48 @@ print('edge_count: ', net.edge_count)
 #expected[0] = 1
 
 interval_avg = 50
-num_steps = 10#len(seq_data)
+num_steps = 100#len(seq_data)
 
 #for epoch in range(2):  # loop over the dataset multiple times
 
 running_loss = 0.0
 slice_start = 0
-#for i, data in enumerate(trainloader, 0):
-while slice_start < num_steps:
-    for i in range(slice_start + 1, min(num_steps, slice_start + slice_size)):
-        # get the inputs
-        data = np.array(seq_data[slice_start:i])
-        types = np.array(seq_types[slice_start:i])
-        parents = subgraph(seq_parents, slice_start, i)
-        edges = np.array(seq_edges[slice_start:i])
-        if len([i for i, parent in enumerate(parents) if parent == 0]) > net.max_forest_count:
-            continue
-        graphs = np.array(graph_candidates(parents, i - slice_start))
 
-        # zero the parameter gradients
-        optimizer.zero_grad()
+for epoch in range(1):
+    while slice_start < num_steps:
+        for i in range(slice_start + 1, min(num_steps, slice_start + slice_size)):
+            # get the inputs
+            data = np.array(seq_data[slice_start:i])
+            types = np.array(seq_types[slice_start:i])
+            parents = subgraph(seq_parents, slice_start, i)
+            edges = np.array(seq_edges[slice_start:i])
+            if len([i for i, parent in enumerate(parents) if parent == 0]) > net.max_forest_count:
+                continue
+            graphs = np.array(graph_candidates(parents, i - slice_start))
 
-        # forward + backward + optimize
-        outputs = net(data, types, graphs, edges)
-        #loss = criterion(outputs, expected)
-        loss = net.loss_euclidean(outputs)
-        #loss = net.loss_cross_entropy(outputs)
+            # zero the parameter gradients
+            optimizer.zero_grad()
 
-        loss.backward()
-        optimizer.step()
+            # forward + backward + optimize
+            outputs = net(data, types, graphs, edges)
+            #loss = criterion(outputs, expected)
+            loss = net.loss_euclidean(outputs)
+            #loss = net.loss_cross_entropy(outputs)
 
-        # print statistics
-        running_loss += loss.squeeze().data[0]
-        #if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
-        #if ((i * interval_avg) % num_steps) == 0 or i == 1:
-            #if i > 1:
-            #    average_loss = average_loss * interval_avg / num_steps
-        # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
-        #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
-        print('[%5d] loss: %.3f size: %2d' % (i + 1, running_loss, i - slice_start + 1))
-        running_loss = 0.0
+            loss.backward()
+            optimizer.step()
 
-    slice_start += slice_size
+            # print statistics
+            running_loss += loss.squeeze().data[0]
+            #if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
+            #if ((i * interval_avg) % num_steps) == 0 or i == 1:
+                #if i > 1:
+                #    average_loss = average_loss * interval_avg / num_steps
+            # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
+            #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
+            print('[%d, %5d] loss: %.3f size: %2d' % (epoch+1, i + 1, running_loss, i - slice_start + 1))
+            running_loss = 0.0
+
+        slice_start += slice_size
 
 print('Finished Training')
