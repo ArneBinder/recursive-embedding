@@ -10,14 +10,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.optim as optim
-from net import Net, loss_cross_entropy, loss_euclidean
+from net import Net
 
 dim = 300
 # edge_count = 60
 # seq_length = 10
 
-slice_size = 30
-max_forest_count = 5
+slice_size = 30         # 75
+max_forest_count = 5    # 10
 
 nlp = spacy.load('en')
 nlp.pipeline = [nlp.tagger, nlp.parser]
@@ -52,15 +52,15 @@ expected[0] = 1
 #expected = nn.LogSoftmax().forward(expected)
 
 interval_avg = 50
-num_steps = len(seq_data)
+num_steps = 10#len(seq_data)
 
 #for epoch in range(2):  # loop over the dataset multiple times
 
 running_loss = 0.0
 slice_start = 0
 #for i, data in enumerate(trainloader, 0):
-while slice_start < len(seq_data):
-    for i in range(slice_start + 1, min(len(seq_data), slice_start + slice_size)):
+while slice_start < num_steps:
+    for i in range(slice_start + 1, min(num_steps, slice_start + slice_size)):
         # get the inputs
         data = np.array(seq_data[slice_start:i])
         types = np.array(seq_types[slice_start:i])
@@ -68,11 +68,7 @@ while slice_start < len(seq_data):
         edges = np.array(seq_edges[slice_start:i])
         if len([i for i, parent in enumerate(parents) if parent == 0]) > net.max_forest_count:
             continue
-        graphs = np.array(graph_candidates(parents, i - slice_start - 1))
-        #inputs, labels = data
-
-        # wrap them in Variable
-        #inputs, labels = Variable(inputs), Variable(labels)
+        graphs = np.array(graph_candidates(parents, i - slice_start))
 
         # zero the parameter gradients
         optimizer.zero_grad()
@@ -86,16 +82,16 @@ while slice_start < len(seq_data):
         optimizer.step()
 
         # print statistics
-        running_loss += loss.data[0]
+        running_loss += loss.squeeze().data[0]
         #if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
-        if ((i * interval_avg) % num_steps) == 0 or i == 1:
+        #if ((i * interval_avg) % num_steps) == 0 or i == 1:
             #if i > 1:
             #    average_loss = average_loss * interval_avg / num_steps
         # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
-            print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
-            running_loss = 0.0
-        break
+        #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
+        print('[%5d] loss: %.3f size: %2d' % (i + 1, running_loss, i - slice_start + 1))
+        running_loss = 0.0
 
     slice_start += slice_size
-    break
+
 print('Finished Training')
