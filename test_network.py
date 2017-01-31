@@ -17,16 +17,16 @@ from sys import exit
 
 #expected = torch.cat((Variable(torch.ones(1)), Variable(torch.zeros(7)))).type(torch.LongTensor)
 #print('expected:', expected)
-dummy = [Variable(torch.ones(1)*5)] + [Variable(torch.zeros(1)) for i in range(10)]
+dummy = [Variable(torch.ones(1))] + [Variable(torch.zeros(1)) for i in range(10)]
 
 x = torch.cat(dummy)
 print('x:', x)
 
 loss_fn = torch.nn.CrossEntropyLoss(size_average=True)
 
-l = loss_fn(x, Variable(torch.ones(1).type(torch.LongTensor)))
+l = loss_fn(x, Variable(torch.zeros(1).type(torch.LongTensor)))
 #l = loss_fn(Variable(torch.ones(1)), Variable(torch.ones(1)).type(torch.LongTensor))
-print('l:', l[0])
+print('l:', l.data[0])
 
 
 exit()

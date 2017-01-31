@@ -61,9 +61,9 @@ print('max_graph_count: ', net.max_graph_count)
 print('edge_count: ', net.edge_count)
 
 interval_avg = 50
-max_steps = 100  # len(seq_data)
+max_steps = 20  # len(seq_data)
 
-for epoch in range(5):
+for epoch in range(50):
     running_loss = 0.0
     slice_start = 0
     while slice_start < max_steps:
@@ -107,8 +107,8 @@ for epoch in range(5):
 
         slice_start += slice_size
     model_fn = log_dir + 'model-' + '{:03d}'.format(epoch)
-    print('write model to ' + model_fn)
-    with open(model_fn, 'w') as f:
-        torch.save(net, f)
+    #print('write model to ' + model_fn)
+    #with open(model_fn, 'w') as f:
+    #    torch.save(net, f)
 
 print('Finished Training')

@@ -99,30 +99,23 @@ class Net(nn.Module):
         for child in children[idx]:
             child_embedding = self.calc_embedding_rec(data, types, children, edges, child)
             embedding = self.add_child_embedding(embedding, child_embedding, edges[child])
-        return embedding.clamp(min=0)
+        return (embedding/(len(children)+1)).clamp(min=0)
 
-    def calc_score(self, embedding, data_embedding_s):
+    def calc_score(self, embedding):
         if len(embedding.size()) == 3:  # batch edges
             s = embedding.size()[0]
-            return torch.baddbmm(1, torch.cat([data_embedding_s.unsqueeze(0)] * s), 1, embedding,
-                                 torch.cat([self.score_embedding_weights.unsqueeze(0)] * s))
+            return torch.bmm(embedding, torch.cat([self.score_embedding_weights.unsqueeze(0)] * s))
         else:
-            return torch.addmm(1, data_embedding_s, 1, embedding, self.score_embedding_weights)
+            return torch.mm(embedding, self.score_embedding_weights)
 
     def forward(self, data, types, graphs, edges, pos):
-        t = types[pos]
-        d = data[pos]
-
-        data_embedding = torch.addmm(1, self.data_biases[t].unsqueeze(0), 1, self.data_vecs[t][d].unsqueeze(0),
-                                     self.data_weights[t])
-        data_embedding_s = torch.addmm(1, self.score_bias, 1, data_embedding, self.score_data_weights)
         edges[pos] = -1
 
         scores = []
         graph_count, _ = graphs.shape
         for j in range(graph_count):
             embedding = self.calc_embedding(data, types, graphs[j], edges)
-            scores.append(self.calc_score(embedding, data_embedding_s).squeeze())
+            scores.append(self.calc_score(embedding).squeeze())
         return scores
 
     def get_parameters(self):
