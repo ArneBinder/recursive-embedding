@@ -17,8 +17,8 @@ dim = 300
 # edge_count = 60
 # seq_length = 10
 
-slice_size = 20         # 75
-max_forest_count = 5    # 10
+slice_size = 20  # 75
+max_forest_count = 5  # 10
 
 nlp = spacy.load('en')
 nlp.pipeline = [nlp.tagger, nlp.parser]
@@ -39,7 +39,8 @@ configure(log_dir, flush_secs=1)
 
 # create data arrays
 (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
-    read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
+    read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count,
+              max_sen_length=slice_size,
               args={'max_articles': 10, 'filename': data_dir + 'corpora/documents_utf8_filtered_20pageviews.csv'})
 
 print('data length:', len(seq_data))
@@ -50,8 +51,8 @@ loss_fn = torch.nn.L1Loss(size_average=True)
 params = list(net.get_parameters())
 print('variables to train:', len(params))
 
-#criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
-optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)    # default meta parameters
+# criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
+optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
 print('slice_size:', slice_size)
 print('max_forest_count:', max_forest_count)
@@ -59,7 +60,7 @@ print('max_graph_count: ', net.max_graph_count)
 print('edge_count: ', net.edge_count)
 
 interval_avg = 50
-max_steps = 100 #len(seq_data)
+max_steps = 100  # len(seq_data)
 
 for epoch in range(5):
     running_loss = 0.0
@@ -81,8 +82,9 @@ for epoch in range(5):
             # forward + backward + optimize
             outputs = net(data, types, graphs, edges, i - slice_start - 1)
             outputs_cat = torch.cat(outputs).squeeze()
-            #print('outputs:', outputs_cat.unsqueeze(0))
-            expected = Variable(torch.cat((torch.zeros(correct_edge), torch.ones(1), torch.zeros(len(outputs_cat) - correct_edge - 1)))).type(torch.FloatTensor).squeeze()
+            expected = Variable(torch.cat(
+                (torch.zeros(correct_edge), torch.ones(1), torch.zeros(len(outputs_cat) - correct_edge - 1)))).type(
+                torch.FloatTensor).squeeze()
 
             loss = loss_fn(outputs_cat, expected)
 
@@ -91,19 +93,19 @@ for epoch in range(5):
 
             # print statistics
             running_loss += loss.squeeze().data[0]
-            #if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
-            #if ((i * interval_avg) % num_steps) == 0 or i == 1:
-                #if i > 1:
-                #    average_loss = average_loss * interval_avg / num_steps
+            # if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):
+            # if ((i * interval_avg) % num_steps) == 0 or i == 1:
+            # if i > 1:
+            #    average_loss = average_loss * interval_avg / num_steps
             # if i % step_size == step_size*10 -1:  # print every 2000 mini-batches
-            #print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
-            print('[%d, %5d] loss: %15.3f   size: %2d' % (epoch+1, i, running_loss, i - slice_start))
+            # print('[%5d] loss: %.3f' % (i + 1, running_loss * interval_avg / num_steps))
+            print('[%d, %5d] loss: %15.3f   size: %2d' % (epoch + 1, i, running_loss, i - slice_start))
             log_value('loss', running_loss, i)
             running_loss = 0.0
 
         slice_start += slice_size
     model_fn = log_dir + 'model-' + '{:03d}'.format(epoch)
-    print('write model to '+model_fn)
+    print('write model to ' + model_fn)
     with open(model_fn, 'w') as f:
         torch.save(net, f)
 
