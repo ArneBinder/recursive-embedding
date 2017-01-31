@@ -65,6 +65,7 @@ print('epochs (per slice_size):', epochs)
 print('max_steps (per epoch and slice_size):', max_steps)
 print('max_forest_count:', max_forest_count)
 print('max_graph_count (depends on max_slice_size and max_forest_count):', net.max_graph_count)
+print('max_class_count (max_graph_count * edge_count):', net.max_graph_count * net.edge_count)
 
 interval_avg = 50
 
