@@ -127,7 +127,7 @@ class Net(nn.Module):
         if slice_size is None:
             slice_size = self.slice_size
         if max_forest_count is None:
-            max_forest_count = min(self.max_forest_count, slice_size-1)
+            max_forest_count = min(self.max_forest_count, slice_size - 1)
         if edge_count is None:
             edge_count = self.edge_count
-        return (slice_size + 1) * (2 ** (max_forest_count - 1)) * edge_count
+        return int((slice_size + 1) * (2 ** (max_forest_count - 1)) * edge_count)

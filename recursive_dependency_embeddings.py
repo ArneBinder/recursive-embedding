@@ -56,23 +56,28 @@ print('variables to train:', len(params))
 # criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
-epochs = 10
+max_epochs = 10
 max_steps = 1000  # per slice_size
+loss_hist_size = 3
 
 print('edge_count:', net.edge_count)
 print('max_slice_size:', max_slice_size)
-print('epochs (per slice_size):', epochs)
+print('epochs (per slice_size):', max_epochs)
 print('max_steps (per epoch and slice_size):', max_steps)
 print('max_forest_count:', max_forest_count)
 print('max_graph_count (depends on max_slice_size and max_forest_count):', net.max_graph_count)
-print('max_class_count (max_graph_count * edge_count):', net.max_graph_count * net.edge_count)
+print('max_class_count (max_graph_count * edge_count):', net.max_class_count())
+print('loss_hist_size:', loss_hist_size)
 
 interval_avg = 50
 
-
+print('\n')
+time_train_start = datetime.datetime.now()
+print(str(time_train_start), 'START TRAINING')
 for slice_size in range(1, max_slice_size):
-    for epoch in range(epochs):
-        print('max_class_count', net.max_class_count(slice_size))
+    print('max_class_count (slice_size='+str(slice_size)+'):', net.max_class_count(slice_size))
+    losses = [0.0]
+    for epoch in range(max_epochs):
         running_loss = 0.0
         slice_start = 0
         # TODO: check loop end!
@@ -80,9 +85,7 @@ for slice_size in range(1, max_slice_size):
         slice_starts = range(0, min(max_steps*slice_size, len(seq_data)-slice_size), slice_size)
         random.shuffle(slice_starts)
         for slice_start in slice_starts:
-        #while slice_start < min(max_steps*slice_size, len(seq_data)-slice_size):
-            #for i in range(slice_start + 1, min(max_steps, len(seq_data) + 1, slice_start + max_slice_size + 1)):
-                # get the inputs
+            # get the inputs
             slice_end = slice_start + slice_size
             data = np.array(seq_data[slice_start:slice_end])
             types = np.array(seq_types[slice_start:slice_end])
@@ -124,7 +127,11 @@ for slice_size in range(1, max_slice_size):
             #slice_start += slice_size
             slice_step += 1
 
-        print('[%2d %4d] loss: %15.3f' % (slice_size, epoch + 1, running_loss / len(slice_starts)))
+        running_loss /= len(slice_starts)
+        losses.append(running_loss)
+        losses = losses[-loss_hist_size:]
+        loss_var = np.array(losses).var()
+        print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_var: %5.2f' % (slice_size, epoch + 1, running_loss, loss_var))
         log_value('loss', running_loss / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
 
     model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)
