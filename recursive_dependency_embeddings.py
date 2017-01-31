@@ -36,7 +36,7 @@ data_dir = '/home/arne/devel/ML/data/'
 log_dir = data_dir + 'summaries/train_{:%Y-%m-%d_%H:%M:%S}/'.format(datetime.datetime.now())
 mkdir_p(log_dir)
 # configure tensorboard logging
-configure(log_dir, flush_secs=1)
+configure(log_dir, flush_secs=2)
 
 # create data arrays
 (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
@@ -56,8 +56,8 @@ print('variables to train:', len(params))
 # criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
-epochs = 20
-max_steps = 100  # per slice_size
+epochs = 10
+max_steps = 1000  # per slice_size
 
 print('edge_count:', net.edge_count)
 print('max_slice_size:', max_slice_size)
@@ -123,10 +123,11 @@ for slice_size in range(1, max_slice_size):
             slice_step += 1
 
         print('[%2d %4d] loss: %15.3f' % (slice_size, epoch + 1, running_loss / len(slice_starts)))
+        log_value('loss', running_loss / len(slice_starts), (slice_size - 1) * max_slice_size + epoch - 1)
 
-        model_fn = log_dir + 'model-' + '{:03d}'.format(epoch)
-        #print('write model to ' + model_fn)
-        #with open(model_fn, 'w') as f:
-        #    torch.save(net, f)
+    model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)
+    #print('write model to ' + model_fn)
+    #with open(model_fn, 'w') as f:
+    #    torch.save(net, f)
 
 print('Finished Training')
