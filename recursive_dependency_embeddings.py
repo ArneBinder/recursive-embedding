@@ -74,7 +74,7 @@ for epoch in range(5):
             if len([True for parent in parents if parent == 0]) > net.max_forest_count:
                 continue
             graphs = np.array(graph_candidates(parents, i - slice_start - 1))
-
+            correct_edge = edges[-1]
             # zero the parameter gradients
             optimizer.zero_grad()
 
@@ -82,8 +82,7 @@ for epoch in range(5):
             outputs = net(data, types, graphs, edges, i - slice_start - 1)
             outputs_cat = torch.cat(outputs).squeeze()
             #print('outputs:', outputs_cat.unsqueeze(0))
-            expected = Variable(torch.cat((torch.ones(1), torch.zeros(len(outputs) - 1)))).type(
-                torch.FloatTensor).squeeze()
+            expected = Variable(torch.cat((torch.zeros(correct_edge), torch.ones(1), torch.zeros(len(outputs_cat) - correct_edge - 1)))).type(torch.FloatTensor).squeeze()
 
             loss = loss_fn(outputs_cat, expected)
 
