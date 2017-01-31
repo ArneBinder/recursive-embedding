@@ -59,12 +59,12 @@ optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_deca
 epochs = 10
 max_steps = 100  # per slice_size
 
-print('max_slice_size:', max_slice_size)
-print('max_forest_count:', max_forest_count)
-print('max_graph_count:', net.max_graph_count)
 print('edge_count:', net.edge_count)
-print('epochs:', epochs)
-print('max_steps:', max_steps)
+print('max_slice_size:', max_slice_size)
+print('epochs (per slice_size):', epochs)
+print('max_steps (per epoch and slice_size):', max_steps)
+print('max_forest_count:', max_forest_count)
+print('max_graph_count (depends on max_slice_size and max_forest_count):', net.max_graph_count)
 
 interval_avg = 50
 
