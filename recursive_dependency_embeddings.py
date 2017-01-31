@@ -46,7 +46,8 @@ configure(log_dir, flush_secs=1)
 print('data length:', len(seq_data))
 
 net = Net(data_vecs, len(edge_map_human), dim, slice_size, max_forest_count)
-loss_fn = torch.nn.L1Loss(size_average=True)
+#loss_fn = torch.nn.L1Loss(size_average=True)
+loss_fn = torch.nn.CrossEntropyLoss(size_average=True)
 
 params = list(net.get_parameters())
 print('variables to train:', len(params))
@@ -86,7 +87,8 @@ for epoch in range(5):
                 (torch.zeros(correct_edge), torch.ones(1), torch.zeros(len(outputs_cat) - correct_edge - 1)))).type(
                 torch.FloatTensor).squeeze()
 
-            loss = loss_fn(outputs_cat, expected)
+            #loss = loss_fn(outputs_cat, expected)
+            loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_edge).type(torch.LongTensor))
 
             loss.backward()
             optimizer.step()
