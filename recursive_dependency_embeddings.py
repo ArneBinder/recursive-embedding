@@ -72,6 +72,7 @@ interval_avg = 50
 
 for slice_size in range(1, max_slice_size):
     for epoch in range(epochs):
+        print('max_class_count', net.max_class_count(slice_size))
         running_loss = 0.0
         slice_start = 0
         # TODO: check loop end!

@@ -122,3 +122,12 @@ class Net(nn.Module):
         return self.data_weights.values() + self.data_biases.values() \
                + [self.edge_weights, self.edge_biases, self.score_embedding_weights,
                   self.score_data_weights, self.score_bias]
+
+    def max_class_count(self, slice_size=None, max_forest_count=None, edge_count=None):
+        if slice_size is None:
+            slice_size = self.slice_size
+        if max_forest_count is None:
+            max_forest_count = min(self.max_forest_count, slice_size-1)
+        if edge_count is None:
+            edge_count = self.edge_count
+        return (slice_size + 1) * (2 ** (max_forest_count - 1)) * edge_count
