@@ -18,8 +18,8 @@ dim = 300
 # edge_count = 60
 # seq_length = 10
 
-max_slice_size = 20  # 75
-max_forest_count = 5  # 10
+max_slice_size = 75  # 75
+max_forest_count = 10  # 10
 
 nlp = spacy.load('en')
 nlp.pipeline = [nlp.tagger, nlp.parser]
@@ -56,7 +56,7 @@ print('variables to train:', len(params))
 # criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
-epochs = 10
+epochs = 20
 max_steps = 100  # per slice_size
 
 print('edge_count:', net.edge_count)
@@ -74,7 +74,7 @@ for slice_size in range(1, max_slice_size):
         running_loss = 0.0
         slice_start = 0
         # TODO: check loop end!
-        i = 0
+        slice_step = 0
         slice_starts = range(0, min(max_steps*slice_size, len(seq_data)-slice_size), slice_size)
         random.shuffle(slice_starts)
         for slice_start in slice_starts:
@@ -120,7 +120,7 @@ for slice_size in range(1, max_slice_size):
 
 
             #slice_start += slice_size
-            i += 1
+            slice_step += 1
 
         print('[%2d %4d] loss: %15.3f' % (slice_size, epoch + 1, running_loss / len(slice_starts)))
 
