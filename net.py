@@ -49,28 +49,63 @@ class Net(nn.Module):
 
         root = roots[-1]
 
+        # let root point to outside (remove circle)
+        parents[root] = -len(data)
+
         # calc child pointer
         children = {}
         for i, parent in np.ndenumerate(parents):
             i = i[0]
             parent_pos = i + parent
-            # skip circle at root pos
-            if parent_pos == i:
-                continue
             if parent_pos not in children:
                 children[parent_pos] = [i]
             else:
                 children[parent_pos] += [i]
 
-        return self.calc_embedding_rec(data, types, children, edges, root)
+        result = self.calc_embedding_rec(data, types, children, edges, root)
+        # incorporate root edge
+        result = self.add_child_embedding(Variable(torch.zeros(result.size())), result, edges[root])
+
+        # reset root for next iteration
+        parents[root] = 0
+        return result
+
+    def add_child_embedding(self, embedding, child_embedding, edge_id):
+        single = True
+        if len(embedding.size()) == 3 or len(child_embedding.size()) == 3:
+            single = False
+        if edge_id < 0:  # no edge specified, take all!
+            single = False
+            w = self.edge_weights
+            b = self.edge_biases
+        else:
+            if single:
+                w = self.edge_weights[edge_id]
+                b = self.edge_biases[edge_id].unsqueeze(0)
+            else:
+                w = torch.cat([self.edge_weights[edge_id].unsqueeze(0)] * self.edge_count)
+                b = torch.cat([self.edge_biases[edge_id].unsqueeze(0)] * self.edge_count)
+
+        if not single and len(embedding.size()) == 2:
+            embedding = torch.cat([embedding.unsqueeze(0)] * self.edge_count)
+        if not single and len(child_embedding.size()) == 2:
+            child_embedding = torch.cat([child_embedding.unsqueeze(0)] * self.edge_count)
+
+        if single:
+            # s1 = b.size()
+            # s2 = child_embedding.size()
+            # s3 = w.size()
+            return embedding + torch.addmm(1, b, 1, child_embedding, w)  # child_embedding.mm(w) + b
+        else:
+            return embedding + torch.baddbmm(1, b, 1, child_embedding, w)
 
     def calc_embedding_rec(self, data, types, children, edges, idx):
-        embedding = self.data_vecs[types[idx]][data[idx]].unsqueeze(0).mm(self.data_weights[types[idx]]) + self.data_biases[types[idx]]
+        embedding = torch.addmm(1, self.data_biases[types[idx]].unsqueeze(0), 1, self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]]) # self.data_vecs[types[idx]][data[idx]].unsqueeze(0).mm() +
         if idx not in children:     # leaf
             return embedding
         for child in children[idx]:
-            embedding += self.calc_embedding_rec(data, types, children, edges, child).mm(self.edge_weights[edges[child]]) \
-                         + self.edge_biases[edges[child]]
+            child_embedding = self.calc_embedding_rec(data, types, children, edges, child)
+            embedding = self.add_child_embedding(embedding, child_embedding, edges[child])
         return embedding.clamp(min=0)
 
     def calc_score(self, embedding, data_embedding):
@@ -85,6 +120,7 @@ class Net(nn.Module):
         data_embedding = torch.mm(data_vec, self.data_weights[t])
         data_embedding += self.data_biases[t]
         correct_edge = edges[pos]
+        #edges[pos] = -1
 
         scores = [] # Variable(torch.zeros(self.max_graph_count * self.edge_count))
 
@@ -94,6 +130,7 @@ class Net(nn.Module):
         #for s, parents in np.ndenumerate(graphs):
             # calc embedding for correct graph at first
             embedding = self.calc_embedding(data, types, graphs[j], edges)
+            s1 = embedding.size()
             #scores[i] = self.calc_score(embedding, data_embedding)
             scores.append(self.calc_score(embedding, data_embedding))
             i += 1
