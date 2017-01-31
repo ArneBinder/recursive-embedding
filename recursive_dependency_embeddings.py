@@ -57,15 +57,17 @@ print('variables to train:', len(params))
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
 epochs = 10
+max_steps = 100  # per slice_size
 
 print('max_slice_size:', max_slice_size)
 print('max_forest_count:', max_forest_count)
 print('max_graph_count:', net.max_graph_count)
 print('edge_count:', net.edge_count)
 print('epochs:', epochs)
+print('max_steps:', max_steps)
 
 interval_avg = 50
-max_steps = 100  # per slice_size
+
 
 for slice_size in range(1, max_slice_size):
     for epoch in range(epochs):
@@ -120,7 +122,7 @@ for slice_size in range(1, max_slice_size):
             #slice_start += slice_size
             i += 1
 
-        print('[%4d] loss: %15.3f   size: %2d' % (epoch + 1, running_loss / len(slice_starts), slice_size))
+        print('[%2d %4d] loss: %15.3f' % (slice_size, epoch + 1, running_loss / len(slice_starts)))
 
         model_fn = log_dir + 'model-' + '{:03d}'.format(epoch)
         #print('write model to ' + model_fn)
