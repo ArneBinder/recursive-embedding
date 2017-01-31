@@ -123,7 +123,7 @@ for slice_size in range(1, max_slice_size):
             slice_step += 1
 
         print('[%2d %4d] loss: %15.3f' % (slice_size, epoch + 1, running_loss / len(slice_starts)))
-        log_value('loss', running_loss / len(slice_starts), (slice_size - 1) * max_slice_size + epoch - 1)
+        log_value('loss', running_loss / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
 
     model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)
     #print('write model to ' + model_fn)
