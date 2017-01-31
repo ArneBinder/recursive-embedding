@@ -13,6 +13,7 @@ from net import Net
 from tools import mkdir_p
 from tensorboard_logger import configure, log_value
 import random
+import scipy.stats.stats as st
 
 dim = 300
 # edge_count = 60
@@ -56,9 +57,9 @@ print('variables to train:', len(params))
 # criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
-max_epochs = 10
+max_epochs = 15
 max_steps = 1000  # per slice_size
-loss_hist_size = 3
+loss_hist_size = 5
 
 print('edge_count:', net.edge_count)
 print('max_slice_size:', max_slice_size)
@@ -76,7 +77,7 @@ time_train_start = datetime.datetime.now()
 print(str(time_train_start), 'START TRAINING')
 for slice_size in range(1, max_slice_size):
     print('max_class_count (slice_size='+str(slice_size)+'):', net.max_class_count(slice_size))
-    losses = [0.0]
+    losses = [0.0, 0.0]
     for epoch in range(max_epochs):
         running_loss = 0.0
         slice_start = 0
@@ -130,8 +131,8 @@ for slice_size in range(1, max_slice_size):
         running_loss /= len(slice_starts)
         losses.append(running_loss)
         losses = losses[-loss_hist_size:]
-        loss_var = np.array(losses).var()
-        print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_var: %5.2f' % (slice_size, epoch + 1, running_loss, loss_var))
+        loss_skew = st.skew(losses)
+        print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f' % (slice_size, epoch + 1, running_loss, loss_skew))
         log_value('loss', running_loss / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
 
     model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)
