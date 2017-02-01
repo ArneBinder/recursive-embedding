@@ -131,6 +131,9 @@ def main():
                 outputs_cat = torch.cat(outputs).squeeze()
                 loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_class).type(torch.LongTensor))
 
+                # restore forest
+                edges[-1] = correct_edge
+
                 loss.backward()
                 optimizer.step()
 
