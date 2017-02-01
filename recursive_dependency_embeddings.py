@@ -1,6 +1,6 @@
 from __future__ import print_function
 from preprocessing import read_data, articles_from_csv_reader, dummy_str_reader, get_word_embeddings
-from forest import subgraph, graph_candidates
+from forest import subgraph, forest_candidates
 import numpy as np
 import spacy
 import constants
@@ -114,22 +114,22 @@ def main():
                 slice_end = slice_start + slice_size
                 data = np.array(seq_data[slice_start:slice_end])
                 types = np.array(seq_types[slice_start:slice_end])
-                parents = subgraph(seq_parents, slice_start, slice_end)
+                parents = np.array(subgraph(seq_parents, slice_start, slice_end))
                 edges = np.array(seq_edges[slice_start:slice_end])
                 if len([True for parent in parents if parent == 0]) > net.max_forest_count:
                     continue
 
                 # predict last token
-                graphs = np.array(graph_candidates(parents, len(parents)-1))
+                forests, correct_forest_ind = forest_candidates(parents, len(parents) - 1)
                 correct_edge = edges[-1]
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
-                outputs = net(data, types, graphs, edges, len(parents)-1)
+                outputs = net(data, types, forests, edges, len(parents)-1)
                 outputs_cat = torch.cat(outputs).squeeze()
 
-                loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_edge).type(torch.LongTensor))
+                loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_edge + net.edge_count * correct_forest_ind).type(torch.LongTensor))
 
                 loss.backward()
                 optimizer.step()
