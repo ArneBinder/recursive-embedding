@@ -4,8 +4,8 @@ Train embeddings for syntactic dependency edges. This enables recursive calculat
 
 ## prerequisites
 
-The preprocessing expects a comma seperated csv file with two columns representing IDs and contents, where content can be any utf-8 decodable kind of text.
-For an [example corpus](https://storage.googleapis.com/lateral-datadumps/wikipedia_utf8_filtered_20pageviews.csv.gz), have a look at the data represented in the article [The Unknown Perils of Mining Wikipedia](https://blog.lateral.io/2015/06/the-unknown-perils-of-mining-wikipedia/).
+The preprocessing expects a comma separated csv file with two columns representing IDs and contents, where content can be any utf-8 decodable kind of text.
+For an example corpus, have a look at [the data](https://storage.googleapis.com/lateral-datadumps/wikipedia_utf8_filtered_20pageviews.csv.gz) represented in the article [The Unknown Perils of Mining Wikipedia](https://blog.lateral.io/2015/06/the-unknown-perils-of-mining-wikipedia/).
 
 ## License
 
