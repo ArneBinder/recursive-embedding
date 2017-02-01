@@ -54,7 +54,7 @@ def forest_candidates(parents, ind):
 # parents outside the new graph are linked to itself
 def subgraph(parents, start, end):
     assert start < len(parents), 'start_ind = ' + str(start) + ' exceeds list size = ' + str(len(parents))
-    new_parents = parents[start:end]
+    new_parents = parents[start:end].copy()
     for i in range(len(new_parents)):
         if new_parents[i] < -i or new_parents[i] >= len(new_parents) - i:
             new_parents[i] = 0

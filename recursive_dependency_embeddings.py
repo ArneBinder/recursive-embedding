@@ -112,24 +112,24 @@ def main():
             for slice_start in slice_starts:
                 # get the inputs
                 slice_end = slice_start + slice_size
-                data = np.array(seq_data[slice_start:slice_end])
-                types = np.array(seq_types[slice_start:slice_end])
-                parents = np.array(subgraph(seq_parents, slice_start, slice_end))
-                edges = np.array(seq_edges[slice_start:slice_end])
+                data = seq_data[slice_start:slice_end]
+                types = seq_types[slice_start:slice_end]
+                parents = subgraph(seq_parents, slice_start, slice_end)
+                edges = seq_edges[slice_start:slice_end]
                 if len([True for parent in parents if parent == 0]) > net.max_forest_count:
                     continue
 
                 # predict last token
                 forests, correct_forest_ind = forest_candidates(parents, len(parents) - 1)
                 correct_edge = edges[-1]
+                correct_class = correct_edge + net.edge_count * correct_forest_ind
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
                 outputs = net(data, types, forests, edges, len(parents)-1)
                 outputs_cat = torch.cat(outputs).squeeze()
-
-                loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_edge + net.edge_count * correct_forest_ind).type(torch.LongTensor))
+                loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_class).type(torch.LongTensor))
 
                 loss.backward()
                 optimizer.step()
