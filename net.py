@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
+from forest import get_roots, get_children
 
 
 class Net(nn.Module):
@@ -36,7 +37,7 @@ class Net(nn.Module):
 
     def calc_embedding(self, data, types, parents, edges):
         # connect roots
-        roots = [i[0] for i, parent in np.ndenumerate(parents) if parent == 0]
+        roots = get_roots(parents)
         for i in range(len(roots) - 1):
             parents[roots[i]] = roots[i + 1]
 
@@ -46,14 +47,7 @@ class Net(nn.Module):
         parents[root] = -len(data)
 
         # calc child pointer
-        children = {}
-        for i, parent in np.ndenumerate(parents):
-            i = i[0]
-            parent_pos = i + parent
-            if parent_pos not in children:
-                children[parent_pos] = [i]
-            else:
-                children[parent_pos] += [i]
+        children = get_children(parents)
 
         result = self.calc_embedding_rec(data, types, children, edges, root)
         # incorporate root edge
