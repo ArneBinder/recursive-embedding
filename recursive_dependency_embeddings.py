@@ -103,7 +103,7 @@ def main():
         losses = []
         loss_skew = loss_skew_threshold + 1
         epoch = 0
-        while epoch < max_epochs and (loss_skew > loss_skew_threshold or len(losses) < loss_hist_size):
+        while epoch < max_epochs and (abs(loss_skew) > loss_skew_threshold or len(losses) < loss_hist_size):
             running_loss = 0.0
             slice_step = 0
             # get slices of full size (slice_size)
