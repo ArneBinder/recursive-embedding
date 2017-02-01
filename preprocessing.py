@@ -59,7 +59,7 @@ def dummy_str_reader():
 
 def articles_from_csv_reader(filename, max_articles=100):
     csv.field_size_limit(maxsize)
-    print('parse', max_articles, 'articles')
+    print('parse', max_articles, 'articles...')
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
         i = 0

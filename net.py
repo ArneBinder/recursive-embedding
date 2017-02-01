@@ -2,7 +2,6 @@ from __future__ import print_function
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-import torch.nn.functional as F
 import numpy as np
 
 
@@ -32,9 +31,8 @@ class Net(nn.Module):
         self.edge_weights = Variable(torch.rand(edge_count, dim, dim), requires_grad=True)
         self.edge_biases = Variable(torch.rand(edge_count, dim), requires_grad=True)
 
-        self.score_embedding_weights = Variable(torch.rand(dim, 1), requires_grad=True)
-        self.score_data_weights = Variable(torch.rand(dim, 1), requires_grad=True)
-        self.score_bias = Variable(torch.rand(1, 1), requires_grad=True)
+        self.score_weights = Variable(torch.rand(dim, 1), requires_grad=True)
+        #self.score_data_weights = Variable(torch.rand(dim, 1), requires_grad=True)
 
     def calc_embedding(self, data, types, parents, edges):
         # connect roots
@@ -104,9 +102,9 @@ class Net(nn.Module):
     def calc_score(self, embedding):
         if len(embedding.size()) == 3:  # batch edges
             s = embedding.size()[0]
-            return torch.bmm(embedding, torch.cat([self.score_embedding_weights.unsqueeze(0)] * s))
+            return torch.bmm(embedding, torch.cat([self.score_weights.unsqueeze(0)] * s))
         else:
-            return torch.mm(embedding, self.score_embedding_weights)
+            return torch.mm(embedding, self.score_weights)
 
     def forward(self, data, types, graphs, edges, pos):
         edges[pos] = -1
@@ -120,9 +118,9 @@ class Net(nn.Module):
 
     def get_parameters(self):
         return self.data_weights.values() + self.data_biases.values() \
-               + [self.edge_weights, self.edge_biases, self.score_embedding_weights,
-                  self.score_data_weights, self.score_bias]
+               + [self.edge_weights, self.edge_biases, self.score_weights]
 
+    # stats
     def max_class_count(self, slice_size=None, max_forest_count=None, edge_count=None):
         if slice_size is None:
             slice_size = self.slice_size
@@ -131,3 +129,6 @@ class Net(nn.Module):
         if edge_count is None:
             edge_count = self.edge_count
         return int((slice_size + 1) * (2 ** (max_forest_count - 1)) * edge_count)
+
+    def parameter_count(self):
+        return sum([np.prod(np.array(v.size())) for v in self.get_parameters()])
