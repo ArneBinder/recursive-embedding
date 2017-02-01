@@ -35,7 +35,7 @@ def main():
     arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=1000)
     # increase slice_size if the skew over the last loss-history-size losses is smaller than loss-skew-threshold
     arg_parser.add_argument('-lh', '--loss-history-size', type=int, default=10)
-    arg_parser.add_argument('-sk', '--loss-skew-threshold', type=float, default=0.01)
+    arg_parser.add_argument('-sk', '--loss-skew-threshold', type=float, default=0.1)
     args = arg_parser.parse_args()
 
     print('ARGUMENTS:')
