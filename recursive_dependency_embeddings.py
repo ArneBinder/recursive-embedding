@@ -14,7 +14,6 @@ from tensorboard_logger import configure, log_value
 import random
 import scipy.stats.stats as st
 import argparse
-import sys
 
 
 def main():
@@ -24,8 +23,10 @@ def main():
     arg_parser.add_argument('-ld', '--log-dir', default='/home/arne/devel/ML/data/summaries')
     arg_parser.add_argument('-cf', '--corpus-file', default='/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv')
     # parsing
-    arg_parser.add_argument('-f', '--max-forest-count', type=int, default=10)
     arg_parser.add_argument('-a', '--max-article-count', type=int, default=10)
+    # max-forest-count = 10 captures 0,9998 % of tokens in wikipedia corpus
+    arg_parser.add_argument('-f', '--max-forest-count', type=int, default=10)
+    # max-slice-size = 75 (sentence length while parsing) captures 0,9929 % of tokens in wikipedia corpus
     arg_parser.add_argument('-s', '--max-slice-size', type=int, default=75)
     # model
     arg_parser.add_argument('-d', '--dimensions', type=int, default=300)
@@ -50,8 +51,6 @@ def main():
     configure(log_dir, flush_secs=2)
 
     dim = args.dimensions # 300
-    # edge_count = 60
-    # seq_length = 10
 
     max_article_count = args.max_article_count #10
     max_slice_size = args.max_slice_size #75
@@ -78,30 +77,21 @@ def main():
     print('data length (token):', len(seq_data))
 
     net = Net(data_vecs, len(edge_map_human), dim, max_slice_size, max_forest_count)
-    #loss_fn = torch.nn.L1Loss(size_average=True)
-    loss_fn = torch.nn.CrossEntropyLoss(size_average=True)
-
     print('edge_count:', net.edge_count)
     params = list(net.get_parameters())
-    print('variables to train:', len(params))
-    print('parameter_count:', net.parameter_count())
+    print('tensors to train:', len(params))
+    print('total parameter_count:', net.parameter_count())
+    print('max_graph_count (depends on max_slice_size and max_forest_count):', net.max_graph_count)
+    print('max_class_count (max_graph_count * edge_count):', net.max_class_count())
 
-    # criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
+    #loss_fn = torch.nn.L1Loss(size_average=True)
+    loss_fn = torch.nn.CrossEntropyLoss(size_average=True)
     optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
     max_epochs = args.max_epochs_per_size #50
     max_steps = args.max_steps_per_epoch # 1000  # per slice_size
     loss_hist_size = args.loss_history_size # 10
     loss_skew_threshold = args.loss_skew_threshold # 0.1
-
-#    print('max_slice_size:', max_slice_size)
-#    print('epochs (per slice_size):', max_epochs)
-#    print('max_steps (per epoch and slice_size):', max_steps)
-#    print('max_forest_count:', max_forest_count)
-    print('max_graph_count (depends on max_slice_size and max_forest_count):', net.max_graph_count)
-    print('max_class_count (max_graph_count * edge_count):', net.max_class_count())
-#    print('loss_hist_size:', loss_hist_size)
-#    print('loss_skew_threshold:', loss_skew_threshold)
 
     # interval_avg = 50
 
