@@ -57,9 +57,10 @@ print('variables to train:', len(params))
 # criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
-max_epochs = 30
+max_epochs = 50
 max_steps = 1000  # per slice_size
-loss_hist_size = 5
+loss_hist_size = 10
+loss_skew_threshold = 0
 
 print('edge_count:', net.edge_count)
 print('max_slice_size:', max_slice_size)
@@ -69,6 +70,7 @@ print('max_forest_count:', max_forest_count)
 print('max_graph_count (depends on max_slice_size and max_forest_count):', net.max_graph_count)
 print('max_class_count (max_graph_count * edge_count):', net.max_class_count())
 print('loss_hist_size:', loss_hist_size)
+print('loss_skew_threshold:', loss_skew_threshold)
 
 interval_avg = 50
 
@@ -80,7 +82,7 @@ for slice_size in range(1, max_slice_size):
     losses = [0.0, 0.0]
     loss_skew = 10
     epoch = 0
-    while epoch <= max_epochs and loss_skew > 0:
+    while epoch <= max_epochs and loss_skew > loss_skew_threshold:
         running_loss = 0.0
         slice_start = 0
         # TODO: check loop end!
