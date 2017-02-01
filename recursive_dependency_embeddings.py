@@ -116,7 +116,7 @@ def main():
                 types = seq_types[slice_start:slice_end]
                 parents = subgraph(seq_parents, slice_start, slice_end)
                 edges = seq_edges[slice_start:slice_end]
-                if len([True for parent in parents if parent == 0]) > net.max_forest_count:
+                if len(parents) - np.count_nonzero(parents) > net.max_forest_count:
                     continue
 
                 # predict last token

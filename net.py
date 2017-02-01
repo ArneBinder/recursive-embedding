@@ -33,7 +33,6 @@ class Net(nn.Module):
         self.edge_biases = Variable(torch.rand(edge_count, dim), requires_grad=True)
 
         self.score_weights = Variable(torch.rand(dim, 1), requires_grad=True)
-        #self.score_data_weights = Variable(torch.rand(dim, 1), requires_grad=True)
 
     def calc_embedding(self, data, types, parents, edges):
         # connect roots
