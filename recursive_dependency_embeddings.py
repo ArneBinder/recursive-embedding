@@ -57,7 +57,7 @@ print('variables to train:', len(params))
 # criterion = nn.CrossEntropyLoss() # use a Classification Cross-Entropy loss
 optimizer = optim.Adagrad(net.get_parameters(), lr=0.01, lr_decay=0, weight_decay=0)  # default meta parameters
 
-max_epochs = 15
+max_epochs = 30
 max_steps = 1000  # per slice_size
 loss_hist_size = 5
 
@@ -78,7 +78,9 @@ print(str(time_train_start), 'START TRAINING')
 for slice_size in range(1, max_slice_size):
     print('max_class_count (slice_size='+str(slice_size)+'):', net.max_class_count(slice_size))
     losses = [0.0, 0.0]
-    for epoch in range(max_epochs):
+    loss_skew = 10
+    epoch = 0
+    while epoch <= max_epochs and loss_skew > 0:
         running_loss = 0.0
         slice_start = 0
         # TODO: check loop end!
@@ -134,6 +136,7 @@ for slice_size in range(1, max_slice_size):
         loss_skew = st.skew(losses)
         print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f' % (slice_size, epoch + 1, running_loss, loss_skew))
         log_value('loss', running_loss / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
+        epoch += 1
 
     model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)
     #print('write model to ' + model_fn)
