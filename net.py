@@ -114,10 +114,8 @@ class Net(nn.Module):
         return embedding.clamp(min=0)
 
     def calc_embedding_path_up(self, parents, children, edges, embeddings, start, end):
-        #embedding = embeddings[start]
-        #parent = parents[start]
+        embedding = None
         current_pos = start
-
         while current_pos != end:
             cc = 1
             children_embedding = embeddings[current_pos]
@@ -134,6 +132,7 @@ class Net(nn.Module):
             # follow the edge
             embedding = torch.addmm(1, self.edge_biases[edges[current_pos]].unsqueeze(0), 1, (embedding / cc).clamp(min=0), self.edge_weights[edges[current_pos]])
             current_pos += parents[current_pos]
+        return embedding
 
     def forward(self, data, types, parents, edges, pos, forests, correct_roots, new_roots):
         edges[pos] = -1
@@ -147,33 +146,7 @@ class Net(nn.Module):
             # calc embedding and save
             self.calc_embedding_single(data, types, children, edges, embeddings, root)
 
-        # # link other roots (not in parent_children: correct_roots)
-        # correct_edges = []
-        # root_prev_ind = -1
-        # root_next_ind = 0
-        # for i in range(len(correct_roots) - 1):
-        #     # add INTERTREE children
-        #     if correct_roots[i + 1] not in children:
-        #         children[correct_roots[i + 1]] = [correct_roots[i]]
-        #     else:
-        #         children[correct_roots[i + 1]] += [correct_roots[i]]
-        #     if correct_roots[i] < pos:
-        #         root_prev_ind = i
-        #         root_next_ind = i + 1
-        #     parents[correct_roots[i]] = correct_roots[i + 1] - correct_roots[i]
-        #     correct_edges.append((correct_roots[i], edges[correct_roots[i]]))
-        #     edges[correct_roots[i]] = 0     # set INTERTREE
-        #
-        # if correct_roots[-1] < pos:
-        #     root_prev_ind = len(correct_roots) - 1
-        #     root_next_ind = -1
-
-
         scores = []
-        # graph_count, _ = graphs.shape
-        #for j in range(graph_count):
-        #    embedding = self.calc_embedding(data, types, graphs[j], edges)
-        #    scores.append(self.calc_score(embedding).squeeze())
         for (parent_children, parent_candidate) in forests:
             parents[pos] = parent_candidate
             # link parent_children and roots
@@ -190,8 +163,6 @@ class Net(nn.Module):
                 parents[roots[i]] = roots[i+1] - roots[i]
                 edges[roots[i]] = constants.INTER_TREE
 
-            # children_linked = get_children(parents)
-
             embedding = embeddings[pos]
             cc = 1
             # re-scale, if pos has children
@@ -205,7 +176,7 @@ class Net(nn.Module):
 
             # check, if INTERTREE points to pos (pos has to be a root, but not the first)
             if pos in roots_set and roots[0] != pos:
-                self.calc_embedding_path_up(parents, children, edges, embeddings, roots[0], pos)
+                embedding += self.calc_embedding_path_up(parents, children, edges, embeddings, roots[0], pos)
                 cc += 1
 
             # blow up
@@ -223,7 +194,7 @@ class Net(nn.Module):
 
                 # check, if INTERTREE points to current_pos (current_pos has to be a root, but not the first)
                 if current_pos in roots_set and roots[0] != current_pos:
-                    self.calc_embedding_path_up(parents, children, edges, embeddings, roots[0], current_pos)
+                    embedding += self.calc_embedding_path_up(parents, children, edges, embeddings, roots[0], current_pos)
                     cc += 1
 
                 embedding += torch.cat([current_embedding] * self.edge_count) # embedding * edge_w[edge[current_pos]] + edge_b[edge[current_pos]] + children_embedding / cc
@@ -236,15 +207,6 @@ class Net(nn.Module):
             # calc score
             score = torch.bmm(embedding, torch.cat([self.score_weights.unsqueeze(0)] * self.edge_count))
             scores.append(score)
-            # if parent_candidate == 0:  # root: remove from root chain
-            #     if root_prev_ind >= 0:
-            #         parents[correct_roots[root_prev_ind]] = 0
-            #         if root_prev_ind < len(correct_roots) - 1:
-            #             parents[correct_roots[root_prev_ind]] = correct_roots[root_prev_ind + 1] - correct_roots[root_prev_ind]
-            #             # reset edge
-            #             parents[correct_roots[root_prev_ind]] = re_edge
-            #     if root_next_ind >= 0:
-            #         parents[pos] = 0
 
             # reset parent_children
             for child in parent_children:
@@ -252,15 +214,6 @@ class Net(nn.Module):
             for (i, parent, edge) in rem_edges:
                 parents[i] = parent
                 edges[i] = edge
-
-
-        # reset edges
-        # for (i, edge) in correct_edges:
-        #     edge[i] = edge
-        #
-        # # reset roots:
-        # for root in correct_roots:
-        #     parents[root] = 0
 
         return scores
 
