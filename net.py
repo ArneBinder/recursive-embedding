@@ -20,6 +20,9 @@ class Net(nn.Module):
         self.max_forest_count = max_forest_count
         self.max_graph_count = (slice_size + 1) * (2 ** (max_forest_count - 1))
 
+        # activation function
+        self.activation_fn = nn.ReLU6()
+
         self.data_vecs = {}
         self.data_weights = {}
         self.data_biases = {}
@@ -49,7 +52,7 @@ class Net(nn.Module):
             embedding /= len(children[idx]) + 1
         # save embedding without activation
         embeddings[idx] = embedding
-        return embedding.clamp(min=0)
+        return self.activation_fn(embedding)
 
     def calc_embedding_path_up(self, parents, children, edges, embeddings, start, end):
         embedding = None
@@ -70,7 +73,7 @@ class Net(nn.Module):
             # follow the edge
             b = self.edge_biases[edges[current_pos]].unsqueeze(0)
             w = self.edge_weights[edges[current_pos]]
-            embedding = torch.addmm(1, b, 1, (embedding / cc).clamp(min=0), w)
+            embedding = torch.addmm(1, b, 1, self.activation_fn((embedding / cc)), w)
             current_pos += parents[current_pos]
         return embedding
 
@@ -116,7 +119,7 @@ class Net(nn.Module):
             for child in new_children_candidate:
                 b = self.edge_biases[edges[child]].unsqueeze(0)
                 w = self.edge_weights[edges[child]]
-                embedding += torch.addmm(1, b, 1, embeddings[child].clamp(min=0), w)
+                embedding += torch.addmm(1, b, 1, self.activation_fn(embeddings[child]), w)
             cc += len(new_children_candidate)
 
             # check, if INTERTREE points to pos (pos has to be a root, but not the first)
@@ -128,7 +131,7 @@ class Net(nn.Module):
             # blow up
             embedding = torch.cat([embedding.unsqueeze(0)] * self.edge_count)
             # calc with all edges
-            embedding = torch.baddbmm(1, self.edge_biases.unsqueeze(1), 1, (embedding / cc).clamp(min=0), self.edge_weights)
+            embedding = torch.baddbmm(1, self.edge_biases.unsqueeze(1), 1, self.activation_fn(embedding / cc), self.edge_weights)
 
             parent = parents[pos]
             current_pos = pos + parent
@@ -153,7 +156,7 @@ class Net(nn.Module):
                 cc += 1
                 b = torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count).unsqueeze(1)
                 w = torch.cat([self.edge_weights[edges[current_pos]].unsqueeze(0)] * self.edge_count)
-                embedding += torch.baddbmm(1, b, 1, (embedding / cc).clamp(min=0), w)
+                embedding += torch.baddbmm(1, b, 1, self.activation_fn(embedding / cc), w)
                 parent = parents[current_pos]
                 current_pos = current_pos + parent
 
