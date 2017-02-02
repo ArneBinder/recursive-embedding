@@ -31,8 +31,8 @@ def main():
     # model
     arg_parser.add_argument('-d', '--dimensions', type=int, default=300)
     # training
-    arg_parser.add_argument('-e', '--max-epochs-per-size', type=int, default=50)
-    arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=100)
+    arg_parser.add_argument('-e', '--max-epochs-per-size', type=int, default=100)
+    arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=1000)
     # increase slice_size if the skew over the last loss-history-size losses is smaller than loss-skew-threshold
     arg_parser.add_argument('-lh', '--loss-history-size', type=int, default=10)
     arg_parser.add_argument('-ls', '--loss-skew-threshold', type=float, default=0.01)
@@ -114,7 +114,7 @@ def main():
             count_correct = 0.
             slice_step = 0
             # get slices of full size (slice_size)
-            slice_starts = range(0, min(max_steps*slice_size, len(seq_data) - slice_size + 1), slice_size)
+            slice_starts = range(0, min(max_steps*slice_size, len(seq_data) - slice_size + 1), 1)
             random.shuffle(slice_starts)
             for slice_start in slice_starts:
                 # get the inputs
@@ -125,6 +125,9 @@ def main():
                 roots_cut_slice = cut_subgraph(parents)
                 edges = seq_edges[slice_start:slice_end]
                 if len(parents) - np.count_nonzero(parents) > net.max_forest_count:
+                    # restore cuts by subgraph
+                    for (i, target) in roots_cut_slice:
+                        parents[i] = target
                     continue
 
                 # save values
