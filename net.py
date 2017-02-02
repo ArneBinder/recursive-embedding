@@ -95,7 +95,7 @@ class Net(nn.Module):
             for i in range(len(roots) - 1):
                 rem_edges.append((roots[i], parents[roots[i]], edges[roots[i]]))
                 parents[roots[i]] = roots[i+1] - roots[i]
-                edges[roots[i]] = constants.INTER_TREE
+                edges[roots[i]] = 0
 
             embedding = embeddings[pos]
             cc = 1
@@ -133,12 +133,19 @@ class Net(nn.Module):
 
                 embedding += torch.cat([current_embedding] * self.edge_count) # embedding * edge_w[edge[current_pos]] + edge_b[edge[current_pos]] + children_embedding / cc
                 cc += 1
-                embedding += torch.baddbmm(1, torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count), 1,
-                                           (embedding / cc).clamp(min=0), torch.cat([self.edge_weights[edges[current_pos]]] * self.edge_count))
-                current_pos = current_pos + parent
+                m1 = torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count).unsqueeze(1)
+                s1 = m1.size()
+                m2 = (embedding / cc).clamp(min=0)
+                s2 = m2.size()
+                m3 = torch.cat([self.edge_weights[edges[current_pos]].unsqueeze(0)] * self.edge_count)
+                s3 = m3.size()
+                embedding += torch.baddbmm(1, m1, 1,
+                                           m2, m3)
                 parent = parents[current_pos]
+                current_pos = current_pos + parent
 
             # calc score
+            s4 = torch.cat([self.score_weights.unsqueeze(0)] * self.edge_count).size()
             score = torch.bmm(embedding, torch.cat([self.score_weights.unsqueeze(0)] * self.edge_count))
             scores.append(score)
 

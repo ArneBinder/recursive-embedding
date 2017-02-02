@@ -72,6 +72,8 @@ def get_roots(parents):
 def get_children(parents):
     result = {}
     for i, parent in np.ndenumerate(parents):
+        if parent == 0:
+            continue
         i = i[0]
         parent_pos = i + parent
         if parent_pos not in result:

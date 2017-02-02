@@ -98,7 +98,7 @@ def main():
     print('\n')
     time_train_start = datetime.datetime.now()
     print(str(time_train_start), 'START TRAINING')
-    for slice_size in range(1, max_slice_size):
+    for slice_size in range(2, max_slice_size):
         print('max_class_count (slice_size='+str(slice_size)+'):', net.max_class_count(slice_size))
         losses = []
         loss_skew = loss_skew_threshold + 1
@@ -137,6 +137,9 @@ def main():
                 outputs_cat = torch.cat(outputs).squeeze()
                 loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_class).type(torch.LongTensor))
 
+                loss.backward()
+                optimizer.step()
+
                 # restore forest
                 edges[predict_pos] = correct_edge
                 parents[predict_pos] = correct_parent
@@ -146,10 +149,6 @@ def main():
                 # restore cuts to predict_pos
                 for i in new_roots_parent:
                     parents[i] = predict_pos - i
-
-                loss.backward()
-                optimizer.step()
-
 
                 running_loss += loss.squeeze().data[0]
                 # if ((i * 100) % (len(seq_data)-slice_start)*slice_size == 0):

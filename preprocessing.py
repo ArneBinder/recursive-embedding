@@ -121,7 +121,7 @@ def read_data(reader, nlp, data_embedding_maps, max_forest_count=10, max_sen_len
     for i in range(len(seq_edges)):
         seq_edges[i] = mapping[seq_edges[i]]
     dep_map = {mapping[key]: value for key, value in dep_map.iteritems()}
-    dep_map[0] = constants.INTER_TREE
+    dep_map[0] = 0
 
     return (np.array(seq_data), np.array(seq_types), np.array(seq_parents), np.array(seq_edges)), dep_map
 
