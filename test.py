@@ -3,7 +3,7 @@ from preprocessing import read_data, articles_from_csv_reader, dummy_str_reader,
 import spacy
 import constants
 from visualize import visualize
-from forest import subgraph, forest_candidates
+from forest import cut_subgraph, forest_candidates
 import numpy as np
 
 slice_size = 75
@@ -29,7 +29,7 @@ data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
 # take first 50 token and visualize the dependency graph
 start = 0
 end = 10
-sliced_parents = subgraph(seq_parents, start, end)
+sliced_parents = cut_subgraph(seq_parents, start, end)
 sliced_data = seq_data[start:end]
 sliced_types = seq_types[start:end]
 sliced_edges = seq_edges[start:end]

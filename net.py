@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
 from forest import get_roots, get_children
+import constants
 
 
 class Net(nn.Module):
@@ -99,14 +100,117 @@ class Net(nn.Module):
         else:
             return torch.mm(embedding, self.score_weights)
 
-    def forward(self, data, types, graphs, edges, pos):
+    def calc_embedding_single(self, data, types, children, edges, embeddings, idx):
+        embedding = torch.addmm(1, self.data_biases[types[idx]].unsqueeze(0), 1,
+                                self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]])
+        if idx not in children:  # leaf
+            return embedding
+        for child in children[idx]:
+            child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
+            embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, child_embedding, self.edge_weights[edges[child]]) #self.add_child_embedding(embedding, child_embedding, edges[child])
+
+        embedding = (embedding / (len(children) + 1))
+        embeddings[idx] = embedding
+        return embedding.clamp(min=0)
+
+    #def calc_embedding_batch(self, data, types, children, edges, embeddings, idx):
+
+    def forward(self, data, types, parents, edges, pos, forests, correct_roots, new_roots):
         edges[pos] = -1
+        parents[pos] = -pos
+
+        embeddings = {}
+        # calc child pointer
+        children = get_children(parents)
+        # calc forest embeddings (top down from roots)
+        for root in correct_roots + new_roots:
+            # calc embedding and save
+            self.calc_embedding_single(data, types, children, edges, embeddings, root)
+
+        # link other roots (not in parent_children: correct_roots)
+        correct_edges = []
+        root_prev_ind = -1
+        root_next_ind = 0
+        for i in range(len(correct_roots) - 1):
+            # add INTERTREE children
+            if correct_roots[i + 1] not in children:
+                children[correct_roots[i + 1]] = [correct_roots[i]]
+            else:
+                children[correct_roots[i + 1]] += [correct_roots[i]]
+            if correct_roots[i] < pos:
+                root_prev_ind = i
+                root_next_ind = i + 1
+            parents[correct_roots[i]] = correct_roots[i + 1] - correct_roots[i]
+            correct_edges.append((correct_roots[i], edges[correct_roots[i]]))
+            edges[correct_roots[i]] = 0     # set INTERTREE
+
+        if correct_roots[-1] < pos:
+            root_prev_ind = len(correct_roots) - 1
+            root_next_ind = -1
+
 
         scores = []
-        graph_count, _ = graphs.shape
-        for j in range(graph_count):
-            embedding = self.calc_embedding(data, types, graphs[j], edges)
-            scores.append(self.calc_score(embedding).squeeze())
+        # graph_count, _ = graphs.shape
+        #for j in range(graph_count):
+        #    embedding = self.calc_embedding(data, types, graphs[j], edges)
+        #    scores.append(self.calc_score(embedding).squeeze())
+        for (parent_children, parent_candidate) in forests:
+            parents[pos] = parent_candidate
+            if parent_candidate == 0:  # root: insert into root chain
+                if root_prev_ind >= 0:
+                    parents[correct_roots[root_prev_ind]] = pos - correct_roots[root_prev_ind]
+                    # remember edge and set INTERTREE
+                    re_edge = edges[correct_roots[root_prev_ind]]
+                    edges[correct_roots[root_prev_ind]] = 0
+                if root_next_ind >= 0:
+                    parents[pos] = correct_roots[root_next_ind] - pos
+            # calc pos embedding (bottom up)
+            parent = parent_candidate
+            current_pos = pos
+            embedding = embeddings[pos]
+            current_children = parent_children
+            if pos in children:
+                current_children += children[pos]
+            for child in current_children:
+                if edges[child] != constants.INTER_TREE:
+                    embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, embeddings[child].clamp(min=0), self.edge_weights[edges[child]])
+                else:
+                    # calc INTERTREE embeddings top down
+                    print('implement')
+            embedding = torch.cat([(embedding * len(children[pos])).unsqueeze(0)] * self.edge_count)
+            while parent != 0:
+                cc = len(children[current_pos])
+                children_embedding = embedding[current_pos] * cc
+
+                cc += 1 # itself
+                # TODO: IMPLEMENT
+                # is 0 (INTERTREE) in edges of children?
+                #   cc += 1
+                #   add this child embedding (calc recursive(?))
+                # embedding = embedding * edge_w[edge[current_pos]] + edge_b[edge[current_pos]] + children_embedding / cc
+
+                current_pos = current_pos + parent
+                parent = parents[current_pos]
+
+            # calc score ()
+            if parent_candidate == 0:  # root: remove from root chain
+                if root_prev_ind >= 0:
+                    parents[correct_roots[root_prev_ind]] = 0
+                    if root_prev_ind < len(correct_roots) - 1:
+                        parents[correct_roots[root_prev_ind]] = correct_roots[root_prev_ind + 1] - correct_roots[root_prev_ind]
+                        # reset edge
+                        parents[correct_roots[root_prev_ind]] = re_edge
+                if root_next_ind >= 0:
+                    parents[pos] = 0
+
+        # reset edges
+        for (i, edge) in correct_edges:
+            edge[i] = edge
+
+        # reset roots:
+        for root in correct_roots:
+            parents[root] = 0
+
         return scores
 
     def get_parameters(self):

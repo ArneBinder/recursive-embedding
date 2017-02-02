@@ -8,18 +8,22 @@ from tools import list_powerset
 def forest_candidates(parents, ind):
     # assert ind < len(parents), 'ind = ' + str(ind) + ' exceeds data length = ' + str(len(parents))
 
-    parent_target_correct = ind + parents[ind]
+    parent_correct = parents[ind]
+    #parent_target_correct = ind + parents[ind]
+    parents[ind] = -ind   # point ot outside, should not go into roots
+    correct_roots = get_roots(parents)
     new_roots = cutout_leaf(parents, ind)
-    roots = get_roots(parents)
+
+    roots = correct_roots + new_roots
 
     correct_forrest_ind = -1
 
     forests = []
     i = 0
-    for parent_target_candidate in range(len(parents)):
-        parents[ind] = parent_target_candidate - ind
+    for parent_candidate in range(-ind, len(parents)-ind):  #range(len(parents)):
+        parents[ind] = parent_candidate #parent_target_candidate - ind
         # find root of parent_candidate
-        parent_candidate_root = parent_target_candidate
+        parent_candidate_root = ind
         while parents[parent_candidate_root] != 0:
             parent_candidate_root = parent_candidate_root + parents[parent_candidate_root]
         # temporarily remove the root whose tree contains the newly added element
@@ -28,30 +32,37 @@ def forest_candidates(parents, ind):
             removed_root_pos = roots.index(parent_candidate_root)
             del roots[removed_root_pos]
         for roots_subset in list_powerset(roots):
-            candidate = parents.copy()
-            for root in roots_subset:
-                candidate[root] = ind - root
-            if np.array_equal(roots_subset, new_roots) and parent_target_candidate == parent_target_correct:
+            #candidate = parents.copy()
+            #for root in roots_subset:
+            #    candidate[root] = ind - root
+            if np.array_equal(roots_subset, new_roots) and parent_candidate == parent_correct:
                 correct_forrest_ind = i
-            forests.append(candidate)
+            forests.append((roots_subset, parent_candidate))
             i += 1
 
         # re-add root
         if parent_candidate_root != ind:
             roots.insert(removed_root_pos, parent_candidate_root)
 
-    return np.array(forests), correct_forrest_ind
+    # reset parents
+    #for i in new_roots:
+    #    parents[i] = ind
+    #parents[ind] = parent_target_correct - ind
+
+    return forests, correct_forrest_ind, correct_roots, new_roots
 
 
 # creates a subgraph of the forest represented by parents
 # parents outside the new graph are linked to itself
-def subgraph(parents, start, end):
+def cut_subgraph(parents):
     # assert start < len(parents), 'start_ind = ' + str(start) + ' exceeds list size = ' + str(len(parents))
-    new_parents = parents[start:end].copy()
-    for i in range(len(new_parents)):
-        if new_parents[i] < -i or new_parents[i] >= len(new_parents) - i:
-            new_parents[i] = 0
-    return new_parents
+    #parents = parents[start:end].copy()
+    new_roots = []
+    for i in range(len(parents)):
+        if parents[i] < -i or parents[i] >= len(parents) - i:
+            new_roots.append((i, parents[i]))
+            parents[i] = 0
+    return new_roots
 
 
 def get_roots(parents):
