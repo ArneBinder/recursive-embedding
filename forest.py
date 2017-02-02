@@ -47,7 +47,6 @@ def forest_candidates(parents, ind):
 # parents outside the new graph are linked to itself
 def cut_subgraph(parents):
     # assert start < len(parents), 'start_ind = ' + str(start) + ' exceeds list size = ' + str(len(parents))
-    #parents = parents[start:end].copy()
     new_roots = []
     for i in range(len(parents)):
         if parents[i] < -i or parents[i] >= len(parents) - i:

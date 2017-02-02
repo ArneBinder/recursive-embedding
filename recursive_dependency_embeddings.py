@@ -31,7 +31,7 @@ def main():
     # model
     arg_parser.add_argument('-d', '--dimensions', type=int, default=300)
     # training
-    arg_parser.add_argument('-e', '--max-epochs-per-size', type=int, default=1)
+    arg_parser.add_argument('-e', '--max-epochs-per-size', type=int, default=50)
     arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=100)
     # increase slice_size if the skew over the last loss-history-size losses is smaller than loss-skew-threshold
     arg_parser.add_argument('-lh', '--loss-history-size', type=int, default=10)
@@ -107,6 +107,7 @@ def main():
         epoch = 0
         while epoch < max_epochs and (abs(loss_skew) > loss_skew_threshold or len(losses) < loss_hist_size):
             running_loss = 0.0
+            count_correct = 0.
             slice_step = 0
             # get slices of full size (slice_size)
             slice_starts = range(0, min(max_steps*slice_size, len(seq_data) - slice_size + 1), slice_size)
@@ -136,6 +137,9 @@ def main():
                 outputs = net(data, types, parents, edges, predict_pos, forests, roots_orig + roots_cut_pos)
                 outputs_cat = torch.cat(outputs).squeeze()
                 loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_class).type(torch.LongTensor))
+                max_ind = np.argmax(outputs_cat.data.numpy())
+                if max_ind == correct_class:
+                    count_correct += 1.
 
                 loss.backward()
                 optimizer.step()
@@ -168,10 +172,11 @@ def main():
             running_loss /= len(slice_starts)
             losses.append(running_loss)
             losses = losses[-loss_hist_size:]
-            loss_skew = st.skew(losses)
+            loss_skew = float(st.skew(losses))
             # print statistics
-            print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f' % (slice_size, epoch + 1, running_loss, loss_skew))
-            log_value('loss', running_loss / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
+            print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f    acc: %.3f' % (slice_size, epoch + 1, running_loss, loss_skew, count_correct / len(slice_starts)))
+            log_value('loss', running_loss, (slice_size - 1) * max_slice_size + epoch)
+            log_value('acc', count_correct / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
             epoch += 1
 
         model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)

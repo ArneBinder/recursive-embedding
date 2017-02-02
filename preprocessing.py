@@ -10,8 +10,8 @@ import constants
 @fn_timer
 def get_word_embeddings(vocab):
     vecs = np.ndarray(shape=(len(vocab)+1, vocab.vectors_length), dtype=np.float32)
-    m_human = [constants.NOT_IN_WORD_DICT]
-    vecs[0] = np.zeros(vocab.vectors_length)
+    m_human = [constants.NOT_IN_WORD_DICT_]
+    vecs[constants.NOT_IN_WORD_DICT] = np.zeros(vocab.vectors_length)
     m = {}
     i = 1
     for lexeme in vocab:

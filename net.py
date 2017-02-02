@@ -4,6 +4,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
 from forest import get_children
+import constants
 
 
 class Net(nn.Module):
@@ -35,18 +36,18 @@ class Net(nn.Module):
         self.score_weights = Variable(torch.rand(dim, 1), requires_grad=True)
 
     def calc_embedding_single(self, data, types, children, edges, embeddings, idx):
-        m1 = self.data_biases[types[idx]].unsqueeze(0).unsqueeze(0) #Variable(torch.rand(1, 300)) #
-        m2 = self.data_vecs[types[idx]][data[idx]].unsqueeze(0).unsqueeze(0) #Variable(torch.rand(1, 300)) #
-        # TODO: Fix this! works?
-        m3 = self.data_weights[types[idx]].unsqueeze(0) #Variable(torch.rand(300, 300)) #
-        embedding = torch.baddbmm(1, m1, 1,
-                                m2, m3).squeeze().unsqueeze(0)
+        b_c = self.data_biases[types[idx]].unsqueeze(0)
+        data_vec = self.data_vecs[types[idx]][data[idx]].unsqueeze(0)
+        w = self.data_weights[types[idx]]
+        embedding = torch.addmm(1, b_c, 1, data_vec, w)
         if idx in children:  # leaf
             for child in children[idx]:
                 child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
-                embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, child_embedding, self.edge_weights[edges[child]]) #self.add_child_embedding(embedding, child_embedding, edges[child])
-
+                b_c = self.edge_biases[edges[child]].unsqueeze(0)
+                w_c = self.edge_weights[edges[child]]
+                embedding += torch.addmm(1, b_c, 1, child_embedding, w_c)
             embedding /= len(children[idx]) + 1
+        # save embedding without activation
         embeddings[idx] = embedding
         return embedding.clamp(min=0)
 
@@ -67,7 +68,9 @@ class Net(nn.Module):
                 embedding += children_embedding
                 cc += 1
             # follow the edge
-            embedding = torch.addmm(1, self.edge_biases[edges[current_pos]].unsqueeze(0), 1, (embedding / cc).clamp(min=0), self.edge_weights[edges[current_pos]])
+            b = self.edge_biases[edges[current_pos]].unsqueeze(0)
+            w = self.edge_weights[edges[current_pos]]
+            embedding = torch.addmm(1, b, 1, (embedding / cc).clamp(min=0), w)
             current_pos += parents[current_pos]
         return embedding
 
@@ -101,7 +104,7 @@ class Net(nn.Module):
             for i in range(len(roots_candidate) - 1):
                 rem_edges.append((roots_candidate[i], parents[roots_candidate[i]], edges[roots_candidate[i]]))
                 parents[roots_candidate[i]] = roots_candidate[i + 1] - roots_candidate[i]
-                edges[roots_candidate[i]] = 0
+                edges[roots_candidate[i]] = constants.INTER_TREE
 
             embedding = embeddings[pos]
             cc = 1
@@ -111,11 +114,14 @@ class Net(nn.Module):
                 embedding *= cc
 
             for child in new_children_candidate:
-                embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, embeddings[child].clamp(min=0), self.edge_weights[edges[child]])
+                b = self.edge_biases[edges[child]].unsqueeze(0)
+                w = self.edge_weights[edges[child]]
+                embedding += torch.addmm(1, b, 1, embeddings[child].clamp(min=0), w)
             cc += len(new_children_candidate)
 
             # check, if INTERTREE points to pos (pos has to be a root, but not the first)
             if pos in roots_candidate_set and roots_candidate[0] != pos:
+                # add embedding for root chain
                 embedding += self.calc_embedding_path_up(parents, children, edges, embeddings, roots_candidate[0], pos)
                 cc += 1
 
@@ -137,16 +143,17 @@ class Net(nn.Module):
 
                 # check, if INTERTREE points to current_pos (current_pos has to be a root, but not the first)
                 if current_pos in roots_candidate_set and roots_candidate[0] != current_pos:
-                    # add embedding for root link
+                    # add embedding for root chain
                     current_embedding += self.calc_embedding_path_up(parents, children, edges, embeddings, roots_candidate[0], current_pos)
                     cc += 1
 
                 # blow up current embedding and add it
-                embedding += torch.cat([current_embedding] * self.edge_count).unsqueeze(1) # embedding * edge_w[edge[current_pos]] + edge_b[edge[current_pos]] + children_embedding / cc
+                embedding += torch.cat([current_embedding] * self.edge_count).unsqueeze(1)
                 # inc for previous embedding
                 cc += 1
-                embedding += torch.baddbmm(1, torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count).unsqueeze(1), 1,
-                                           (embedding / cc).clamp(min=0), torch.cat([self.edge_weights[edges[current_pos]].unsqueeze(0)] * self.edge_count))
+                b = torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count).unsqueeze(1)
+                w = torch.cat([self.edge_weights[edges[current_pos]].unsqueeze(0)] * self.edge_count)
+                embedding += torch.baddbmm(1, b, 1, (embedding / cc).clamp(min=0), w)
                 parent = parents[current_pos]
                 current_pos = current_pos + parent
 
