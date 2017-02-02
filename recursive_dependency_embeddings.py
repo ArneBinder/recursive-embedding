@@ -98,7 +98,7 @@ def main():
     print('\n')
     time_train_start = datetime.datetime.now()
     print(str(time_train_start), 'START TRAINING')
-    for slice_size in range(2, max_slice_size):
+    for slice_size in range(1, max_slice_size):
         print('max_class_count (slice_size='+str(slice_size)+'):', net.max_class_count(slice_size))
         losses = []
         loss_skew = loss_skew_threshold + 1

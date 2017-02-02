@@ -3,8 +3,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
-from forest import get_roots, get_children
-import constants
+from forest import get_children
 
 
 class Net(nn.Module):
@@ -45,9 +44,6 @@ class Net(nn.Module):
         if idx in children:  # leaf
             for child in children[idx]:
                 child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
-                s1 = self.edge_biases[edges[child]].unsqueeze(0).size()
-                s2 = child_embedding.size()
-                s3 = self.edge_weights[edges[child]].size()
                 embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, child_embedding, self.edge_weights[edges[child]]) #self.add_child_embedding(embedding, child_embedding, edges[child])
 
             embedding /= len(children[idx]) + 1
@@ -71,9 +67,6 @@ class Net(nn.Module):
                 embedding += children_embedding
                 cc += 1
             # follow the edge
-            s1 = self.edge_biases[edges[current_pos]].unsqueeze(0).size()
-            s2 = (embedding / cc).clamp(min=0).size()
-            s3 = self.edge_weights[edges[current_pos]].size()
             embedding = torch.addmm(1, self.edge_biases[edges[current_pos]].unsqueeze(0), 1, (embedding / cc).clamp(min=0), self.edge_weights[edges[current_pos]])
             current_pos += parents[current_pos]
         return embedding
@@ -143,19 +136,12 @@ class Net(nn.Module):
 
                 embedding += torch.cat([current_embedding] * self.edge_count) # embedding * edge_w[edge[current_pos]] + edge_b[edge[current_pos]] + children_embedding / cc
                 cc += 1
-                m1 = torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count).unsqueeze(1)
-                s1 = m1.size()
-                m2 = (embedding / cc).clamp(min=0)
-                s2 = m2.size()
-                m3 = torch.cat([self.edge_weights[edges[current_pos]].unsqueeze(0)] * self.edge_count)
-                s3 = m3.size()
-                embedding += torch.baddbmm(1, m1, 1,
-                                           m2, m3)
+                embedding += torch.baddbmm(1, torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count).unsqueeze(1), 1,
+                                           (embedding / cc).clamp(min=0), torch.cat([self.edge_weights[edges[current_pos]].unsqueeze(0)] * self.edge_count))
                 parent = parents[current_pos]
                 current_pos = current_pos + parent
 
             # calc score
-            s4 = torch.cat([self.score_weights.unsqueeze(0)] * self.edge_count).size()
             score = torch.bmm(embedding, torch.cat([self.score_weights.unsqueeze(0)] * self.edge_count))
             scores.append(score)
 
