@@ -26,6 +26,7 @@ def fn_timer(function):
         return result
     return function_timer
 
+
 def list_powerset(lst):
     # the power set of the empty set has one element, the empty set
     result = [[]]
@@ -38,3 +39,15 @@ def list_powerset(lst):
         # previous power set)
         result.extend([subset + [x] for subset in result])
     return result
+
+
+def avg_dif(a):
+    if len(a) == 1:
+        return a[0]
+    l = []
+    for i in range(len(a)-1):
+        l.append(a[i+1] - a[i])
+
+    return sum(l) / len(l)
+
+

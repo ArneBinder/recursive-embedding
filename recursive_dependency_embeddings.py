@@ -9,7 +9,7 @@ import torch.optim as optim
 import datetime
 from torch.autograd import Variable
 from net import Net
-from tools import mkdir_p
+from tools import mkdir_p, avg_dif
 from tensorboard_logger import configure, log_value
 import random
 import scipy.stats.stats as st
@@ -35,7 +35,8 @@ def main():
     arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=100)
     # increase slice_size if the skew over the last loss-history-size losses is smaller than loss-skew-threshold
     arg_parser.add_argument('-lh', '--loss-history-size', type=int, default=10)
-    arg_parser.add_argument('-sk', '--loss-skew-threshold', type=float, default=0.1)
+    arg_parser.add_argument('-ls', '--loss-skew-threshold', type=float, default=0.1)
+    arg_parser.add_argument('-ld', '--loss-dif-threshold', type=float, default=1.0)
     args = arg_parser.parse_args()
 
     print('ARGUMENTS:')
@@ -92,6 +93,7 @@ def main():
     max_steps = args.max_steps_per_epoch # 1000  # per slice_size
     loss_hist_size = args.loss_history_size # 10
     loss_skew_threshold = args.loss_skew_threshold # 0.1
+    loss_dif_threshold = args.loss_dif_threshold
 
     # interval_avg = 50
 
@@ -99,13 +101,15 @@ def main():
     time_train_start = datetime.datetime.now()
     print(str(time_train_start), 'START TRAINING')
     for slice_size in range(1, max_slice_size):
-        print('max_class_count (slice_size='+str(slice_size)+'):', net.max_class_count(slice_size))
+        max_cc = net.max_class_count(slice_size)
+        print('max_class_count (slice_size='+str(slice_size)+'):', max_cc, '\trandom acc:', 1. / max_cc)
         losses = []
         loss_skew = loss_skew_threshold + 1
+        loss_avg_dif = loss_dif_threshold + 1
         # predict last token
         predict_pos = slice_size - 1
         epoch = 0
-        while epoch < max_epochs and (abs(loss_skew) > loss_skew_threshold or len(losses) < loss_hist_size):
+        while epoch < max_epochs and ((abs(loss_skew) > loss_skew_threshold and abs(loss_avg_dif) > loss_dif_threshold) or len(losses) < loss_hist_size):
             running_loss = 0.0
             count_correct = 0.
             slice_step = 0
@@ -173,10 +177,12 @@ def main():
             losses.append(running_loss)
             losses = losses[-loss_hist_size:]
             loss_skew = float(st.skew(losses))
+            loss_avg_dif = avg_dif(losses)
             # print statistics
-            print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f    acc: %.3f' % (slice_size, epoch + 1, running_loss, loss_skew, count_correct / len(slice_starts)))
+            print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f  loss_avg_dif: %15.3f   acc: %.3f' % (slice_size, epoch + 1, running_loss, loss_skew, loss_avg_dif, count_correct / len(slice_starts)))
             log_value('loss', running_loss, (slice_size - 1) * max_slice_size + epoch)
             log_value('acc', count_correct / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
+            log_value('acc_rand', 1. / max_cc, (slice_size - 1) * max_slice_size + epoch)
             epoch += 1
 
         model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)
