@@ -135,7 +135,7 @@ def main():
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
-                outputs = net(data, types, parents, edges, predict_pos, forests, correct_roots, new_roots)
+                outputs = net(data, types, parents, edges, predict_pos, forests, correct_roots, new_roots_parent)
                 outputs_cat = torch.cat(outputs).squeeze()
                 loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_class).type(torch.LongTensor))
 

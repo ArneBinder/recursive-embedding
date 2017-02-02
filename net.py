@@ -103,13 +103,12 @@ class Net(nn.Module):
     def calc_embedding_single(self, data, types, children, edges, embeddings, idx):
         embedding = torch.addmm(1, self.data_biases[types[idx]].unsqueeze(0), 1,
                                 self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]])
-        if idx not in children:  # leaf
-            return embedding
-        for child in children[idx]:
-            child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
-            embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, child_embedding, self.edge_weights[edges[child]]) #self.add_child_embedding(embedding, child_embedding, edges[child])
+        if idx in children:  # leaf
+            for child in children[idx]:
+                child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
+                embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, child_embedding, self.edge_weights[edges[child]]) #self.add_child_embedding(embedding, child_embedding, edges[child])
 
-        embedding = (embedding / (len(children) + 1))
+            embedding /= len(children[idx]) + 1
         embeddings[idx] = embedding
         return embedding.clamp(min=0)
 
@@ -136,13 +135,13 @@ class Net(nn.Module):
 
     def forward(self, data, types, parents, edges, pos, forests, correct_roots, new_roots):
         edges[pos] = -1
-        parents[pos] = 0    # -pos     # TODO:why?
+        parents[pos] = -(pos + 1)    # -pos     # TODO:why?
 
         embeddings = {}
         # calc child pointer
         children = get_children(parents)
         # calc forest embeddings (top down from roots)
-        for root in correct_roots + new_roots:
+        for root in correct_roots + new_roots + [pos]:
             # calc embedding and save
             self.calc_embedding_single(data, types, children, edges, embeddings, root)
 
