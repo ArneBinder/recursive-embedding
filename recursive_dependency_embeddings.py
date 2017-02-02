@@ -31,8 +31,8 @@ def main():
     # model
     arg_parser.add_argument('-d', '--dimensions', type=int, default=300)
     # training
-    arg_parser.add_argument('-e', '--max-epochs-per-size', type=int, default=50)
-    arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=1000)
+    arg_parser.add_argument('-e', '--max-epochs-per-size', type=int, default=1)
+    arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=100)
     # increase slice_size if the skew over the last loss-history-size losses is smaller than loss-skew-threshold
     arg_parser.add_argument('-lh', '--loss-history-size', type=int, default=10)
     arg_parser.add_argument('-sk', '--loss-skew-threshold', type=float, default=0.1)
@@ -117,7 +117,7 @@ def main():
                 data = seq_data[slice_start:slice_end]
                 types = seq_types[slice_start:slice_end]
                 parents = seq_parents[slice_start:slice_end]
-                new_roots = cut_subgraph(parents)
+                roots_cut_slice = cut_subgraph(parents)
                 edges = seq_edges[slice_start:slice_end]
                 if len(parents) - np.count_nonzero(parents) > net.max_forest_count:
                     continue
@@ -126,14 +126,14 @@ def main():
                 correct_parent = parents[predict_pos]
                 correct_edge = edges[predict_pos]
 
-                forests, correct_forrest_ind, correct_roots, new_roots_parent = forest_candidates(parents, predict_pos)
+                forests, correct_forrest_ind, roots_orig, roots_cut_pos = forest_candidates(parents, predict_pos)
 
                 correct_class = correct_edge + net.edge_count * correct_forrest_ind
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 # forward + backward + optimize
-                outputs = net(data, types, parents, edges, predict_pos, forests, correct_roots, new_roots_parent)
+                outputs = net(data, types, parents, edges, predict_pos, forests, roots_orig + roots_cut_pos)
                 outputs_cat = torch.cat(outputs).squeeze()
                 loss = loss_fn(outputs_cat, Variable(torch.ones(1)*correct_class).type(torch.LongTensor))
 
@@ -144,10 +144,10 @@ def main():
                 edges[predict_pos] = correct_edge
                 parents[predict_pos] = correct_parent
                 # restore cuts by subgraph
-                for (i, target) in new_roots:
+                for (i, target) in roots_cut_slice:
                     parents[i] = target
                 # restore cuts to predict_pos
-                for i in new_roots_parent:
+                for i in roots_cut_pos:
                     parents[i] = predict_pos - i
 
                 running_loss += loss.squeeze().data[0]
