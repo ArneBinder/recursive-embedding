@@ -35,71 +35,6 @@ class Net(nn.Module):
 
         self.score_weights = Variable(torch.rand(dim, 1), requires_grad=True)
 
-    def calc_embedding(self, data, types, parents, edges):
-        # connect roots
-        roots = get_roots(parents)
-        for i in range(len(roots) - 1):
-            parents[roots[i]] = roots[i + 1]
-
-        root = roots[-1]
-
-        # let root point to outside (remove circle)
-        parents[root] = -len(data)
-
-        # calc child pointer
-        children = get_children(parents)
-
-        result = self.calc_embedding_rec(data, types, children, edges, root)
-        # incorporate root edge
-        result = self.add_child_embedding(Variable(torch.zeros(result.size())), result, edges[root])
-
-        # reset root for next iteration
-        parents[root] = 0
-        return result
-
-    def add_child_embedding(self, embedding, child_embedding, edge_id):
-        single = True  # batch disabled
-        if len(embedding.size()) == 3 or len(child_embedding.size()) == 3:
-            single = False
-        if edge_id < 0:  # no edge specified, take all!
-            single = False
-            w = self.edge_weights
-            b = self.edge_biases.unsqueeze(1)
-        else:
-            if single:
-                w = self.edge_weights[edge_id]
-                b = self.edge_biases[edge_id].unsqueeze(0)
-            else:
-                w = torch.cat([self.edge_weights[edge_id].unsqueeze(0)] * self.edge_count)
-                b = torch.cat([self.edge_biases[edge_id].unsqueeze(0)] * self.edge_count).unsqueeze(1)
-
-        if not single and len(embedding.size()) == 2:
-            embedding = torch.cat([embedding.unsqueeze(0)] * self.edge_count)
-        if not single and len(child_embedding.size()) == 2:
-            child_embedding = torch.cat([child_embedding.unsqueeze(0)] * self.edge_count)
-
-        if single:
-            return embedding + torch.addmm(1, b, 1, child_embedding, w)  # child_embedding.mm(w) + b
-        else:
-            return embedding + torch.baddbmm(1, b, 1, child_embedding, w)
-
-    def calc_embedding_rec(self, data, types, children, edges, idx):
-        embedding = torch.addmm(1, self.data_biases[types[idx]].unsqueeze(0), 1,
-                                self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]])
-        if idx not in children:  # leaf
-            return embedding
-        for child in children[idx]:
-            child_embedding = self.calc_embedding_rec(data, types, children, edges, child)
-            embedding = self.add_child_embedding(embedding, child_embedding, edges[child])
-        return (embedding/(len(children)+1)).clamp(min=0)
-
-    def calc_score(self, embedding):
-        if len(embedding.size()) == 3:  # batch edges
-            s = embedding.size()[0]
-            return torch.bmm(embedding, torch.cat([self.score_weights.unsqueeze(0)] * s))
-        else:
-            return torch.mm(embedding, self.score_weights)
-
     def calc_embedding_single(self, data, types, children, edges, embeddings, idx):
         embedding = torch.addmm(1, self.data_biases[types[idx]].unsqueeze(0), 1,
                                 self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]])
@@ -135,7 +70,7 @@ class Net(nn.Module):
 
     def forward(self, data, types, parents, edges, pos, forests, correct_roots, new_roots):
         edges[pos] = -1
-        parents[pos] = -(pos + 1)    # -pos     # TODO:why?
+        parents[pos] = -(pos + 1)    # prevent circle when calculating embeddings
 
         embeddings = {}
         # calc child pointer

@@ -95,8 +95,6 @@ def main():
 
     # interval_avg = 50
 
-
-
     print('\n')
     time_train_start = datetime.datetime.now()
     print(str(time_train_start), 'START TRAINING')
