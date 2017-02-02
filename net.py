@@ -21,7 +21,7 @@ class Net(nn.Module):
         self.max_graph_count = (slice_size + 1) * (2 ** (max_forest_count - 1))
 
         # activation function
-        self.activation_fn = nn.ReLU6()
+        self.activation_fn = nn.ReLU()
 
         self.data_vecs = {}
         self.data_weights = {}
@@ -42,7 +42,7 @@ class Net(nn.Module):
         b_c = self.data_biases[types[idx]].unsqueeze(0)
         data_vec = self.data_vecs[types[idx]][data[idx]].unsqueeze(0)
         w = self.data_weights[types[idx]]
-        embedding = torch.addmm(1, b_c, 1, data_vec, w)
+        embedding = self.activation_fn(torch.addmm(1, b_c, 1, data_vec, w))
         if idx in children:  # leaf
             for child in children[idx]:
                 child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
