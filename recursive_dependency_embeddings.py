@@ -20,7 +20,7 @@ def main():
     arg_parser = argparse.ArgumentParser()
 
     # data locations
-    arg_parser.add_argument('-ld', '--log-dir', default='/home/arne/devel/ML/data/summaries')
+    arg_parser.add_argument('-l', '--log-dir', default='/home/arne/devel/ML/data/summaries')
     arg_parser.add_argument('-cf', '--corpus-file', default='/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv')
     # parsing
     arg_parser.add_argument('-a', '--max-article-count', type=int, default=10)
