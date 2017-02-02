@@ -109,7 +109,7 @@ class Net(nn.Module):
                 parents[roots_candidate[i]] = roots_candidate[i + 1] - roots_candidate[i]
                 edges[roots_candidate[i]] = constants.INTER_TREE
 
-            embedding = embeddings[pos]
+            embedding = embeddings[pos].clone()
             cc = 1
             # re-scale, if pos has children
             if pos in children:
@@ -134,30 +134,41 @@ class Net(nn.Module):
             embedding = torch.baddbmm(1, self.edge_biases.unsqueeze(1), 1, self.activation_fn(embedding / cc), self.edge_weights)
 
             parent = parents[pos]
+            last_pos = pos
             current_pos = pos + parent
             while parent != 0:
-                # initialize children count with one for current embedding
-                cc = 1  # current embedding
+                # initialize children count
+                cc = 1  # one for data vector
+                # get embedding for the current node
+                current_embedding = embeddings[current_pos].clone()
                 if current_pos in children:
-                    # current embeddings was averaged over more than one children
+                    # If current embedding was averaged over more than one children,
+                    # it has to be rescaled to incorporate the new embedding data
                     cc += len(children[current_pos])
-                # re-scale pre-calculated embedding
-                current_embedding = embeddings[current_pos] * cc
+                    current_embedding *= cc
+                    # if we come from the same branch, remove previously integrated embedding of this.
+                    # The embedding of this branch is newly calculated and contained in 'embedding'.
+                    if last_pos in children[current_pos]:
+                        current_embedding -= embeddings[last_pos]
+                        cc -= 1
 
-                # check, if INTERTREE points to current_pos (current_pos has to be a root, but not the first)
+                # Check, if INTERTREE points to current_pos (current_pos has to be a root, but not the first)
+                # to get the embedding data from the root chain.
                 if current_pos in roots_candidate_set and roots_candidate[0] != current_pos:
-                    # add embedding for root chain
-                    current_embedding += self.calc_embedding_path_up(parents, children, edges, embeddings, roots_candidate[0], current_pos)
+                    # add embedding from root chain
+                    current_embedding += self.calc_embedding_path_up(parents, children, edges, embeddings,
+                                                                     roots_candidate[0], current_pos)
                     cc += 1
 
                 # blow up current embedding and add it
                 embedding += torch.cat([current_embedding] * self.edge_count).unsqueeze(1)
-                # inc for previous embedding
+                # inc for previous embedding (from the branch we came)
                 cc += 1
                 b = torch.cat([self.edge_biases[edges[current_pos]].unsqueeze(0)] * self.edge_count).unsqueeze(1)
                 w = torch.cat([self.edge_weights[edges[current_pos]].unsqueeze(0)] * self.edge_count)
-                embedding += torch.baddbmm(1, b, 1, self.activation_fn(embedding / cc), w)
+                embedding = torch.baddbmm(1, b, 1, self.activation_fn(embedding / cc), w)
                 parent = parents[current_pos]
+                last_pos = current_pos
                 current_pos = current_pos + parent
 
             # calc score
