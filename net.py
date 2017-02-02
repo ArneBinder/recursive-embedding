@@ -36,12 +36,12 @@ class Net(nn.Module):
         self.score_weights = Variable(torch.rand(dim, 1), requires_grad=True)
 
     def calc_embedding_single(self, data, types, children, edges, embeddings, idx):
-        m1 = self.data_biases[types[idx]].unsqueeze(0) #Variable(torch.rand(1, 300)) #
-        m2 = self.data_vecs[types[idx]][data[idx]].unsqueeze(0) #Variable(torch.rand(1, 300)) #
-        # TODO: Fix this!
-        m3 = Variable(torch.rand(300, 300)) #self.data_weights[types[idx]] #
-        embedding = torch.addmm(1, m1, 1,
-                                m2, m3)
+        m1 = self.data_biases[types[idx]].unsqueeze(0).unsqueeze(0) #Variable(torch.rand(1, 300)) #
+        m2 = self.data_vecs[types[idx]][data[idx]].unsqueeze(0).unsqueeze(0) #Variable(torch.rand(1, 300)) #
+        # TODO: Fix this! works?
+        m3 = self.data_weights[types[idx]].unsqueeze(0) #Variable(torch.rand(300, 300)) #
+        embedding = torch.baddbmm(1, m1, 1,
+                                m2, m3).squeeze().unsqueeze(0)
         if idx in children:  # leaf
             for child in children[idx]:
                 child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
