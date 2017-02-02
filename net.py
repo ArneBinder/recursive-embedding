@@ -36,11 +36,18 @@ class Net(nn.Module):
         self.score_weights = Variable(torch.rand(dim, 1), requires_grad=True)
 
     def calc_embedding_single(self, data, types, children, edges, embeddings, idx):
-        embedding = torch.addmm(1, self.data_biases[types[idx]].unsqueeze(0), 1,
-                                self.data_vecs[types[idx]][data[idx]].unsqueeze(0), self.data_weights[types[idx]])
+        m1 = self.data_biases[types[idx]].unsqueeze(0) #Variable(torch.rand(1, 300)) #
+        m2 = self.data_vecs[types[idx]][data[idx]].unsqueeze(0) #Variable(torch.rand(1, 300)) #
+        # TODO: Fix this!
+        m3 = Variable(torch.rand(300, 300)) #self.data_weights[types[idx]] #
+        embedding = torch.addmm(1, m1, 1,
+                                m2, m3)
         if idx in children:  # leaf
             for child in children[idx]:
                 child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
+                s1 = self.edge_biases[edges[child]].unsqueeze(0).size()
+                s2 = child_embedding.size()
+                s3 = self.edge_weights[edges[child]].size()
                 embedding += torch.addmm(1, self.edge_biases[edges[child]].unsqueeze(0), 1, child_embedding, self.edge_weights[edges[child]]) #self.add_child_embedding(embedding, child_embedding, edges[child])
 
             embedding /= len(children[idx]) + 1
@@ -64,6 +71,9 @@ class Net(nn.Module):
                 embedding += children_embedding
                 cc += 1
             # follow the edge
+            s1 = self.edge_biases[edges[current_pos]].unsqueeze(0).size()
+            s2 = (embedding / cc).clamp(min=0).size()
+            s3 = self.edge_weights[edges[current_pos]].size()
             embedding = torch.addmm(1, self.edge_biases[edges[current_pos]].unsqueeze(0), 1, (embedding / cc).clamp(min=0), self.edge_weights[edges[current_pos]])
             current_pos += parents[current_pos]
         return embedding
