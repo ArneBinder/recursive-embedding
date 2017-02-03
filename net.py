@@ -87,10 +87,10 @@ class Net(nn.Module):
         parents[pos] = -(pos + 1)    # disconnect from rest to get correct children
 
         roots_set = set(roots)
-        embeddings = {}
         # calc child pointer
         children = get_children(parents)
         # calc forest embeddings (top down from roots)
+        embeddings = [None] * len(data)
         for root in roots + [pos]:
             # calc embedding and save
             self.calc_embedding_single(data, types, children, edges, embeddings, root)
