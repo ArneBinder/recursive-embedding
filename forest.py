@@ -11,6 +11,7 @@ def forest_candidates(parents, ind):
     parent_correct = parents[ind]
     parents[ind] = -(ind + 1)   # point to outside, should not go into roots
     roots_orig = get_roots(parents)
+    # cut all edges pointing to ind
     roots_cutout = cutout_leaf(parents, ind)
 
     current_roots = roots_orig + roots_cutout
@@ -78,7 +79,6 @@ def get_children(parents):
 def cutout_leaf(parents, pos):
     # assert pos < len(parents), 'pos = ' + str(pos) + ' exceeds list size = ' + str(len(parents))
     new_roots = []
-    parents[pos] = -(pos + 1)
     for i, parent in np.ndenumerate(parents):
         i = i[0]
         if i+parent == pos:
