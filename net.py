@@ -93,7 +93,7 @@ class Net(nn.Module):
         embeddings = [None] * len(data)
         for root in roots + [pos]:
             # calc embedding and save
-            self.calc_embedding_single(data, types, children, edges, embeddings, root)
+            self.calc_embedding_single(data, types, children, edges, root, embeddings)
 
         scores = []
         for (new_children_candidate, parent_candidate) in forests:
