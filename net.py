@@ -40,28 +40,31 @@ class Net(nn.Module):
 
         self.score_weights = Variable(torch.rand(dim, 1), requires_grad=True)
 
-    def calc_embedding_single(self, data, types, children, edges, embeddings, idx):
+    # Calculates the embeddings in the subgraph rooted by idx.
+    # The result is put into embeddings[idx].
+    # No activation function is applied to the result.
+    def calc_embedding_single(self, data, types, children, edges, idx, embeddings):
         b_c = self.data_biases[types[idx]].unsqueeze(0)
         data_vec = self.data_vecs[types[idx]][data[idx]].unsqueeze(0)
         w = self.data_weights[types[idx]]
-        embedding = self.activation_fn(torch.addmm(1, b_c, 1, data_vec, w))
+        embedding = torch.addmm(1, b_c, 1, self.activation_fn(data_vec), w)
         if idx in children:  # leaf
             for child in children[idx]:
-                child_embedding = self.calc_embedding_single(data, types, children, edges, embeddings, child)
+                self.calc_embedding_single(data, types, children, edges, child, embeddings)
                 b_c = self.edge_biases[edges[child]].unsqueeze(0)
                 w_c = self.edge_weights[edges[child]]
-                embedding += torch.addmm(1, b_c, 1, child_embedding, w_c)
+                embedding += torch.addmm(1, b_c, 1, self.activation_fn(embeddings[child]), w_c)
             embedding /= len(children[idx]) + 1
-        # save embedding without activation
+        # save embedding without activation, the edge is not yet included
         embeddings[idx] = embedding
-        return self.activation_fn(embedding)
+        #return self.activation_fn(embedding)
 
     def calc_embedding_path_up(self, parents, children, edges, embeddings, start, end):
         embedding = None
         current_pos = start
         while current_pos != end:
             cc = 1
-            children_embedding = embeddings[current_pos]
+            children_embedding = embeddings[current_pos].clone()
             if current_pos in children:
                 cc += len(children[current_pos])
                 children_embedding *= cc
