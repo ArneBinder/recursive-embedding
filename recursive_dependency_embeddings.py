@@ -27,9 +27,9 @@ def main():
     # parsing
     arg_parser.add_argument('-a', '--max-article-count', type=int, default=10)
     # max-forest-count = 10 captures 0,9998 % of tokens in wikipedia corpus
-    arg_parser.add_argument('-f', '--max-forest-count', type=int, default=10)
+    arg_parser.add_argument('-f', '--max-forest-count', type=int, default=5)
     # max-slice-size = 75 (sentence length while parsing) captures 0,9929 % of tokens in wikipedia corpus
-    arg_parser.add_argument('-s', '--max-slice-size', type=int, default=75)
+    arg_parser.add_argument('-s', '--max-slice-size', type=int, default=50)
     # model
     arg_parser.add_argument('-d', '--dimensions', type=int, default=300)
     # training
@@ -78,7 +78,7 @@ def main():
         # data vectors
         data_vecs = {constants.WORD_EMBEDDING: vecs}
 
-        net = Net(data_vecs, 60, dim, max_slice_size, max_forest_count, data_maps)
+        net = Net(data_vecs, 55, dim, max_slice_size, max_forest_count, data_maps)
 
     # create data arrays
     seq_data, seq_types, seq_parents, seq_edges = \
