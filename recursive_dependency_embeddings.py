@@ -193,8 +193,8 @@ def main():
             loss_avg_dif = avg_dif(losses)
             # print statistics
             print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f  loss_avg_dif: %15.3f   acc: %.3f' % (slice_size, epoch + 1, running_loss, loss_skew, loss_avg_dif, count_correct / len(slice_starts)))
-            log_value('loss', running_loss, (slice_size - 1) * max_slice_size + epoch)
-            log_value('acc', count_correct / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
+            log_value('loss', running_loss, (slice_size - 1) * max_epochs + epoch)
+            log_value('acc', count_correct / len(slice_starts), (slice_size - 1) * max_epochs + epoch)
             # log_value('acc_rand', 1. / max_cc, (slice_size - 1) * max_slice_size + epoch)
             epoch += 1
 
