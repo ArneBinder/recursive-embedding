@@ -1,5 +1,6 @@
 import pydot
 import matplotlib.pyplot as plt
+import constants
 # from IPython.display import Image, display
 
 
@@ -8,11 +9,11 @@ import matplotlib.pyplot as plt
 #    display(plt)
 
 
-def visualize(filename, sequence_graph, data_mapping, edge_vocab):
+def visualize(filename, sequence_graph, data_maps_human):
     data, types, parents, edges = sequence_graph
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
     if len(data) > 0:
-        nodes = [pydot.Node(i, label="'"+data_mapping[types[i]][data[i]] + "'", style="filled", fillcolor="green") for i in range(len(data))]
+        nodes = [pydot.Node(i, label="'"+data_maps_human[types[i]][data[i]] + "'", style="filled", fillcolor="green") for i in range(len(data))]
         for node in nodes:
             graph.add_node(node)
 
@@ -25,7 +26,7 @@ def visualize(filename, sequence_graph, data_mapping, edge_vocab):
         for i in range(len(data)):
             graph.add_edge(pydot.Edge(nodes[i],
                                       nodes[i + parents[i]],
-                                      label=edge_vocab[edges[i]]))
+                                      label=data_maps_human[constants.EDGE_EMBEDDING][edges[i]]))
 
     # print(graph.to_string())
 

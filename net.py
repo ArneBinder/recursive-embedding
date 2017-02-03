@@ -8,7 +8,7 @@ import constants
 
 
 class Net(nn.Module):
-    def __init__(self, data_vecs, edge_count, dim, slice_size, max_forest_count):
+    def __init__(self, data_vecs, edge_count, dim, slice_size, max_forest_count, data_maps):
         super(Net, self).__init__()
 
         # dimension of embeddings
@@ -19,6 +19,8 @@ class Net(nn.Module):
         self.slice_size = slice_size
         self.max_forest_count = max_forest_count
         self.max_graph_count = (slice_size + 1) * (2 ** (max_forest_count - 1))
+
+        self.data_maps = data_maps
 
         # activation function
         self.activation_fn = nn.ReLU()
@@ -201,3 +203,8 @@ class Net(nn.Module):
 
     def parameter_count(self):
         return sum([np.prod(np.array(v.size())) for v in self.get_parameters()])
+
+    def set_counts(self, slice_size, max_forest_count):
+        self.slice_size = slice_size
+        self.max_forest_count = max_forest_count
+        self.max_graph_count = (slice_size + 1) * (2 ** (max_forest_count - 1))

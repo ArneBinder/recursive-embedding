@@ -1,5 +1,6 @@
 
 # data types
+EDGE_EMBEDDING = -1
 WORD_EMBEDDING = 0
 
 # edges

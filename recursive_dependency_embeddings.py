@@ -14,14 +14,16 @@ from tensorboard_logger import configure, log_value
 import random
 import scipy.stats.stats as st
 import argparse
+import spacy.pipeline
 
 
 def main():
     arg_parser = argparse.ArgumentParser()
 
     # data locations
-    arg_parser.add_argument('-l', '--log-dir', default='/home/arne/devel/ML/data/summaries')
+    arg_parser.add_argument('-ld', '--log-dir', default='/home/arne/ML/data/summaries')
     arg_parser.add_argument('-cf', '--corpus-file', default='/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv')
+    arg_parser.add_argument('-lm', '--load-model')#, default='/home/arne/ML/data/summaries/train_2017-02-02_23:36:43/model-01')
     # parsing
     arg_parser.add_argument('-a', '--max-article-count', type=int, default=10)
     # max-forest-count = 10 captures 0,9998 % of tokens in wikipedia corpus
@@ -35,8 +37,8 @@ def main():
     arg_parser.add_argument('-st', '--max-steps-per-epoch', type=int, default=1000)
     # increase slice_size if the skew over the last loss-history-size losses is smaller than loss-skew-threshold
     arg_parser.add_argument('-lh', '--loss-history-size', type=int, default=10)
-    arg_parser.add_argument('-ls', '--loss-skew-threshold', type=float, default=0.01)
-    arg_parser.add_argument('-ld', '--loss-dif-threshold', type=float, default=1.0)
+    arg_parser.add_argument('-lst', '--loss-skew-threshold', type=float, default=0.01)
+    arg_parser.add_argument('-ldt', '--loss-dif-threshold', type=float, default=1.0)
     args = arg_parser.parse_args()
 
     print('ARGUMENTS:')
@@ -60,24 +62,32 @@ def main():
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
 
-    print('extract word embeddings from spaCy...')
-    vecs, mapping, human_mapping = get_word_embeddings(nlp.vocab)
-    # for processing parser output
-    data_embedding_maps = {constants.WORD_EMBEDDING: mapping}
-    # for displaying human readable tokens etc.
-    data_embedding_maps_human = {constants.WORD_EMBEDDING: human_mapping}
-    # data vectors
-    data_vecs = {constants.WORD_EMBEDDING: vecs}
+    if args.load_model is not None:
+        print('load model from "'+args.load_model + '"...')
+        net = torch.load(args.load_model)
+        net.set_counts(max_slice_size, max_forest_count)
+        data_maps = net.data_embedding_maps
+        data_maps_human = {constants.WORD_EMBEDDING: {}, constants.EDGE_EMBEDDING: {}}
+    else:
+        print('extract word embeddings from spaCy...')
+        vecs, mapping, human_mapping = get_word_embeddings(nlp.vocab)
+        # for processing parser output
+        data_maps = {constants.WORD_EMBEDDING: mapping}
+        # for displaying human readable tokens etc.
+        data_maps_human = {constants.WORD_EMBEDDING: human_mapping}
+        # data vectors
+        data_vecs = {constants.WORD_EMBEDDING: vecs}
+
+        net = Net(data_vecs, 60, dim, max_slice_size, max_forest_count, data_maps)
 
     # create data arrays
-    (seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
-        read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count,
+    seq_data, seq_types, seq_parents, seq_edges = \
+        read_data(articles_from_csv_reader, nlp, data_maps, data_maps_human, max_forest_count=max_forest_count,
                   max_sen_length=max_slice_size,
                   args={'max_articles': max_article_count, 'filename': corpus_file_name})
 
     print('data length (token):', len(seq_data))
 
-    net = Net(data_vecs, len(edge_map_human), dim, max_slice_size, max_forest_count)
     print('edge_count:', net.edge_count)
     params = list(net.get_parameters())
     print('tensors to train:', len(params))
@@ -185,13 +195,13 @@ def main():
             print(str(datetime.datetime.now() - time_train_start)+' [%2d %4d] loss: %15.3f loss_skew: %5.2f  loss_avg_dif: %15.3f   acc: %.3f' % (slice_size, epoch + 1, running_loss, loss_skew, loss_avg_dif, count_correct / len(slice_starts)))
             log_value('loss', running_loss, (slice_size - 1) * max_slice_size + epoch)
             log_value('acc', count_correct / len(slice_starts), (slice_size - 1) * max_slice_size + epoch)
-            log_value('acc_rand', 1. / max_cc, (slice_size - 1) * max_slice_size + epoch)
+            # log_value('acc_rand', 1. / max_cc, (slice_size - 1) * max_slice_size + epoch)
             epoch += 1
 
-        model_fn = log_dir + 'model-' + '{:03d}'.format(slice_size)
-        #print('write model to ' + model_fn)
-        #with open(model_fn, 'w') as f:
-        #    torch.save(net, f)
+        model_fn = log_dir + 'model-' + '{:02d}'.format(slice_size)
+        print('write model to "' + model_fn + '"...')
+        with open(model_fn, 'w') as f:
+            torch.save(net, f)
 
     print('Finished Training')
 

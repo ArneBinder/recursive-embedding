@@ -22,7 +22,7 @@ def get_word_embeddings(vocab):
     return vecs, m, m_human
 
 
-def process_sentence(sentence, parsed_data, max_forest_count, dep_map, data_embedding_maps):
+def process_sentence(sentence, parsed_data, max_forest_count, data_embedding_maps):
 
     # see read_data
     sen_data = list()
@@ -45,11 +45,11 @@ def process_sentence(sentence, parsed_data, max_forest_count, dep_map, data_embe
             x = data_embedding_maps[data_type][token.orth]
         # word doesnt occur in dictionary
         except KeyError:
-            x = 0
+            x = constants.NOT_IN_WORD_DICT
         sen_data.append(x)
 
         # collect dependency labels for human readable mapping
-        dep_map[token.dep] = token.dep_
+        # dep_map[token.dep] = token.dep_
     return sen_data, sen_types, sen_parents, sen_edges
 
 
@@ -75,9 +75,7 @@ def articles_from_csv_reader(filename, max_articles=100):
 
 
 @fn_timer
-def read_data(reader, nlp, data_embedding_maps, max_forest_count=10, max_sen_length=75, args={}):
-
-    dep_map = {}
+def read_data(reader, nlp, data_maps, data_maps_human, max_forest_count=10, max_sen_length=75, args={}):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -98,7 +96,7 @@ def read_data(reader, nlp, data_embedding_maps, max_forest_count=10, max_sen_len
             if len(sentence) > max_sen_length:
                 skipped_count += len(sentence)
                 continue
-            processed_sen = process_sentence(sentence, parsed_data, max_forest_count, dep_map, data_embedding_maps)
+            processed_sen = process_sentence(sentence, parsed_data, max_forest_count, data_maps)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
                 skipped_count += len(sentence)
@@ -115,13 +113,33 @@ def read_data(reader, nlp, data_embedding_maps, max_forest_count=10, max_sen_len
             prev_root = sentence.root.i - skipped_count + offset
         offset = len(seq_data)
 
+    if constants.EDGE_EMBEDDING not in data_maps:
+        data_maps[constants.EDGE_EMBEDDING] = {}
+        data_maps[constants.EDGE_EMBEDDING][constants.INTER_TREE] = constants.INTER_TREE
+
+    if constants.EDGE_EMBEDDING not in data_maps_human:
+        data_maps_human[constants.EDGE_EMBEDDING] = {}
+        data_maps_human[constants.EDGE_EMBEDDING][constants.INTER_TREE] = constants.INTER_TREE_
+
+    # collect edge labels
+    dep_map = data_maps[constants.EDGE_EMBEDDING]
+    dep_map_h = data_maps_human[constants.EDGE_EMBEDDING]
+    for i in range(len(seq_edges)):
+        edge = seq_edges[i]
+        if edge not in dep_map:
+            dep_map[edge] = len(dep_map)
+            seq_edges[i] = dep_map[edge]
+            dep_map_h[dep_map[edge]] = nlp.vocab[edge].orth_
+        else:
+            seq_edges[i] = dep_map[edge]
+
     # re-map edge labels
     # retain 0 for inter tree "edge"
-    mapping = dict(zip(dep_map.iterkeys(), range(1, len(dep_map)+1)))
-    for i in range(len(seq_edges)):
-        seq_edges[i] = mapping[seq_edges[i]]
-    dep_map = {mapping[key]: value for key, value in dep_map.iteritems()}
-    dep_map[0] = 0
+    #mapping = dict(zip(dep_map.iterkeys(), range(1, len(dep_map)+1)))
+    #for i in range(len(seq_edges)):
+    #    seq_edges[i] = mapping[seq_edges[i]]
+    #dep_map = {mapping[key]: value for key, value in dep_map.iteritems()}
+    #dep_map[0] = constants.INTER_TREE_
 
-    return (np.array(seq_data), np.array(seq_types), np.array(seq_parents), np.array(seq_edges)), dep_map
+    return np.array(seq_data), np.array(seq_types), np.array(seq_parents), np.array(seq_edges)#, dep_map
 

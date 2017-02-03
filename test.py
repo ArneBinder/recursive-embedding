@@ -14,34 +14,41 @@ nlp.pipeline = [nlp.tagger, nlp.parser]
 
 vecs, mapping, human_mapping = get_word_embeddings(nlp.vocab)
 # for processing parser output
-data_embedding_maps = {constants.WORD_EMBEDDING: mapping}
+data_maps = {constants.WORD_EMBEDDING: mapping}
 # for displaying human readable tokens etc.
-data_embedding_maps_human = {constants.WORD_EMBEDDING: human_mapping}
+data_maps_human = {constants.WORD_EMBEDDING: human_mapping}
 # data vectors
 data_vecs = {constants.WORD_EMBEDDING: vecs}
 
 data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
 # create data arrays
-(seq_data, seq_types, seq_parents, seq_edges), edge_map_human = \
-    read_data(articles_from_csv_reader, nlp, data_embedding_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
+seq_data, seq_types, seq_parents, seq_edges = \
+    read_data(articles_from_csv_reader, nlp, data_maps, data_maps_human, max_forest_count=max_forest_count, max_sen_length=slice_size,
               args={'max_articles': 1, 'filename': '/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv'})
 
 # take first 50 token and visualize the dependency graph
 start = 0
 end = 10
-sliced_parents = cut_subgraph(seq_parents, start, end)
+sliced_parents = seq_parents[start:end]
+cut_subgraph(sliced_parents)
 sliced_data = seq_data[start:end]
 sliced_types = seq_types[start:end]
 sliced_edges = seq_edges[start:end]
-visualize('forest.png', (sliced_data, sliced_types, sliced_parents, sliced_edges), data_embedding_maps_human, edge_map_human)
+visualize('forest.png', (sliced_data, sliced_types, sliced_parents, sliced_edges), data_maps_human)
 
+exit()
 
-# create possible graphs for "new" data point with index = 9
-graphs, correct_forrest_ind = forest_candidates(np.array(sliced_parents), 9)
-for i, g in enumerate(graphs):
-    visualize('forest_' + str(i) +'.png', (sliced_data, sliced_types, g, sliced_edges[:(end-1)]+[0]),
-              data_embedding_maps_human, edge_map_human)
-
+ind = 8
+forests, correct_forrest_ind, roots_orig, roots_cut_pos = forest_candidates(sliced_parents, ind)
+print('correct_forrest_ind:', correct_forrest_ind)
+for i, (children, parent) in enumerate(forests):
+    temp_parents = np.copy(sliced_parents)
+    temp_parents[ind] = parent
+    for child in children:
+        temp_parents[child] = ind - child
+    fn = 'forest_'+str(i)+'.png'
+    visualize(fn, (sliced_data, sliced_types, temp_parents, sliced_edges),
+              data_maps_human)
 
 exit()
 
@@ -70,7 +77,7 @@ def calc_embedding(data, types, parents, edges):
 
 def calc_embedding_rec(data, types, children, edges, idx):
     # embedding = data_vecs[types[idx]][data[idx]] * data_weights[types[idx]] + data_biases[types[idx]]
-    embedding = data_embedding_maps_human[types[idx]][data[idx]]
+    embedding = data_maps_human[types[idx]][data[idx]]
 
     # leaf
     if idx not in children:
