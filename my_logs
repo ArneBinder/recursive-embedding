@@ -15,4 +15,31 @@ arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$ R --no-save --slave --vani
 [1] "Relatedness: Pearson correlation -0.226714602536266"
 [1] "Relatedness: Spearman correlation -0.258683901704418"
 [1] "Relatedness: MSE 6.11014784998189"
-arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$
+
+
+model: /home/arne/ML/data/summaries/train_2017-02-03_15:54:26/model-04
+eval-subset: entailment_judgment == 'NEUTRAL'
+arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$ R --no-save --slave --vanilla --args my_test_scores.txt scores_gold.txt < sick_evaluation.R
+[1] "Processing my_test_scores.txt"
+[1] "No data for the entailment task: evaluation on relatedness only"
+[1] "Relatedness: Pearson correlation -0.256257877027608"
+[1] "Relatedness: Spearman correlation -0.282053124981422"
+[1] "Relatedness: MSE 4.02247268434858"
+
+model: /home/arne/ML/data/summaries/train_2017-02-03_15:54:26/model-04
+eval-subset: entailment_judgment == 'CONTRADICTION'
+arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$ R --no-save --slave --vanilla --args my_test_scores.txt scores_gold.txt < sick_evaluation.R
+[1] "Processing my_test_scores.txt"
+[1] "No data for the entailment task: evaluation on relatedness only"
+[1] "Relatedness: Pearson correlation -0.0114211519794978"
+[1] "Relatedness: Spearman correlation -0.055555657784569"
+[1] "Relatedness: MSE 5.38480508837508"
+
+model: /home/arne/ML/data/summaries/train_2017-02-03_15:54:26/model-04
+eval-subset: entailment_judgment == 'ENTAILMENT'
+arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$ R --no-save --slave --vanilla --args my_test_scores.txt scores_gold.txt < sick_evaluation.R
+[1] "Processing my_test_scores.txt"
+[1] "No data for the entailment task: evaluation on relatedness only"
+[1] "Relatedness: Pearson correlation -0.18449318822528"
+[1] "Relatedness: Spearman correlation -0.221605703763567"
+[1] "Relatedness: MSE 10.55332972878"
