@@ -66,15 +66,12 @@ def main():
         print('load model from "'+args.load_model + '"...')
         net = torch.load(args.load_model)
         net.set_counts(max_slice_size, max_forest_count)
-        data_maps = net.data_embedding_maps
-        data_maps_human = {constants.WORD_EMBEDDING: {}, constants.EDGE_EMBEDDING: {}}
+        data_maps = net.data_maps
     else:
         print('extract word embeddings from spaCy...')
-        vecs, mapping, human_mapping = get_word_embeddings(nlp.vocab)
+        vecs, mapping = get_word_embeddings(nlp.vocab)
         # for processing parser output
         data_maps = {constants.WORD_EMBEDDING: mapping}
-        # for displaying human readable tokens etc.
-        data_maps_human = {constants.WORD_EMBEDDING: human_mapping}
         # data vectors
         data_vecs = {constants.WORD_EMBEDDING: vecs}
 
@@ -82,7 +79,7 @@ def main():
 
     # create data arrays
     seq_data, seq_types, seq_parents, seq_edges = \
-        read_data(articles_from_csv_reader, nlp, data_maps, data_maps_human, max_forest_count=max_forest_count,
+        read_data(articles_from_csv_reader, nlp, data_maps, max_forest_count=max_forest_count,
                   max_sen_length=max_slice_size,
                   args={'max_articles': max_article_count, 'filename': corpus_file_name})
 

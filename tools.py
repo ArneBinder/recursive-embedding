@@ -51,3 +51,9 @@ def avg_dif(a):
     return sum(l) / len(l)
 
 
+def revert_mapping(mapping):
+    temp = {}
+    for key in mapping:
+        temp[mapping[key]] = key
+    return temp
+

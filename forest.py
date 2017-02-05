@@ -86,3 +86,13 @@ def cutout_leaf(parents, pos):
             new_roots.append(i)
 
     return new_roots
+
+
+# TODO: move this into Net
+def calc_embedding(net, data, types, parents, edges):
+    roots = np.where(parents == 0)[0]
+    assert len(roots) == 1, 'more then one root'
+    children = get_children(parents)
+    embeddings = [None] * len(data)
+    net.calc_embedding_single(data, types, children, edges, roots[0], embeddings)
+    return embeddings[roots[0]].squeeze().data.numpy()

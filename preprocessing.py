@@ -3,23 +3,21 @@ import csv
 from sys import maxsize
 import numpy as np
 
-from tools import fn_timer, list_powerset
+from tools import fn_timer
 import constants
 
 
 @fn_timer
 def get_word_embeddings(vocab):
     vecs = np.ndarray(shape=(len(vocab)+1, vocab.vectors_length), dtype=np.float32)
-    m_human = [constants.NOT_IN_WORD_DICT_]
     vecs[constants.NOT_IN_WORD_DICT] = np.zeros(vocab.vectors_length)
     m = {}
     i = 1
     for lexeme in vocab:
-        m_human.append(lexeme.orth_)
         m[lexeme.orth] = i
         vecs[i] = lexeme.vector
         i += 1
-    return vecs, m, m_human
+    return vecs, m
 
 
 def process_sentence(sentence, parsed_data, max_forest_count, data_embedding_maps):
@@ -57,6 +55,10 @@ def dummy_str_reader():
     yield u'I like RTRC!'
 
 
+def sentence_reader(sentence):
+    yield sentence.decode('utf-8')
+
+
 def articles_from_csv_reader(filename, max_articles=100):
     csv.field_size_limit(maxsize)
     print('parse', max_articles, 'articles...')
@@ -74,8 +76,8 @@ def articles_from_csv_reader(filename, max_articles=100):
             yield row['content'].decode('utf-8')
 
 
-@fn_timer
-def read_data(reader, nlp, data_maps, data_maps_human, max_forest_count=10, max_sen_length=75, args={}):
+#@fn_timer
+def read_data(reader, nlp, data_maps, max_forest_count=10, max_sen_length=75, args={}):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -117,29 +119,15 @@ def read_data(reader, nlp, data_maps, data_maps_human, max_forest_count=10, max_
         data_maps[constants.EDGE_EMBEDDING] = {}
         data_maps[constants.EDGE_EMBEDDING][constants.INTER_TREE] = constants.INTER_TREE
 
-    if constants.EDGE_EMBEDDING not in data_maps_human:
-        data_maps_human[constants.EDGE_EMBEDDING] = {}
-        data_maps_human[constants.EDGE_EMBEDDING][constants.INTER_TREE] = constants.INTER_TREE_
-
     # collect edge labels
     dep_map = data_maps[constants.EDGE_EMBEDDING]
-    dep_map_h = data_maps_human[constants.EDGE_EMBEDDING]
     for i in range(len(seq_edges)):
         edge = seq_edges[i]
         if edge not in dep_map:
             dep_map[edge] = len(dep_map)
             seq_edges[i] = dep_map[edge]
-            dep_map_h[dep_map[edge]] = nlp.vocab[edge].orth_
         else:
             seq_edges[i] = dep_map[edge]
-
-    # re-map edge labels
-    # retain 0 for inter tree "edge"
-    #mapping = dict(zip(dep_map.iterkeys(), range(1, len(dep_map)+1)))
-    #for i in range(len(seq_edges)):
-    #    seq_edges[i] = mapping[seq_edges[i]]
-    #dep_map = {mapping[key]: value for key, value in dep_map.iteritems()}
-    #dep_map[0] = constants.INTER_TREE_
 
     return np.array(seq_data), np.array(seq_types), np.array(seq_parents), np.array(seq_edges)#, dep_map
 

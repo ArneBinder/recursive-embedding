@@ -9,11 +9,19 @@ import constants
 #    display(plt)
 
 
-def visualize(filename, sequence_graph, data_maps_human):
+def visualize(filename, sequence_graph, data_maps_rev, vocab):
     data, types, parents, edges = sequence_graph
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
     if len(data) > 0:
-        nodes = [pydot.Node(i, label="'"+data_maps_human[types[i]][data[i]] + "'", style="filled", fillcolor="green") for i in range(len(data))]
+        nodes = []
+        for i in range(len(data)):
+            if data[i] == constants.NOT_IN_WORD_DICT:
+                l = constants.NOT_IN_WORD_DICT_
+            else:
+                v_id = data_maps_rev[types[i]][data[i]]
+                l = vocab[v_id].orth_
+            nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor="green"))
+
         for node in nodes:
             graph.add_node(node)
 
@@ -24,9 +32,13 @@ def visualize(filename, sequence_graph, data_maps_human):
             last_node = node
 
         for i in range(len(data)):
+            if edges[i] == constants.INTER_TREE:
+                label = constants.INTER_TREE_
+            else:
+                label = vocab[data_maps_rev[constants.EDGE_EMBEDDING][edges[i]]].orth_
             graph.add_edge(pydot.Edge(nodes[i],
                                       nodes[i + parents[i]],
-                                      label=data_maps_human[constants.EDGE_EMBEDDING][edges[i]]))
+                                      label=label))
 
     # print(graph.to_string())
 

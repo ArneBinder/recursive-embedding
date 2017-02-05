@@ -1,0 +1,18 @@
+evaluation results
+------------------
+model: /home/arne/ML/data/summaries/train_2017-02-03_15:54:26/model-01
+arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$ R --no-save --slave --vanilla --args my_test_scores.txt sick_test_annotated/SICK_test_annotated_edited.txt < sick_evaluation.R
+[1] "Processing my_test_scores.txt"
+[1] "No data for the entailment task: evaluation on relatedness only"
+[1] "Relatedness: Pearson correlation -0.233502939510899"
+[1] "Relatedness: Spearman correlation -0.255683756000961"
+[1] "Relatedness: MSE 5.18308102029481"
+
+model: /home/arne/ML/data/summaries/train_2017-02-03_15:54:26/model-04
+arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$ R --no-save --slave --vanilla --args my_test_scores.txt sick_test_annotated/SICK_test_annotated_edited.txt < sick_evaluation.R
+[1] "Processing my_test_scores.txt"
+[1] "No data for the entailment task: evaluation on relatedness only"
+[1] "Relatedness: Pearson correlation -0.226714602536266"
+[1] "Relatedness: Spearman correlation -0.258683901704418"
+[1] "Relatedness: MSE 6.11014784998189"
+arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$
