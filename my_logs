@@ -55,9 +55,21 @@ arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$ R --no-save --slave --vani
 arne@arne-ThinkPad-X230:~/devel/ML/data/corpora/SICK$
 
 
+# non-projective
+2017-02-09 03:55:30.980296 START TRAINING
+max_class_count (slice_size=3): 440 	random acc: 0.00227272727273
+0:01:23.812950 [ 3    1] loss:   992166933.147 loss_skew:  0.00  loss_avg_dif:   992166933.147   acc: 0.003   forest_count: 6.0
 
+2017-02-09 03:57:52.710620 START TRAINING
+max_class_count (slice_size=4): 1100 	random acc: 0.000909090909091
+0:04:01.653860 [ 4    1] loss: 43238106654.240 loss_skew:  0.00  loss_avg_dif: 43238106654.240   acc: 0.007   forest_count: 10.1
 
+# projective
 2017-02-09 03:34:28.093368 START TRAINING
 max_class_count (slice_size=3): 440 	random acc: 0.00227272727273
 0:01:05.741386 [ 3    1] loss:   979389225.800 loss_skew:  0.00  loss_avg_dif:   979389225.800   acc: 0.007   forest_count: 5.5
 0:02:18.729457 [ 3    2] loss:   479059363.740 loss_skew:  0.00  loss_avg_dif:  -500329862.060   acc: 0.020   forest_count: 5.5
+
+2017-02-09 04:04:05.205801 START TRAINING
+max_class_count (slice_size=4): 1100 	random acc: 0.000909090909091
+0:03:06.037036 [ 4    1] loss: 43325905017.440 loss_skew:  0.00  loss_avg_dif: 43325905017.440   acc: 0.013   forest_count: 8.2
