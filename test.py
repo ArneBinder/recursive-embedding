@@ -3,7 +3,7 @@ from preprocessing import read_data, articles_from_csv_reader, dummy_str_reader,
 import spacy
 import constants
 from visualize import visualize
-from forest import cut_subgraph, forest_candidates
+from forest import cut_subgraph, forest_candidates, get_children, get_roots, right_outer_nodes
 import numpy as np
 from tools import revert_mapping
 import json
@@ -25,9 +25,9 @@ data_vecs = {constants.WORD_EMBEDDING: vecs}
 data_dir = '/media/arne/DATA/DEVELOPING/ML/data/'
 # create data arrays
 seq_data, seq_types, seq_parents, seq_edges = \
-    read_data(dummy_str_reader, nlp, data_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
-              #args={'max_articles': 1, 'filename': '/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv'}
-              args ={}
+    read_data(articles_from_csv_reader, nlp, data_maps, max_forest_count=max_forest_count, max_sen_length=slice_size,
+              args={'max_articles': 1, 'filename': '/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv'}
+              #args ={}
               )
 
 data_maps_reverse = {}
@@ -35,18 +35,18 @@ for key in data_maps:
     data_maps_reverse[key] = revert_mapping(data_maps[key])
 # take first 50 token and visualize the dependency graph
 
-with open('data_mapping.json', 'w') as outfile:
+#with open('data_mapping.json', 'w') as outfile:
     #json.dump(data, outfile)
-    json.dump(data_maps[0], outfile, sort_keys=True,
-                     indent=4, separators=(',', ': '))
+#    json.dump(data_maps[0], outfile, sort_keys=True,
+#                     indent=4, separators=(',', ': '))
 
-with open('data_mapping_rev.json', 'w') as outfile:
+#with open('data_mapping_rev.json', 'w') as outfile:
     #json.dump(data, outfile)
-    json.dump(data_maps_reverse[0], outfile, sort_keys=True,
-                     indent=4, separators=(',', ': '))
+#    json.dump(data_maps_reverse[0], outfile, sort_keys=True,
+#                     indent=4, separators=(',', ': '))
 
-start = 0
-end = 10
+start = 1
+end = 15
 sliced_parents = seq_parents[start:end]
 cut_subgraph(sliced_parents)
 sliced_data = seq_data[start:end]
@@ -54,9 +54,15 @@ sliced_types = seq_types[start:end]
 sliced_edges = seq_edges[start:end]
 visualize('forest.png', (sliced_data, sliced_types, sliced_parents, sliced_edges), data_maps_reverse, nlp.vocab)
 
-exit()
+#children = get_children(sliced_parents)
+#print(children)
+#roots = get_roots(sliced_parents)
+#left_outer = right_outer_nodes(children, 3)
 
-ind = 8
+#exit()
+
+ind = 13
+sliced_edges[ind] = 0
 forests, correct_forrest_ind, roots_orig, roots_cut_pos = forest_candidates(sliced_parents, ind)
 print('correct_forrest_ind:', correct_forrest_ind)
 for i, (children, parent) in enumerate(forests):
@@ -65,8 +71,7 @@ for i, (children, parent) in enumerate(forests):
     for child in children:
         temp_parents[child] = ind - child
     fn = 'forest_'+str(i)+'.png'
-    visualize(fn, (sliced_data, sliced_types, temp_parents, sliced_edges),
-              data_maps_human)
+    visualize(fn, (sliced_data, sliced_types, temp_parents, sliced_edges), data_maps_reverse, nlp.vocab)
 
 exit()
 

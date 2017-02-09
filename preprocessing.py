@@ -76,7 +76,7 @@ def articles_from_csv_reader(filename, max_articles=100):
             yield row['content'].decode('utf-8')
 
 
-#@fn_timer
+@fn_timer
 def read_data(reader, nlp, data_maps, max_forest_count=10, max_sen_length=75, args={}):
 
     # ids of the dictionaries to query the data point referenced by seq_data

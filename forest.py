@@ -13,6 +13,7 @@ def forest_candidates(parents, ind):
     roots_orig = get_roots(parents)
     # cut all edges pointing to ind
     roots_cutout = cutout_leaf(parents, ind)
+    children = get_children(parents)
 
     current_roots = roots_orig + roots_cutout
 
@@ -20,26 +21,20 @@ def forest_candidates(parents, ind):
 
     forests = []
     i = 0
-    for parent_candidate in range(-ind, len(parents)-ind):
-        parents[ind] = parent_candidate
-        # find root of parent_candidate
-        parent_candidate_root = ind
-        while parents[parent_candidate_root] != 0:
-            parent_candidate_root = parent_candidate_root + parents[parent_candidate_root]
-        # temporarily remove the root whose tree contains the newly added element
-        removed_root_pos = -1
-        if parent_candidate_root != ind:
-            removed_root_pos = current_roots.index(parent_candidate_root)
-            del current_roots[removed_root_pos]
-        for roots_subset in list_powerset(current_roots):
-            if np.array_equal(roots_subset, roots_cutout) and parent_candidate == parent_correct:
-                correct_forrest_ind = i
-            forests.append((roots_subset, parent_candidate))
-            i += 1
 
-        # re-add root
-        if parent_candidate_root != ind:
-            current_roots.insert(removed_root_pos, parent_candidate_root)
+    # walk over the target roots (includes ind!)
+    for root_idx, root_target in enumerate(current_roots + [ind]):
+        # all roots before the target root can point to ind (in all combinations)
+        for roots_subset in list_powerset(current_roots[:root_idx]):
+            # add the roots right of the target. They have to point to ind to get projectivity
+            children_candidates = roots_subset + current_roots[root_idx+1:]
+            # walk over accessible nodes (projective constraint) in the tree below target_root
+            for parent_target_candidate in outer_nodes(children, root_target):
+                # save the correct id: exactly the cut out roots have to be the children of ind
+                if np.array_equal(children_candidates, roots_cutout) and parent_target_candidate - ind == parent_correct:
+                    correct_forrest_ind = i
+                forests.append((children_candidates, parent_target_candidate - ind))
+                i += 1
 
     return forests, correct_forrest_ind, roots_orig, roots_cutout
 
@@ -81,11 +76,27 @@ def cutout_leaf(parents, pos):
     new_roots = []
     for i, parent in np.ndenumerate(parents):
         i = i[0]
-        if i+parent == pos:
+        if i+parent == pos and parent != 0:
             parents[i] = 0
             new_roots.append(i)
 
     return new_roots
+
+
+def left_outer_nodes(children, root):
+    if root not in children or children[root][0] > root:
+        return [root]
+    return left_outer_nodes(children, children[root][0]) + [root]
+
+
+def right_outer_nodes(children, root):
+    if root not in children or children[root][-1] < root:
+        return [root]
+    return [root] + right_outer_nodes(children, children[root][-1])
+
+
+def outer_nodes(children, root):
+    return left_outer_nodes(children, root)[:-1] + right_outer_nodes(children, root)
 
 
 # TODO: move this into Net
