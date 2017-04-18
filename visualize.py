@@ -38,6 +38,7 @@ def visualize(filename, sequence_graph, data_maps_rev, vocab):
                 label = vocab[data_maps_rev[constants.EDGE_EMBEDDING][edges[i]]].orth_
             graph.add_edge(pydot.Edge(nodes[i],
                                       nodes[i + parents[i]],
+                                      dir='back',
                                       label=label))
 
     # print(graph.to_string())
