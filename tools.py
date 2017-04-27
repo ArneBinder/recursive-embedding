@@ -57,3 +57,21 @@ def revert_mapping(mapping):
         temp[mapping[key]] = key
     return temp
 
+
+def getOrAdd(d, e):
+    try:
+        res = d[e]
+    # word doesnt occur in dictionary
+    except KeyError:
+        print('add to dict: '+str(e))
+        res = len(d)
+        d[e] = res
+    return res
+
+
+def incOrAdd(d, e):
+    try:
+        d[e] += 1
+    except KeyError:
+        d[e] = 1
+

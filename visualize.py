@@ -47,6 +47,39 @@ def visualize(filename, sequence_graph, data_maps_rev, vocab):
     # view_pydot(graph)
 
 
+def visualize2(filename, sequence_graph, data_maps_rev, vocab, vocab_neg):
+    data, parents = sequence_graph
+    graph = pydot.Dot(graph_type='digraph', rankdir='LR')
+    if len(data) > 0:
+        nodes = []
+        for i in range(len(data)):
+            # print('data[i]: ' + str(data[i]))
+            v_id = data_maps_rev[data[i]]
+            if v_id < 0:
+                l = vocab_neg[v_id]
+            else:
+                l = vocab[v_id].orth_
+            nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor="green"))
+
+        for node in nodes:
+            graph.add_node(node)
+
+        # add invisible edges for alignment
+        last_node = nodes[0]
+        for node in nodes[1:]:
+            graph.add_edge(pydot.Edge(last_node, node, weight=100, style='invis'))
+            last_node = node
+
+        for i in range(len(data)):
+            graph.add_edge(pydot.Edge(nodes[i],
+                                      nodes[i + parents[i]],
+                                      dir='back'))
+
+    # print(graph.to_string())
+
+    graph.write_png(filename)
+
+
 def unfold_and_plot(data, width):
     t = data.squeeze().data
     print(len(t))
