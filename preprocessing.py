@@ -110,16 +110,16 @@ def process_sentence4(sentence, parsed_data, data_maps, max_forest_count):
         parent_offset = token.head.i - i
         # add word embedding
         sen_data.append(getOrAdd(data_maps, token.orth))
-        sen_parents.append(1)
+        sen_parents.append(parent_offset * 4)
         # add word embedding embedding
         sen_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING))
-        sen_parents.append(2)
+        sen_parents.append(-1)
         # add edge type embedding
         sen_data.append(getOrAdd(data_maps, token.dep))
-        sen_parents.append(1)
+        sen_parents.append(-2)
         # add edge type embedding embedding
         sen_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING))
-        sen_parents.append(parent_offset * 4)
+        sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
 
