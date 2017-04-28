@@ -98,7 +98,7 @@ def process_sentence3(sentence, parsed_data, data_maps, max_forest_count):
 def process_sentence4(sentence, parsed_data, data_maps, max_forest_count):
     sen_data = list()
     sen_parents = list()
-    root_offset = (sentence.root.i - sentence.start) * 4 + 3
+    root_offset = (sentence.root.i - sentence.start) * 4
     for i in range(sentence.start, sentence.end):
         # count roots (head points to self) and temp roots (head points to future token)
         forest_count = [parsed_data[j].head.i == j or parsed_data[j].head.i > i for j in

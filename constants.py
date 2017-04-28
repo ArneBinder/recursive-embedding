@@ -1,7 +1,10 @@
 
-# data types
+# special embeddings (have to be negative to get recognized during visualization)
 EDGE_EMBEDDING = -1
 WORD_EMBEDDING = -2
+AVG_EMBEDDING = -3
+
+vocab_manual = {WORD_EMBEDDING: 'WORD', EDGE_EMBEDDING: 'EDGE', AVG_EMBEDDING: 'AVG'}
 
 # edges
 INTER_TREE = 0
