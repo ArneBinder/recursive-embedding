@@ -87,3 +87,9 @@ def unfold_and_plot(data, width):
     unfolded = t.numpy().reshape((len(t)/width, width))
     print(unfolded)
     plt.imshow(unfolded, aspect='auto', interpolation='none')
+
+
+def getFromVocs(d_pos, d_neg, e):
+    if e < 0:
+        return d_neg[e]
+    return d_pos[e].orth_

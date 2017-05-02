@@ -63,9 +63,9 @@ def getOrAdd(d, e):
         res = d[e]
     # word doesnt occur in dictionary
     except KeyError:
-        print('add to dict: '+str(e))
         res = len(d)
         d[e] = res
+        print('add to dict: ' + str(e) + ' -> ' + str(res))
     return res
 
 
@@ -75,9 +75,4 @@ def incOrAdd(d, e):
     except KeyError:
         d[e] = 1
 
-
-def getFromDicts(d_pos, d_neg, e):
-    if e < 0:
-        return d_neg[e]
-    return d_pos[e]
 
