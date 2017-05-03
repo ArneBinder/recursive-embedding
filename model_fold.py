@@ -15,13 +15,14 @@ class SequenceModel(object):
 
         # get the head embedding from id
         head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(
-            td.Embedding(10, state_size, name='head_embed'))
+            td.Embedding(lex_size, state_size, name='head_embed'))
         # get the weighted sum of all children
         children_aggr = td.GetItem('children') >> td.Map(expr_decl()) >> td.Map(
             td.Function(lambda x: tf.norm(x) * x)) >> td.Reduce(td.Function(tf.add))
 
         # gru_cell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), 'mygru')
 
+        # TODO: use GRU cell
         def aggr_op():
             # return (td.AllOf(head, children_aggr) >> td.RNN(gru_cell, initial_state_from_input=True))
             return (children_aggr)
@@ -30,55 +31,60 @@ class SequenceModel(object):
                          {True: head,
                           False: aggr_op()})
 
+
+        #tree = td.InputTransform(preprocess_tree) >> cases
+        #expr_decl.resolve_to(tree)
         expr_decl.resolve_to(cases)
 
         # Get logits from the root of the expression tree
-        expression_logits = (expression >>
-                             td.FC(NUM_LABELS, activation=None, name='FC_logits'))
+        #expression_logits = (expression >>
+        #                     td.FC(NUM_LABELS, activation=None, name='FC_logits'))
+        #tree_embedding = cases
 
         # The result is stored in the expression itself.
         # We ignore it in td.Record above, and pull it out here.
-        expression_label = (td.GetItem('result') >>
-                            td.InputTransform(result_sign) >>
-                            td.OneHot(NUM_LABELS))
+        #expression_label = (td.GetItem('result') >>
+        #                    td.InputTransform(result_sign) >>
+        #                    td.OneHot(NUM_LABELS))
 
         # For the overall model, return a pair of (logits, labels)
         # The AllOf block will run each of its children on the same input.
-        model = td.AllOf(expression_logits, expression_label)
-        self._compiler = td.Compiler.create(model)
+        #model = td.AllOf(expression_logits, expression_label)
+        self._compiler = td.Compiler.create(cases)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
         # `logits` and `labels` are TF tensors, and we can use them to
         # compute losses in the usual way.
-        (logits, labels) = self._compiler.output_tensors
+        #(logits, labels) = self._compiler.output_tensors
+        tree_embeddings = self._compiler.output_tensors
 
-        self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
-            logits=logits, labels=labels))
+        #self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+        #    logits=logits, labels=labels))
 
-        self._accuracy = tf.reduce_mean(
-            tf.cast(tf.equal(tf.argmax(labels, 1),
-                             tf.argmax(logits, 1)),
-                    dtype=tf.float32))
+        #self._accuracy = tf.reduce_mean(
+        #    tf.cast(tf.equal(tf.argmax(labels, 1),
+        #                     tf.argmax(logits, 1)),
+        #            dtype=tf.float32))
 
-        self._global_step = tf.Variable(0, name='global_step', trainable=False)
-        optr = tf.train.GradientDescentOptimizer(0.01)
-        self._train_op = optr.minimize(self._loss, global_step=self._global_step)
+        #self._global_step = tf.Variable(0, name='global_step', trainable=False)
+        #optr = tf.train.GradientDescentOptimizer(0.01)
+        #self._train_op = optr.minimize(self._loss, global_step=self._global_step)
 
-    @property
-    def loss(self):
-        return self._loss
+    #@property
+    #def loss(self):
+    #    return self._loss
 
-    @property
-    def accuracy(self):
-        return self._accuracy
+    #@property
+    #def accuracy(self):
+    #    return self._accuracy
 
-    @property
-    def train_op(self):
-        return self._train_op
+    #@property
+    #def train_op(self):
+    #    return self._train_op
 
-    @property
-    def global_step(self):
-        return self._global_step
+    #@property
+    #def global_step(self):
+    #    return self._global_step
 
-    def build_feed_dict(self, expressions):
-        return self._compiler.build_feed_dict(expressions)
+    def build_feed_dict(self, sequence_trees):
+        return self._compiler.build_feed_dict(sequence_trees)
