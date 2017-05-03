@@ -5,6 +5,7 @@ import numpy as np
 
 from tools import fn_timer, getOrAdd, incOrAdd
 import constants
+import sequence_node_pb2
 
 
 @fn_timer
@@ -266,6 +267,41 @@ def addMissingEmbeddings(seq_data, embeddings):
     return new_embeddings, len(new_embedding_ids)
 
 
+def sequence_tree(seq_data, seq_parents, root):
+    # assume, all parents are inside this array!
+    # collect children
+    children_ = {}
+    roots = []
+    for i, p in enumerate(seq_parents):
+        if p == 0: # root?
+            roots.append(i)
+            continue
+        p_idx = i + p
+        chs = children_.get(p_idx, [])
+        chs.append(i)
+        children_[p_idx] = chs
+
+    """Recursively build a random CalculatorExpression."""
+    # TODO: finish this!
+    def build(seq_data, seq_parents, root, children):
+    if max_depth == 0 or random.uniform(0, 1) < 1.0 / 3.0:
+      expression.number = random.choice(range(10))
+    else:
+      expression.op = random.choice(
+          calculator_pb2.CalculatorExpression.OpCode.values())
+      build(expression.left, max_depth - 1)
+      build(expression.right, max_depth - 1)
+
+    sequence_trees = []
+    for r in roots:
+        sequence_tree = sequence_node_pb2.SequenceNode()
+        build(seq_data, seq_parents, root, children_)
+        sequence_trees.append(sequence_tree)
+
+
+    #expression = calculator_pb2.CalculatorExpression()
+    #build(expression, max_depth)
+    return sequence_trees
 
 
 
