@@ -283,7 +283,7 @@ def sequence_tree(seq_data, seq_parents):
         chs.append(i)
         children_[p_idx] = chs
 
-    """Recursively build a SequenceTree."""
+    """Recursively build a tree of SequenceNode_s"""
     def build(seq_node, seq_data, children, pos):
         seq_node.head = seq_data[pos]
         if pos in children:

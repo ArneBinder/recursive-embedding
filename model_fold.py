@@ -10,15 +10,21 @@ class SequenceModel(object):
     """A Fold model for calculator examples."""
 
     # TODO: pass embeddings to model (use convert_to_block?)
-    def __init__(self, state_size, lex_size):
+    def __init__(self, state_size, embeddings):
         expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
 
         # get the head embedding from id
-        head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(
-            td.Embedding(lex_size, state_size, name='head_embed'))
+        def head(name_):
+            return td.Pipe(td.Scalar(dtype='int32'),
+                           td.Function(embeddings), #td.Embedding(lex_size, state_size, initializer = embeddings, name='head_embed')
+                           name=name_)
+
         # get the weighted sum of all children
-        children_aggr = td.GetItem('children') >> td.Map(expr_decl()) >> td.Map(
-            td.Function(lambda x: tf.norm(x) * x)) >> td.Reduce(td.Function(tf.add))
+        def children_aggr(name_):
+            return td.Pipe(td.Map(expr_decl()),
+                           td.Map(td.Function(lambda x: tf.norm(x) * x)),
+                           td.Reduce(td.Function(tf.add)),
+                           name=name_)
 
         # gru_cell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), 'mygru')
 
@@ -27,9 +33,22 @@ class SequenceModel(object):
             # return (td.AllOf(head, children_aggr) >> td.RNN(gru_cell, initial_state_from_input=True))
             return (children_aggr)
 
-        cases = td.OneOf(lambda x: len(x['children']) == 0,
-                         {True: head,
-                          False: aggr_op()})
+        def cas(seq_tree):
+            # process and aggregate
+            if len(seq_tree['children']) > 0 and seq_tree['head'] is not None:
+                return 0
+            # dont process children
+            if len(seq_tree['children']) == 0:
+                return 1
+            # process children only
+            return 2
+
+        cases = td.OneOf(lambda x: cas(x),
+                         {1: td.Record([('head', head('head')),
+                                        ('children', children_aggr('children_aggr'))]) >> td.Concat() >> td.FC(
+                             state_size),
+                          2: td.GetItem('head') >> td.Optional(head('just_head')),
+                          3: td.GetItem('children') >> children_aggr('just_children')})
 
 
         #tree = td.InputTransform(preprocess_tree) >> cases
