@@ -267,13 +267,15 @@ def addMissingEmbeddings(seq_data, embeddings):
     return new_embeddings, len(new_embedding_ids)
 
 
-def sequence_tree(seq_data, seq_parents, root):
+# Build a sequence_tree from a data and a parents sequence.
+# All roots are children of a headless node.
+def sequence_tree(seq_data, seq_parents):
     # assume, all parents are inside this array!
     # collect children
     children_ = {}
     roots = []
     for i, p in enumerate(seq_parents):
-        if p == 0: # root?
+        if p == 0:  # is it a root?
             roots.append(i)
             continue
         p_idx = i + p
@@ -281,27 +283,19 @@ def sequence_tree(seq_data, seq_parents, root):
         chs.append(i)
         children_[p_idx] = chs
 
-    """Recursively build a random CalculatorExpression."""
-    # TODO: finish this!
-    def build(seq_data, seq_parents, root, children):
-    if max_depth == 0 or random.uniform(0, 1) < 1.0 / 3.0:
-      expression.number = random.choice(range(10))
-    else:
-      expression.op = random.choice(
-          calculator_pb2.CalculatorExpression.OpCode.values())
-      build(expression.left, max_depth - 1)
-      build(expression.right, max_depth - 1)
+    """Recursively build a SequenceTree."""
+    def build(seq_node, seq_data, children, pos):
+        seq_node.head = seq_data[pos]
+        if pos in children:
+            for child_pos in children[pos]:
+                build(seq_node.children.add(), seq_data, children, child_pos)
 
-    sequence_trees = []
-    for r in roots:
-        sequence_tree = sequence_node_pb2.SequenceNode()
-        build(seq_data, seq_parents, root, children_)
-        sequence_trees.append(sequence_tree)
+    seq_tree = sequence_node_pb2.SequenceNode()
+    for root in roots:
+        root_tree = seq_tree.children.add() #sequence_node_pb2.SequenceNode()
+        build(root_tree, seq_data, children_, root)
 
-
-    #expression = calculator_pb2.CalculatorExpression()
-    #build(expression, max_depth)
-    return sequence_trees
+    return seq_tree
 
 
 
