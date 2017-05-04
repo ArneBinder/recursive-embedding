@@ -75,7 +75,7 @@ class SequenceModel(object):
         # `logits` and `labels` are TF tensors, and we can use them to
         # compute losses in the usual way.
         #(logits, labels) = self._compiler.output_tensors
-        tree_embeddings = self._compiler.output_tensors
+        self._tree_embeddings = self._compiler.output_tensors
 
         #self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
@@ -104,6 +104,10 @@ class SequenceModel(object):
     #@property
     #def global_step(self):
     #    return self._global_step
+
+    @property
+    def tree_embeddings(self):
+        return self._tree_embeddings
 
     def build_feed_dict(self, sequence_trees):
         return self._compiler.build_feed_dict(sequence_trees)
