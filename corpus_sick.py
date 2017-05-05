@@ -60,6 +60,9 @@ if __name__ == '__main__':
     else:
         print('extract word embeddings from spaCy ...')
         vecs, mapping = preprocessing.get_word_embeddings(nlp.vocab)
+        print('dump vecs to: '+out_dir + fn + '.vecs ...')
+        vecs.dump(out_dir + fn + '.vecs')
+        #pickle.dump(vecs, open(out_dir + fn + '.vecs', "wb"))
 
     print('parse data ...')
     convert_sick(in_dir+fn+'.txt',
