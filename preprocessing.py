@@ -129,8 +129,8 @@ def dummy_str_reader():
     yield u'I like RTRC!'
 
 
-def sentence_reader(sentence):
-    yield sentence.decode('utf-8')
+def string_reader(content):
+    yield content.decode('utf-8')
 
 
 def articles_from_csv_reader(filename, max_articles=100):
@@ -206,7 +206,7 @@ def read_data(reader, nlp, data_maps, max_forest_count=10, max_sen_length=75, ar
     return np.array(seq_data), np.array(seq_types), np.array(seq_parents), np.array(seq_edges)#, dep_map
 
 
-def read_data2(reader, sentence_processor, nlp, data_maps   , max_forest_count=10, max_sen_length=75, args={}):
+def read_data2(reader, sentence_processor, parser, data_maps, max_forest_count=10, max_sen_length=75, args={}):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -219,7 +219,7 @@ def read_data2(reader, sentence_processor, nlp, data_maps   , max_forest_count=1
     seq_parents = list()
     prev_root = None
 
-    for parsed_data in nlp.pipe(reader(**args), n_threads=4, batch_size=1000):
+    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
         prev_root = None
         for sentence in parsed_data.sents:
             # skip too long sentences
@@ -267,21 +267,27 @@ def addMissingEmbeddings(seq_data, embeddings):
     return new_embeddings, len(new_embedding_ids)
 
 
-# Build a sequence_tree from a data and a parents sequence.
-# All roots are children of a headless node.
-def sequence_tree(seq_data, seq_parents):
+def children_and_roots(seq_parents):
     # assume, all parents are inside this array!
     # collect children
-    children_ = {}
+    children = {}
     roots = []
     for i, p in enumerate(seq_parents):
         if p == 0:  # is it a root?
             roots.append(i)
             continue
         p_idx = i + p
-        chs = children_.get(p_idx, [])
+        chs = children.get(p_idx, [])
         chs.append(i)
-        children_[p_idx] = chs
+        children[p_idx] = chs
+    return children, roots
+
+# Build a sequence_tree from a data and a parents sequence.
+# All roots are children of a headless node.
+def build_sequence_tree(seq_data, children, root, seq_tree = None):
+    # assume, all parents are inside this array!
+    # collect children
+    #children, roots = children_and_roots(seq_parents)
 
     """Recursively build a tree of SequenceNode_s"""
     def build(seq_node, seq_data, children, pos):
@@ -290,12 +296,24 @@ def sequence_tree(seq_data, seq_parents):
             for child_pos in children[pos]:
                 build(seq_node.children.add(), seq_data, children, child_pos)
 
-    seq_tree = sequence_node_pb2.SequenceNode()
-    for root in roots:
-        root_tree = seq_tree.children.add() #sequence_node_pb2.SequenceNode()
-        build(root_tree, seq_data, children_, root)
+    if seq_tree is None:
+        seq_tree = sequence_node_pb2.SequenceNode()
+    build(seq_tree, seq_data, children, root)
+
+    #seq_trees = []
+    #seq_tree = sequence_node_pb2.SequenceNode()
+    #for root in roots:
+    #    root_tree = sequence_node_pb2.SequenceNode() # seq_tree.children.add() #sequence_node_pb2.SequenceNode()
+    #    build(root_tree, seq_data, children, root)
 
     return seq_tree
+
+
+def build_sequence_tree_from_str(str, sentence_processor, parser, data_maps, seq_tree = None):
+    seq_data, seq_parents, root = read_data2(string_reader, sentence_processor, parser, data_maps,
+                                             args={'content': str})
+    children, roots = children_and_roots(seq_parents)
+    return build_sequence_tree(seq_data, children, root, seq_tree)
 
 
 
