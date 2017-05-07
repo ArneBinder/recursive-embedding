@@ -23,8 +23,8 @@ def sick_reader(filename, sentence_processor, parser, data_maps):
     for i, t in enumerate(sick_raw_reader(filename)):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-        preprocessing.build_sequence_tree_from_str(sen1, sentence_processor, parser, data_maps, sim_tree_tuple.first)
-        preprocessing.build_sequence_tree_from_str(sen2, sentence_processor, parser, data_maps, sim_tree_tuple.second)
+        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps, sim_tree_tuple.first)
+        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps, sim_tree_tuple.second)
         sim_tree_tuple.similarity = (score - 1.) / 4.
         yield sim_tree_tuple
 
