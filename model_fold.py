@@ -1,4 +1,3 @@
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -7,8 +6,8 @@ import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 
 
-def sequence_tree_block(state_size, embeddings):
-    #state_size = embeddings.shape[1]
+def sequence_tree_block(state_size, embeddings, name_):
+    # state_size = embeddings.shape[1]
     expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
 
     # get the head embedding from id
@@ -34,10 +33,10 @@ def sequence_tree_block(state_size, embeddings):
 
     def cas(seq_tree):
         # process and aggregate
-        if len(seq_tree.children) > 0 and seq_tree.head is not None:
+        if 'children' in seq_tree and 'head' in seq_tree:
             return 0
         # don't process children
-        if len(seq_tree.children) == 0:
+        if 'children' not in seq_tree:
             return 1
         # process children only
         return 2
@@ -47,55 +46,47 @@ def sequence_tree_block(state_size, embeddings):
                                     ('children', children_aggr('children_aggr'))]) >> td.Concat() >> td.FC(
                          state_size),
                       1: td.GetItem('head') >> td.Optional(head('just_head')),
-                      2: td.GetItem('children') >> children_aggr('just_children')})
+                      2: td.GetItem('children') >> children_aggr('just_children')},
+                     name=name_)
 
-    # tree = td.InputTransform(preprocess_tree) >> cases
-    # expr_decl.resolve_to(tree)
     expr_decl.resolve_to(cases)
     return cases
 
-class SequenceModel(object):
+
+class SequenceTupleModel(object):
     """A Fold model for calculator examples."""
 
-    # TODO: check scopes!
+    # TODO: check (and use) scopes
     def __init__(self, embeddings):
         self._lex_size = embeddings.shape[0]
         self._state_size = embeddings.shape[1]
-        self._embeddings = td.Embedding(self._lex_size, self._state_size, initializer=embeddings, name='head_embed')
+        # TODO: re-add embeddings
+        # self._embeddings = td.Embedding(self._lex_size, self._state_size, initializer=embeddings, name='head_embed')
+        self._embeddings = td.Embedding(self._lex_size, self._state_size, name='head_embed')
 
-        seq_tree_block = sequence_tree_block(self._state_size, self._embeddings)
+        # seq_tree_block = sequence_tree_block(self._state_size, self._embeddings)
+        similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        #TODO: add cosine!
-        distance = td.Record([('first', seq_tree_block), ('right', seq_tree_block)]) #>> td.Function(#TDOD: calc angle)
-        label = td.Scalar(td.GetItem('similarity'), name='gold_similarity')
-
-
-        # Get logits from the root of the expression tree
-        #expression_logits = (expression >>
-        #                     td.FC(NUM_LABELS, activation=None, name='FC_logits'))
-        #tree_embedding = cases
-
-        # The result is stored in the expression itself.
-        # We ignore it in td.Record above, and pull it out here.
-        #expression_label = (td.GetItem('result') >>
-        #                    td.InputTransform(result_sign) >>
-        #                    td.OneHot(NUM_LABELS))
-
-        # For the overall model, return a pair of (logits, labels)
         # The AllOf block will run each of its children on the same input.
-        model = td.AllOf(distance, label)
+        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, name_='first'),
+                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings,
+                                                                     name_='second'),
+                         similarity)
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
-        # `logits` and `labels` are TF tensors, and we can use them to
-        # compute losses in the usual way.
-        (distances, labels) = self._compiler.output_tensors
+        (embeddings_1, embeddings_2, gold_similarities) = self._compiler.output_tensors
 
-        #TODO: calc loss! (distance, label=similarity)
-        #self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
+        normed_embeddings_1 = tf.nn.l2_normalize(embeddings_1, dim=1)
+        normed_embeddings_2 = tf.nn.l2_normalize(embeddings_2, dim=1)
+        cosine_similarities = tf.matmul(normed_embeddings_1, tf.transpose(normed_embeddings_2, [1, 0]))
+
+        # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
+        #TODO: sum or mean?
+        self._loss = tf.reduce_mean(tf.abs(cosine_similarities - gold_similarities))
 
-        #self._accuracy = tf.reduce_mean(
+        # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),
         #                     tf.argmax(logits, 1)),
         #            dtype=tf.float32))
@@ -108,8 +99,8 @@ class SequenceModel(object):
     def loss(self):
         return self._loss
 
-    #@property
-    #def accuracy(self):
+    # @property
+    # def accuracy(self):
     #    return self._accuracy
 
     @property
