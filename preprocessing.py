@@ -92,25 +92,20 @@ def process_sentence3(sentence, parsed_data, data_maps):
     return sen_data, sen_parents, root_offset
 
 
-# TODO: Fix this!(see test3.py)
 def process_sentence5(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
     sen_a = list()
     sen_offsets = list()
 
-    #root_offset = 0 # (sentence.root.i - sentence.start)
     last_offset = 0
     for i in range(sentence.start, sentence.end):
-        # set root index
-        if sentence.root.i == i:
-            root_offset = len(sen_data)
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
         sen_data.append(getOrAdd(data_maps, token.orth))
         sen_parents.append(parent_offset)
-
+        # additional data for this token
         a_data = list()
         a_parents = list()
         # add edge type embedding
@@ -120,9 +115,8 @@ def process_sentence5(sentence, parsed_data, data_maps):
         if token.ent_type != 0:
             a_data.append(getOrAdd(data_maps, token.ent_type))
             a_parents.append(-2)
-
         sen_a.append((a_data, a_parents))
-
+        # count additional data for every main data point
         current_offset = last_offset + len(a_data)
         sen_offsets.append(current_offset)
         last_offset = current_offset
@@ -132,12 +126,15 @@ def process_sentence5(sentence, parsed_data, data_maps):
     result_parents = list()
     l = len(sen_data)
     for i in range(l):
+        # set root
         if sen_parents[i] == 0:
             root_offset = len(result_data)
+        # add main data
         result_data.append(sen_data[i])
         # shift parent indices
         parent_idx = sen_parents[i] + i
-        shift = sen_offsets[parent_idx] - sen_offsets[i]
+        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
+        # add (shifted) main parent
         result_parents.append(sen_parents[i] + shift)
         # insert additional data
         a_data, a_parents = sen_a[i]

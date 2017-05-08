@@ -80,3 +80,11 @@ def insert_before(position, list1, list2):
     return list1[:position] + list2 + list1[position:]
 
 
+def get_default(l, idx, default):
+    try:
+        if idx < 0:
+            return default
+        return l[idx]
+    except IndexError:
+        return default
+
