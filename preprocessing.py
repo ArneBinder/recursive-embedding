@@ -3,7 +3,8 @@ import csv
 from sys import maxsize
 import numpy as np
 
-from tools import fn_timer, getOrAdd, incOrAdd
+from tools import fn_timer, getOrAdd
+import tools
 import constants
 import sequence_node_pb2
 
@@ -91,10 +92,15 @@ def process_sentence3(sentence, parsed_data, data_maps):
     return sen_data, sen_parents, root_offset
 
 
+# TODO: Fix this!(see test3.py)
 def process_sentence5(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
-    root_offset = 0 # (sentence.root.i - sentence.start)
+    sen_a = list()
+    sen_offsets = list()
+
+    #root_offset = 0 # (sentence.root.i - sentence.start)
+    last_offset = 0
     for i in range(sentence.start, sentence.end):
         # set root index
         if sentence.root.i == i:
@@ -103,12 +109,43 @@ def process_sentence5(sentence, parsed_data, data_maps):
         parent_offset = token.head.i - i
         # add word embedding
         sen_data.append(getOrAdd(data_maps, token.orth))
-        sen_parents.append(parent_offset * 2)
-        # add edge type embedding
-        sen_data.append(getOrAdd(data_maps, token.dep))
-        sen_parents.append(-1)
+        sen_parents.append(parent_offset)
 
-    return sen_data, sen_parents, root_offset
+        a_data = list()
+        a_parents = list()
+        # add edge type embedding
+        a_data.append(getOrAdd(data_maps, token.dep))
+        a_parents.append(-1)
+        # add entity type
+        if token.ent_type != 0:
+            a_data.append(getOrAdd(data_maps, token.ent_type))
+            a_parents.append(-2)
+
+        sen_a.append((a_data, a_parents))
+
+        current_offset = last_offset + len(a_data)
+        sen_offsets.append(current_offset)
+        last_offset = current_offset
+
+    root_offset = 0
+    result_data = list()
+    result_parents = list()
+    l = len(sen_data)
+    for i in range(l):
+        if sen_parents[i] == 0:
+            root_offset = len(result_data)
+        result_data.append(sen_data[i])
+        # shift parent indices
+        parent_idx = sen_parents[i] + i
+        shift = sen_offsets[parent_idx] - sen_offsets[i]
+        result_parents.append(sen_parents[i] + shift)
+        # insert additional data
+        a_data, a_parents = sen_a[i]
+        if len(a_data) > 0:
+            result_data.extend(a_data)
+            result_parents.extend(a_parents)
+
+    return result_data, result_parents, root_offset
 
 
 def process_sentence4(sentence, parsed_data, data_maps):

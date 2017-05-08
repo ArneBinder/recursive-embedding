@@ -76,3 +76,7 @@ def incOrAdd(d, e):
         d[e] = 1
 
 
+def insert_before(position, list1, list2):
+    return list1[:position] + list2 + list1[position:]
+
+
