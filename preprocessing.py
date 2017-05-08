@@ -54,16 +54,11 @@ def process_sentence(sentence, parsed_data, max_forest_count, data_embedding_map
     return sen_data, sen_types, sen_parents, sen_edges
 
 
-def process_sentence2(sentence, parsed_data, data_maps, max_forest_count=100):
+def process_sentence2(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start) * 2
     for i in range(sentence.start, sentence.end):
-        # count roots (head points to self) and temp roots (head points to future token)
-        forest_count = [parsed_data[j].head.i == j or parsed_data[j].head.i > i for j in
-                        range(sentence.start, i + 1)].count(True)
-        if forest_count > max_forest_count:
-            return None
 
         token = parsed_data[i]
         parent_offset = token.head.i - i
@@ -77,60 +72,50 @@ def process_sentence2(sentence, parsed_data, data_maps, max_forest_count=100):
     return sen_data, sen_parents, root_offset
 
 
-def process_sentence3(sentence, parsed_data, data_maps, max_forest_count):
+def process_sentence3(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
-    root_offset = (sentence.root.i - sentence.start)
+    root_offset = (sentence.root.i - sentence.start) * 2
     for i in range(sentence.start, sentence.end):
-        # count roots (head points to self) and temp roots (head points to future token)
-        forest_count = [parsed_data[j].head.i == j or parsed_data[j].head.i > i for j in
-                        range(sentence.start, i + 1)].count(True)
-        if forest_count > max_forest_count:
-            return None
 
+        # get current token
         token = parsed_data[i]
         parent_offset = token.head.i - i
+        # add word embedding
         sen_data.append(getOrAdd(data_maps, token.orth))
-        #sen_parents.append(1)
-        #sen_data.append(getFromDict(data_maps, token.dep))
-        sen_parents.append(parent_offset)
+        sen_parents.append(parent_offset * 2)
+        # add edge type embedding
+        sen_data.append(getOrAdd(data_maps, token.dep))
+        sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
 
-def process_sentence5(sentence, parsed_data, data_maps, max_forest_count):
+
+def process_sentence5(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
     root_offset = 0 # (sentence.root.i - sentence.start)
     for i in range(sentence.start, sentence.end):
-        # count roots (head points to self) and temp roots (head points to future token)
-        forest_count = [parsed_data[j].head.i == j or parsed_data[j].head.i > i for j in
-                        range(sentence.start, i + 1)].count(True)
-        if forest_count > max_forest_count:
-            return None
-
+        # set root index
+        if sentence.root.i == i:
+            root_offset = len(sen_data)
         token = parsed_data[i]
         parent_offset = token.head.i - i
-        #sen_data.append(getOrAdd(data_maps, token.orth))
         # add word embedding
         sen_data.append(getOrAdd(data_maps, token.orth))
         sen_parents.append(parent_offset * 2)
-        #sen_parents.append(1)
-        #sen_data.append(getFromDict(data_maps, token.dep))
-        sen_parents.append(parent_offset)
+        # add edge type embedding
+        sen_data.append(getOrAdd(data_maps, token.dep))
+        sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
 
 
-def process_sentence4(sentence, parsed_data, data_maps, max_forest_count):
+def process_sentence4(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start) * 4
     for i in range(sentence.start, sentence.end):
-        # count roots (head points to self) and temp roots (head points to future token)
-        forest_count = [parsed_data[j].head.i == j or parsed_data[j].head.i > i for j in
-                        range(sentence.start, i + 1)].count(True)
-        if forest_count > max_forest_count:
-            return None
 
         token = parsed_data[i]
         parent_offset = token.head.i - i
@@ -250,7 +235,7 @@ def read_data2(reader, sentence_processor, parser, data_maps, max_forest_count=1
             # skip too long sentences
             if len(sentence) > max_sen_length:
                 continue
-            processed_sen = sentence_processor(sentence, parsed_data, data_maps, max_forest_count)
+            processed_sen = sentence_processor(sentence, parsed_data, data_maps)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
                 continue
