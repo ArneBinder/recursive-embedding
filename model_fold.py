@@ -20,7 +20,7 @@ def sequence_tree_block(state_size, embeddings, name_):
     # get the weighted sum of all children
     def children_aggr(name_):
         return td.Pipe(td.Map(expr_decl()),
-                       td.Map(td.Function(lambda x: tf.norm(x) * x)),
+                       #td.Map(td.Function(lambda x: tf.norm(x) * x)),
                        td.Reduce(td.Function(tf.add)),
                        name=name_)
 
@@ -58,8 +58,9 @@ class SequenceTupleModel(object):
 
     # TODO: check (and use) scopes
     def __init__(self, embeddings):
-        self._lex_size = embeddings.shape[0]
-        self._state_size = embeddings.shape[1]
+        #print('embeddings.shape.as_list(): '+str(embeddings.shape.as_list()))
+        self._lex_size, self._state_size = embeddings.shape  #embeddings.shape.as_list()
+        #self._state_size = embeddings.shape.as_list()[1]
         # TODO: re-add embeddings
         # self._embeddings = td.Embedding(self._lex_size, self._state_size, initializer=embeddings, name='head_embed')
         self._embeddings = td.Embedding(self._lex_size, self._state_size, name='head_embed')
@@ -83,7 +84,9 @@ class SequenceTupleModel(object):
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
-        self._loss = tf.reduce_sum(tf.abs(cosine_similarities - gold_similarities))
+
+        # use MSE
+        self._loss = tf.reduce_sum(tf.pow(cosine_similarities - gold_similarities, 2))/(cosine_similarities.shape.as_list()[0]) #tf.reduce_sum(tf.metrics.mean_squared_error(labels=gold_similarities, predictions=cosine_similarities))
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),

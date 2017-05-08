@@ -35,7 +35,8 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import model_fold
 import similarity_tree_tuple_pb2
-from tensorflow_fold.util import proto_tools
+import tensorflow_fold as td
+#from tensorflow_fold.util import proto_tools
 import numpy as np
 import pickle
 
@@ -43,12 +44,14 @@ tf.flags.DEFINE_string(
     'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
     'TF Record file containing the training dataset of expressions.')
 tf.flags.DEFINE_integer(
+    #'batch_size', 100, 'How many samples to read per batch.')
     'batch_size', 100, 'How many samples to read per batch.')
 tf.flags.DEFINE_integer(
     'embedding_length', 300,
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_integer(
-    'max_steps', 1000000,
+    #'max_steps', 1000000,
+    'max_steps', 1,
     'The maximum number of batches to run the trainer for.')
 
 # Replication flags:
@@ -83,14 +86,14 @@ def source_root():
 
 
 # Make sure serialized_message_to_tree can find the calculator example proto:
-proto_tools.map_proto_source_tree_path('', source_root())
-proto_tools.import_proto_file('similarity_tree_tuple.proto')
+td.proto_tools.map_proto_source_tree_path('', source_root())
+td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 
 def iterate_over_tf_record_protos(table_path, unused_message_type):
   while True:
     for v in tf.python_io.tf_record_iterator(table_path):
-      yield proto_tools.serialized_message_to_tree(
+      yield td.proto_tools.serialized_message_to_tree(
           'recursive_dependency_embedding.SimilarityTreeTuple', v)
 
 
@@ -109,42 +112,48 @@ def main(unused_argv):
         fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
     print('load embeddings from: '+fn + '.vecs ...')
-    embeddings = np.load(fn + '.vecs')
+    embeddings_np = np.load(fn + '.vecs')
     print('load mappings from: ' + fn + '.mapping ...')
     mapping = pickle.load(open(fn + '.mapping', "rb"))
-    embeddings_padded = np.lib.pad(embeddings, ((0, len(mapping)), (0, 0)), 'mean')
+    embeddings_padded = np.lib.pad(embeddings_np, ((0, len(mapping) - embeddings_np.shape[0]), (0, 0)), 'mean')
+
+    print('embeddings_np.shape: '+str(embeddings_np.shape))
+    print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
 
     print('create tensorflow graph ...')
-
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
+            embeddings = tf.get_variable(name="embeddings", shape=embeddings_padded.shape,
+                                         initializer=tf.constant_initializer(embeddings_padded), trainable=True)
+            #lex_size, state_size = embeddings_padded.shape
+            #embeddings = td.Embedding(lex_size, state_size, initializer=embeddings_padded, name='embeddings')
 
-          # Build the graph.
-          classifier = model_fold.SequenceTupleModel(embeddings_padded) # .CalculatorModel(FLAGS.embedding_length)
-          loss = classifier.loss
-          #accuracy = classifier.accuracy
-          train_op = classifier.train_op
-          global_step = classifier.global_step
+            # Build the graph.
+            classifier = model_fold.SequenceTupleModel(embeddings_padded) # .CalculatorModel(FLAGS.embedding_length)
+            loss = classifier.loss
+            #accuracy = classifier.accuracy
+            train_op = classifier.train_op
+            global_step = classifier.global_step
 
-          # Set up the supervisor.
-          supervisor = tf.train.Supervisor(
-              logdir=FLAGS.logdir,
-              is_chief=(FLAGS.task == 0),
-              save_summaries_secs=10,
-              save_model_secs=30)
-          sess = supervisor.PrepareSession(FLAGS.master)
+            # Set up the supervisor.
+            supervisor = tf.train.Supervisor(
+                logdir=FLAGS.logdir,
+                is_chief=(FLAGS.task == 0),
+                save_summaries_secs=10,
+                save_model_secs=30)
+            sess = supervisor.PrepareSession(FLAGS.master)
 
-          # Run the trainer.
-          for _ in xrange(FLAGS.max_steps):
-            batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
-            fdict = classifier.build_feed_dict(batch)
+            # Run the trainer.
+            for _ in xrange(FLAGS.max_steps):
+                batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
+                fdict = classifier.build_feed_dict(batch)
 
-            _, step, loss_v = sess.run(
-                [train_op, global_step, loss],
-                feed_dict=fdict)
-            print('step=%d: loss=%f' % (step, loss_v))
-            emit_values(supervisor, sess, step,
-                        {'Batch Loss': loss_v})
+                _, step, loss_v = sess.run(
+                    [train_op, global_step, loss],
+                    feed_dict=fdict)
+                print('step=%d: loss=%f' % (step, loss_v))
+                emit_values(supervisor, sess, step,
+                            {'Batch Loss': loss_v})
 
 
 if __name__ == '__main__':
