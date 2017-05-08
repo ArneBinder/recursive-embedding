@@ -83,8 +83,7 @@ class SequenceTupleModel(object):
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
-        #TODO: sum or mean?
-        self._loss = tf.reduce_mean(tf.abs(cosine_similarities - gold_similarities))
+        self._loss = tf.reduce_sum(tf.abs(cosine_similarities - gold_similarities))
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),

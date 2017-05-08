@@ -45,14 +45,14 @@ if __name__ == '__main__':
 
     # in_dir = '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/'
     # fn = 'SICK_test_annotated'
-    in_dir = '/home/arne/devel/ML/data/corpora/SICK/sick_train/'
-    fn = 'SICK_train'
+    in_path = '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt'
 
     sentence_processor = preprocessing.process_sentence3
-    out_dir = 'data/corpora/sick/' + sentence_processor.func_name + '/'
+    out_path = 'data/corpora/sick/' + sentence_processor.func_name + '/SICK_train'
+    out_dir = os.path.abspath(os.path.join(out_path, os.pardir))
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
-    fn_mapping = out_dir + fn + '.mapping'
+    fn_mapping = out_path + '.mapping'
 
     if os.path.isfile(fn_mapping):
         print('read mapping from file: '+fn_mapping + ' ...')
@@ -60,18 +60,18 @@ if __name__ == '__main__':
     else:
         print('extract word embeddings from spaCy ...')
         vecs, mapping = preprocessing.get_word_embeddings(nlp.vocab)
-        print('dump vecs to: '+out_dir + fn + '.vecs ...')
-        vecs.dump(out_dir + fn + '.vecs')
+        print('dump vecs to: ' + out_path + '.vecs ...')
+        vecs.dump(out_path + '.vecs')
         #pickle.dump(vecs, open(out_dir + fn + '.vecs', "wb"))
 
     print('parse data ...')
-    convert_sick(in_dir+fn+'.txt',
-                 out_dir+fn,
+    convert_sick(in_path,
+                 out_path,
                  sentence_processor,
                  nlp,
                  mapping)
-    print('dump mappings to: '+out_dir+fn+'.mapping ...')
-    pickle.dump(mapping, open(out_dir+fn+'.mapping', "wb"))
+    print('dump mappings to: ' + out_path + '.mapping ...')
+    pickle.dump(mapping, open(out_path + '.mapping', "wb"))
 
 
 
