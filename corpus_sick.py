@@ -15,7 +15,7 @@ tf.flags.DEFINE_string(
     'corpus_data_output_dir', 'data/corpora/sick',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_integer(
-    'corpus_size', 1,
+    'corpus_size', -1,
     'How many samples to write. Use a negative dummy value to set no limit.')
 tf.flags.DEFINE_string(
     'sentence_processor', 'process_sentence3',

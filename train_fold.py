@@ -41,17 +41,17 @@ import numpy as np
 import pickle
 
 tf.flags.DEFINE_string(
-    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train_same_1',
+    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
     'TF Record file containing the training dataset of expressions.')
 tf.flags.DEFINE_integer(
-    #'batch_size', 100, 'How many samples to read per batch.')
-    'batch_size', 1, 'How many samples to read per batch.')
+    'batch_size', 1000, 'How many samples to read per batch.')
+    #'batch_size', 1, 'How many samples to read per batch.')
 tf.flags.DEFINE_integer(
     'embedding_length', 300,
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
-    'max_steps', 1,
+    'max_steps', 1000,
     'The maximum number of batches to run the trainer for.')
 
 # Replication flags:
@@ -153,7 +153,7 @@ def main(unused_argv):
                 _, step, loss_v = sess.run(
                     [train_op, global_step, loss],
                     feed_dict=fdict)
-                print('step=%d: loss=%f' % (step, loss_v))
+                print('step=%d: loss=%f' % (step, loss_v / FLAGS.batch_size))
                 emit_values(supervisor, sess, step,
                             {'Batch Loss': loss_v})
 

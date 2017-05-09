@@ -6,7 +6,7 @@ import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 
 
-def sequence_tree_block(state_size, embeddings, name_):
+def sequence_tree_block(state_size, embeddings, aggregator):
     # state_size = embeddings.shape[1]
     expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
 
@@ -27,9 +27,18 @@ def sequence_tree_block(state_size, embeddings, name_):
     # gru_cell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), 'mygru')
 
     # TODO: use GRU cell
-    #def aggr_op():
+    def aggr_op(inX, scope):
+        #print(scope.name)
+        with tf.variable_scope(scope, reuse=None) as sc:
+            #sc.reuse_variables()
+            weights = tf.get_variable("fc_weights", shape=(state_size, state_size))
+            biases = tf.get_variable("fc_biases", shape=(state_size,))
+
+            pre_activation = tf.add(tf.matmul(inX, weights), biases)
+            my_fc = tf.nn.relu(pre_activation, name=sc.name)
+
         # return (td.AllOf(head, children_aggr) >> td.RNN(gru_cell, initial_state_from_input=True))
-    #    return (children_aggr)
+        return my_fc
 
     def cas(seq_tree):
         # process and aggregate
@@ -42,12 +51,15 @@ def sequence_tree_block(state_size, embeddings, name_):
         return 2
 
     cases = td.OneOf(lambda x: cas(x),
-                     {0: td.Record([('head', head('head')),
-                                    ('children', children_aggr('children_aggr'))]) >> td.Concat() >> td.FC(
-                         state_size),
-                      1: td.GetItem('head') >> td.Optional(head('just_head')),
-                      2: td.GetItem('children') >> children_aggr('just_children')},
-                     name=name_)
+                     {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embeddings)),
+                                    ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(tf.add)))])
+                         >> td.Concat() >> aggregator,
+                        #>> td.Concat() >> td.ScopedLayer(aggr_op, scope),
+                      #1: td.GetItem('head') >> td.Optional(head('just_head')),
+                      1: td.GetItem('head') >> td.Optional(td.Scalar(dtype='int32') >> td.Function(embeddings)),
+                      2: td.GetItem('children') >> td.Map(expr_decl()) >> td.Reduce(td.Function(tf.add))})
+
+    #cases = td.GetItem('head') >> td.Optional(head('just_head')) >> td.ScopedLayer(aggr_op, scope)
 
     expr_decl.resolve_to(cases)
     return cases
@@ -68,10 +80,12 @@ class SequenceTupleModel(object):
         # seq_tree_block = sequence_tree_block(self._state_size, self._embeddings)
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
+        aggregator = td.FC(self._state_size)
+        #stb = sequence_tree_block(self._state_size, self._embeddings, aggregator)
+
         # The AllOf block will run each of its children on the same input.
-        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, name_='first'),
-                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings,
-                                                                     name_='second'),
+        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, aggregator),
+                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings, aggregator),
                          similarity)
         self._compiler = td.Compiler.create(model)
 
