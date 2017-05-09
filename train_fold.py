@@ -41,11 +41,11 @@ import numpy as np
 import pickle
 
 tf.flags.DEFINE_string(
-    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
+    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train_same_1',
     'TF Record file containing the training dataset of expressions.')
 tf.flags.DEFINE_integer(
     #'batch_size', 100, 'How many samples to read per batch.')
-    'batch_size', 100, 'How many samples to read per batch.')
+    'batch_size', 1, 'How many samples to read per batch.')
 tf.flags.DEFINE_integer(
     'embedding_length', 300,
     'How long to make the expression embedding vectors.')
@@ -111,6 +111,7 @@ def main(unused_argv):
     train_iterator = iterate_over_tf_record_protos(
         fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
+    # DEBUG
     print('load embeddings from: '+fn + '.vecs ...')
     embeddings_np = np.load(fn + '.vecs')
     print('load mappings from: ' + fn + '.mapping ...')
@@ -123,8 +124,9 @@ def main(unused_argv):
     print('create tensorflow graph ...')
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-            embeddings = tf.get_variable(name="embeddings", shape=embeddings_padded.shape,
-                                         initializer=tf.constant_initializer(embeddings_padded), trainable=True)
+            #embeddings = tf.get_variable(name="embeddings", shape=embeddings_padded.shape,
+            #                             initializer=tf.constant_initializer(embeddings_padded), trainable=True)
+
             #lex_size, state_size = embeddings_padded.shape
             #embeddings = td.Embedding(lex_size, state_size, initializer=embeddings_padded, name='embeddings')
 

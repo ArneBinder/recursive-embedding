@@ -86,7 +86,7 @@ class SequenceTupleModel(object):
         #    logits=logits, labels=labels))
 
         # use MSE
-        self._loss = tf.reduce_sum(tf.pow(cosine_similarities - gold_similarities, 2))/(cosine_similarities.shape.as_list()[0]) #tf.reduce_sum(tf.metrics.mean_squared_error(labels=gold_similarities, predictions=cosine_similarities))
+        self._loss = tf.reduce_sum(tf.pow(cosine_similarities - gold_similarities, 2))  #/(cosine_similarities.shape.as_list()[0]) #tf.reduce_sum(tf.metrics.mean_squared_error(labels=gold_similarities, predictions=cosine_similarities))
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),

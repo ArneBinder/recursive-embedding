@@ -15,7 +15,7 @@ tf.flags.DEFINE_string(
     'corpus_data_output_dir', 'data/corpora/sick',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_integer(
-    'corpus_size', 10,
+    'corpus_size', 1,
     'How many samples to write. Use a negative dummy value to set no limit.')
 tf.flags.DEFINE_string(
     'sentence_processor', 'process_sentence3',
@@ -39,8 +39,8 @@ def sick_reader(filename, sentence_processor, parser, data_maps):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
         preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps, sim_tree_tuple.first)
-        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps, sim_tree_tuple.second)
-        sim_tree_tuple.similarity = 1. #(score - 1.) / 4.
+        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps, sim_tree_tuple.second)
+        sim_tree_tuple.similarity = (score - 1.) / 4.
         yield sim_tree_tuple
 
 
@@ -94,7 +94,8 @@ if __name__ == '__main__':
                  FLAGS.corpus_size)
     print('len(mapping): ' + str(len(mapping)))
     print('dump mappings to: ' + out_path + '.mapping ...')
-    pickle.dump(mapping, open(out_path + '.mapping', "wb"))
+    with open(out_path + '.mapping', "wb") as f:
+        pickle.dump(mapping, f)
 
 
 
