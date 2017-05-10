@@ -10,6 +10,9 @@ def sequence_tree_block(state_size, embeddings, aggregator):
     # state_size = embeddings.shape[1]
     expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
 
+    def embed(x):
+        return tf.gather(embeddings, x)
+
     # get the head embedding from id
     def head(name_):
         return td.Pipe(td.Scalar(dtype='int32'),
@@ -51,12 +54,12 @@ def sequence_tree_block(state_size, embeddings, aggregator):
         return 2
 
     cases = td.OneOf(lambda x: cas(x),
-                     {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embeddings)),
+                     {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
                                     ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(tf.add)))])
-                         >> td.Concat() >> aggregator,
+                         >> aggregator, # td.Function(aggregator), ## >> td.RNN(aggregator), #td.Function(aggregator), # >> td.Concat() >> aggregator,
                         #>> td.Concat() >> td.ScopedLayer(aggr_op, scope),
                       #1: td.GetItem('head') >> td.Optional(head('just_head')),
-                      1: td.GetItem('head') >> td.Optional(td.Scalar(dtype='int32') >> td.Function(embeddings)),
+                      1: td.GetItem('head') >> td.Optional(td.Scalar(dtype='int32') >> td.Function(embed)),
                       2: td.GetItem('children') >> td.Map(expr_decl()) >> td.Reduce(td.Function(tf.add))})
 
     #cases = td.GetItem('head') >> td.Optional(head('just_head')) >> td.ScopedLayer(aggr_op, scope)
@@ -71,9 +74,6 @@ class SequenceTupleModel(object):
     # TODO: check (and use) scopes
     def __init__(self, lex_size, embedding_dim, embeddings):
 
-        def my_embed(x):
-            return tf.gather(embeddings, x)
-
         #print('embeddings.shape.as_list(): '+str(embeddings.shape.as_list()))
         #self._lex_size, self._state_size = embeddings.shape  #embeddings.shape.as_list() #
         self._lex_size = lex_size
@@ -81,17 +81,25 @@ class SequenceTupleModel(object):
         #self._state_size = embeddings.shape.as_list()[1]
         # TODO: re-add embeddings
         #self._embeddings = td.Embedding(self._lex_size, self._state_size, initializer=embeddings, name='head_embed')
-        self._embeddings = my_embed# td.Embedding(self._lex_size, self._state_size, name='head_embed')
+        self._embeddings = embeddings #my_embed# td.Embedding(self._lex_size, self._state_size, name='head_embed')
 
         # seq_tree_block = sequence_tree_block(self._state_size, self._embeddings)
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
+
+        grucell = tf.contrib.rnn.GRUCell(num_units=embedding_dim)#, 'gru_cell') # tf.contrib.rnn.core_rnn_cell.GRUCell(num_units=embedding_dim)
+
+        def dummy_aggr(x, y, scope):
+            h1, h2 = grucell(x, y)
+            return h1
+
+        gc = td.ScopedLayer(dummy_aggr, 'gru_cell')
 
         aggregator = td.FC(self._state_size)
         #stb = sequence_tree_block(self._state_size, self._embeddings, aggregator)
 
         # The AllOf block will run each of its children on the same input.
-        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, aggregator),
-                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings, aggregator),
+        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, gc),
+                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings, gc),
                          similarity)
         self._compiler = td.Compiler.create(model)
 
