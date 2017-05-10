@@ -2,7 +2,9 @@ import time
 from functools import wraps
 import errno
 import os
+import spacy
 
+nlp = spacy.load('en')
 
 def mkdir_p(path):
     try:
@@ -65,7 +67,10 @@ def getOrAdd(d, e):
     except KeyError:
         res = len(d)
         d[e] = res
-        print('add to dict: ' + str(e) + ' -> ' + str(res))
+        try:
+            print('add to dict: ' + str(e) + ' (' + nlp.vocab[e].orth_ + ') -> ' + str(res))
+        except IndexError:
+            print('add to dict: ' + str(e) + ' () -> ' + str(res))
     return res
 
 

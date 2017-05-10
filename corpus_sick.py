@@ -7,12 +7,16 @@ import tensorflow as tf
 import pickle
 import os
 import ntpath
+import numpy as np
 
 tf.flags.DEFINE_string(
     'corpus_data_input_file', '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
     'The path to the SICK data file.')
 tf.flags.DEFINE_string(
     'corpus_data_output_dir', 'data/corpora/sick',
+    'The path to the output data files (samples, embedding vectors, mappings).')
+tf.flags.DEFINE_string(
+    'dict_filename', 'data/nlp/spacy/dict',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_integer(
     'corpus_size', -1,
@@ -53,6 +57,29 @@ def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping,
     record_output.close()
 
 
+def create_or_read_dict(fn, vocab):
+    if os.path.isfile(fn+'.vecs'):
+        print('load vecs from file: '+fn + '.vecs ...')
+        v = np.load(fn+'.vecs')
+        print('read mapping from file: ' + fn + '.mapping ...')
+        m = pickle.load(open(fn+'.mapping', "rb"))
+        print('vecs.shape: ' + str(v.shape))
+        print('len(mapping): ' + str(len(m)))
+    else:
+        out_dir = os.path.abspath(os.path.join(fn, os.pardir))
+        if not os.path.isdir(out_dir):
+            os.makedirs(out_dir)
+        print('extract word embeddings from spaCy ...')
+        v, m = preprocessing.get_word_embeddings(vocab)
+        print('vecs.shape: ' + str(v.shape))
+        print('len(mapping): ' + str(len(m)))
+        print('dump vecs to: ' + fn + '.vecs ...')
+        v.dump(fn + '.vecs')
+        print('dump mappings to: ' + fn + '.mapping ...')
+        with open(fn + '.mapping', "wb") as f:
+            pickle.dump(m, f)
+    return v, m
+
 if __name__ == '__main__':
     print('load spacy ...')
     nlp = spacy.load('en')
@@ -61,6 +88,8 @@ if __name__ == '__main__':
     # in_dir = '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/'
     # fn = 'SICK_test_annotated'
     #in_path = '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt'
+
+    vecs, mapping = create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
 
     # use filename from input file
     out_fn = os.path.splitext(ntpath.basename(FLAGS.corpus_data_input_file))[0]
@@ -71,19 +100,11 @@ if __name__ == '__main__':
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     out_path = os.path.join(out_dir, out_fn)
-    fn_mapping = out_path + '.mapping'
 
-    if os.path.isfile(fn_mapping):
-        print('read mapping from file: '+fn_mapping + ' ...')
-        mapping = pickle.load(open(fn_mapping, "rb"))
-    else:
-        print('extract word embeddings from spaCy ...')
-        vecs, mapping = preprocessing.get_word_embeddings(nlp.vocab)
-        print('vecs.shape: '+str(vecs.shape))
-        print('len(mapping): '+str(len(mapping)))
-        print('dump vecs to: ' + out_path + '.vecs ...')
-        vecs.dump(out_path + '.vecs')
-        #pickle.dump(vecs, open(out_dir + fn + '.vecs', "wb"))
+    #fn_mapping = out_path + '.mapping'
+    #if os.path.isfile(fn_mapping):
+    #    print('read mapping from file: '+fn_mapping + ' ...')
+    #    mapping = pickle.load(open(fn_mapping, "rb"))
 
     print('parse data ...')
     convert_sick(FLAGS.corpus_data_input_file,

@@ -43,8 +43,11 @@ import pickle
 tf.flags.DEFINE_string(
     'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
     'TF Record file containing the training dataset of expressions.')
+tf.flags.DEFINE_string(
+    'train_dict_path', 'data/nlp/spacy/dict.vecs',
+    'TF Record file containing the training dataset of expressions.')
 tf.flags.DEFINE_integer(
-    'batch_size', 1000, 'How many samples to read per batch.')
+    'batch_size', 250, 'How many samples to read per batch.')
     #'batch_size', 1, 'How many samples to read per batch.')
 tf.flags.DEFINE_integer(
     'embedding_length', 300,
@@ -107,15 +110,15 @@ def emit_values(supervisor, session, step, values):
 
 
 def main(unused_argv):
-    fn = FLAGS.train_data_path
+    data_fn = FLAGS.train_data_path
     train_iterator = iterate_over_tf_record_protos(
-        fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
+        data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
     # DEBUG
-    print('load embeddings from: '+fn + '.vecs ...')
-    embeddings_np = np.load(fn + '.vecs')
-    print('load mappings from: ' + fn + '.mapping ...')
-    mapping = pickle.load(open(fn + '.mapping', "rb"))
+    print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
+    embeddings_np = np.load(FLAGS.train_dict_path)
+    print('load mappings from: ' + data_fn + '.mapping ...')
+    mapping = pickle.load(open(data_fn + '.mapping', "rb"))
     embeddings_padded = np.lib.pad(embeddings_np, ((0, len(mapping) - embeddings_np.shape[0]), (0, 0)), 'mean')
 
     print('embeddings_np.shape: '+str(embeddings_np.shape))
@@ -142,7 +145,7 @@ def main(unused_argv):
                 logdir=FLAGS.logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
-                save_model_secs=30)
+                save_model_secs=300)
             sess = supervisor.PrepareSession(FLAGS.master)
 
             # Run the trainer.
@@ -155,7 +158,7 @@ def main(unused_argv):
                     feed_dict=fdict)
                 print('step=%d: loss=%f' % (step, loss_v / FLAGS.batch_size))
                 emit_values(supervisor, sess, step,
-                            {'Batch Loss': loss_v})
+                            {'Loss': loss_v / FLAGS.batch_size})
 
 
 if __name__ == '__main__':
