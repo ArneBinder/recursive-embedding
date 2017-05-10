@@ -117,9 +117,13 @@ def main(unused_argv):
     # DEBUG
     print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
     embeddings_np = np.load(FLAGS.train_dict_path)
-    print('load mappings from: ' + data_fn + '.mapping ...')
-    mapping = pickle.load(open(data_fn + '.mapping', "rb"))
-    embeddings_padded = np.lib.pad(embeddings_np, ((0, len(mapping) - embeddings_np.shape[0]), (0, 0)), 'mean')
+
+    embedding_dim = embeddings_np.shape[1]
+    lex_size = 1300000
+    #print('load mappings from: ' + data_fn + '.mapping ...')
+    #mapping = pickle.load(open(data_fn + '.mapping', "rb"))
+    assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
+    embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
 
     print('embeddings_np.shape: '+str(embeddings_np.shape))
     print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
@@ -127,6 +131,12 @@ def main(unused_argv):
     print('create tensorflow graph ...')
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
+            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, embedding_dim]),
+                            trainable=True, name="embed_w")
+
+            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, embedding_dim])
+            embedding_init = embed_w.assign(embedding_placeholder)
+            #embeddings = td.Embedding(lex_size, embedding_dim, initializer=embeddings_padded, name='head_embed')
             #embeddings = tf.get_variable(name="embeddings", shape=embeddings_padded.shape,
             #                             initializer=tf.constant_initializer(embeddings_padded), trainable=True)
 
@@ -134,7 +144,7 @@ def main(unused_argv):
             #embeddings = td.Embedding(lex_size, state_size, initializer=embeddings_padded, name='embeddings')
 
             # Build the graph.
-            classifier = model_fold.SequenceTupleModel(embeddings_padded) # .CalculatorModel(FLAGS.embedding_length)
+            classifier = model_fold.SequenceTupleModel(lex_size, embedding_dim, embed_w) # .CalculatorModel(FLAGS.embedding_length)
             loss = classifier.loss
             #accuracy = classifier.accuracy
             train_op = classifier.train_op
@@ -147,7 +157,7 @@ def main(unused_argv):
                 save_summaries_secs=10,
                 save_model_secs=300)
             sess = supervisor.PrepareSession(FLAGS.master)
-
+            sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
             # Run the trainer.
             for _ in xrange(FLAGS.max_steps):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]

@@ -69,13 +69,19 @@ class SequenceTupleModel(object):
     """A Fold model for calculator examples."""
 
     # TODO: check (and use) scopes
-    def __init__(self, embeddings):
+    def __init__(self, lex_size, embedding_dim, embeddings):
+
+        def my_embed(x):
+            return tf.gather(embeddings, x)
+
         #print('embeddings.shape.as_list(): '+str(embeddings.shape.as_list()))
-        self._lex_size, self._state_size = embeddings.shape  #embeddings.shape.as_list()
+        #self._lex_size, self._state_size = embeddings.shape  #embeddings.shape.as_list() #
+        self._lex_size = lex_size
+        self._state_size = embedding_dim
         #self._state_size = embeddings.shape.as_list()[1]
         # TODO: re-add embeddings
-        # self._embeddings = td.Embedding(self._lex_size, self._state_size, initializer=embeddings, name='head_embed')
-        self._embeddings = td.Embedding(self._lex_size, self._state_size, name='head_embed')
+        #self._embeddings = td.Embedding(self._lex_size, self._state_size, initializer=embeddings, name='head_embed')
+        self._embeddings = my_embed# td.Embedding(self._lex_size, self._state_size, name='head_embed')
 
         # seq_tree_block = sequence_tree_block(self._state_size, self._embeddings)
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
