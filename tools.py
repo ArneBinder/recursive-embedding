@@ -3,6 +3,7 @@ from functools import wraps
 import errno
 import os
 import spacy
+import constants
 
 nlp = spacy.load('en')
 
@@ -68,7 +69,10 @@ def getOrAdd(d, e):
         res = len(d)
         d[e] = res
         try:
-            print('add to dict: ' + str(e) + ' (' + nlp.vocab[e].orth_ + ') -> ' + str(res))
+            if e >= 0:
+                print('add to dict: ' + str(e) + ' (' + nlp.vocab[e].orth_ + ') -> ' + str(res))
+            else:
+                print('add to dict: ' + str(e) + ' (' + constants.vocab_manual[e] + ') -> ' + str(res))
         except IndexError:
             print('add to dict: ' + str(e) + ' () -> ' + str(res))
     return res

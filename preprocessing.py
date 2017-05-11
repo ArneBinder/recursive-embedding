@@ -171,8 +171,6 @@ def process_sentence5(sentence, parsed_data, data_maps):
 
 
 
-
-
 def dummy_str_reader():
     yield u'I like RTRC!'
 
@@ -254,7 +252,7 @@ def read_data(reader, nlp, data_maps, max_forest_count=10, max_sen_length=75, ar
     return np.array(seq_data), np.array(seq_types), np.array(seq_parents), np.array(seq_edges)#, dep_map
 
 
-def read_data2(reader, sentence_processor, parser, data_maps, max_forest_count=10, max_sen_length=75, args={}):
+def read_data2(reader, sentence_processor, parser, data_maps, args={}, mode=None):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -270,9 +268,6 @@ def read_data2(reader, sentence_processor, parser, data_maps, max_forest_count=1
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
         prev_root = None
         for sentence in parsed_data.sents:
-            # skip too long sentences
-            if len(sentence) > max_sen_length:
-                continue
             processed_sen = sentence_processor(sentence, parsed_data, data_maps)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
@@ -290,7 +285,25 @@ def read_data2(reader, sentence_processor, parser, data_maps, max_forest_count=1
                 seq_parents[prev_root] = current_root - prev_root
             prev_root = current_root
 
-    return np.array(seq_data), np.array(seq_parents), prev_root #, np.array(seq_edges)#, dep_map
+    data = np.array(seq_data)
+    parents = np.array(seq_parents)
+    root = prev_root
+
+    # overwrite structure, if a special mode is set
+    if mode is not None:
+        if mode == 'sequence':
+            parents = np.ones(parents.shape, dtype=parents.dtype)
+            if len(parents) > 0:
+                parents[-1] = 0
+                root = len(parents) - 1
+            else:
+                root = 0
+        elif mode == 'aggregate':
+            data = np.append(data, getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING))
+            parents = np.array(list(reversed(range(len(data)))))
+            root = max(len(data) - 1, 0)
+
+    return data, parents, root #, np.array(seq_edges)#, dep_map
 
 
 def addMissingEmbeddings(seq_data, embeddings):
