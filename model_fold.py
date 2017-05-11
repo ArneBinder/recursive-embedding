@@ -10,40 +10,11 @@ def sequence_tree_block(state_size, embeddings, aggregator):
     # state_size = embeddings.shape[1]
     expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
 
+    # get the head embedding from id
     def embed(x):
         return tf.gather(embeddings, x)
 
-    # get the head embedding from id
-    def head(name_):
-        return td.Pipe(td.Scalar(dtype='int32'),
-                       td.Function(embeddings),
-                       # td.Embedding(lex_size, state_size, initializer = embeddings, name='head_embed')
-                       name=name_)
-
-    # get the weighted sum of all children
-    def children_aggr(name_):
-        return td.Pipe(td.Map(expr_decl()),
-                       #td.Map(td.Function(lambda x: tf.norm(x) * x)),
-                       td.Reduce(td.Function(tf.add)),
-                       name=name_)
-
-    # gru_cell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), 'mygru')
-
-    # TODO: use GRU cell
-    def aggr_op(inX, scope):
-        #print(scope.name)
-        with tf.variable_scope(scope, reuse=None) as sc:
-            #sc.reuse_variables()
-            weights = tf.get_variable("fc_weights", shape=(state_size, state_size))
-            biases = tf.get_variable("fc_biases", shape=(state_size,))
-
-            pre_activation = tf.add(tf.matmul(inX, weights), biases)
-            my_fc = tf.nn.relu(pre_activation, name=sc.name)
-
-        # return (td.AllOf(head, children_aggr) >> td.RNN(gru_cell, initial_state_from_input=True))
-        return my_fc
-
-    def cas(seq_tree):
+    def case(seq_tree):
         # process and aggregate
         if len(seq_tree['children']) > 0 and 'head' in seq_tree:
             return 0
@@ -61,7 +32,7 @@ def sequence_tree_block(state_size, embeddings, aggregator):
     def p_children(x):
         return tf.Print(x, [tf.shape(x), x], message='children: ', summarize=3000)
 
-    cases = td.OneOf(lambda x: cas(x),
+    cases = td.OneOf(lambda x: case(x),
                      {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
                                     ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(tf.add)))])
                          >> td.Function(aggregator),
@@ -94,22 +65,18 @@ class SequenceTupleModel(object):
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        #grucell = tf.contrib.rnn.GRUCell(num_units=embedding_dim)#, 'gru_cell') # tf.contrib.rnn.core_rnn_cell.GRUCell(num_units=embedding_dim)
+        grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=embedding_dim))
+        #fc = td.FC(embedding_dim)
 
-        fc = td.FC(embedding_dim)
-
-        def dummy_aggr(x, y):
-            #h1, h2 = grucell(x, y)
-
-            r = fc(tf.concat([x, y], 1))
+        def aggregator_ordered(x, y):
+            r, h2 = grucell(x, y)
+            #r = fc(tf.concat([x, y], 1))
             #r = x + y
             return r
-        #td.Concat
-        #gc = td.ScopedLayer(dummy_aggr, 'gru_cell')
 
         # The AllOf block will run each of its children on the same input.
-        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, dummy_aggr),
-                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings, dummy_aggr),
+        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
+                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
                          similarity)
         self._compiler = td.Compiler.create(model)
 
