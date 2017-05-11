@@ -55,7 +55,7 @@ tf.flags.DEFINE_integer(
 #    'How long to make the embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
-    'max_steps', 100,
+    'max_steps', 1000,
     'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer(
     'test_data_size', 10000,
@@ -119,7 +119,7 @@ def main(unused_argv):
     train_iterator = iterate_over_tf_record_protos(
         train_data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
-    test_data_fn = FLAGS.train_data_path
+    test_data_fn = FLAGS.test_data_path
     print('use test data: '+test_data_fn)
     test_iterator = iterate_over_tf_record_protos(
         test_data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
@@ -187,11 +187,11 @@ def main(unused_argv):
                 emit_values(supervisor, sess, step,
                             {'loss_train': loss_v / FLAGS.batch_size})
 
-                if step % 10 == 0:
+                if step % 50 == 0:
                     (loss_test,) = sess.run([loss], feed_dict=fdict_test)
                     emit_values(supervisor, sess, step,
                             {'loss_test': loss_test / test_size})
-                    print('step=%d: loss=%f loss_train=%f' % (step, loss_v / FLAGS.batch_size, loss_test / test_size))
+                    print('step=%d: loss=%f loss_test=%f' % (step, loss_v / FLAGS.batch_size, loss_test / test_size))
                 else:
                     print('step=%d: loss=%f' % (step, loss_v / FLAGS.batch_size))
 
