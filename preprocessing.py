@@ -54,25 +54,24 @@ def process_sentence(sentence, parsed_data, max_forest_count, data_embedding_map
         # dep_map[token.dep] = token.dep_
     return sen_data, sen_types, sen_parents, sen_edges
 
-
+# embeddings for:
+# word
 def process_sentence2(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
-    root_offset = (sentence.root.i - sentence.start) * 2
+    root_offset = (sentence.root.i - sentence.start)
     for i in range(sentence.start, sentence.end):
 
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
         sen_data.append(getOrAdd(data_maps, token.orth))
-        sen_parents.append(parent_offset * 2)
-        # add edge type embedding
-        sen_data.append(getOrAdd(data_maps, token.dep))
-        sen_parents.append(-1)
+        sen_parents.append(parent_offset)
 
     return sen_data, sen_parents, root_offset
 
-
+# embeddings for:
+# word, edge
 def process_sentence3(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
@@ -91,7 +90,33 @@ def process_sentence3(sentence, parsed_data, data_maps):
 
     return sen_data, sen_parents, root_offset
 
+# embeddings for:
+# word, word embedding, edge, edge embedding
+def process_sentence4(sentence, parsed_data, data_maps):
+    sen_data = list()
+    sen_parents = list()
+    root_offset = (sentence.root.i - sentence.start) * 4
+    for i in range(sentence.start, sentence.end):
 
+        token = parsed_data[i]
+        parent_offset = token.head.i - i
+        # add word embedding
+        sen_data.append(getOrAdd(data_maps, token.orth))
+        sen_parents.append(parent_offset * 4)
+        # add word embedding embedding
+        sen_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING))
+        sen_parents.append(-1)
+        # add edge type embedding
+        sen_data.append(getOrAdd(data_maps, token.dep))
+        sen_parents.append(-2)
+        # add edge type embedding embedding
+        sen_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING))
+        sen_parents.append(-1)
+
+    return sen_data, sen_parents, root_offset
+
+# embeddings for:
+# words, edges, entity type (if !=0)
 def process_sentence5(sentence, parsed_data, data_maps):
     sen_data = list()
     sen_parents = list()
@@ -145,28 +170,7 @@ def process_sentence5(sentence, parsed_data, data_maps):
     return result_data, result_parents, root_offset
 
 
-def process_sentence4(sentence, parsed_data, data_maps):
-    sen_data = list()
-    sen_parents = list()
-    root_offset = (sentence.root.i - sentence.start) * 4
-    for i in range(sentence.start, sentence.end):
 
-        token = parsed_data[i]
-        parent_offset = token.head.i - i
-        # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth))
-        sen_parents.append(parent_offset * 4)
-        # add word embedding embedding
-        sen_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING))
-        sen_parents.append(-1)
-        # add edge type embedding
-        sen_data.append(getOrAdd(data_maps, token.dep))
-        sen_parents.append(-2)
-        # add edge type embedding embedding
-        sen_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING))
-        sen_parents.append(-1)
-
-    return sen_data, sen_parents, root_offset
 
 
 def dummy_str_reader():

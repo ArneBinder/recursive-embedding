@@ -85,26 +85,16 @@ if __name__ == '__main__':
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
 
-    # in_dir = '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/'
-    # fn = 'SICK_test_annotated'
-    #in_path = '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt'
-
     vecs, mapping = create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
 
     # use filename from input file
     out_fn = os.path.splitext(ntpath.basename(FLAGS.corpus_data_input_file))[0]
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
-    #'data/corpora/sick/' + sentence_processor.func_name + '/' + out_fn
-   #out_dir = os.path.abspath(os.path.join(out_path, os.pardir))
+
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
     out_path = os.path.join(out_dir, out_fn)
-
-    #fn_mapping = out_path + '.mapping'
-    #if os.path.isfile(fn_mapping):
-    #    print('read mapping from file: '+fn_mapping + ' ...')
-    #    mapping = pickle.load(open(fn_mapping, "rb"))
 
     print('parse data ...')
     convert_sick(FLAGS.corpus_data_input_file,

@@ -41,20 +41,20 @@ import numpy as np
 import pickle
 
 tf.flags.DEFINE_string(
-    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
+    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train_',
     'TF Record file containing the training dataset of expressions.')
 tf.flags.DEFINE_string(
     'train_dict_path', 'data/nlp/spacy/dict.vecs',
     'TF Record file containing the training dataset of expressions.')
 tf.flags.DEFINE_integer(
     'batch_size', 250, 'How many samples to read per batch.')
-    #'batch_size', 1, 'How many samples to read per batch.')
+    #'batch_size', 2, 'How many samples to read per batch.')
 tf.flags.DEFINE_integer(
     'embedding_length', 300,
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
-    'max_steps', 1000,
+    'max_steps', 100,
     'The maximum number of batches to run the trainer for.')
 
 # Replication flags:
@@ -111,6 +111,7 @@ def emit_values(supervisor, session, step, values):
 
 def main(unused_argv):
     data_fn = FLAGS.train_data_path
+    print('use training data: '+data_fn)
     train_iterator = iterate_over_tf_record_protos(
         data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
@@ -123,7 +124,9 @@ def main(unused_argv):
     #print('load mappings from: ' + data_fn + '.mapping ...')
     #mapping = pickle.load(open(data_fn + '.mapping', "rb"))
     assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
+
     embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
+    #embeddings_padded = np.ones(shape=(1300000, 300)) #np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
 
     print('embeddings_np.shape: '+str(embeddings_np.shape))
     print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
@@ -136,19 +139,18 @@ def main(unused_argv):
 
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, embedding_dim])
             embedding_init = embed_w.assign(embedding_placeholder)
-            #embeddings = td.Embedding(lex_size, embedding_dim, initializer=embeddings_padded, name='head_embed')
-            #embeddings = tf.get_variable(name="embeddings", shape=embeddings_padded.shape,
-            #                             initializer=tf.constant_initializer(embeddings_padded), trainable=True)
-
-            #lex_size, state_size = embeddings_padded.shape
-            #embeddings = td.Embedding(lex_size, state_size, initializer=embeddings_padded, name='embeddings')
 
             # Build the graph.
-            classifier = model_fold.SequenceTupleModel(lex_size, embedding_dim, embed_w) # .CalculatorModel(FLAGS.embedding_length)
+            classifier = model_fold.SequenceTupleModel(lex_size, embedding_dim, embed_w)
             loss = classifier.loss
             #accuracy = classifier.accuracy
             train_op = classifier.train_op
             global_step = classifier.global_step
+
+            embeddings_1 = classifier.embeddings_1
+            embeddings_2 = classifier.embeddings_2
+
+            cosine_similarities = classifier.cosine_similarities
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
@@ -163,10 +165,12 @@ def main(unused_argv):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = classifier.build_feed_dict(batch)
 
-                _, step, loss_v = sess.run(
-                    [train_op, global_step, loss],
+                _, step, loss_v, embeds_1, embeds_2, sims = sess.run(
+                    [train_op, global_step, loss, embeddings_1, embeddings_2, cosine_similarities],
                     feed_dict=fdict)
                 print('step=%d: loss=%f' % (step, loss_v / FLAGS.batch_size))
+                #print(embeds_1)
+                #print(sims)
                 emit_values(supervisor, sess, step,
                             {'Loss': loss_v / FLAGS.batch_size})
 
