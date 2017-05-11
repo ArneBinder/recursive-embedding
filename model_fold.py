@@ -56,16 +56,14 @@ def sequence_tree_block(state_size, embeddings, aggregator):
 class SequenceTupleModel(object):
     """A Fold model for calculator examples."""
 
-    # TODO: check (and use) scopes
-    def __init__(self, lex_size, embedding_dim, embeddings):
+    def __init__(self, embeddings, aggregator_ordered_scope='aggregator_ordered'):
 
-        self._lex_size = lex_size
-        self._state_size = embedding_dim
+        (self._lex_size, self._state_size) = embeddings.shape.as_list()
         self._embeddings = embeddings
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=embedding_dim))
+        grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), name_or_scope=aggregator_ordered_scope)
         #fc = td.FC(embedding_dim)
 
         def aggregator_ordered(head, children):

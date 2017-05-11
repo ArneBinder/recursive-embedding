@@ -56,7 +56,7 @@ tf.flags.DEFINE_integer(
 #    'How long to make the embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
-    'max_steps', 1000,
+    'max_steps', 100,
     'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer(
     'test_data_size', 10000,
@@ -149,17 +149,26 @@ def main(unused_argv):
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, embedding_dim]),
-                            trainable=True, name="embed_w")
+                                  trainable=True, name='embeddings')
 
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, embedding_dim])
             embedding_init = embed_w.assign(embedding_placeholder)
 
             # Build the graph.
-            classifier = model_fold.SequenceTupleModel(lex_size, embedding_dim, embed_w)
+            #aggregator_ordered_scope_name = 'aggregator_ordered'
+            classifier = model_fold.SequenceTupleModel(embed_w) #, aggregator_ordered_scope_name)
             loss = classifier.loss
             #accuracy = classifier.accuracy
             train_op = classifier.train_op
             global_step = classifier.global_step
+
+            # collect important variables
+            #aggr_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=aggregator_ordered_scope_name)
+            #save_vars = aggr_vars + [embed_w, global_step]
+            #my_saver = tf.train.Saver(save_vars)
+
+            #missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
+            #init_missing = tf.variables_initializer(missing_vars)
 
             embeddings_1 = classifier.embeddings_1
             embeddings_2 = classifier.embeddings_2
@@ -168,12 +177,19 @@ def main(unused_argv):
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
+                #saver=None,# my_saver,
                 logdir=FLAGS.logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
                 save_model_secs=300)
             sess = supervisor.PrepareSession(FLAGS.master)
-            sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
+            checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir)
+            if checkpoint_fn is None:
+                print('init embeddings with external vectors...')
+                sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
+                #sess.run(init_missing)
+            #else:
+                #my_saver.restore(sess, checkpoint_fn)
 
             # prepare test set
             test_size = FLAGS.test_data_size
@@ -182,6 +198,9 @@ def main(unused_argv):
 
             # Run the trainer.
             for _ in xrange(FLAGS.max_steps):
+                if supervisor.should_stop():
+                    #my_saver.save(sess, )
+                    break
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = classifier.build_feed_dict(batch)
 
