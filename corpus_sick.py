@@ -10,11 +10,17 @@ import ntpath
 import numpy as np
 
 tf.flags.DEFINE_string(
-    'corpus_data_input_file', '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
-    'The path to the SICK data file.')
+    'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
+    'The path to the SICK train data file.')
+tf.flags.DEFINE_string(
+    'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
+    'The path to the SICK test data file.')
 tf.flags.DEFINE_string(
     'corpus_data_output_dir', 'data/corpora/sick',
     'The path to the output data files (samples, embedding vectors, mappings).')
+tf.flags.DEFINE_string(
+    'corpus_data_output_fn', 'SICK',
+    'Base filename of the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'dict_filename', 'data/nlp/spacy/dict',
     'The path to the output data files (samples, embedding vectors, mappings).')
@@ -24,6 +30,15 @@ tf.flags.DEFINE_integer(
 tf.flags.DEFINE_string(
     'sentence_processor', 'process_sentence3',
     'How long to make the expression embedding vectors.')
+tf.flags.DEFINE_string(
+    'tree_mode',
+    None,
+    #'aggregate',
+    #'sequence',
+    'How to structure the tree. '
+     + '"sequence" -> parents point to next token, '
+     + '"aggregate" -> parents point to an added, artificial token (TERMINATOR) in the end of the token sequence,'
+     + 'None -> use parsed dependency tree')
 
 FLAGS = tf.flags.FLAGS
 
@@ -38,19 +53,19 @@ def sick_raw_reader(filename):
             yield (int(row['pair_ID']), row['sentence_A'], row['sentence_B'], float(row['relatedness_score']))
 
 
-def sick_reader(filename, sentence_processor, parser, data_maps):
+def sick_reader(filename, sentence_processor, parser, data_maps, tree_mode=None):
     for i, t in enumerate(sick_raw_reader(filename)):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps, sim_tree_tuple.first)
-        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps, sim_tree_tuple.second)
+        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps, sim_tree_tuple.first, tree_mode)
+        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps, sim_tree_tuple.second, tree_mode)
         sim_tree_tuple.similarity = (score - 1.) / 4.
         yield sim_tree_tuple
 
 
-def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple=-1):
+def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple=-1, tree_mode=None):
     record_output = tf.python_io.TFRecordWriter(out_filename)
-    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping)):
+    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, tree_mode)):
         if 0 < max_tuple == i:
             break
         record_output.write(t.SerializeToString())
@@ -87,22 +102,33 @@ if __name__ == '__main__':
 
     vecs, mapping = create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
 
-    # use filename from input file
-    out_fn = os.path.splitext(ntpath.basename(FLAGS.corpus_data_input_file))[0]
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
-
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
-    out_path = os.path.join(out_dir, out_fn)
 
-    print('parse data ...')
-    convert_sick(FLAGS.corpus_data_input_file,
-                 out_path,
+    out_path = os.path.join(out_dir, FLAGS.corpus_data_output_fn)
+    if FLAGS.tree_mode is not None:
+        out_path = out_path + '_' + FLAGS.tree_mode
+
+    print('parse train data ...')
+    convert_sick(FLAGS.corpus_data_input_train,
+                 out_path + '_train',
                  sentence_processor,
                  nlp,
                  mapping,
-                 FLAGS.corpus_size)
+                 FLAGS.corpus_size,
+                 FLAGS.tree_mode)
+
+    print('parse test data ...')
+    convert_sick(FLAGS.corpus_data_input_test,
+                 out_path + '_test',
+                 sentence_processor,
+                 nlp,
+                 mapping,
+                 FLAGS.corpus_size,
+                 FLAGS.tree_mode)
+
     print('len(mapping): ' + str(len(mapping)))
     print('dump mappings to: ' + out_path + '.mapping ...')
     with open(out_path + '.mapping', "wb") as f:
