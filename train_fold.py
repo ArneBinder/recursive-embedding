@@ -36,26 +36,30 @@ import tensorflow as tf
 import model_fold
 import similarity_tree_tuple_pb2
 import tensorflow_fold as td
-#from tensorflow_fold.util import proto_tools
 import numpy as np
-import pickle
 
 tf.flags.DEFINE_string(
-    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train_',
-    'TF Record file containing the training dataset of expressions.')
+    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
+    'TF Record file containing the training dataset of sequence tuples.')
+tf.flags.DEFINE_string(
+    'test_data_path', 'data/corpora/sick/process_sentence3/SICK_test',
+    'TF Record file containing the test dataset of sequence tuples.')
 tf.flags.DEFINE_string(
     'train_dict_path', 'data/nlp/spacy/dict.vecs',
-    'TF Record file containing the training dataset of expressions.')
+    'Numpy array which is used to initialize the embedding vectors.')
 tf.flags.DEFINE_integer(
     'batch_size', 250, 'How many samples to read per batch.')
     #'batch_size', 2, 'How many samples to read per batch.')
-tf.flags.DEFINE_integer(
-    'embedding_length', 300,
-    'How long to make the expression embedding vectors.')
+#tf.flags.DEFINE_integer( # use size of embeddings loaded from numpy array
+#    'embedding_length', 300,
+#    'How long to make the embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
     'max_steps', 100,
     'The maximum number of batches to run the trainer for.')
+tf.flags.DEFINE_integer(
+    'test_data_size', 10000,
+    'The size of the test set.')
 
 # Replication flags:
 tf.flags.DEFINE_string('logdir', 'data/log',
@@ -110,10 +114,15 @@ def emit_values(supervisor, session, step, values):
 
 
 def main(unused_argv):
-    data_fn = FLAGS.train_data_path
-    print('use training data: '+data_fn)
+    train_data_fn = FLAGS.train_data_path
+    print('use training data: '+train_data_fn)
     train_iterator = iterate_over_tf_record_protos(
-        data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
+        train_data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
+
+    test_data_fn = FLAGS.train_data_path
+    print('use test data: '+test_data_fn)
+    test_iterator = iterate_over_tf_record_protos(
+        test_data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
     # DEBUG
     print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
@@ -160,6 +169,12 @@ def main(unused_argv):
                 save_model_secs=300)
             sess = supervisor.PrepareSession(FLAGS.master)
             sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
+
+            # prepare test set
+            test_size = FLAGS.test_data_size
+            batch_test = [next(test_iterator) for _ in xrange(test_size)]
+            fdict_test = classifier.build_feed_dict(batch_test)
+
             # Run the trainer.
             for _ in xrange(FLAGS.max_steps):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
@@ -168,12 +183,17 @@ def main(unused_argv):
                 _, step, loss_v, embeds_1, embeds_2, sims = sess.run(
                     [train_op, global_step, loss, embeddings_1, embeddings_2, cosine_similarities],
                     feed_dict=fdict)
-                print('step=%d: loss=%f' % (step, loss_v / FLAGS.batch_size))
-                #print(embeds_1)
-                #print(sims)
-                emit_values(supervisor, sess, step,
-                            {'Loss': loss_v / FLAGS.batch_size})
 
+                emit_values(supervisor, sess, step,
+                            {'loss_train': loss_v / FLAGS.batch_size})
+
+                if step % 10 == 0:
+                    (loss_test,) = sess.run([loss], feed_dict=fdict_test)
+                    emit_values(supervisor, sess, step,
+                            {'loss_test': loss_test / test_size})
+                    print('step=%d: loss=%f loss_train=%f' % (step, loss_v / FLAGS.batch_size, loss_test / test_size))
+                else:
+                    print('step=%d: loss=%f' % (step, loss_v / FLAGS.batch_size))
 
 if __name__ == '__main__':
   tf.app.run()
