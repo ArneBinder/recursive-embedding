@@ -68,15 +68,18 @@ class SequenceTupleModel(object):
         grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=embedding_dim))
         #fc = td.FC(embedding_dim)
 
-        def aggregator_ordered(x, y):
-            r, h2 = grucell(x, y)
+        def aggregator_ordered(head, children):
+            # inputs=head, state=children
+            r, h2 = grucell(head, children)
             #r = fc(tf.concat([x, y], 1))
             #r = x + y
             return r
 
         # The AllOf block will run each of its children on the same input.
-        model = td.AllOf(td.GetItem('first') >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
-                         td.GetItem('second') >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
+        model = td.AllOf(td.GetItem('first')
+                         >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
+                         td.GetItem('second')
+                         >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
                          similarity)
         self._compiler = td.Compiler.create(model)
 
@@ -86,18 +89,18 @@ class SequenceTupleModel(object):
         normed_embeddings_1 = tf.nn.l2_normalize(embeddings_1, dim=1)
         normed_embeddings_2 = tf.nn.l2_normalize(embeddings_2, dim=1)
 
-        self._embeddings_1 = embeddings_1 #, [normed_embeddings_1], summarize=1000)
-        self._embeddings_2 = embeddings_2 #, [normed_embeddings_2], summarize=1000)
+        self._embeddings_1 = embeddings_1
+        self._embeddings_2 = embeddings_2
 
-        cosine_similarities = tf.reduce_sum(normed_embeddings_1 * normed_embeddings_2, axis=1)#tf.matmul(normed_embeddings_1, tf.transpose(normed_embeddings_2, [1, 0]))
-        self._cosine_similarities = cosine_similarities #, [cosine_similarities], summarize=300)
+        cosine_similarities = tf.reduce_sum(normed_embeddings_1 * normed_embeddings_2, axis=1)
+        self._cosine_similarities = cosine_similarities
 
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
 
         # use MSE
-        self._loss = tf.reduce_sum(tf.pow(cosine_similarities - gold_similarities, 2))  #/(cosine_similarities.shape.as_list()[0]) #tf.reduce_sum(tf.metrics.mean_squared_error(labels=gold_similarities, predictions=cosine_similarities))
+        self._loss = tf.reduce_sum(tf.pow(cosine_similarities - gold_similarities, 2))
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),
