@@ -6,8 +6,9 @@ import spacy
 import tensorflow as tf
 import pickle
 import os
-import ntpath
 import numpy as np
+import tools
+import constants
 
 tf.flags.DEFINE_string(
     'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
@@ -133,6 +134,23 @@ if __name__ == '__main__':
     print('dump mappings to: ' + out_path + '.mapping ...')
     with open(out_path + '.mapping', "wb") as f:
         pickle.dump(mapping, f)
+
+    print('write tsv dict: '+out_path+'.tsv ...')
+    rev_map = tools.revert_mapping(mapping)
+    with open(out_path+'.tsv', 'wb') as csvfile:
+        fieldnames = ['label', 'id_orig']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+
+        writer.writeheader()
+        for i in range(len(rev_map)):
+            id_orig = rev_map[i]
+            if id_orig >= 0:
+                label = nlp.vocab[id_orig].orth_
+            else:
+                label = constants.vocab_manual[id_orig]
+            writer.writerow({'label': label.encode("utf-8"), 'id_orig': str(id_orig)})
+
+
 
 
 
