@@ -37,6 +37,7 @@ import model_fold
 import similarity_tree_tuple_pb2
 import tensorflow_fold as td
 import numpy as np
+import math
 
 tf.flags.DEFINE_string(
     'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
@@ -113,6 +114,10 @@ def emit_values(supervisor, session, step, values):
   supervisor.summary_computed(session, summary, global_step=step)
 
 
+def normed_loss(batch_loss, batch_size):
+    return math.sqrt(batch_loss / batch_size)
+
+
 def main(unused_argv):
     train_data_fn = FLAGS.train_data_path
     print('use training data: '+train_data_fn)
@@ -185,15 +190,15 @@ def main(unused_argv):
                     feed_dict=fdict)
 
                 emit_values(supervisor, sess, step,
-                            {'loss_train': loss_v / FLAGS.batch_size})
+                            {'loss_train': normed_loss(loss_v, FLAGS.batch_size)})
 
                 if step % 50 == 0:
                     (loss_test,) = sess.run([loss], feed_dict=fdict_test)
                     emit_values(supervisor, sess, step,
-                            {'loss_test': loss_test / test_size})
-                    print('step=%d: loss=%f loss_test=%f' % (step, loss_v / FLAGS.batch_size, loss_test / test_size))
+                            {'loss_test': normed_loss(loss_test, test_size)})
+                    print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_v, FLAGS.batch_size), normed_loss(loss_test, test_size)))
                 else:
-                    print('step=%d: loss=%f' % (step, loss_v / FLAGS.batch_size))
+                    print('step=%d: loss=%f' % (step, normed_loss(loss_v, FLAGS.batch_size)))
 
 if __name__ == '__main__':
   tf.app.run()
