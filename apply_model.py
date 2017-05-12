@@ -26,19 +26,11 @@ FLAGS = tf.flags.FLAGS
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 PROTO_CLASS = 'SequenceNode'
 
-
-def iterate_over_tf_record_protos(table_path, message_type):
-    while True:
-        for v in tf.python_io.tf_record_iterator(table_path):
-            yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
-
-
 def parse_iterator(sequences, parser, sentence_processor, data_maps):
     pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
         seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps)
         pp.pprint(seq_tree)
-        print('\n')
         yield seq_tree.SerializeToString()
 
 lex_size = 1300000
