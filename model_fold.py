@@ -68,6 +68,7 @@ class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE):
+        self._aggregator_ordered_scope = aggregator_ordered_scope
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
@@ -133,6 +134,11 @@ class SimilaritySequenceTreeTupleModel(object):
     def global_step(self):
         return self._global_step
 
+    @property
+    def aggregator_ordered_scope(self):
+        return self._aggregator_ordered_scope
+
+
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)
 
@@ -142,7 +148,7 @@ class SequenceTreeEmbedding(object):
     def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE):
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
-            model = sequence_tree_block(embeddings, sc)
+            model = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> sequence_tree_block(embeddings, sc)
         self._compiler = td.Compiler.create(model)
         self._tree_embeddings = self._compiler.output_tensors
 

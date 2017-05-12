@@ -2,6 +2,8 @@ from __future__ import print_function
 import csv
 from sys import maxsize
 import numpy as np
+import pickle
+import os
 
 from tools import fn_timer, getOrAdd
 import tools
@@ -293,6 +295,29 @@ def build_sequence_tree_from_str(str, sentence_processor, parser, data_maps, seq
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, root, seq_tree)
 
+
+def create_or_read_dict(fn, vocab):
+    if os.path.isfile(fn+'.vecs'):
+        print('load vecs from file: '+fn + '.vecs ...')
+        v = np.load(fn+'.vecs')
+        print('read mapping from file: ' + fn + '.mapping ...')
+        m = pickle.load(open(fn+'.mapping', "rb"))
+        print('vecs.shape: ' + str(v.shape))
+        print('len(mapping): ' + str(len(m)))
+    else:
+        out_dir = os.path.abspath(os.path.join(fn, os.pardir))
+        if not os.path.isdir(out_dir):
+            os.makedirs(out_dir)
+        print('extract word embeddings from spaCy ...')
+        v, m = get_word_embeddings(vocab)
+        print('vecs.shape: ' + str(v.shape))
+        print('len(mapping): ' + str(len(m)))
+        print('dump vecs to: ' + fn + '.vecs ...')
+        v.dump(fn + '.vecs')
+        print('dump mappings to: ' + fn + '.mapping ...')
+        with open(fn + '.mapping', "wb") as f:
+            pickle.dump(m, f)
+    return v, m
 
 
 

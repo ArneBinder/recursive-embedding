@@ -89,35 +89,12 @@ def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping,
     record_output.close()
 
 
-def create_or_read_dict(fn, vocab):
-    if os.path.isfile(fn+'.vecs'):
-        print('load vecs from file: '+fn + '.vecs ...')
-        v = np.load(fn+'.vecs')
-        print('read mapping from file: ' + fn + '.mapping ...')
-        m = pickle.load(open(fn+'.mapping', "rb"))
-        print('vecs.shape: ' + str(v.shape))
-        print('len(mapping): ' + str(len(m)))
-    else:
-        out_dir = os.path.abspath(os.path.join(fn, os.pardir))
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
-        print('extract word embeddings from spaCy ...')
-        v, m = preprocessing.get_word_embeddings(vocab)
-        print('vecs.shape: ' + str(v.shape))
-        print('len(mapping): ' + str(len(m)))
-        print('dump vecs to: ' + fn + '.vecs ...')
-        v.dump(fn + '.vecs')
-        print('dump mappings to: ' + fn + '.mapping ...')
-        with open(fn + '.mapping', "wb") as f:
-            pickle.dump(m, f)
-    return v, m
-
 if __name__ == '__main__':
     print('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
 
-    vecs, mapping = create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    vecs, mapping = preprocessing.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
