@@ -1,0 +1,10 @@
+syntax = "proto2";
+
+package recursive_dependency_embedding;
+
+import "sequence_node.proto";
+
+message SequenceNodeSequence {
+    repeated SequenceNode nodes = 1;
+    optional float score = 2;
+}

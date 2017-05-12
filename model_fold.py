@@ -5,92 +5,88 @@ from __future__ import print_function
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 
+DEFAULT_AGGR_ORDERED_SCOPE = 'aggregator_ordered'
 
-def sequence_tree_block(state_size, embeddings, aggregator):
-    # state_size = embeddings.shape[1]
+
+def sequence_tree_block(embeddings, scope):
+    """Calculates an embedding over a (recursive) SequenceNode.
+
+    Args:
+      embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
+      scope: A scope to share variables over instances of sequence_tree_block
+    """
+    state_size = embeddings.shape.as_list()[1]
     expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
+    grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), name_or_scope=scope)
+
+    # an aggregation function which takes the order of the inputs into account
+    def aggregator_order_aware(head, children):
+        # inputs=head, state=children
+        r, h2 = grucell(head, children)
+        return r
+
+    # an aggregation function which doesn't take the order of the inputs into account
+    def aggregator_order_unaware(x, y):
+        return tf.add(x, y)
 
     # get the head embedding from id
     def embed(x):
         return tf.gather(embeddings, x)
 
+    # normalize (batched version -> dim=1)
+    def norm(x):
+        return tf.nn.l2_normalize(x, dim=1)
+
     def case(seq_tree):
-        # process and aggregate
+        # children and head exist: process and aggregate
         if len(seq_tree['children']) > 0 and 'head' in seq_tree:
             return 0
-        # don't process children
-        if len(seq_tree['children']) == 0: #'children' not in seq_tree:
+        # children do not exist (but maybe a head): process (optional) head only
+        if len(seq_tree['children']) == 0:
             return 1
-        # process children only
+        # otherwise (head does not exist): process children only
         return 2
-
-    # DEBUG
-    def p_both(x):
-        return tf.Print(x, [tf.shape(x), x], message='both: ', summarize=3000)
-    def p_head(x):
-        return tf.Print(x, [tf.shape(x), x], message='head: ', summarize=3000)
-    def p_children(x):
-        return tf.Print(x, [tf.shape(x), x], message='children: ', summarize=3000)
 
     cases = td.OneOf(lambda x: case(x),
                      {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
-                                    ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(tf.add)))])
-                         >> td.Function(aggregator),
-                         #>> td.Function(p_both),
+                                    ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
+                         >> td.Function(aggregator_order_aware),
                       1: td.GetItem('head')
                          >> td.Optional(td.Scalar(dtype='int32')
                          >> td.Function(embed)),
-                         #>> td.Function(p_head),
                       2: td.GetItem('children')
                          >> td.Map(expr_decl())
-                         >> td.Reduce(td.Function(tf.add)),
-                         #>> td.Function(p_children)
+                         >> td.Reduce(td.Function(aggregator_order_unaware)),
                       })
 
-    #cases = td.GetItem('head') >> td.Optional(head('just_head')) >> td.ScopedLayer(aggr_op, scope)
-
     expr_decl.resolve_to(cases)
-    return cases
+
+    return cases >> td.Function(norm)
 
 
-class SequenceTupleModel(object):
-    """A Fold model for calculator examples."""
+class SimilaritySequenceTreeTupleModel(object):
+    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, embeddings, aggregator_ordered_scope='aggregator_ordered'):
-
-        (self._lex_size, self._state_size) = embeddings.shape.as_list()
-        self._embeddings = embeddings
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE):
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), name_or_scope=aggregator_ordered_scope)
-        #fc = td.FC(embedding_dim)
-
-        def aggregator_ordered(head, children):
-            # inputs=head, state=children
-            r, h2 = grucell(head, children)
-            #r = fc(tf.concat([x, y], 1))
-            #r = x + y
-            return r
-
-        # The AllOf block will run each of its children on the same input.
-        model = td.AllOf(td.GetItem('first')
-                         >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
-                         td.GetItem('second')
-                         >> sequence_tree_block(self._state_size, self._embeddings, aggregator_ordered),
-                         similarity)
+        with tf.variable_scope(aggregator_ordered_scope) as sc:
+            # The AllOf block will run each of its children on the same input.
+            model = td.AllOf(td.GetItem('first')
+                             >> sequence_tree_block(embeddings, sc),
+                             td.GetItem('second')
+                             >> sequence_tree_block(embeddings, sc),
+                             similarity)
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
-        (embeddings_1, embeddings_2, gold_similarities) = self._compiler.output_tensors
+        (tree_embeddings_1, tree_embeddings_2, gold_similarities) = self._compiler.output_tensors
 
-        normed_embeddings_1 = tf.nn.l2_normalize(embeddings_1, dim=1)
-        normed_embeddings_2 = tf.nn.l2_normalize(embeddings_2, dim=1)
+        self._tree_embeddings_1 = tree_embeddings_1
+        self._tree_embeddings_2 = tree_embeddings_2
 
-        self._embeddings_1 = embeddings_1
-        self._embeddings_2 = embeddings_2
-
-        cosine_similarities = tf.reduce_sum(normed_embeddings_1 * normed_embeddings_2, axis=1)
+        cosine_similarities = tf.reduce_sum(tree_embeddings_1 * tree_embeddings_2, axis=1)
         self._cosine_similarities = cosine_similarities
 
 
@@ -110,12 +106,12 @@ class SequenceTupleModel(object):
         self._train_op = optr.minimize(self._loss, global_step=self._global_step)
 
     @property
-    def embeddings_1(self):
-        return self._embeddings_1
+    def tree_embeddings_1(self):
+        return self._tree_embeddings_1
 
     @property
-    def embeddings_2(self):
-        return self._embeddings_2
+    def tree_embeddings_2(self):
+        return self._tree_embeddings_2
 
     @property
     def cosine_similarities(self):
@@ -136,6 +132,23 @@ class SequenceTupleModel(object):
     @property
     def global_step(self):
         return self._global_step
+
+    def build_feed_dict(self, sim_trees):
+        return self._compiler.build_feed_dict(sim_trees)
+
+
+class SequenceTreeEmbedding(object):
+
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE):
+
+        with tf.variable_scope(aggregator_ordered_scope) as sc:
+            model = sequence_tree_block(embeddings, sc)
+        self._compiler = td.Compiler.create(model)
+        self._tree_embeddings = self._compiler.output_tensors
+
+    @property
+    def tree_embeddings(self):
+        return self._tree_embeddings
 
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)

@@ -56,14 +56,14 @@ tf.flags.DEFINE_integer(
 #    'How long to make the embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
-    'max_steps', 100,
+    'max_steps', 1000,
     'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer(
     'test_data_size', 10000,
     'The size of the test set.')
 
 # Replication flags:
-tf.flags.DEFINE_string('logdir', 'data/log',
+tf.flags.DEFINE_string('logdir', '/home/arne/tmp/tf/log',
                        'Directory in which to write event logs.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
@@ -84,6 +84,7 @@ def source_root():
   #print('root: '+str(root))
   return root
 
+
 #CALCULATOR_SOURCE_ROOT = source_root()
 #CALCULATOR_PROTO_FILE = ('tensorflow_fold/loom/'
 #                         'calculator_example/calculator.proto')
@@ -92,26 +93,27 @@ def source_root():
 #                               'calculator_example.CalculatorExpression')
 #CALCULATOR_EXPRESSION_PROTO = ('my_example.CalculatorExpression')
 
+PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
+
 
 # Make sure serialized_message_to_tree can find the calculator example proto:
 td.proto_tools.map_proto_source_tree_path('', source_root())
 td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 
-def iterate_over_tf_record_protos(table_path, unused_message_type):
-  while True:
-    for v in tf.python_io.tf_record_iterator(table_path):
-      yield td.proto_tools.serialized_message_to_tree(
-          'recursive_dependency_embedding.SimilarityTreeTuple', v)
+def iterate_over_tf_record_protos(table_path, message_type):
+    while True:
+        for v in tf.python_io.tf_record_iterator(table_path):
+            yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
 
 
 def emit_values(supervisor, session, step, values):
-  summary = tf.Summary()
-  for name, value in six.iteritems(values):
-    summary_value = summary.value.add()
-    summary_value.tag = name
-    summary_value.simple_value = float(value)
-  supervisor.summary_computed(session, summary, global_step=step)
+    summary = tf.Summary()
+    for name, value in six.iteritems(values):
+        summary_value = summary.value.add()
+        summary_value.tag = name
+        summary_value.simple_value = float(value)
+    supervisor.summary_computed(session, summary, global_step=step)
 
 
 def normed_loss(batch_loss, batch_size):
@@ -156,11 +158,11 @@ def main(unused_argv):
 
             # Build the graph.
             #aggregator_ordered_scope_name = 'aggregator_ordered'
-            classifier = model_fold.SequenceTupleModel(embed_w) #, aggregator_ordered_scope_name)
-            loss = classifier.loss
-            #accuracy = classifier.accuracy
-            train_op = classifier.train_op
-            global_step = classifier.global_step
+            embedder = model_fold.SimilaritySequenceTreeTupleModel(embed_w) #, aggregator_ordered_scope_name)
+            loss = embedder.loss
+            #accuracy = embedder.accuracy
+            train_op = embedder.train_op
+            global_step = embedder.global_step
 
             # collect important variables
             #aggr_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=aggregator_ordered_scope_name)
@@ -170,10 +172,10 @@ def main(unused_argv):
             #missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
             #init_missing = tf.variables_initializer(missing_vars)
 
-            embeddings_1 = classifier.embeddings_1
-            embeddings_2 = classifier.embeddings_2
+            embeddings_1 = embedder.tree_embeddings_1
+            embeddings_2 = embedder.tree_embeddings_2
 
-            cosine_similarities = classifier.cosine_similarities
+            cosine_similarities = embedder.cosine_similarities
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
@@ -194,7 +196,7 @@ def main(unused_argv):
             # prepare test set
             test_size = FLAGS.test_data_size
             batch_test = [next(test_iterator) for _ in xrange(test_size)]
-            fdict_test = classifier.build_feed_dict(batch_test)
+            fdict_test = embedder.build_feed_dict(batch_test)
 
             # Run the trainer.
             for _ in xrange(FLAGS.max_steps):
@@ -202,7 +204,7 @@ def main(unused_argv):
                     #my_saver.save(sess, )
                     break
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
-                fdict = classifier.build_feed_dict(batch)
+                fdict = embedder.build_feed_dict(batch)
 
                 _, step, loss_v, embeds_1, embeds_2, sims = sess.run(
                     [train_op, global_step, loss, embeddings_1, embeddings_2, cosine_similarities],

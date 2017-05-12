@@ -1,7 +1,7 @@
 import csv
 import pprint
 import preprocessing
-import similarity_tree_tuple_pb2
+import similarity_tree_tuple_pb2#, sequence_node_sequence_pb2
 import spacy
 import tensorflow as tf
 import pickle
@@ -54,19 +54,35 @@ def sick_raw_reader(filename):
             yield (int(row['pair_ID']), row['sentence_A'], row['sentence_B'], float(row['relatedness_score']))
 
 
+# build similarity_tree_tuple objects
 def sick_reader(filename, sentence_processor, parser, data_maps, tree_mode=None):
     for i, t in enumerate(sick_raw_reader(filename)):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps, sim_tree_tuple.first, tree_mode)
-        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps, sim_tree_tuple.second, tree_mode)
+        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps,
+                                                   sim_tree_tuple.first, tree_mode)
+        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps,
+                                                   sim_tree_tuple.second, tree_mode)
         sim_tree_tuple.similarity = (score - 1.) / 4.
         yield sim_tree_tuple
 
 
+# build sequence_node_sequence objects
+def sick_reader2(filename, sentence_processor, parser, data_maps, tree_mode=None):
+    for i, t in enumerate(sick_raw_reader(filename)):
+        _, sen1, sen2, score = t
+        sequence_node_sequence = sequence_node_sequence_pb2.SequenceNodeSequence()
+        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps,
+                                                   sequence_node_sequence.nodes.add(), tree_mode)
+        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps,
+                                                   sequence_node_sequence.nodes.add(), tree_mode)
+        sequence_node_sequence.score = (score - 1.) / 4.
+        yield sequence_node_sequence
+
+
 def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple=-1, tree_mode=None):
     record_output = tf.python_io.TFRecordWriter(out_filename)
-    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, tree_mode)):
+    for i, t in enumerate(sick_reader2(in_filename, sentence_processor, parser, mapping, tree_mode)):
         if 0 < max_tuple == i:
             break
         record_output.write(t.SerializeToString())
