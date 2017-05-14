@@ -97,8 +97,12 @@ def main(unused_argv):
                 #saver.restore(sess, FLAGS.model_path)
                 # Do some work with the model
                 print('parse input ...')
-                batch = list(parse_iterator([(['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0), (['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0)],
-                                            nlp, preprocessing.process_sentence3, data_maps))
+                #batch = list(parse_iterator([(['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0), (['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0)],
+                #                            nlp, preprocessing.process_sentence3, data_maps))
+                batch = list(parse_iterator(
+                    [(['Hallo.'], 0)],
+                    nlp, preprocessing.process_sentence3, data_maps))
+
                 fdict = trainer.build_feed_dict(batch)
                 print('calculate tree embeddings ...')
                 #_, step, loss_v = sess.run([train_op, global_step, loss], feed_dict=fdict)

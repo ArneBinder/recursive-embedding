@@ -38,6 +38,10 @@ def sequence_tree_block(embeddings, scope):
     def norm(x):
         return tf.nn.l2_normalize(x, dim=1)
 
+    def dprint(x):
+        r = tf.Print(x, [tf.shape(x)])
+        return r
+
     def case(seq_tree):
         # children and head exist: process and aggregate
         if len(seq_tree['children']) > 0 and 'head' in seq_tree:
@@ -62,7 +66,7 @@ def sequence_tree_block(embeddings, scope):
 
     expr_decl.resolve_to(cases)
 
-    return cases >> td.Function(norm)
+    return cases >> td.Function(norm) #>> td.Function(dprint)
 
 
 def SeqToTuple(T, N):
@@ -174,6 +178,7 @@ class SequenceTreeEmbeddingSequence(object):
         entropy loss with regard to the correct tree.
     """
 
+    # TODO: fix double calculation!
     def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE, scoring_scope=DEFAULT_SCORING_SCOPE):
 
         # This layer maps a sequence tree embedding to an 'integrity' score
