@@ -184,12 +184,14 @@ class SequenceTreeEmbeddingSequence(object):
             r = tf.Print(x, [tf.shape(x)])
             return r
 
+        def squz(x):
+            return tf.squeeze(x, [1])
+
         with tf.variable_scope(aggregator_ordered_scope) as sc:
             def tree_embeds_exp():
                 return td.GetItem('trees') >> td.Map(sequence_tree_block(embeddings, sc)
-                                                     >> scoring_fc
+                                                     >> scoring_fc >> td.Function(squz)
                                                      >> td.Function(tf.exp))
-
             # get the correct
             exp_correct = td.AllOf(tree_embeds_exp(), td.GetItem('idx_correct')) >> td.Nth()
             # get the sum
