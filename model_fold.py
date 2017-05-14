@@ -174,7 +174,7 @@ class SequenceTreeEmbeddingSequence(object):
         entropy loss with regard to the correct tree.
     """
 
-    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE, scoring_scope = DEFAULT_SCORING_SCOPE):
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE, scoring_scope=DEFAULT_SCORING_SCOPE):
 
         # This layer maps a sequence tree embedding to an 'integrity' score
         with tf.variable_scope(scoring_scope) as scoring_sc:
@@ -185,13 +185,15 @@ class SequenceTreeEmbeddingSequence(object):
             return r
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
-            def tree_embeds_exp(name):
-                return td.Map(td.Pipe(sequence_tree_block(embeddings, sc), scoring_fc, td.Function(tf.exp), name=name))
+            def tree_embeds_exp():
+                return td.GetItem('trees') >> td.Map(sequence_tree_block(embeddings, sc)
+                                                     >> scoring_fc
+                                                     >> td.Function(tf.exp))
+
             # get the correct
-            exp_correct = td.Record([('trees', tree_embeds_exp('for_exp_correct')),
-                                     ('idx_correct', td.Identity())]) >> td.Nth()
+            exp_correct = td.AllOf(tree_embeds_exp(), td.GetItem('idx_correct')) >> td.Nth()
             # get the sum
-            exp_summed = td.GetItem('trees') >> tree_embeds_exp('for_exp_summed') >> td.Reduce(td.Function(tf.add))  #>> td.Function(dprint)
+            exp_summed = tree_embeds_exp() >> td.Reduce(td.Function(tf.add))  #>> td.Function(dprint)
 
         softmax_correct = td.AllOf(exp_correct, exp_summed) >> td.Function(tf.div)
 
