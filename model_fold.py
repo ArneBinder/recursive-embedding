@@ -6,6 +6,7 @@ import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 
 DEFAULT_AGGR_ORDERED_SCOPE = 'aggregator_ordered'
+DEFAULT_SCORING_SCOPE = 'scoring'
 
 
 def sequence_tree_block(embeddings, scope):
@@ -62,6 +63,12 @@ def sequence_tree_block(embeddings, scope):
     expr_decl.resolve_to(cases)
 
     return cases >> td.Function(norm)
+
+
+def SeqToTuple(T, N):
+    return (td.InputTransform(lambda x: tuple(x))
+            .set_input_type(td.SequenceType(T))
+            .set_output_type(td.TupleType(*([T] * N))))
 
 
 class SimilaritySequenceTreeTupleModel(object):
@@ -138,7 +145,6 @@ class SimilaritySequenceTreeTupleModel(object):
     def aggregator_ordered_scope(self):
         return self._aggregator_ordered_scope
 
-
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)
 
@@ -155,6 +161,66 @@ class SequenceTreeEmbedding(object):
     @property
     def tree_embeddings(self):
         return self._tree_embeddings
+
+    def build_feed_dict(self, sim_trees):
+        return self._compiler.build_feed_dict(sim_trees)
+
+
+class SequenceTreeEmbeddingSequence(object):
+    """ A Fold model for training sequence tree embeddings using NCE.
+        The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object 
+        containing a sequence of sequence trees (see SequenceNode) and an index of the correct tree.
+        It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum 
+        entropy loss with regard to the correct tree.
+    """
+
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE, scoring_scope = DEFAULT_SCORING_SCOPE):
+
+        # This layer maps a sequence tree embedding to an 'integrity' score
+        with tf.variable_scope(scoring_scope) as scoring_sc:
+            scoring_fc = td.FC(1, name=scoring_sc)
+
+        def debug_print(x):
+            r = tf.Print(x, [tf.shape(x)])
+            return r
+
+        with tf.variable_scope(aggregator_ordered_scope) as sc:
+            def tree_embeds_exp(name):
+                return td.Map(td.Pipe(sequence_tree_block(embeddings, sc), scoring_fc, td.Function(tf.exp), name=name))
+            # get the correct
+            exp_correct = td.Record([('trees', tree_embeds_exp('for_exp_correct')),
+                                     ('idx_correct', td.Identity())]) >> td.Nth()
+            # get the sum
+            exp_summed = td.GetItem('trees') >> tree_embeds_exp('for_exp_summed') >> td.Reduce(td.Function(tf.add))  #>> td.Function(dprint)
+
+        softmax_correct = td.AllOf(exp_correct, exp_summed) >> td.Function(tf.div)
+
+        self._compiler = td.Compiler.create(softmax_correct)
+
+        # Get the tensorflow tensors that correspond to the outputs of model.
+        self._softmax_correct = self._compiler.output_tensors
+
+        self._loss = tf.reduce_mean(-tf.log(self._softmax_correct))
+
+        self._global_step = tf.Variable(0, name='global_step', trainable=False)
+        optr = tf.train.GradientDescentOptimizer(0.01)
+        self._train_op = optr.minimize(self._loss, global_step=self._global_step)
+
+    @property
+    def softmax_correct(self):
+        return self._softmax_correct
+
+    @property
+    def loss(self):
+        return self._loss
+
+    @property
+    def train_op(self):
+        return self._train_op
+
+    @property
+    def global_step(self):
+        return self._global_step
 
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)
