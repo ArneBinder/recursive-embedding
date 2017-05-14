@@ -52,6 +52,7 @@ def main(unused_argv):
             with tf.gfile.GFile(output_graph, "wb") as f:
                 f.write(output_graph_def.SerializeToString())
             print("%d ops in the final graph." % len(output_graph_def.node))
+            print('output nodes: '+output_node_names)
 
 
 if __name__ == '__main__':
