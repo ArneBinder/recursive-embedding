@@ -14,6 +14,12 @@ def dprint(x):
     return r
 
 
+def SeqToTuple(T, N):
+    return (td.InputTransform(lambda x: tuple(x))
+            .set_input_type(td.SequenceType(T))
+            .set_output_type(td.TupleType(*([T] * N))))
+
+
 def sequence_tree_block(embeddings, scope):
     """Calculates an embedding over a (recursive) SequenceNode.
 
@@ -68,12 +74,6 @@ def sequence_tree_block(embeddings, scope):
     expr_decl.resolve_to(cases)
 
     return cases >> td.Function(norm) #>> td.Function(dprint)
-
-
-def SeqToTuple(T, N):
-    return (td.InputTransform(lambda x: tuple(x))
-            .set_input_type(td.SequenceType(T))
-            .set_output_type(td.TupleType(*([T] * N))))
 
 
 class SimilaritySequenceTreeTupleModel(object):
