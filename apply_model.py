@@ -65,7 +65,7 @@ def main(unused_argv):
                                             nlp, preprocessing.process_sentence3, data_maps))
                 fdict = embedder.build_feed_dict(batch)
                 print('calculate tree embeddings ...')
-                batch_embeddings = sess.run(tree_embeddings, feed_dict=fdict)
+                batch_embeddings, = sess.run(tree_embeddings, feed_dict=fdict)
                 print(batch_embeddings)
 
 
