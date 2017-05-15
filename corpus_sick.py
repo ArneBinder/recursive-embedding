@@ -29,7 +29,7 @@ tf.flags.DEFINE_integer(
     'corpus_size', -1,
     'How many samples to write. Use a negative dummy value to set no limit.')
 tf.flags.DEFINE_string(
-    'sentence_processor', 'process_sentence4',
+    'sentence_processor', 'process_sentence3',
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_string(
     'tree_mode',
@@ -113,7 +113,7 @@ def write_dict(out_path, mapping, vocab_nlp, vocab_manual):
 if __name__ == '__main__':
     print('load spacy ...')
     nlp = spacy.load('en')
-    nlp.pipeline = [nlp.tagger, nlp.parser]
+    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     vecs, mapping = preprocessing.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
 

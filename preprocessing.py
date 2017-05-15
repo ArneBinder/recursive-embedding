@@ -145,6 +145,70 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
     return result_data, result_parents, root_offset
 
 
+# embeddings for:
+# words, word type, edges, edge type, entity type (if !=0), entity type type
+def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
+    sen_data = list()
+    sen_parents = list()
+    sen_a = list()
+    sen_offsets = list()
+
+    last_offset = 0
+    for i in range(sentence.start, sentence.end):
+        token = parsed_data[i]
+        parent_offset = token.head.i - i
+        # add word embedding
+        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_parents.append(parent_offset)
+        # additional data for this token
+        a_data = list()
+        a_parents = list()
+
+        # add word type type embedding
+        a_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
+        a_parents.append(-1)
+        # add edge type embedding
+        a_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
+        a_parents.append(-2)
+        # add edge type type embedding
+        a_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
+        a_parents.append(-1)
+        # add entity type
+        if token.ent_type != 0:
+            a_data.append(getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_parents.append(-4)
+            a_data.append(getOrAdd(data_maps, constants.ENTITY_TYPE_EMBEDDING, dict_unknown))
+            a_parents.append(-1)
+        sen_a.append((a_data, a_parents))
+        # count additional data for every main data point
+        current_offset = last_offset + len(a_data)
+        sen_offsets.append(current_offset)
+        last_offset = current_offset
+
+    root_offset = 0
+    result_data = list()
+    result_parents = list()
+    l = len(sen_data)
+    for i in range(l):
+        # set root
+        if sen_parents[i] == 0:
+            root_offset = len(result_data)
+        # add main data
+        result_data.append(sen_data[i])
+        # shift parent indices
+        parent_idx = sen_parents[i] + i
+        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
+        # add (shifted) main parent
+        result_parents.append(sen_parents[i] + shift)
+        # insert additional data
+        a_data, a_parents = sen_a[i]
+        if len(a_data) > 0:
+            result_data.extend(a_data)
+            result_parents.extend(a_parents)
+
+    return result_data, result_parents, root_offset
+
+
 def dummy_str_reader():
     yield u'I like RTRC!'
 
