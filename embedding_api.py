@@ -11,6 +11,8 @@ import json, time
 from flask import Flask, request
 from flask_cors import CORS
 import numpy as np
+#from scipy import spatial # crashes!
+from sklearn.metrics import pairwise_distances
 
 # Replication flags:
 #tf.flags.DEFINE_string('logdir', '/home/arne/tmp/tf/log',
@@ -36,6 +38,13 @@ PROTO_CLASS = 'SequenceNode'
 app = Flask(__name__)
 cors = CORS(app)
 
+
+def parse_iterator(sequences, parser, sentence_processor, data_maps):
+    #pp = pprint.PrettyPrinter(indent=2)
+    for s in sequences:
+        seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps, expand_dict=False)
+        #pp.pprint(seq_tree)
+        yield seq_tree.SerializeToString()
 
 @app.route("/api/embed", methods=['POST'])
 def embed():
@@ -65,13 +74,27 @@ def embed():
 
     return json_data
 
+@app.route("/api/distance", methods=['POST'])
+def sim():
+    start = time.time()
 
-def parse_iterator(sequences, parser, sentence_processor, data_maps):
-    #pp = pprint.PrettyPrinter(indent=2)
-    for s in sequences:
-        seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps, expand_dict=False)
-        #pp.pprint(seq_tree)
-        yield seq_tree.SerializeToString()
+    data = request.data.decode("utf-8")
+    if data == "":
+        params = request.form
+        sequences = json.loads(params['embeddings'])
+    else:
+        params = json.loads(data)
+        sequences = params['embeddings']
+
+    embeddings = np.array(sequences)
+    result = pairwise_distances(embeddings, metric="cosine") #spatial.distance.cosine(embeddings[0], embeddings[1])
+
+    json_data = json.dumps({'distance':  result.tolist()})
+    print('Similarity requested')# : '+str(sequences))
+    print("Time spent handling the request: %f" % (time.time() - start))
+
+    return json_data
+
 
 lex_size = 1300000
 embedding_dim = 300
