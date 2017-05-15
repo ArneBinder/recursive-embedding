@@ -56,7 +56,7 @@ tf.flags.DEFINE_integer(
 #    'How long to make the embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
-    'max_steps', 10,
+    'max_steps', 1000,
     'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer(
     'test_data_size', 10000,
