@@ -172,10 +172,10 @@ def main(unused_argv):
             #missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
             #init_missing = tf.variables_initializer(missing_vars)
 
-            embeddings_1 = embedder.tree_embeddings_1
-            embeddings_2 = embedder.tree_embeddings_2
+            #embeddings_1 = embedder.tree_embeddings_1
+            #embeddings_2 = embedder.tree_embeddings_2
 
-            cosine_similarities = embedder.cosine_similarities
+            #cosine_similarities = embedder.cosine_similarities
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
@@ -206,8 +206,8 @@ def main(unused_argv):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = embedder.build_feed_dict(batch)
 
-                _, step, loss_v, embeds_1, embeds_2, sims = sess.run(
-                    [train_op, global_step, loss, embeddings_1, embeddings_2, cosine_similarities],
+                _, step, loss_v = sess.run(
+                    [train_op, global_step, loss],
                     feed_dict=fdict)
 
                 emit_values(supervisor, sess, step,

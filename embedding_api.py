@@ -15,9 +15,9 @@ import numpy as np
 # Replication flags:
 #tf.flags.DEFINE_string('logdir', '/home/arne/tmp/tf/log',
 #                       'Directory in which to write event logs.')
-tf.flags.DEFINE_string('model_path', '/home/arne/tmp/tf/log/model.ckpt-748',
-                       'model file')
-tf.flags.DEFINE_string('data_mapping_path', 'data/nlp/spacy/dict.mapping',
+tf.flags.DEFINE_string('model_dir', '/home/arne/tmp/tf/log',
+                       'directory containing the model')
+tf.flags.DEFINE_string('data_mapping_path', 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
                        'model file')
 #tf.flags.DEFINE_string('master', '',
 #                       'Tensorflow master to use.')
@@ -82,6 +82,10 @@ if __name__ == '__main__':
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file('sequence_node.proto')
 
+    # We retrieve our checkpoint fullpath
+    checkpoint = tf.train.get_checkpoint_state(FLAGS.model_dir)
+    input_checkpoint = checkpoint.model_checkpoint_path
+
     print('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
@@ -102,8 +106,8 @@ if __name__ == '__main__':
             # do some work with the model.
             sess = tf.Session()
             # Restore variables from disk.
-            print('restore model ...')
-            saver.restore(sess, FLAGS.model_path)
+            print('restore model from: ' + input_checkpoint + '...')
+            saver.restore(sess, input_checkpoint)
 
     print('Starting the API')
     app.run()
