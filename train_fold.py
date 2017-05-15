@@ -56,7 +56,7 @@ tf.flags.DEFINE_integer(
 #    'How long to make the embedding vectors.')
 tf.flags.DEFINE_integer(
     #'max_steps', 1000000,
-    'max_steps', 1000,
+    'max_steps', 10,
     'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer(
     'test_data_size', 10000,
@@ -118,6 +118,10 @@ def emit_values(supervisor, session, step, values):
 
 def normed_loss(batch_loss, batch_size):
     return math.sqrt(batch_loss / batch_size)
+
+
+def checkpoint_path(step):
+    return os.path.join(FLAGS.logdir, 'model.ckpt-'+str(step))
 
 
 def main(unused_argv):
@@ -197,11 +201,11 @@ def main(unused_argv):
             test_size = FLAGS.test_data_size
             batch_test = [next(test_iterator) for _ in xrange(test_size)]
             fdict_test = embedder.build_feed_dict(batch_test)
-
+            step = 0
             # Run the trainer.
             for _ in xrange(FLAGS.max_steps):
                 if supervisor.should_stop():
-                    #my_saver.save(sess, )
+                    #supervisor.saver.save(sess, checkpoint_path(step))
                     break
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = embedder.build_feed_dict(batch)
@@ -220,6 +224,8 @@ def main(unused_argv):
                     print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_v, FLAGS.batch_size), normed_loss(loss_test, test_size)))
                 else:
                     print('step=%d: loss=%f' % (step, normed_loss(loss_v, FLAGS.batch_size)))
+
+            supervisor.saver.save(sess, checkpoint_path(step))
 
 if __name__ == '__main__':
   tf.app.run()
