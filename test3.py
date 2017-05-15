@@ -15,7 +15,7 @@ data_maps2 = mapping
 #data_vecs = {constants.WORD_EMBEDDING: vecs}
 
 def read_sentence2(sentence, vis = False):
-    seq_data, seq_parents, root = preprocessing.read_data2(preprocessing.string_reader, preprocessing.process_sentence5, nlp, data_maps2, args={'content': sentence})
+    seq_data, seq_parents, root = preprocessing.read_data(preprocessing.string_reader, preprocessing.process_sentence5, nlp, data_maps2, args={'content': sentence})
     print('root: ' + str(root))
 
     data_maps_reverse = tools.revert_mapping(data_maps2)

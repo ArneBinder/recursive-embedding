@@ -68,25 +68,46 @@ def sick_reader(filename, sentence_processor, parser, data_maps, tree_mode=None)
 
 
 # build sequence_node_sequence objects
-def sick_reader2(filename, sentence_processor, parser, data_maps, tree_mode=None):
-    for i, t in enumerate(sick_raw_reader(filename)):
-        _, sen1, sen2, score = t
-        sequence_node_sequence = sequence_node_sequence_pb2.SequenceNodeSequence()
-        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps,
-                                                   sequence_node_sequence.nodes.add(), tree_mode)
-        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps,
-                                                   sequence_node_sequence.nodes.add(), tree_mode)
-        sequence_node_sequence.score = (score - 1.) / 4.
-        yield sequence_node_sequence
+#def sick_reader2(filename, sentence_processor, parser, data_maps, tree_mode=None):
+#    for i, t in enumerate(sick_raw_reader(filename)):
+#        _, sen1, sen2, score = t
+#        sequence_node_sequence = sequence_node_sequence_pb2.SequenceNodeSequence()
+#        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps,
+#                                                   sequence_node_sequence.nodes.add(), tree_mode)
+#        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps,
+#                                                   sequence_node_sequence.nodes.add(), tree_mode)
+#        sequence_node_sequence.score = (score - 1.) / 4.
+#        yield sequence_node_sequence
 
 
 def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple=-1, tree_mode=None):
     record_output = tf.python_io.TFRecordWriter(out_filename)
-    for i, t in enumerate(sick_reader2(in_filename, sentence_processor, parser, mapping, tree_mode)):
+    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, tree_mode)):
         if 0 < max_tuple == i:
             break
         record_output.write(t.SerializeToString())
     record_output.close()
+
+
+def write_dict(out_path, mapping, vocab_nlp, vocab_manual):
+    print('dump mappings to: ' + out_path + '.mapping ...')
+    with open(out_path + '.mapping', "wb") as f:
+        pickle.dump(mapping, f)
+    print('write tsv dict: ' + out_path + '.tsv ...')
+    rev_map = tools.revert_mapping(mapping)
+    with open(out_path + '.tsv', 'wb') as csvfile:
+        fieldnames = ['label', 'id_orig']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', quotechar='|',
+                                quoting=csv.QUOTE_MINIMAL)
+
+        writer.writeheader()
+        for i in range(len(rev_map)):
+            id_orig = rev_map[i]
+            if id_orig >= 0:
+                label = vocab_nlp[id_orig].orth_
+            else:
+                label = vocab_manual[id_orig]
+            writer.writerow({'label': label.encode("utf-8"), 'id_orig': str(id_orig)})
 
 
 if __name__ == '__main__':
@@ -107,7 +128,7 @@ if __name__ == '__main__':
 
     print('parse train data ...')
     convert_sick(FLAGS.corpus_data_input_train,
-                 out_path + '_train',
+                 out_path + '.train',
                  sentence_processor,
                  nlp,
                  mapping,
@@ -116,7 +137,7 @@ if __name__ == '__main__':
 
     print('parse test data ...')
     convert_sick(FLAGS.corpus_data_input_test,
-                 out_path + '_test',
+                 out_path + '.test',
                  sentence_processor,
                  nlp,
                  mapping,
@@ -124,24 +145,8 @@ if __name__ == '__main__':
                  FLAGS.tree_mode)
 
     print('len(mapping): ' + str(len(mapping)))
-    print('dump mappings to: ' + out_path + '.mapping ...')
-    with open(out_path + '.mapping', "wb") as f:
-        pickle.dump(mapping, f)
 
-    print('write tsv dict: '+out_path+'.tsv ...')
-    rev_map = tools.revert_mapping(mapping)
-    with open(out_path+'.tsv', 'wb') as csvfile:
-        fieldnames = ['label', 'id_orig']
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-
-        writer.writeheader()
-        for i in range(len(rev_map)):
-            id_orig = rev_map[i]
-            if id_orig >= 0:
-                label = nlp.vocab[id_orig].orth_
-            else:
-                label = constants.vocab_manual[id_orig]
-            writer.writerow({'label': label.encode("utf-8"), 'id_orig': str(id_orig)})
+    write_dict(out_path, mapping, nlp.vocab, constants.vocab_manual)
 
 
 

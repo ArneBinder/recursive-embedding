@@ -40,10 +40,10 @@ import numpy as np
 import math
 
 tf.flags.DEFINE_string(
-    'train_data_path', 'data/corpora/sick/process_sentence3/SICK_train',
+    'train_data_path', 'data/corpora/sick/process_sentence3/SICK.train',
     'TF Record file containing the training dataset of sequence tuples.')
 tf.flags.DEFINE_string(
-    'test_data_path', 'data/corpora/sick/process_sentence3/SICK_test',
+    'test_data_path', 'data/corpora/sick/process_sentence3/SICK.test',
     'TF Record file containing the test dataset of sequence tuples.')
 tf.flags.DEFINE_string(
     'train_dict_path', 'data/nlp/spacy/dict.vecs',

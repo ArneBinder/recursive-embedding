@@ -23,12 +23,15 @@ def get_word_embeddings(vocab):
         m[lexeme.orth] = i
         vecs[i] = lexeme.vector
         i += 1
+    # add manual vocab
+    for k in constants.vocab_manual.keys():
+        tools.getOrAdd(m, k)
     return vecs, m
 
 
 # embeddings for:
 # word
-def process_sentence2(sentence, parsed_data, data_maps):
+def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start)
@@ -37,14 +40,14 @@ def process_sentence2(sentence, parsed_data, data_maps):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth))
+        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset)
 
     return sen_data, sen_parents, root_offset
 
 # embeddings for:
 # word, edge
-def process_sentence3(sentence, parsed_data, data_maps):
+def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start) * 2
@@ -54,17 +57,17 @@ def process_sentence3(sentence, parsed_data, data_maps):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth))
+        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset * 2)
         # add edge type embedding
-        sen_data.append(getOrAdd(data_maps, token.dep))
+        sen_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
 
 # embeddings for:
 # word, word embedding, edge, edge embedding
-def process_sentence4(sentence, parsed_data, data_maps):
+def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start) * 4
@@ -73,23 +76,23 @@ def process_sentence4(sentence, parsed_data, data_maps):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth))
+        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset * 4)
         # add word embedding embedding
-        sen_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING))
+        sen_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
         sen_parents.append(-1)
         # add edge type embedding
-        sen_data.append(getOrAdd(data_maps, token.dep))
+        sen_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
         sen_parents.append(-2)
         # add edge type embedding embedding
-        sen_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING))
+        sen_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
 
 # embeddings for:
 # words, edges, entity type (if !=0)
-def process_sentence5(sentence, parsed_data, data_maps):
+def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
     sen_data = list()
     sen_parents = list()
     sen_a = list()
@@ -100,17 +103,17 @@ def process_sentence5(sentence, parsed_data, data_maps):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth))
+        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
         # add edge type embedding
-        a_data.append(getOrAdd(data_maps, token.dep))
+        a_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
         a_parents.append(-1)
         # add entity type
         if token.ent_type != 0:
-            a_data.append(getOrAdd(data_maps, token.ent_type))
+            a_data.append(getOrAdd(data_maps, token.ent_type, dict_unknown))
             a_parents.append(-2)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -168,7 +171,7 @@ def articles_from_csv_reader(filename, max_articles=100):
             yield row['content'].decode('utf-8')
 
 
-def read_data2(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None):
+def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -181,10 +184,15 @@ def read_data2(reader, sentence_processor, parser, data_maps, args={}, tree_mode
     seq_parents = list()
     prev_root = None
 
+    if expand_dict:
+        unknown_default = None
+    else:
+        unknown_default = constants.UNKNOWN_EMBEDDING
+
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
         prev_root = None
         for sentence in parsed_data.sents:
-            processed_sen = sentence_processor(sentence, parsed_data, data_maps)
+            processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
                 continue
@@ -195,7 +203,6 @@ def read_data2(reader, sentence_processor, parser, data_maps, args={}, tree_mode
 
             seq_parents += sen_parents
             seq_data += sen_data
-
 
             if prev_root is not None:
                 seq_parents[prev_root] = current_root - prev_root
@@ -215,7 +222,7 @@ def read_data2(reader, sentence_processor, parser, data_maps, args={}, tree_mode
             else:
                 root = 0
         elif tree_mode == 'aggregate':
-            data = np.append(data, getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING))
+            data = np.append(data, getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default))
             parents = np.array(list(reversed(range(len(data)))))
             root = max(len(data) - 1, 0)
         else:
@@ -262,6 +269,7 @@ def children_and_roots(seq_parents):
         children[p_idx] = chs
     return children, roots
 
+
 # Build a sequence_tree from a data and a parents sequence.
 # All roots are children of a headless node.
 def build_sequence_tree(seq_data, children, root, seq_tree = None):
@@ -289,9 +297,9 @@ def build_sequence_tree(seq_data, children, root, seq_tree = None):
     return seq_tree
 
 
-def build_sequence_tree_from_str(str, sentence_processor, parser, data_maps, seq_tree=None, tree_mode=None):
-    seq_data, seq_parents, root = read_data2(string_reader, sentence_processor, parser, data_maps,
-                                             args={'content': str}, tree_mode=tree_mode)
+def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, tree_mode=None, expand_dict=True):
+    seq_data, seq_parents, root = read_data(string_reader, sentence_processor, parser, data_maps,
+                                            args={'content': str_}, tree_mode=tree_mode, expand_dict=expand_dict)
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, root, seq_tree)
 

@@ -61,11 +61,13 @@ def revert_mapping(mapping):
     return temp
 
 
-def getOrAdd(d, e):
+def getOrAdd(d, e, default=None):
     try:
         res = d[e]
     # word doesnt occur in dictionary
     except KeyError:
+        if default is not None:
+            return default
         res = len(d)
         d[e] = res
         try:
