@@ -1,6 +1,4 @@
 from __future__ import print_function
-import csv
-from sys import maxsize
 import numpy as np
 import pickle
 import os
@@ -361,27 +359,18 @@ def dummy_str_reader():
 # DEPRICATED use identity_reader instead
 def string_reader(content):
     yield content.decode('utf-8')
+    #yield content.decode('utf-8')
 
 
 def identity_reader(content):
     yield content
 
 
-def articles_from_csv_reader(filename, max_articles=100):
-    csv.field_size_limit(maxsize)
-    print('parse', max_articles, 'articles...')
-    with open(filename, 'rb') as csvfile:
-        reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
-        i = 0
-        for row in reader:
-            if i >= max_articles:
-                break
-            if (i * 100) % max_articles == 0:
-                # sys.stdout.write("progress: %d%%   \r" % (i * 100 / max_rows))
-                # sys.stdout.flush()
-                print('read article:', row['article-id'], '... ', i * 100 / max_articles, '%')
-            i += 1
-            yield row['content'].decode('utf-8')
+def get_root(parents, idx):
+    i = idx
+    while parents[i] != 0:
+        i += parents[i]
+    return i
 
 
 def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
@@ -396,6 +385,8 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
     # ids (sequence) of the heads (parents)
     seq_parents = list()
     prev_root = None
+
+    #roots = list()
 
     if expand_dict:
         unknown_default = None
@@ -420,28 +411,60 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
             if prev_root is not None:
                 seq_parents[prev_root] = current_root - prev_root
             prev_root = current_root
+        #roots.append(prev_root)
 
     data = np.array(seq_data)
     parents = np.array(seq_parents)
-    root = prev_root
+    #root = prev_root
 
     # overwrite structure, if a special mode is set
     if tree_mode is not None:
+        # collect first elements of the trees
+        prev_root = -1
+        first_in_tree = list()
+        for idx in range(len(data)):
+            root = get_root(parents, idx)
+            if root != prev_root:
+                first_in_tree.append(idx)
+                prev_root = root
+        # remove false first element and add dummy at the end
+        # as a result (first_in_tree -1) point to the last elements
+        if len(first_in_tree) > 0:
+            del first_in_tree[0]
+            first_in_tree.append(len(data))
+
         if tree_mode == 'sequence':
             parents = np.ones(parents.shape, dtype=parents.dtype)
-            if len(parents) > 0:
-                parents[-1] = 0
-                root = len(parents) - 1
-            else:
-                root = 0
+            for idx in first_in_tree:
+                parents[idx-1] = 0
+            #if len(parents) > 0:
+            #    parents[-1] = 0
+                #root = len(parents) - 1
+            #else:
+            #    root = 0
         elif tree_mode == 'aggregate':
-            data = np.append(data, getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default))
-            parents = np.array(list(reversed(range(len(data)))))
-            root = max(len(data) - 1, 0)
+            TERMINATOR_id = getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+            parents = np.array([], dtype=np.int32)
+            last_first = 0
+            count = 0
+            print(first_in_tree)
+            for idx in first_in_tree:
+                print('idx: ' + str(idx))
+                #parents[idx-1] = 0
+                data = np.insert(data, idx+count, TERMINATOR_id)
+
+                size = idx - last_first + 1
+                print('idx: ' + str(idx) + ', size: ' + str(size))
+                parents = np.append(parents, np.array(list(reversed(range(size)))))
+                last_first = idx
+                count += 1
+            #data = np.append(data, TERMINATOR_id)
+            #parents = np.array(list(reversed(range(len(data)))))
+            #root = max(len(data) - 1, 0)
         else:
             raise NameError('unknown tree_mode: '+tree_mode)
 
-    return data, parents, root #, np.array(seq_edges)#, dep_map
+    return data, parents#, root #, np.array(seq_edges)#, dep_map
 
 
 def addMissingEmbeddings(seq_data, embeddings):
@@ -511,10 +534,10 @@ def build_sequence_tree(seq_data, children, root, seq_tree = None):
 
 
 def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, tree_mode=None, expand_dict=True):
-    seq_data, seq_parents, root = read_data(identity_reader, sentence_processor, parser, data_maps,
+    seq_data, seq_parents = read_data(identity_reader, sentence_processor, parser, data_maps,
                                             args={'content': str_}, tree_mode=tree_mode, expand_dict=expand_dict)
     children, roots = children_and_roots(seq_parents)
-    return build_sequence_tree(seq_data, children, root, seq_tree)
+    return build_sequence_tree(seq_data, children, roots[0], seq_tree)
 
 
 def create_or_read_dict(fn, vocab):
