@@ -5,7 +5,6 @@ import model_fold
 import preprocessing
 import spacy
 import pickle
-import pprint
 import os
 import json, time
 from flask import Flask, request
@@ -14,17 +13,10 @@ import numpy as np
 #from scipy import spatial # crashes!
 from sklearn.metrics import pairwise_distances
 
-# Replication flags:
-#tf.flags.DEFINE_string('logdir', '/home/arne/tmp/tf/log',
-#                       'Directory in which to write event logs.')
 tf.flags.DEFINE_string('model_dir', '/home/arne/tmp/tf/log',
                        'directory containing the model')
 tf.flags.DEFINE_string('data_mapping_path', 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
                        'model file')
-#tf.flags.DEFINE_string('master', '',
-#                       'Tensorflow master to use.')
-#tf.flags.DEFINE_integer('task', 0,
-#                        'Task ID of the replica running the training.')
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
