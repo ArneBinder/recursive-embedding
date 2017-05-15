@@ -29,7 +29,7 @@ tf.flags.DEFINE_integer(
     'corpus_size', -1,
     'How many samples to write. Use a negative dummy value to set no limit.')
 tf.flags.DEFINE_string(
-    'sentence_processor', 'process_sentence3',
+    'sentence_processor', 'process_sentence4',
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_string(
     'tree_mode',
@@ -51,7 +51,7 @@ def sick_raw_reader(filename):
         reader = csv.DictReader(csvfile, delimiter='\t')#, fieldnames=['pair_ID', 'sentence_A', 'sentence_B',
                                                      #'relatedness_score', 'entailment_judgment'])
         for row in reader:
-            yield (int(row['pair_ID']), row['sentence_A'], row['sentence_B'], float(row['relatedness_score']))
+            yield (int(row['pair_ID']), row['sentence_A'].decode('utf-8'), row['sentence_B'].decode('utf-8'), float(row['relatedness_score']))
 
 
 # build similarity_tree_tuple objects

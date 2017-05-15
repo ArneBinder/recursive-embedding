@@ -61,22 +61,22 @@ def revert_mapping(mapping):
     return temp
 
 
-def getOrAdd(d, e, default=None):
+def getOrAdd(d, idx, idx_alt=None):
     try:
-        res = d[e]
+        res = d[idx]
     # word doesnt occur in dictionary
     except KeyError:
-        if default is not None:
-            return default
+        if idx_alt is not None:
+            return d[idx_alt]
         res = len(d)
-        d[e] = res
+        d[idx] = res
         try:
-            if e >= 0:
-                print('add to dict: ' + str(e) + ' (' + nlp.vocab[e].orth_ + ') -> ' + str(res))
+            if idx >= 0:
+                print('add to dict: ' + str(idx) + ' (' + nlp.vocab[idx].orth_ + ') -> ' + str(res))
             else:
-                print('add to dict: ' + str(e) + ' (' + constants.vocab_manual[e] + ') -> ' + str(res))
+                print('add to dict: ' + str(idx) + ' (' + constants.vocab_manual[idx] + ') -> ' + str(res))
         except IndexError:
-            print('add to dict: ' + str(e) + ' () -> ' + str(res))
+            print('add to dict: ' + str(idx) + ' () -> ' + str(res))
     return res
 
 

@@ -38,6 +38,7 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps):
         #pp.pprint(seq_tree)
         yield seq_tree.SerializeToString()
 
+
 @app.route("/api/embed", methods=['POST'])
 def embed():
     start = time.time()
@@ -65,6 +66,7 @@ def embed():
     print("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
+
 
 @app.route("/api/distance", methods=['POST'])
 def sim():

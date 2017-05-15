@@ -145,13 +145,17 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
     return result_data, result_parents, root_offset
 
 
-
 def dummy_str_reader():
     yield u'I like RTRC!'
 
 
+# DEPRICATED use identity_reader instead
 def string_reader(content):
     yield content.decode('utf-8')
+
+
+def identity_reader(content):
+    yield content
 
 
 def articles_from_csv_reader(filename, max_articles=100):
@@ -298,7 +302,7 @@ def build_sequence_tree(seq_data, children, root, seq_tree = None):
 
 
 def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, tree_mode=None, expand_dict=True):
-    seq_data, seq_parents, root = read_data(string_reader, sentence_processor, parser, data_maps,
+    seq_data, seq_parents, root = read_data(identity_reader, sentence_processor, parser, data_maps,
                                             args={'content': str_}, tree_mode=tree_mode, expand_dict=expand_dict)
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, root, seq_tree)
