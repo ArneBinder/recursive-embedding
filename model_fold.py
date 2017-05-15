@@ -9,6 +9,11 @@ DEFAULT_AGGR_ORDERED_SCOPE = 'aggregator_ordered'
 DEFAULT_SCORING_SCOPE = 'scoring'
 
 
+def dprint(x):
+    r = tf.Print(x, [tf.shape(x)])
+    return r
+
+
 def sequence_tree_block(embeddings, scope):
     """Calculates an embedding over a (recursive) SequenceNode.
 
@@ -37,10 +42,6 @@ def sequence_tree_block(embeddings, scope):
     # normalize (batched version -> dim=1)
     def norm(x):
         return tf.nn.l2_normalize(x, dim=1)
-
-    def dprint(x):
-        r = tf.Print(x, [tf.shape(x)])
-        return r
 
     def case(seq_tree):
         # children and head exist: process and aggregate
@@ -173,31 +174,30 @@ class SequenceTreeEmbeddingSequence(object):
         entropy loss with regard to the correct tree.
     """
 
-    # TODO: fix double calculation!
     def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE, scoring_scope=DEFAULT_SCORING_SCOPE):
 
         # This layer maps a sequence tree embedding to an 'integrity' score
         with tf.variable_scope(scoring_scope) as scoring_sc:
             scoring_fc = td.FC(1, name=scoring_sc)
 
-        def debug_print(x):
-            r = tf.Print(x, [tf.shape(x)])
-            return r
-
         def squz(x):
             return tf.squeeze(x, [1])
 
-        with tf.variable_scope(aggregator_ordered_scope) as sc:
-            def tree_embeds_exp():
-                return td.GetItem('trees') >> td.Map(sequence_tree_block(embeddings, sc)
-                                                     >> scoring_fc >> td.Function(squz)
-                                                     >> td.Function(tf.exp))
-            # get the correct
-            exp_correct = td.AllOf(tree_embeds_exp(), td.GetItem('idx_correct')) >> td.Nth()
-            # get the sum
-            exp_summed = tree_embeds_exp() >> td.Reduce(td.Function(tf.add))  #>> td.Function(dprint)
+        # takes a sequence of scalars and an index as input
+        # and returns the n-th scalar normalized by the sum
+        # of all the scalars
+        norm = td.Composition()
+        with norm.scope():
+            sum_ = td.Reduce(td.Function(tf.add)).reads(norm.input[0])
+            nth_ = td.Nth().reads(norm.input[0], norm.input[1])
+            normed_nth = td.Function(tf.div).reads(nth_, sum_)
+            norm.output.reads(normed_nth)
 
-        softmax_correct = td.AllOf(exp_correct, exp_summed) >> td.Function(tf.div)
+        with tf.variable_scope(aggregator_ordered_scope) as sc:
+            tree_logits = td.Map(sequence_tree_block(embeddings, sc)
+                                 >> scoring_fc >> td.Function(squz) >> td.Function(tf.exp))
+
+        softmax_correct = td.AllOf(td.GetItem('trees') >> tree_logits, td.GetItem('idx_correct')) >> norm
 
         self._compiler = td.Compiler.create(softmax_correct)
 

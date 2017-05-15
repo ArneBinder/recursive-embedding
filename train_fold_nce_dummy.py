@@ -100,7 +100,7 @@ def main(unused_argv):
                 #batch = list(parse_iterator([(['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0), (['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0)],
                 #                            nlp, preprocessing.process_sentence3, data_maps))
                 batch = list(parse_iterator(
-                    [(['Hallo.'], 0)],
+                    [([u'Hallo.'], 0)],
                     nlp, preprocessing.process_sentence3, data_maps))
 
                 fdict = trainer.build_feed_dict(batch)
