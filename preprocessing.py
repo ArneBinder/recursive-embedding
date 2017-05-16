@@ -505,6 +505,19 @@ def children_and_roots(seq_parents):
         children[p_idx] = chs
     return children, roots
 
+# depth has to be an array pre-initialized with negative int values
+def calc_depth(children, depth, idx):
+    if idx not in children:
+        depth[idx] = 0
+    else:
+        max_depth = -1
+        for child in children[idx]:
+            if depth[child] < 0:
+                calc_depth(children, depth, child)
+            if depth[child] > max_depth:
+                max_depth = depth[child]
+        depth[idx] = max_depth + 1
+
 
 # Build a sequence_tree from a data and a parents sequence.
 # All roots are children of a headless node.

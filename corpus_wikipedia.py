@@ -3,12 +3,14 @@ import csv
 import os
 from sys import maxsize
 import tensorflow as tf
+import numpy as np
 
 import spacy
 import preprocessing
+import tools
 
 tf.flags.DEFINE_string(
-    'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
+    'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
     'The path to the SICK train data file.')
 tf.flags.DEFINE_string(
     'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
@@ -60,6 +62,25 @@ def articles_from_csv_reader(filename, max_articles=100):
             yield content.split('  ', 1)[1]
 
 
+@tools.fn_timer
+def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, mapping, max_articles=10000, tree_mode=None):
+    seq_data, seq_parents = preprocessing.read_data(articles_from_csv_reader,
+                                                    sentence_processor, parser, mapping,
+                                                    args={
+                                                        'filename': in_filename,
+                                                        'max_articles': max_articles},
+                                                    tree_mode=tree_mode)
+    print('len(seq_data): ' + str(len(seq_data)))
+    print('calc children ...')
+    children, roots = preprocessing.children_and_roots(seq_parents)
+    print('calc depths ...')
+    depth = -np.ones(len(seq_data), dtype=np.int)
+    for idx in range(len(seq_data)):
+        if depth[idx] < 0:
+            preprocessing.calc_depth(children, depth, idx)
+    print('dummy')
+
+
 if __name__ == '__main__':
     print('load spacy ...')
     nlp = spacy.load('en')
@@ -76,12 +97,14 @@ if __name__ == '__main__':
     if FLAGS.tree_mode is not None:
         out_path = out_path + '_' + FLAGS.tree_mode
 
-    print('parse data ...')
-    seq_data, seq_parents = preprocessing.read_data(articles_from_csv_reader,
-                                                    sentence_processor, nlp, mapping,
-                                                    args={
-                                                        'filename': '/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews_10_.csv', 'max_articles': 10000})
-    print('len(seq_data): ' + str(len(seq_data)))
+    print('parse train data ...')
+    convert_wikipedia(FLAGS.corpus_data_input_train,
+                      out_path + '.train',
+                      sentence_processor,
+                      nlp,
+                      mapping,
+                      tree_mode=FLAGS.tree_mode)
+
     #print('parse train data ...')
     #convert_sick(FLAGS.corpus_data_input_train,
     #             out_path + '.train',

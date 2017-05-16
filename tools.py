@@ -70,13 +70,13 @@ def getOrAdd(d, idx, idx_alt=None):
             return d[idx_alt]
         res = len(d)
         d[idx] = res
-        try:
-            if idx >= 0:
-                print('add to dict: ' + str(idx) + ' (' + nlp.vocab[idx].orth_ + ') -> ' + str(res))
-            else:
-                print('add to dict: ' + str(idx) + ' (' + constants.vocab_manual[idx] + ') -> ' + str(res))
-        except IndexError:
-            print('add to dict: ' + str(idx) + ' () -> ' + str(res))
+        #try:
+        #    if idx >= 0:
+        #        print('add to dict: ' + str(idx) + ' (' + nlp.vocab[idx].orth_ + ') -> ' + str(res))
+        #    else:
+        #        print('add to dict: ' + str(idx) + ' (' + constants.vocab_manual[idx] + ') -> ' + str(res))
+        #except IndexError:
+        #    print('add to dict: ' + str(idx) + ' () -> ' + str(res))
     return res
 
 
