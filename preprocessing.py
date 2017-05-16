@@ -610,7 +610,8 @@ def build_sequence_tree_with_candidates(seq_data, parents, children, root, inser
                 candidate_child = candidate_path.pop()
                 for child_pos in children[pos]:
                     if candidate_child == child_pos:
-                        build(seq_node.children_candidate.add(), child_pos)
+                        x = seq_node.children_candidate
+                        build(x, child_pos)
                     else:
                         build_sequence_tree(seq_data, children, child_pos, seq_tree=seq_node.children.add())
 

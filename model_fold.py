@@ -238,7 +238,8 @@ def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
       scope: A scope to share variables over instances of sequence_tree_block
     """
     state_size = embeddings.shape.as_list()[1]
-    expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
+    expr_decl = td.ForwardDeclaration(td.PyObjectType(), td.SequenceType(td.convert_to_type(state_size)))
+    expr_decl2 = td.ForwardDeclaration(td.PyObjectType(), state_size)
     grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), name_or_scope=scope)
 
     # an aggregation function which takes the order of the inputs into account
@@ -259,16 +260,47 @@ def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
     def norm(x):
         return tf.nn.l2_normalize(x, dim=1)
 
-    def case(seq_tree):
-        if len(seq_tree['candidates']) > 0:
+    def case_dep(seq_tree):
+        if 'children_candidate' in seq_tree and len(seq_tree['children']) > 0 and 'head' in seq_tree:
+            return 0
+        if 'children_candidate' in seq_tree and len(seq_tree['children']) == 0 and 'head' in seq_tree:
+            return 1
+        if 'children_candidate' in seq_tree and len(seq_tree['children']) > 0 and 'head' not in seq_tree:
+            return 2
+        if 'children_candidate' in seq_tree and len(seq_tree['children']) == 0 and 'head' not in seq_tree:
             return 3
-        # children and head exist: process and aggregate
-        if len(seq_tree['children_outside']) > 0 and 'head_outside' in seq_tree:
+        if 'children_candidate' not in seq_tree and len(seq_tree['children']) > 0 and 'head' in seq_tree:
             return 4
-        # head exists
-        if len(seq_tree['children_outside']) == 0 and 'head_outside' in seq_tree:
+        if 'children_candidate' not in seq_tree and len(seq_tree['children']) == 0 and 'head' in seq_tree:
             return 5
+        if 'children_candidate' not in seq_tree and len(seq_tree['children']) > 0 and 'head' not in seq_tree:
+            return 6
+        #if len(seq_tree['children_candidates']) == 0 and len(seq_tree['children']) == 0 and 'head' not in seq_tree:
+        #    return 7
+        if len(seq_tree['candidates']) > 0:
+            return 8
 
+    cases = td.OneOf(lambda x: case_dep(x),
+                     {0: td.GetItem('children_candidate') >> expr_decl(),
+                      1: td.GetItem('children_candidate') >> expr_decl(),
+                      2: td.GetItem('children_candidate') >> expr_decl(),
+                      3: td.GetItem('children_candidate') >> expr_decl(),
+                      4: td.GetItem('head')
+                         >> td.Optional(td.Scalar(dtype='int32')
+                         >> td.Function(embed))
+                         >> td.Broadcast(),
+                      5: td.GetItem('head')
+                         >> td.Optional(td.Scalar(dtype='int32')
+                         >> td.Function(embed))
+                         >> td.Broadcast(),
+                      6: td.GetItem('children')
+                         >> td.Map(expr_decl()),
+                         #>> td.Reduce(td.Function(aggregator_order_unaware)),
+                      8: td.GetItem('candidates')
+                         >> td.Map(expr_decl()),
+                      })
+
+    def cases_single(seq_tree):
         # children and head exist: process and aggregate
         if len(seq_tree['children']) > 0 and 'head' in seq_tree:
             return 0
@@ -278,41 +310,17 @@ def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
         # otherwise (head does not exist): process children only
         return 2
 
-    cases = td.OneOf(lambda x: case(x),
-                     {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
-                                    ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
-                         >> td.Function(aggregator_order_aware),
-                      1: td.GetItem('head')
-                         >> td.Optional(td.Scalar(dtype='int32')
-                         >> td.Function(embed)),
-                      2: td.GetItem('children')
-                         >> td.Map(expr_decl())
-                         >> td.Reduce(td.Function(aggregator_order_unaware)),
-                      3: td.GetItem('candidates')
-                         >> td.Map(expr_decl()),
-                      4: td.GetItem('head_outside') >> td.Scalar(dtype='int32') >> td.Function(embed) >> td.Broadcast(),
-                      #4: td.Record([('head_outside', td.Scalar(dtype='int32') >> td.Function(embed) >> td.Broadcast()),
-                      #              ('children_outside', td.Map(expr_decl()) #>> td.NGrams(candidate_count) >> td.GetItem(0)
-                      #               >> td.Reduce(td.Function(aggregator_order_unaware)))])
-                      #   >> td.ZipWith(td.Function(aggregator_order_aware))
-
-
-                         #0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)) >> td.Broadcast(),
-                      #              ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
-                      #   >> td.ZipWith(td.Function(aggregator_order_aware)),
-                      #0: td.GetItem('children')
-                      #   >> td.Map(expr_decl())
-                      #   >> td.Reduce(td.Function(aggregator_order_unaware)),
-                         #>> td.Broadcast(),
-                      #1: td.GetItem('head')
-                      #   >> td.Optional(td.Scalar(dtype='int32')
-                      #   >> td.Function(embed))
-                      #   >> td.Broadcast(),
-                     #2: td.GetItem('children')
-                      #   >> td.Map(expr_decl())
-                      #   >> td.Reduce(td.Function(aggregator_order_unaware)),
-
-                      })
+    def cases_candidates(seq_tree):
+        if len(seq_tree['candidates']) > 0:
+            return 3
+        # children and head exist: process and aggregate
+        if len(seq_tree['children']) > 0 and 'head' in seq_tree:
+            return 0
+        # children do not exist (but maybe a head): process (optional) head only
+        if len(seq_tree['children']) == 0:
+            return 1
+        # otherwise (head does not exist): process children only
+        return 2
 
     expr_decl.resolve_to(cases)
 
