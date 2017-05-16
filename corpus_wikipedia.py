@@ -2,6 +2,8 @@ from __future__ import print_function
 import csv
 import os
 from sys import maxsize
+
+import pickle
 import tensorflow as tf
 import numpy as np
 
@@ -16,10 +18,10 @@ tf.flags.DEFINE_string(
     'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
     'The path to the SICK test data file.')
 tf.flags.DEFINE_string(
-    'corpus_data_output_dir', 'data/corpora/sick',
+    'corpus_data_output_dir', 'data/corpora/wikipedia',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
-    'corpus_data_output_fn', 'SICK',
+    'corpus_data_output_fn', 'WIKIPEDIA',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'dict_filename', 'data/nlp/spacy/dict',
@@ -64,15 +66,42 @@ def articles_from_csv_reader(filename, max_articles=100):
 
 @tools.fn_timer
 def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, mapping, max_articles=10000, tree_mode=None):
-    seq_data, seq_parents = preprocessing.read_data(articles_from_csv_reader,
-                                                    sentence_processor, parser, mapping,
-                                                    args={
-                                                        'filename': in_filename,
-                                                        'max_articles': max_articles},
-                                                    tree_mode=tree_mode)
+    if os.path.isfile(out_filename+'.data'):
+        print('load data and parents from file: '+out_filename + ' ...')
+        seq_data = np.load(out_filename+'.data')
+        seq_parents = np.load(out_filename+'.parents')
+    else:
+        if parser is None:
+            print('load spacy ...')
+            parser = spacy.load('en')
+            parser.pipeline = [parser.tagger, parser.entity, parser.parser]
+        if mapping is None:
+            vecs, mapping = preprocessing.create_or_read_dict(FLAGS.dict_filename, parser.vocab)
+        print('parse articles ...')
+        seq_data, seq_parents = preprocessing.read_data(articles_from_csv_reader,
+                                                        sentence_processor, parser, mapping,
+                                                        args={
+                                                            'filename': in_filename,
+                                                            'max_articles': max_articles},
+                                                        tree_mode=tree_mode)
+        print('dump data and parents ...')
+        seq_data.dump(out_filename + '.data')
+        seq_parents.dump(out_filename + '.parents')
+
     print('len(seq_data): ' + str(len(seq_data)))
-    print('calc children ...')
-    children, roots = preprocessing.children_and_roots(seq_parents)
+    if os.path.isfile(out_filename + '.children'):
+        print('load children and roots from file ...')
+        children = pickle.load(open(out_filename + '.children', "rb"))
+        roots = pickle.load(open(out_filename + '.roots', "rb"))
+    else:
+        print('calc children and roots ...')
+        children, roots = preprocessing.children_and_roots(seq_parents)
+        print('dump children and roots ...')
+        with open(out_filename + '.children', "wb") as f:
+            pickle.dump(children, f, pickle.HIGHEST_PROTOCOL)
+        with open(out_filename + '.roots', "wb") as f:
+            pickle.dump(roots, f)
+
     print('calc depths ...')
     depth = -np.ones(len(seq_data), dtype=np.int)
     for idx in range(len(seq_data)):
@@ -82,12 +111,6 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
 
 
 if __name__ == '__main__':
-    print('load spacy ...')
-    nlp = spacy.load('en')
-    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
-
-    vecs, mapping = preprocessing.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
-
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
     if not os.path.isdir(out_dir):
@@ -97,6 +120,8 @@ if __name__ == '__main__':
     if FLAGS.tree_mode is not None:
         out_path = out_path + '_' + FLAGS.tree_mode
 
+    nlp = None
+    mapping = None
     print('parse train data ...')
     convert_wikipedia(FLAGS.corpus_data_input_train,
                       out_path + '.train',
