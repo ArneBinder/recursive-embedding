@@ -67,7 +67,7 @@ def articles_from_csv_reader(filename, max_articles=100):
 @tools.fn_timer
 def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, mapping, max_articles=10000, tree_mode=None):
     if os.path.isfile(out_filename+'.data'):
-        print('load data and parents from file: '+out_filename + ' ...')
+        print('load data and parents from files: '+out_filename + ' ...')
         seq_data = np.load(out_filename+'.data')
         seq_parents = np.load(out_filename+'.parents')
     else:
@@ -88,20 +88,10 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         seq_data.dump(out_filename + '.data')
         seq_parents.dump(out_filename + '.parents')
 
-    print('len(seq_data): ' + str(len(seq_data)))
-    if os.path.isfile(out_filename + '.children'):
-        print('load children and roots from file ...')
-        children = pickle.load(open(out_filename + '.children', "rb"))
-        roots = pickle.load(open(out_filename + '.roots', "rb"))
-    else:
-        print('calc children and roots ...')
-        children, roots = preprocessing.children_and_roots(seq_parents)
-        print('dump children and roots ...')
-        with open(out_filename + '.children', "wb") as f:
-            pickle.dump(children, f, pickle.HIGHEST_PROTOCOL)
-        with open(out_filename + '.roots', "wb") as f:
-            pickle.dump(roots, f)
+    print('calc children and roots ...')
+    children, roots = preprocessing.children_and_roots(seq_parents)
 
+    # TODO: fix this! (implement non-recursive depth calculation)
     print('calc depths ...')
     depth = -np.ones(len(seq_data), dtype=np.int)
     for idx in range(len(seq_data)):
