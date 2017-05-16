@@ -393,6 +393,8 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
     else:
         unknown_default = constants.UNKNOWN_EMBEDDING
 
+    print('start read_data ...')
+    i = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
         prev_root = None
         for sentence in parsed_data.sents:
@@ -411,8 +413,9 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
             if prev_root is not None:
                 seq_parents[prev_root] = current_root - prev_root
             prev_root = current_root
-        #roots.append(prev_root)
+            i += 1
 
+    print('sentences read: '+str(i))
     data = np.array(seq_data)
     parents = np.array(seq_parents)
     #root = prev_root

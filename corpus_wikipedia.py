@@ -12,7 +12,7 @@ import preprocessing
 import tools
 
 tf.flags.DEFINE_string(
-    'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
+    'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
     'The path to the SICK train data file.')
 tf.flags.DEFINE_string(
     'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
@@ -88,6 +88,8 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         seq_data.dump(out_filename + '.data')
         seq_parents.dump(out_filename + '.parents')
 
+    print('data points: '+str(len(seq_data)))
+
     print('calc children and roots ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
@@ -103,10 +105,10 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         depth.dump(out_filename + '.depth')
 
     print('sort depths ...')
-    print(np.sort(depth)[-100:])
-    for i, d in enumerate(depth):
-        if d >= 1600:
-            print(str(i) + ': '+str(d))
+    #print(np.sort(depth)[-100:])
+    #for i, d in enumerate(depth):
+    #    if d >= 500:
+    #        print(str(i) + ': '+str(d))
 
 
 if __name__ == '__main__':
