@@ -28,7 +28,7 @@ def test_build_build_sequence_tree_with_candidates():
     pp = pprint.PrettyPrinter(indent=2)
     insert_idx = 5
     candidate_indices = [2, 8]
-    seq_tree_c = preprocessing.build_sequence_tree_with_candidates(seq_data, children, roots[0], insert_idx, candidate_indices)
+    seq_tree_c = preprocessing.build_sequence_tree_with_candidates(seq_data, seq_parents, children, roots[0], insert_idx, candidate_indices)
     pp.pprint(seq_tree_c)
 
 if __name__ == '__main__':

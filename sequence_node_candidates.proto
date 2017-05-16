@@ -2,8 +2,11 @@ syntax = "proto2";
 
 package recursive_dependency_embedding;
 
+import "sequence_node.proto";
+
 message SequenceNodeCandidates {
   optional int64 head = 1;
-  repeated SequenceNodeCandidates children = 2;
-  repeated SequenceNodeCandidates candidates = 3;
+  repeated SequenceNode children = 2;
+  repeated SequenceNodeCandidates children_candidate = 3;
+  repeated SequenceNode candidates = 4;
 }

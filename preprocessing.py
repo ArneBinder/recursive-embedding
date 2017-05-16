@@ -589,22 +589,34 @@ def build_sequence_tree(seq_data, children, root, seq_tree = None):
     return seq_tree
 
 
-def build_sequence_tree_with_candidates(seq_data, children, root, insert_idx, candidate_indices, seq_tree = None):
+def build_sequence_tree_with_candidates(seq_data, parents, children, root, insert_idx, candidate_indices, seq_tree = None):
     # assume, all parents and candidate_indices are inside this array!
+
+    # create path from insert_idx to root
+    candidate_path = [insert_idx]
+    candidate_parent = insert_idx + parents[insert_idx]
+    while candidate_parent != root:
+        candidate_path.append(candidate_parent)
+        candidate_parent = candidate_parent + parents[candidate_parent]
+
     """Recursively build a tree of SequenceNode_s"""
-    def build(seq_node, pos, added):
-        if pos == insert_idx and not added:
+    def build(seq_node, pos):
+        if pos == insert_idx and len(candidate_path) == 0:
             for candidate_idx in [pos] + candidate_indices:
-                build(seq_node.candidates.add(), candidate_idx, True)
+                build_sequence_tree(seq_data, children, candidate_idx, seq_tree=seq_node.candidates.add())
         else:
             seq_node.head = seq_data[pos]
             if pos in children:
+                candidate_child = candidate_path.pop()
                 for child_pos in children[pos]:
-                    build(seq_node.children.add(), child_pos, added)
+                    if candidate_child == child_pos:
+                        build(seq_node.children_candidate.add(), child_pos)
+                    else:
+                        build_sequence_tree(seq_data, children, child_pos, seq_tree=seq_node.children.add())
 
     if seq_tree is None:
         seq_tree = sequence_node_candidates_pb2.SequenceNodeCandidates()
-    build(seq_tree, root, False)
+    build(seq_tree, root)
 
     return seq_tree
 

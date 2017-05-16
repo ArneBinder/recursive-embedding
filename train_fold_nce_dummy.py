@@ -8,6 +8,7 @@ import pickle
 import pprint
 import os
 import sequence_node_sequence_pb2
+import sequence_node_candidates_pb2
 import numpy as np
 
 # Replication flags:
@@ -41,6 +42,21 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps):
         #pp.pprint(seq_tree_seq)
         yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence', seq_tree_seq.SerializeToString())
 
+
+def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
+    pp = pprint.PrettyPrinter(indent=2)
+    for s in sequences:
+        seq_data, seq_parents = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser, data_maps,
+                                          args={'content': s}, expand_dict=False)
+        children, roots = preprocessing.children_and_roots(seq_parents)
+
+        # dummy position
+        insert_idx = 5
+        candidate_indices = [2, 8]
+        seq_tree_cand = preprocessing.build_sequence_tree_with_candidates(seq_data, children, roots[0], insert_idx, candidate_indices)
+        pp.pprint(seq_tree_cand)
+        yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeCandidates', seq_tree_cand.SerializeToString())
+
 lex_size = 1300000
 embedding_dim = 300
 
@@ -51,15 +67,15 @@ def main(unused_argv):
     print('load data_mapping from: '+FLAGS.data_mapping_path + ' ...')
     data_maps = pickle.load(open(FLAGS.data_mapping_path, "rb"))
 
-    print('load embeddings from: ' + FLAGS.train_dict_path + ' ...')
-    embeddings_np = np.load(FLAGS.train_dict_path)
+    # DEBUG EXCLUDE
+    #print('load embeddings from: ' + FLAGS.train_dict_path + ' ...')
+    #embeddings_np = np.load(FLAGS.train_dict_path)
 
-    embedding_dim = embeddings_np.shape[1]
-    lex_size = 1300000
-    # print('load mappings from: ' + data_fn + '.mapping ...')
-    # mapping = pickle.load(open(data_fn + '.mapping', "rb"))
-    assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
-    embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
+    #embedding_dim = embeddings_np.shape[1]
+    #lex_size = 1300000
+    lex_size = 100000
+    #assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
+    #embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
 
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
@@ -67,7 +83,7 @@ def main(unused_argv):
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, embedding_dim])
             embedding_init = embed_w.assign(embedding_placeholder)
 
-            trainer = model_fold.SequenceTreeEmbeddingSequence(embed_w)
+            trainer = model_fold.SequenceTreeEmbeddingWithCandidates(embed_w)
 
             softmax_correct = trainer.softmax_correct
             loss = trainer.loss
@@ -84,11 +100,13 @@ def main(unused_argv):
             # do some work with the model.
             with tf.Session() as sess:
 
+                # DEBUG EXCLUDE
                 # exclude embedding, will be initialized afterwards
-                init_vars = [v for v in tf.global_variables() if v != embed_w]
-                tf.variables_initializer(init_vars).run()
-                print('init embeddings with external vectors...')
-                sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
+                #init_vars = [v for v in tf.global_variables() if v != embed_w]
+                #tf.variables_initializer(init_vars).run()
+                #print('init embeddings with external vectors...')
+                #sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
+                tf.global_variables_initializer().run()
 
                 #tf.variables_initializer(tf.global_variables()).run()
 
@@ -99,9 +117,13 @@ def main(unused_argv):
                 print('parse input ...')
                 #batch = list(parse_iterator([(['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0), (['Hallo.', 'Hallo!', 'Hallo?', 'Hallo'], 0)],
                 #                            nlp, preprocessing.process_sentence3, data_maps))
-                batch = list(parse_iterator(
-                    [([u'Hallo.'], 0)],
-                    nlp, preprocessing.process_sentence3, data_maps))
+                batch = list(parse_iterator_candidates(
+                    [u'London is a big city in the United Kingdom. I like this.'],
+                    nlp, preprocessing.process_sentence2, data_maps))
+
+                #batch = list(parse_iterator(
+                #    [([u'Hallo.'], 0)],
+                #    nlp, preprocessing.process_sentence3, data_maps))
 
                 fdict = trainer.build_feed_dict(batch)
                 print('calculate tree embeddings ...')
@@ -117,4 +139,5 @@ if __name__ == '__main__':
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file('sequence_node.proto')
     td.proto_tools.import_proto_file('sequence_node_sequence.proto')
+    td.proto_tools.import_proto_file('sequence_node_candidates.proto')
     tf.app.run()
