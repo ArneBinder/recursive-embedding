@@ -7,6 +7,7 @@ from tools import fn_timer, getOrAdd
 import tools
 import constants
 import sequence_node_pb2
+import sequence_node_candidates_pb2
 
 
 @fn_timer
@@ -584,6 +585,26 @@ def build_sequence_tree(seq_data, children, root, seq_tree = None):
     #for root in roots:
     #    root_tree = sequence_node_pb2.SequenceNode() # seq_tree.children.add() #sequence_node_pb2.SequenceNode()
     #    build(root_tree, seq_data, children, root)
+
+    return seq_tree
+
+
+def build_sequence_tree_with_candidates(seq_data, children, root, insert_idx, candidate_indices, seq_tree = None):
+    # assume, all parents and candidate_indices are inside this array!
+    """Recursively build a tree of SequenceNode_s"""
+    def build(seq_node, pos, added):
+        if pos == insert_idx and not added:
+            for candidate_idx in [pos] + candidate_indices:
+                build(seq_node.candidates.add(), candidate_idx, True)
+        else:
+            seq_node.head = seq_data[pos]
+            if pos in children:
+                for child_pos in children[pos]:
+                    build(seq_node.children.add(), child_pos, added)
+
+    if seq_tree is None:
+        seq_tree = sequence_node_candidates_pb2.SequenceNodeCandidates()
+    build(seq_tree, root, False)
 
     return seq_tree
 
