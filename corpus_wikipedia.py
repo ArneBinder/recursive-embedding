@@ -96,7 +96,7 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
     depth = -np.ones(len(seq_data), dtype=np.int)
     for idx in range(len(seq_data)):
         if depth[idx] < 0:
-            preprocessing.calc_depth(children, depth, idx)
+            preprocessing.calc_depth_rec(children, depth, idx)
     print('dummy')
 
 

@@ -505,18 +505,57 @@ def children_and_roots(seq_parents):
         children[p_idx] = chs
     return children, roots
 
+
 # depth has to be an array pre-initialized with negative int values
-def calc_depth(children, depth, idx):
+def calc_depth_rec(children, depth, idx):
     if idx not in children:
         depth[idx] = 0
     else:
         max_depth = -1
         for child in children[idx]:
             if depth[child] < 0:
-                calc_depth(children, depth, child)
+                calc_depth_rec(children, depth, child)
             if depth[child] > max_depth:
                 max_depth = depth[child]
         depth[idx] = max_depth + 1
+
+
+def calc_depth(children, parents, depth, start):
+    idx = start
+    children_idx = list()
+    if start in children:
+        children_idx.append(0)
+        while len(children_idx) > 0:
+            current_child_idx = children_idx.pop()
+            # go down
+            idx = children[idx][current_child_idx]
+            # not already calculated?
+            if depth[idx] < 0:
+                # no children --> depth == 0
+                if idx not in children:
+                    depth[idx] = 0
+                else:
+                    # calc children
+                    children_idx.append(current_child_idx)
+                    children_idx.append(0)
+                    continue
+
+            parent_depth = depth[idx + parents[idx]]
+            # update parent, if this path is longer
+            if parent_depth < depth[idx] + 1:
+                depth[idx + parents[idx]] = depth[idx] + 1
+
+            # go up
+            idx += parents[idx]
+
+            # go only to next child, if it exists
+            if current_child_idx + 1 < len(children[idx]):
+                children_idx.append(current_child_idx + 1)
+            # otherwise, go up again
+            else:
+                idx += parents[idx]
+    else:
+        depth[start] = 0
 
 
 # Build a sequence_tree from a data and a parents sequence.
