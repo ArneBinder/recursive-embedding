@@ -91,13 +91,22 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
     print('calc children and roots ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
-    # TODO: fix this! (implement non-recursive depth calculation)
-    print('calc depths ...')
-    depth = -np.ones(len(seq_data), dtype=np.int)
-    for idx in range(len(seq_data)):
-        if depth[idx] < 0:
-            preprocessing.calc_depth_rec(children, depth, idx)
-    print('dummy')
+    if os.path.isfile(out_filename + '.depth'):
+        print('load depth from: ' + out_filename + '.depth ...')
+        depth = np.load(out_filename + '.depth')
+    else:
+        print('calc depths ...')
+        depth = -np.ones(len(seq_data), dtype=np.int)
+        for root in roots:
+            preprocessing.calc_depth(children, seq_parents, depth, root)
+        print('dump depth to: ' + out_filename + '.depth ...')
+        depth.dump(out_filename + '.depth')
+
+    print('sort depths ...')
+    print(np.sort(depth)[-100:])
+    for i, d in enumerate(depth):
+        if d >= 1600:
+            print(str(i) + ': '+str(d))
 
 
 if __name__ == '__main__':
@@ -112,7 +121,7 @@ if __name__ == '__main__':
 
     nlp = None
     mapping = None
-    print('parse train data ...')
+    print('handle train data ...')
     convert_wikipedia(FLAGS.corpus_data_input_train,
                       out_path + '.train',
                       sentence_processor,
