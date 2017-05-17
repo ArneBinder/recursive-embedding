@@ -34,14 +34,26 @@ def test_build_build_sequence_tree_with_candidates():
     #pp.pprint(seq_tree_c)
     pp.pprint(td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeCandidates', seq_tree_c.SerializeToString()))
 
+
+def test_build_build_sequence_tree_with_candidate():
+    pp = pprint.PrettyPrinter(indent=2)
+    insert_idx = 8
+    candidate_idx = 5
+    max_depth = 10
+    max_candidate_depth = 10
+    seq_tree_c = preprocessing.build_sequence_tree_with_candidate(seq_data, children, roots[0], insert_idx, candidate_idx, max_depth, max_candidate_depth)
+    pp.pprint(seq_tree_c)
+    #pp.pprint(td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeCandidates', seq_tree_c.SerializeToString()))
+
+
 if __name__ == '__main__':
-    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-    td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
-    td.proto_tools.import_proto_file('sequence_node.proto')
-    td.proto_tools.import_proto_file('sequence_node_sequence.proto')
-    td.proto_tools.import_proto_file('sequence_node_candidates.proto')
+    #ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    #td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
+    #td.proto_tools.import_proto_file('sequence_node.proto')
+    #td.proto_tools.import_proto_file('sequence_node_sequence.proto')
+    #td.proto_tools.import_proto_file('sequence_node_candidates.proto')
     #test_depth()
-    test_build_build_sequence_tree_with_candidates()
+    test_build_build_sequence_tree_with_candidate()
 
 
 

@@ -589,6 +589,25 @@ def build_sequence_tree(seq_data, children, root, seq_tree = None):
     return seq_tree
 
 
+def build_sequence_tree_with_candidate(seq_data, children, root, insert_idx, candidate_idx, max_depth, max_candidate_depth, seq_tree = None):
+    """Recursively build a tree of SequenceNode_s"""
+
+    def build(seq_node, pos, max_depth, inserted):
+        seq_node.head = seq_data[pos]
+        if pos in children and max_depth > 0:
+            for child_pos in children[pos]:
+                if child_pos == insert_idx and not inserted:
+                    build(seq_node.children.add(), candidate_idx, max_candidate_depth, True)
+                else:
+                    build(seq_node.children.add(), child_pos, max_depth - 1, inserted)
+
+    if seq_tree is None:
+        seq_tree = sequence_node_pb2.SequenceNode()
+
+    build(seq_tree, root, max_depth, False)
+    return seq_tree
+
+
 def build_sequence_tree_with_candidates(seq_data, parents, children, root, insert_idx, candidate_indices, seq_tree = None):
     # assume, all parents and candidate_indices are inside this array!
 
