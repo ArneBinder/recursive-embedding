@@ -510,6 +510,16 @@ def children_and_roots(seq_parents):
     return children, roots
 
 
+def get_all_children_rec(idx, children, max_depth):
+    if idx not in children or max_depth == 0:
+        return []
+    result = []
+    for child in children[idx]:
+        result.append(child)
+        result.extend(get_all_children_rec(child, children, max_depth-1))
+    return result
+
+
 # depth has to be an array pre-initialized with negative int values
 def calc_depth_rec(children, depth, idx):
     if idx not in children:

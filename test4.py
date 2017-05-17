@@ -38,12 +38,18 @@ def test_build_build_sequence_tree_with_candidates():
 def test_build_build_sequence_tree_with_candidate():
     pp = pprint.PrettyPrinter(indent=2)
     insert_idx = 8
-    candidate_idx = 5
+    candidate_idx = 8
     max_depth = 10
-    max_candidate_depth = 10
+    max_candidate_depth = 3
     seq_tree_c = preprocessing.build_sequence_tree_with_candidate(seq_data, children, roots[0], insert_idx, candidate_idx, max_depth, max_candidate_depth)
     pp.pprint(seq_tree_c)
     #pp.pprint(td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeCandidates', seq_tree_c.SerializeToString()))
+
+
+def test_get_all_children():
+    start = 4
+    max_depth = 2
+    print(preprocessing.get_all_children_rec(start, children, max_depth))
 
 
 if __name__ == '__main__':
@@ -54,6 +60,7 @@ if __name__ == '__main__':
     #td.proto_tools.import_proto_file('sequence_node_candidates.proto')
     #test_depth()
     test_build_build_sequence_tree_with_candidate()
+    #test_get_all_children()
 
 
 
