@@ -510,13 +510,13 @@ def children_and_roots(seq_parents):
     return children, roots
 
 
-def get_all_children_rec(idx, children, max_depth):
+def get_all_children_rec(idx, children, max_depth, current_depth=0):
     if idx not in children or max_depth == 0:
         return []
     result = []
     for child in children[idx]:
-        result.append(child)
-        result.extend(get_all_children_rec(child, children, max_depth-1))
+        result.append((child, current_depth + 1))
+        result.extend(get_all_children_rec(child, children, max_depth-1, current_depth + 1))
     return result
 
 

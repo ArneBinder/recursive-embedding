@@ -20,7 +20,7 @@ tf.flags.DEFINE_string(
     'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
     'The path to the SICK test data file.')
 tf.flags.DEFINE_string(
-    'corpus_data_output_dir', 'data/corpora/wikipedia',
+    'corpus_data_output_dir', '/media/arne/WIN/Users/Arne/tf/data/corpora/wikipedia',#'data/corpora/wikipedia',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'corpus_data_output_fn', 'WIKIPEDIA',
@@ -162,8 +162,8 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
                     print('current_depth: '+str(current_depth) + ', min_depth: '+str(min_depth) + ', count: '+str(len(depth_maps[min_depth])))
                     for idx in depth_maps[min_depth]:
                         # for every child in current tree (with root idx)
-                        for child in preprocessing.get_all_children_rec(idx, children, current_depth):
-                            child_depth = depth[child]
+                        for (child, child_steps_to_root) in preprocessing.get_all_children_rec(idx, children, current_depth):
+                            child_depth = current_depth - child_steps_to_root #depth[child]
                             new_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
                             # add original
                             preprocessing.build_sequence_tree_with_candidate(seq_data, children, idx, child,

@@ -48,7 +48,7 @@ def test_build_build_sequence_tree_with_candidate():
 
 def test_get_all_children():
     start = 4
-    max_depth = 2
+    max_depth = 3
     print(preprocessing.get_all_children_rec(start, children, max_depth))
 
 
@@ -59,8 +59,8 @@ if __name__ == '__main__':
     #td.proto_tools.import_proto_file('sequence_node_sequence.proto')
     #td.proto_tools.import_proto_file('sequence_node_candidates.proto')
     #test_depth()
-    test_build_build_sequence_tree_with_candidate()
-    #test_get_all_children()
+    #test_build_build_sequence_tree_with_candidate()
+    test_get_all_children()
 
 
 
