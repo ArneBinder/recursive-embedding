@@ -398,6 +398,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
     i = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
         prev_root = None
+        start_idx = len(seq_data)
         for sentence in parsed_data.sents:
             processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
             # skip not processed sentences (see process_sentence)
@@ -415,58 +416,25 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
                 seq_parents[prev_root] = current_root - prev_root
             prev_root = current_root
             i += 1
+        # overwrite structure, if a special mode is set
+        if tree_mode is not None:
+            if tree_mode == 'sequence':
+                for idx in range(start_idx, len(seq_data)-1):
+                    seq_parents[idx] = 1
+                if len(seq_data) > start_idx:
+                    seq_parents[-1] = 0
+            elif tree_mode == 'aggregate':
+                TERMINATOR_id = getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+                for idx in range(start_idx, len(seq_data)):
+                    seq_parents[idx] = len(seq_data) - idx
+                seq_data.append(TERMINATOR_id)
+                seq_parents.append(0)
+
 
     print('sentences read: '+str(i))
     data = np.array(seq_data)
     parents = np.array(seq_parents)
     #root = prev_root
-
-    # overwrite structure, if a special mode is set
-    if tree_mode is not None:
-        # collect first elements of the trees
-        prev_root = -1
-        first_in_tree = list()
-        for idx in range(len(data)):
-            root = get_root(parents, idx)
-            if root != prev_root:
-                first_in_tree.append(idx)
-                prev_root = root
-        # remove false first element and add dummy at the end
-        # as a result (first_in_tree -1) point to the last elements
-        if len(first_in_tree) > 0:
-            del first_in_tree[0]
-            first_in_tree.append(len(data))
-
-        if tree_mode == 'sequence':
-            parents = np.ones(parents.shape, dtype=parents.dtype)
-            for idx in first_in_tree:
-                parents[idx-1] = 0
-            #if len(parents) > 0:
-            #    parents[-1] = 0
-                #root = len(parents) - 1
-            #else:
-            #    root = 0
-        elif tree_mode == 'aggregate':
-            TERMINATOR_id = getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
-            parents = np.array([], dtype=np.int32)
-            last_first = 0
-            count = 0
-            print(first_in_tree)
-            for idx in first_in_tree:
-                print('idx: ' + str(idx))
-                #parents[idx-1] = 0
-                data = np.insert(data, idx+count, TERMINATOR_id)
-
-                size = idx - last_first + 1
-                print('idx: ' + str(idx) + ', size: ' + str(size))
-                parents = np.append(parents, np.array(list(reversed(range(size)))))
-                last_first = idx
-                count += 1
-            #data = np.append(data, TERMINATOR_id)
-            #parents = np.array(list(reversed(range(len(data)))))
-            #root = max(len(data) - 1, 0)
-        else:
-            raise NameError('unknown tree_mode: '+tree_mode)
 
     return data, parents#, root #, np.array(seq_edges)#, dep_map
 
