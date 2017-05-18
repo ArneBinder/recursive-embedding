@@ -374,6 +374,99 @@ def get_root(parents, idx):
     return i
 
 
+def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, tree_mode=None, expand_dict=True):
+
+    # ids of the dictionaries to query the data point referenced by seq_data
+    # at the moment there is just one: WORD_EMBEDDING
+    #seq_types = list()
+    # ids (dictionary) of the data points in the dictionary specified by seq_types
+    #seq_data = list()
+    # ids (dictionary) of relations to the heads (parents)
+    #seq_edges = list()
+    # ids (sequence) of the heads (parents)
+    #seq_parents = list()
+    prev_root = None
+    idx_tuples = []
+
+    #roots = list()
+
+    if expand_dict:
+        unknown_default = None
+    else:
+        unknown_default = constants.UNKNOWN_EMBEDDING
+
+    print('start read_data ...')
+    sen_count = 0
+    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
+        seq_data = list()
+        seq_parents = list()
+        prev_root = None
+        start_idx = len(seq_data)
+        for sentence in parsed_data.sents:
+            processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
+            # skip not processed sentences (see process_sentence)
+            if processed_sen is None:
+                continue
+
+            sen_data, sen_parents, root_offset = processed_sen
+
+            current_root = len(seq_data) + root_offset
+
+            seq_parents += sen_parents
+            seq_data += sen_data
+
+            if prev_root is not None:
+                seq_parents[prev_root] = current_root - prev_root
+            prev_root = current_root
+            sen_count += 1
+        # overwrite structure, if a special mode is set
+        if tree_mode is not None:
+            if tree_mode == 'sequence':
+                for idx in range(start_idx, len(seq_data)-1):
+                    seq_parents[idx] = 1
+                if len(seq_data) > start_idx:
+                    seq_parents[-1] = 0
+            elif tree_mode == 'aggregate':
+                TERMINATOR_id = getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+                for idx in range(start_idx, len(seq_data)):
+                    seq_parents[idx] = len(seq_data) - idx
+                seq_data.append(TERMINATOR_id)
+                seq_parents.append(0)
+            else:
+                raise NameError('unknown tree_mode: ' + tree_mode)
+        # calc children and roots
+        children, roots = children_and_roots(seq_parents)
+        # calc depth for every position
+        depth = -np.ones(len(seq_data), dtype=np.int)
+        for root in roots:
+            calc_depth(children, seq_parents, depth, root)
+
+        have_children = np.array(children.keys())
+        print('have_children:')
+        print(have_children)
+        print('depth:')
+        print(depth)
+
+        #print('calc indices ...')
+        #idx_tuples = np.zeros(shape=(0, 3), dtype=int)
+        #idx_tuples = [] #np.zeros(shape=(0, 3), dtype=int)
+        # print('current_depth: '+str(current_depth))
+        for i, idx in enumerate(have_children):
+            if (i * 100) % len(have_children) == 0:
+                print('generate tuples ... ', i * 100 / len(have_children), '%')
+            for current_depth in range(1, min(max_depth, depth[idx])):
+                for (child, child_steps_to_root) in get_all_children_rec(idx, children, current_depth):#, max_depth_only=True):
+                    #idx_tuples = np.append(idx_tuples, [[idx, child, child_steps_to_root]])
+                    idx_tuples.append((idx, child, child_steps_to_root))
+
+    print('sentences read: '+str(sen_count))
+    #data = np.array(seq_data)
+    #parents = np.array(seq_parents)
+    #root = prev_root
+
+    return np.array(idx_tuples) #data, parents#, root #, np.array(seq_edges)#, dep_map
+
+
 def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
 
     # ids of the dictionaries to query the data point referenced by seq_data
@@ -429,6 +522,8 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
                     seq_parents[idx] = len(seq_data) - idx
                 seq_data.append(TERMINATOR_id)
                 seq_parents.append(0)
+            else:
+                raise NameError('unknown tree_mode: ' + tree_mode)
 
 
     print('sentences read: '+str(i))
@@ -478,13 +573,14 @@ def children_and_roots(seq_parents):
     return children, roots
 
 
-def get_all_children_rec(idx, children, max_depth, current_depth=0):
+def get_all_children_rec(idx, children, max_depth, current_depth=0, max_depth_only=False):
     if idx not in children or max_depth == 0:
         return []
     result = []
     for child in children[idx]:
-        result.append((child, current_depth + 1))
-        result.extend(get_all_children_rec(child, children, max_depth-1, current_depth + 1))
+        if not max_depth_only or current_depth + 1 == max_depth:
+            result.append((child, current_depth + 1))
+        result.extend(get_all_children_rec(child, children, max_depth-1, current_depth + 1, max_depth_only))
     return result
 
 

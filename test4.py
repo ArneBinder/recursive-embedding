@@ -1,3 +1,5 @@
+import spacy
+
 import corpus_wikipedia
 import preprocessing
 
@@ -47,10 +49,21 @@ def test_build_build_sequence_tree_with_candidate():
 
 
 def test_get_all_children():
-    start = 4
-    max_depth = 3
-    print(preprocessing.get_all_children_rec(start, children, max_depth))
+    start = 11
+    for max_depth in range(1, 5):
+        print(preprocessing.get_all_children_rec(start, children, max_depth, max_depth_only=True))
 
+
+def test_read_data_2():
+    nlp = spacy.load('en')
+    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+    print('extract word embeddings from spaCy...')
+    vecs, mapping = preprocessing.get_word_embeddings(nlp.vocab)
+
+    sentence = 'London is a big city in the United Kingdom. I like this.'
+    res = preprocessing.read_data_2(preprocessing.string_reader, preprocessing.process_sentence2, nlp, mapping,
+                              args={'content': sentence})  # , tree_mode='sequence')
+    print(res)
 
 if __name__ == '__main__':
     #ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -61,6 +74,7 @@ if __name__ == '__main__':
     #test_depth()
     #test_build_build_sequence_tree_with_candidate()
     test_get_all_children()
+    #test_read_data_2()
 
 
 
