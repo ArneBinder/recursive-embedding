@@ -388,6 +388,8 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     prev_root = None
     idx_tuples = []
 
+    depth_list = []
+
     #roots = list()
 
     if expand_dict:
@@ -445,6 +447,8 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
         for root in roots:
             calc_depth(children, current_seq_parents, depth, root)
 
+        depth_list.append(depth)
+
         have_children = np.array(children.keys())
         #print('have_children:')
         #print(have_children)
@@ -468,7 +472,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     #parents = np.array(seq_parents)
     #root = prev_root
 
-    return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples)#data, parents#, root #, np.array(seq_edges)#, dep_map
+    return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list) #data, parents#, root #, np.array(seq_edges)#, dep_map
 
 
 def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
