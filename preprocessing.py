@@ -374,17 +374,17 @@ def get_root(parents, idx):
     return i
 
 
-def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, tree_mode=None, expand_dict=True):
+def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, tree_mode=None, expand_dict=True):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
     #seq_types = list()
     # ids (dictionary) of the data points in the dictionary specified by seq_types
-    #seq_data = list()
+    seq_data = list()
     # ids (dictionary) of relations to the heads (parents)
     #seq_edges = list()
     # ids (sequence) of the heads (parents)
-    #seq_parents = list()
+    seq_parents = list()
     prev_root = None
     idx_tuples = []
 
@@ -397,9 +397,9 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
 
     print('start read_data ...')
     sen_count = 0
-    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
-        seq_data = list()
-        seq_parents = list()
+    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
+        #seq_data = list()
+        #seq_parents = list()
         prev_root = None
         start_idx = len(seq_data)
         for sentence in parsed_data.sents:
@@ -434,37 +434,41 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
                 seq_parents.append(0)
             else:
                 raise NameError('unknown tree_mode: ' + tree_mode)
+
+        # get current parents
+        current_seq_parents = np.array(seq_parents[start_idx:])
+
         # calc children and roots
-        children, roots = children_and_roots(seq_parents)
+        children, roots = children_and_roots(current_seq_parents)
         # calc depth for every position
-        depth = -np.ones(len(seq_data), dtype=np.int)
+        depth = -np.ones(len(current_seq_parents), dtype=np.int)
         for root in roots:
-            calc_depth(children, seq_parents, depth, root)
+            calc_depth(children, current_seq_parents, depth, root)
 
         have_children = np.array(children.keys())
-        print('have_children:')
-        print(have_children)
-        print('depth:')
-        print(depth)
+        #print('have_children:')
+        #print(have_children)
+        #print('depth:')
+        #print(depth)
 
         #print('calc indices ...')
         #idx_tuples = np.zeros(shape=(0, 3), dtype=int)
         #idx_tuples = [] #np.zeros(shape=(0, 3), dtype=int)
         # print('current_depth: '+str(current_depth))
         for i, idx in enumerate(have_children):
-            if (i * 100) % len(have_children) == 0:
-                print('generate tuples ... ', i * 100 / len(have_children), '%')
-            for current_depth in range(1, min(max_depth, depth[idx])):
-                for (child, child_steps_to_root) in get_all_children_rec(idx, children, current_depth):#, max_depth_only=True):
-                    #idx_tuples = np.append(idx_tuples, [[idx, child, child_steps_to_root]])
-                    idx_tuples.append((idx, child, child_steps_to_root))
+            #if (i * 100) % len(have_children) == 0:
+            #    print('generate tuples ... ', i * 100 / len(have_children), '%')
+            #for current_depth in range(1, min(max_depth, depth[idx])):
+            for (child, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):#, max_depth_only=True):
+                #idx_tuples = np.append(idx_tuples, [[idx, child, child_steps_to_root]])
+                idx_tuples.append((idx, child, child_steps_to_root))
 
     print('sentences read: '+str(sen_count))
     #data = np.array(seq_data)
     #parents = np.array(seq_parents)
     #root = prev_root
 
-    return np.array(idx_tuples) #data, parents#, root #, np.array(seq_edges)#, dep_map
+    return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples)#data, parents#, root #, np.array(seq_edges)#, dep_map
 
 
 def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):

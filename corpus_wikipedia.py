@@ -13,6 +13,8 @@ import sequence_node_sequence_pb2
 import tools
 import random
 from multiprocessing import Pool
+import fnmatch
+import ntpath
 
 tf.flags.DEFINE_string(
     'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
@@ -54,19 +56,22 @@ tf.flags.DEFINE_string(
 FLAGS = tf.flags.FLAGS
 
 
-def articles_from_csv_reader(filename, max_articles=100):
+def articles_from_csv_reader(filename, max_articles=100, skip=0):
     csv.field_size_limit(maxsize)
     print('parse', max_articles, 'articles...')
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
         i = 0
         for row in reader:
+            if skip > 0:
+                skip -= 1
+                continue
             if i >= max_articles:
                 break
-            if (i * 100) % max_articles == 0:
+            if (i * 10) % max_articles == 0:
                 # sys.stdout.write("progress: %d%%   \r" % (i * 100 / max_rows))
                 # sys.stdout.flush()
-                print('read article:', row['article-id'], '... ', i * 100 / max_articles, '%')
+                print('read article:', row['article-id'], '... ', i * 10 / max_articles, '%')
             i += 1
             content = row['content'].decode('utf-8')
             # cut the title (is separated by two spaces from main content)
@@ -74,11 +79,14 @@ def articles_from_csv_reader(filename, max_articles=100):
 
 
 @tools.fn_timer
-def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, mapping, max_articles=10000, max_depth=10, sample_count=15, tree_mode=None):
+def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, mapping, max_articles=10000, max_depth=10,
+                      batch_size=1000, sample_count=15, tree_mode=None):
+
     if os.path.isfile(out_filename+'.data'):
         print('load data and parents from files: '+out_filename + ' ...')
         seq_data = np.load(out_filename+'.data')
         seq_parents = np.load(out_filename+'.parents')
+        #idx_tuples = np.load(out_filename+'.children')
     else:
         if parser is None:
             print('load spacy ...')
@@ -86,16 +94,109 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         if mapping is None:
             vecs, mapping = preprocessing.create_or_read_dict(FLAGS.dict_filename, parser.vocab)
+
         print('parse articles ...')
-        seq_data, seq_parents = preprocessing.read_data(articles_from_csv_reader,
-                                                        sentence_processor, parser, mapping,
-                                                        args={
-                                                            'filename': in_filename,
-                                                            'max_articles': max_articles},
-                                                        tree_mode=tree_mode)
-        print('dump data and parents ...')
+        for skip in range(0, max_articles, batch_size):
+            if not os.path.isfile(out_filename + '.data.'+str(skip)):
+                current_seq_data, current_seq_parents, current_idx_tuples = preprocessing.read_data_2(articles_from_csv_reader,
+                                                                  sentence_processor, parser, mapping,
+                                                                  args={
+                                                                      'filename': in_filename,
+                                                                      'max_articles': min(batch_size, max_articles)},
+                                                                  max_depth=max_depth,
+                                                                  batch_size=batch_size,
+                                                                  tree_mode=tree_mode)
+                print('dump data, parents and child indices for skip='+str(skip) + ' ...')
+                current_seq_data.dump(out_filename + '.data.'+str(skip))
+                current_seq_parents.dump(out_filename + '.parents.'+str(skip))
+                current_idx_tuples.dump(out_filename + '.children.'+str(skip))
+
+        list_seq_data = []
+        list_seq_parents = []
+        for skip in range(0, max_articles, batch_size):
+            print('read data and parents for skip='+str(skip) + ' ...')
+            list_seq_data.append(np.load(out_filename + '.data.'+str(skip)))
+            list_seq_parents.append(np.load(out_filename + '.parents.' + str(skip)))
+        print('dump concatenated data and parents ...')
+        seq_data = np.concatenate(list_seq_data, axis=0)
         seq_data.dump(out_filename + '.data')
+        seq_parents = np.concatenate(list_seq_parents, axis=0)
         seq_parents.dump(out_filename + '.parents')
+
+    # get child indices depth files:
+    parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
+
+    depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename)+'.children.depth*')
+    if len(depth_files) == 0:
+        list_idx_tuples = []
+        #map_idx_tuples = {}
+        for skip in range(0, max_articles, batch_size):
+            print('read child indices for skip='+str(skip) + ' ...')
+            current_idx_tuples = np.load(out_filename + '.children.' + str(skip))
+            list_idx_tuples.append(current_idx_tuples)
+            #print('convert '+str(len(current_idx_tuples))+' tuples ...')
+            #for x in current_idx_tuples:
+            #    try:
+            #        map_idx_tuples[x[2]] = np.append(map_idx_tuples[x[2]], [x[:2]])
+            #    except KeyError:
+            #        map_idx_tuples[x[2]] = [x[:2]]
+
+        #for child_depth in map_idx_tuples.keys():
+        #    print('dump children indices for depth='+str(child_depth) + ' ...')
+        #    seq_parents.dump(map_idx_tuples[child_depth] + '.children.depth'+str(child_depth) + ' ... '+str(len(map_idx_tuples[child_depth])))
+
+            #list_idx_tuples.append(current_idx_tuples)
+        print('concatenate children indices ...')
+        idx_tuples = np.concatenate(list_idx_tuples, axis=0)
+
+        #debug
+        #print(idx_tuples)
+
+        print('get depths ...')
+        children_depths = idx_tuples[:, 2]
+        #debug
+        #print(children_depths)
+        print('argsort ...')
+        sorted_indices = np.argsort(children_depths)
+        #debug
+        #print(sorted_indices)
+        print('find depth changes ...')
+        #next_depth = children_depths[sorted_indices[0]]
+        depth_changes = []
+        for idx, sort_idx in enumerate(sorted_indices):
+            current_depth = children_depths[sort_idx]
+            #last_depth = next_depth
+            if idx == len(sorted_indices)-1 or current_depth != children_depths[sorted_indices[idx+1]]:
+                print('new depth: ' + str(current_depth) + ' ends before index pos: ' + str(idx + 1))
+                depth_changes.append((idx+1, current_depth))
+            #if current_depth != last_depth:
+
+                #depth_changes.append((i-1, current_depth))
+                #last_depth = current_depth
+        #depth_changes.append()
+
+        prev_end = 0
+        for (end, current_depth) in depth_changes:
+            size = end - prev_end
+            print('size: '+str(size))
+            current_indices = np.zeros(shape=(size, 2), dtype=int)
+            for idx in range(size):
+                current_indices[idx] = idx_tuples[sorted_indices[prev_end+idx]][:2]
+            print('dump children indices with depth difference (path length from root to child): '+str(current_depth) + ' ...')
+            current_indices.dump(out_filename + '.children.depth' + str(current_depth))
+            prev_end = end
+
+            #print(current_indices)
+
+        #for idx in range()
+
+
+
+
+        #print(idx_tuples.shape[0])
+        #print('dump concatenated child indices ...')
+        #idx_tuples.dump(out_filename + '.children')
+    return
 
     print('data points: '+str(len(seq_data)))
 
@@ -118,9 +219,9 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
     print('calc indices ...')
     idx_tuples = np.zeros(shape=(0, 3), dtype=int)
     #print('current_depth: '+str(current_depth))
-    for i, idx in enumerate(have_children):
-        if (i * 100) % len(have_children) == 0:
-            print('generate tuples ... ', i * 100 / len(have_children), '%')
+    for idx, idx in enumerate(have_children):
+        if (idx * 100) % len(have_children) == 0:
+            print('generate tuples ... ', idx * 100 / len(have_children), '%')
         for current_depth in range(1, min(max_depth, depth[idx])):
             for (child, child_steps_to_root) in preprocessing.get_all_children_rec(idx, children, current_depth):
                 idx_tuples = np.append(idx_tuples, [[idx, child, child_steps_to_root]])
@@ -141,11 +242,11 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
     #        print(str(i) + ': '+str(d))
     print('calc depth maps ...')
     depth_maps = {}
-    for i, d in enumerate(depth):
+    for idx, d in enumerate(depth):
         try:
-            depth_maps[d].append(i)
+            depth_maps[d].append(idx)
         except KeyError:
-            depth_maps[d] = [i]
+            depth_maps[d] = [idx]
     #print(len(depth_maps))
     # get maximum depth of parsed data
     real_max_depth = max(depth_maps.keys())
@@ -154,9 +255,9 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
 
     depth_counts_summed = {}
     depth_counts_sum = 0
-    for i in reversed(sorted(depth_maps.keys())):
-        depth_counts_sum += len(depth_maps[i])
-        depth_counts_summed[i] = depth_counts_sum
+    for idx in reversed(sorted(depth_maps.keys())):
+        depth_counts_sum += len(depth_maps[idx])
+        depth_counts_summed[idx] = depth_counts_sum
         #print(str(i)+': '+str(len(depth_maps[i])))
 
     def get_idx_from_depth_maps(r):
