@@ -45,7 +45,7 @@ tf.flags.DEFINE_integer(
 #    'sample_count', 14,
 #    'Amount of samples per tree. This excludes the correct tree.')
 tf.flags.DEFINE_string(
-    'sentence_processor', 'process_sentence7', #'process_sentence8',#'process_sentence3',
+    'sentence_processor', 'process_sentence3', #'process_sentence8',#'process_sentence3',
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_string(
     'tree_mode',
@@ -89,8 +89,7 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
     parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
 
     if not os.path.isfile(out_filename+'.data') \
-            or not os.path.isfile(out_filename + '.parent') \
-            or not os.path.isfile(out_filename + '.depth'):
+            or not os.path.isfile(out_filename + '.parent'):
 
         if parser is None:
             print('load spacy ...')
@@ -142,12 +141,22 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
                                           ntpath.basename(out_filename) + '.depth.batch*')
         for fn in data_batch_files + parent_batch_files + depth_batch_files:
             os.remove(os.path.join(parent_dir, fn))
-
     else:
-        print('load data and parents from files: '+out_filename + ' ...')
-        seq_data = np.load(out_filename+'.data')
+        print('load parents from file: '+out_filename + ' ...')
+        #seq_data = np.load(out_filename+'.data')
         seq_parents = np.load(out_filename+'.parent')
-        seq_depths = np.load(out_filename+'.depth')
+        if os.path.isfile(out_filename + '.depth'):
+            print('load depths from files: ' + out_filename + ' ...')
+            seq_depths = np.load(out_filename+'.depth')
+        else:
+            print('calc children and roots ...')
+            seq_children, seq_roots = preprocessing.children_and_roots(seq_parents)
+            # calc depth for every position
+            print('calc depths ...')
+            seq_depths = -np.ones(len(seq_parents), dtype=np.int)
+            for root in seq_roots:
+                preprocessing.calc_depth(seq_children, seq_parents, seq_depths, root)
+            seq_depths.dump(out_filename + '.depth')
 
     print('collect depth indices in depth_maps ...')
     #depth_maps_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.depth.*')
@@ -170,8 +179,8 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
             if current_depth < max_depth:
                 np.random.shuffle(depths_collected)
                 depths_collected.dump(out_filename+'.depth' + str(current_depth) + '.collected')
-            print('depth: ' + str(current_depth) + ', size: ' + str(
-                len(depth_map[current_depth])) + ', collected_size: ' + str(len(depths_collected)))
+                print('depth: ' + str(current_depth) + ', size: ' + str(
+                    len(depth_map[current_depth])) + ', collected_size: ' + str(len(depths_collected)))
 
     children_depth_batch_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*.batch*')
     children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
@@ -237,7 +246,7 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         collected_child_indices = np.append(collected_child_indices, current_depth_indices)
         np.random.shuffle(collected_child_indices)
         #TODO: re-add! (crashes, files to big?)
-        #collected_child_indices.dump(out_filename + '.children.depth' + str(current_depth)+'.collected')
+        collected_child_indices.dump(out_filename + '.children.depth' + str(current_depth)+'.collected')
         print('depth: ' + str(current_depth) + ', collected_size: '+str(len(collected_child_indices)))
     return
 
@@ -253,6 +262,7 @@ if __name__ == '__main__':
         out_path = out_path + '_' + FLAGS.tree_mode
 
     out_path = out_path + '_articles' + str(FLAGS.max_articles)
+    out_path = out_path + '_maxdepth' + str(FLAGS.max_depth)
 
     nlp = None
     mapping = None
