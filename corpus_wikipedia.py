@@ -33,7 +33,7 @@ tf.flags.DEFINE_string(
     'dict_filename', 'data/nlp/spacy/dict',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_integer(
-    'max_articles', 10000,
+    'max_articles', 1000,
     'How many articles to read.')
 tf.flags.DEFINE_integer(
     'article_batch_size', 250,
@@ -155,17 +155,20 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
     for current_depth in range(max_depth + 1):
         depth_map[current_depth] = []
     for idx, current_depth in enumerate(seq_depths):
+        #if not os.path.isfile(out_filename+'.depths.'+str(current_depth)):
         try:
             depth_map[current_depth].append(idx)
         except KeyError:
             depth_map[current_depth] = [idx]
     print('concatenate and dump depth_maps files ...')
     for current_depth in depth_map.keys():
-        np.array(depth_map[current_depth]).dump(out_filename+'.depths.'+str(current_depth))
+        np.array(depth_map[current_depth]).dump(out_filename+'.depths'+str(current_depth))
 
     children_depth_batch_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*.batch*')
+    children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
+    #children_depth_files = [fn for fn in children_depth_files if fn not in children_depth_batch_files]
 
-    if len(children_depth_batch_files) < max_articles / batch_size:
+    if len(children_depth_batch_files) < max_articles / batch_size and len(children_depth_files) < max_depth:
         for offset in range(0, max_articles, batch_size):
             current_depth_batch_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename)+'.children.depth*.batch'+str(offset))
             # skip, if already processed
@@ -202,7 +205,7 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
             print('process batches for depth=' + str(current_depth) + ' ...')
             l = []
-            current_children_batch_filenames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename)+'.children.depth'+str(current_depth)+'.batch*')
+            current_children_batch_filenames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth' + str(current_depth) + '.batch*')
             if len(current_children_batch_filenames) > 0:
                 for child_index_fn in current_children_batch_filenames:
                     l.append(np.load(os.path.join(parent_dir, child_index_fn)))
@@ -217,6 +220,14 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
                 for fn in current_children_batch_filenames:
                     os.remove(os.path.join(parent_dir, fn))
 
+    print('create shuffled child indices ...')
+    #children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
+    current_child_indices = np.zeros(shape=(2, 0), dtype=int)
+    for current_depth in range(1, max_depth + 1):
+        print('depth: '+str(current_depth))
+        current_child_indices = np.append(current_child_indices, [np.load(out_filename + '.children.depth' + str(current_depth))])
+        np.random.shuffle(current_child_indices)
+        current_child_indices.dump(out_filename + '.children.depth' + str(current_depth)+'.collected')
     return
 
 
