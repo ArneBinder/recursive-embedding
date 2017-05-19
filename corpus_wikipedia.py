@@ -86,7 +86,6 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         print('load data and parents from files: '+out_filename + ' ...')
         seq_data = np.load(out_filename+'.data')
         seq_parents = np.load(out_filename+'.parents')
-        #idx_tuples = np.load(out_filename+'.children')
     else:
         if parser is None:
             print('load spacy ...')
@@ -129,52 +128,24 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
     depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename)+'.children.depth*')
     if len(depth_files) == 0:
         list_idx_tuples = []
-        #map_idx_tuples = {}
         for skip in range(0, max_articles, batch_size):
             print('read child indices for skip='+str(skip) + ' ...')
             current_idx_tuples = np.load(out_filename + '.children.' + str(skip))
             list_idx_tuples.append(current_idx_tuples)
-            #print('convert '+str(len(current_idx_tuples))+' tuples ...')
-            #for x in current_idx_tuples:
-            #    try:
-            #        map_idx_tuples[x[2]] = np.append(map_idx_tuples[x[2]], [x[:2]])
-            #    except KeyError:
-            #        map_idx_tuples[x[2]] = [x[:2]]
-
-        #for child_depth in map_idx_tuples.keys():
-        #    print('dump children indices for depth='+str(child_depth) + ' ...')
-        #    seq_parents.dump(map_idx_tuples[child_depth] + '.children.depth'+str(child_depth) + ' ... '+str(len(map_idx_tuples[child_depth])))
-
-            #list_idx_tuples.append(current_idx_tuples)
         print('concatenate children indices ...')
         idx_tuples = np.concatenate(list_idx_tuples, axis=0)
 
-        #debug
-        #print(idx_tuples)
-
         print('get depths ...')
         children_depths = idx_tuples[:, 2]
-        #debug
-        #print(children_depths)
         print('argsort ...')
         sorted_indices = np.argsort(children_depths)
-        #debug
-        #print(sorted_indices)
         print('find depth changes ...')
-        #next_depth = children_depths[sorted_indices[0]]
         depth_changes = []
         for idx, sort_idx in enumerate(sorted_indices):
             current_depth = children_depths[sort_idx]
-            #last_depth = next_depth
             if idx == len(sorted_indices)-1 or current_depth != children_depths[sorted_indices[idx+1]]:
                 print('new depth: ' + str(current_depth) + ' ends before index pos: ' + str(idx + 1))
                 depth_changes.append((idx+1, current_depth))
-            #if current_depth != last_depth:
-
-                #depth_changes.append((i-1, current_depth))
-                #last_depth = current_depth
-        #depth_changes.append()
-
         prev_end = 0
         for (end, current_depth) in depth_changes:
             size = end - prev_end
@@ -186,16 +157,6 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
             current_indices.dump(out_filename + '.children.depth' + str(current_depth))
             prev_end = end
 
-            #print(current_indices)
-
-        #for idx in range()
-
-
-
-
-        #print(idx_tuples.shape[0])
-        #print('dump concatenated child indices ...')
-        #idx_tuples.dump(out_filename + '.children')
     return
 
     print('data points: '+str(len(seq_data)))
