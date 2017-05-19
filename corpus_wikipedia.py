@@ -33,8 +33,11 @@ tf.flags.DEFINE_string(
     'dict_filename', 'data/nlp/spacy/dict',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_integer(
-    'max_articles', 5000,
+    'max_articles', 10000,
     'How many articles to read.')
+tf.flags.DEFINE_integer(
+    'article_batch_size', 250,
+    'How many articles to process in one batch.')
 tf.flags.DEFINE_integer(
     'max_depth', 10,
     'The maximal depth of the sequence trees.')
@@ -42,7 +45,7 @@ tf.flags.DEFINE_integer(
     'sample_count', 14,
     'Amount of samples per tree. This excludes the correct tree.')
 tf.flags.DEFINE_string(
-    'sentence_processor', 'process_sentence8',#'process_sentence3',
+    'sentence_processor', 'process_sentence7', #''process_sentence8',#'process_sentence3',
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_string(
     'tree_mode',
@@ -82,12 +85,11 @@ def articles_from_csv_reader(filename, max_articles=100, skip=0):
 @tools.fn_timer
 def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, mapping, max_articles=10000, max_depth=10,
                       batch_size=100, sample_count=15, tree_mode=None):
+    # get child indices depth files:
+    parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
 
-    if os.path.isfile(out_filename+'.data'):
-        print('load data and parents from files: '+out_filename + ' ...')
-        seq_data = np.load(out_filename+'.data')
-        seq_parents = np.load(out_filename+'.parents')
-    else:
+    if not os.path.isfile(out_filename+'.data'):
+
         if parser is None:
             print('load spacy ...')
             parser = spacy.load('en')
@@ -123,11 +125,22 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         seq_parents = np.concatenate(list_seq_parents, axis=0)
         seq_parents.dump(out_filename + '.parents')
 
-    # get child indices depth files:
-    parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
+        # remove processed batch files
+        print('remove data and parents batch files ...')
+        data_batch_files = fnmatch.filter(os.listdir(parent_dir),
+                                           ntpath.basename(out_filename) + '.data.batch*')
+        parent_batch_files = fnmatch.filter(os.listdir(parent_dir),
+                                          ntpath.basename(out_filename) + '.parent.batch*')
+        for fn in data_batch_files + parent_batch_files:
+            os.remove(os.path.join(parent_dir, fn))
 
-    depth_batch_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename)+'.children.depth*.batch*')
-    if len(depth_batch_files) == 0:
+    else:
+        print('load data and parents from files: '+out_filename + ' ...')
+        # seq_data = np.load(out_filename+'.data')
+        # seq_parents = np.load(out_filename+'.parents')
+
+    children_depth_batch_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename)+'.children.depth*.batch*')
+    if len(children_depth_batch_files) < max_articles / batch_size:
         #list_idx_tuples = []
         for skip in range(0, max_articles, batch_size):
             print('read child indices for skip='+str(skip) + ' ...')
@@ -158,16 +171,24 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
                 current_indices.dump(out_filename + '.children.depth' + str(current_depth) + '.batch' + str(skip))
                 prev_end = end
 
+        # remove processed batch files
+        print('remove child idx batch files ...')
+        depth_batch_files = fnmatch.filter(os.listdir(parent_dir),
+                                           ntpath.basename(out_filename) + '.children.batch*')
+        for fn in children_depth_batch_files:
+            os.remove(os.path.join(parent_dir, fn))
+
     print('load and concatenate child indices batches ...')
+    p = re.compile('\.depth(\d+)\.batch(\d+)$')
     for current_depth in range(1, max_depth):
         print('process batches for depth=' + str(current_depth) + ' ...')
         l = []
-        p = re.compile('\.depth(\d+)\.batch(\d+)$')
-        for child_index_fn in depth_batch_files:
+        for child_index_fn in children_depth_batch_files:
             r = p.search(child_index_fn)
             loaded_depth = int(r.group(1))
             #batch_skip = int(r.group(2))
             if loaded_depth == current_depth:
+                print('file found: '+child_index_fn)
                 l.append(np.load(os.path.join(parent_dir, child_index_fn)))
         concatenated = np.concatenate(l)
         print('size: '+str(len(concatenated)))
@@ -175,6 +196,11 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         #np.random.shuffle(concatenated)
         print('dump to: ' + out_filename + '.children.depth' + str(current_depth) + ' ...')
         concatenated.dump(out_filename + '.children.depth' + str(current_depth))
+
+    # remove processed batch files
+    print('remove child idx depth batch files ...')
+    for fn in children_depth_batch_files:
+        os.remove(os.path.join(parent_dir, fn))
 
     return
 
@@ -202,6 +228,7 @@ if __name__ == '__main__':
                       max_articles=FLAGS.max_articles,
                       max_depth=FLAGS.max_depth,
                       sample_count=FLAGS.sample_count,
+                      batch_size=FLAGS.article_batch_size,
                       tree_mode=FLAGS.tree_mode)
 
     #print('parse train data ...')
