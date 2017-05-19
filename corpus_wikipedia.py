@@ -160,15 +160,18 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
             depth_map[current_depth].append(idx)
         except KeyError:
             depth_map[current_depth] = [idx]
-    print('concatenate and dump depth_maps files ...')
-    depths_collected = np.array([], dtype=int)
-    for current_depth in reversed(sorted(depth_map.keys())):
-        depths_collected = np.append(depths_collected, depth_map[current_depth])
-        if current_depth < max_depth:
-            np.random.shuffle(depths_collected)
-            depths_collected.dump(out_filename+'.depth' + str(current_depth) + '.collected')
-        print('depth: ' + str(current_depth) + ', size: ' + str(
-            len(depth_map[current_depth])) + ', collected_size: ' + str(len(depths_collected)))
+
+    depths_collected_files = fnmatch.filter(os.listdir(parent_dir),
+                                      ntpath.basename(out_filename) + '.data*.collected')
+    if len(depths_collected_files) < max_depth:
+        depths_collected = np.array([], dtype=int)
+        for current_depth in reversed(sorted(depth_map.keys())):
+            depths_collected = np.append(depths_collected, depth_map[current_depth])
+            if current_depth < max_depth:
+                np.random.shuffle(depths_collected)
+                depths_collected.dump(out_filename+'.depth' + str(current_depth) + '.collected')
+            print('depth: ' + str(current_depth) + ', size: ' + str(
+                len(depth_map[current_depth])) + ', collected_size: ' + str(len(depths_collected)))
 
     children_depth_batch_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*.batch*')
     children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
@@ -226,13 +229,11 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
                 for fn in current_children_batch_filenames:
                     os.remove(os.path.join(parent_dir, fn))
 
-    # TODO: remove!
-    return
     print('create shuffled child indices ...')
     #children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
     collected_child_indices = np.zeros(shape=(2, 0), dtype=int)
     for current_depth in range(1, max_depth + 1):
-        current_depth_indices = np.load(out_filename + '.children.depth' + str(current_depth))
+        current_depth_indices = np.pad(np.load(out_filename + '.children.depth' + str(current_depth)), ((0,0),(0,1)), 'constant', constant_values=((0, 0),(0,current_depth)))
         collected_child_indices = np.append(collected_child_indices, current_depth_indices)
         np.random.shuffle(collected_child_indices)
         #TODO: re-add! (crashes, files to big?)
