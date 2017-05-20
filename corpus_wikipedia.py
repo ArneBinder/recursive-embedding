@@ -8,6 +8,9 @@ import tensorflow as tf
 import numpy as np
 
 import spacy
+
+import constants
+import corpus
 import preprocessing
 import sequence_node_sequence_pb2
 import tools
@@ -24,7 +27,7 @@ tf.flags.DEFINE_string(
     'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
     'The path to the SICK test data file.')
 tf.flags.DEFINE_string(
-    'corpus_data_output_dir', '/home/arne/ML_local/data/corpora/wikipedia', #'/media/arne/WIN/Users/Arne/tf/data/corpora/wikipedia',#'data/corpora/wikipedia',
+    'corpus_data_output_dir', '/media/arne/WIN/Users/Arne/tf/data/corpora/wikipedia',#'data/corpora/wikipedia',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'corpus_data_output_fn', 'WIKIPEDIA',
@@ -96,6 +99,7 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
             parser = spacy.load('en')
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         if mapping is None:
+            # TODO: move to main method (to enable usage of mappings and vecs along several corpora)
             vecs, mapping = preprocessing.create_or_read_dict(FLAGS.dict_filename, parser.vocab)
 
         print('parse articles ...')
@@ -302,4 +306,4 @@ if __name__ == '__main__':
 
     #print('len(mapping): ' + str(len(mapping)))
 
-    #corpus.write_dict(out_path, mapping, nlp.vocab, constants.vocab_manual)
+    corpus.write_dict(out_path, mapping, nlp.vocab, constants.vocab_manual)
