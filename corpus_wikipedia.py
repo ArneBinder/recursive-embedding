@@ -24,7 +24,7 @@ tf.flags.DEFINE_string(
     'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
     'The path to the SICK test data file.')
 tf.flags.DEFINE_string(
-    'corpus_data_output_dir', '/media/arne/WIN/Users/Arne/tf/data/corpora/wikipedia',#'data/corpora/wikipedia',
+    'corpus_data_output_dir', '/home/arne/ML_local/data/corpora/wikipedia', #'/media/arne/WIN/Users/Arne/tf/data/corpora/wikipedia',#'data/corpora/wikipedia',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'corpus_data_output_fn', 'WIKIPEDIA',
@@ -142,11 +142,11 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
         for fn in data_batch_files + parent_batch_files + depth_batch_files:
             os.remove(os.path.join(parent_dir, fn))
     else:
-        print('load parents from file: '+out_filename + ' ...')
+        print('load parents from file: '+out_filename + '.parent ...')
         #seq_data = np.load(out_filename+'.data')
         seq_parents = np.load(out_filename+'.parent')
         if os.path.isfile(out_filename + '.depth'):
-            print('load depths from files: ' + out_filename + ' ...')
+            print('load depths from file: ' + out_filename + '.depth ...')
             seq_depths = np.load(out_filename+'.depth')
         else:
             print('calc children and roots ...')
@@ -156,6 +156,7 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
             seq_depths = -np.ones(len(seq_parents), dtype=np.int)
             for root in seq_roots:
                 preprocessing.calc_depth(seq_children, seq_parents, seq_depths, root)
+            print('dump depths to file: ' + out_filename + '.depth ...')
             seq_depths.dump(out_filename + '.depth')
 
     print('collect depth indices in depth_maps ...')
@@ -238,16 +239,18 @@ def convert_wikipedia(in_filename, out_filename, sentence_processor, parser, map
                 for fn in current_children_batch_filenames:
                     os.remove(os.path.join(parent_dir, fn))
 
-    print('create shuffled child indices ...')
-    #children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
-    collected_child_indices = np.zeros(shape=(2, 0), dtype=int)
-    for current_depth in range(1, max_depth + 1):
-        current_depth_indices = np.pad(np.load(out_filename + '.children.depth' + str(current_depth)), ((0,0),(0,1)), 'constant', constant_values=((0, 0),(0,current_depth)))
-        collected_child_indices = np.append(collected_child_indices, current_depth_indices)
-        np.random.shuffle(collected_child_indices)
-        #TODO: re-add! (crashes, files to big?)
-        collected_child_indices.dump(out_filename + '.children.depth' + str(current_depth)+'.collected')
-        print('depth: ' + str(current_depth) + ', collected_size: '+str(len(collected_child_indices)))
+    #print('create shuffled child indices ...')
+    ##children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
+    #collected_child_indices = np.zeros(shape=(2, 0), dtype=int)
+    #for current_depth in range(1, max_depth + 1):
+    #    current_depth_indices = np.pad(np.load(out_filename + '.children.depth' + str(current_depth)), ((0,0),(0,1)), 'constant', constant_values=((0, 0),(0,current_depth)))
+    #    collected_child_indices = np.append(collected_child_indices, current_depth_indices)
+    #    if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)+'.collected'):
+    #        np.random.shuffle(collected_child_indices)
+    #        print(len(collected_child_indices))
+    #        #TODO: re-add! (crashes, files to big?)
+    #        collected_child_indices.dump(out_filename + '.children.depth' + str(current_depth)+'.collected')
+    #        print('depth: ' + str(current_depth) + ', collected_size: '+str(len(collected_child_indices)))
     return
 
 
@@ -263,6 +266,8 @@ if __name__ == '__main__':
 
     out_path = out_path + '_articles' + str(FLAGS.max_articles)
     out_path = out_path + '_maxdepth' + str(FLAGS.max_depth)
+
+    print('output base file name: '+out_path)
 
     nlp = None
     mapping = None
