@@ -783,11 +783,15 @@ def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
                     len(depth_map[current_depth])) + ', collected_size: ' + str(len(depths_collected)))
 
 
+def batch_file_count(total_count, batch_size):
+    return total_count / batch_size + (total_count % batch_size > 0)
+
+
 def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size):
     children_depth_batch_files = fnmatch.filter(os.listdir(parent_dir),
                                                 ntpath.basename(out_filename) + '.children.depth*.batch*')
     children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
-    if len(children_depth_batch_files) < max_articles / batch_size and len(children_depth_files) < max_depth:
+    if len(children_depth_batch_files) < batch_file_count(max_articles, batch_size) and len(children_depth_files) < max_depth:
         for offset in range(0, max_articles, batch_size):
             current_depth_batch_files = fnmatch.filter(os.listdir(parent_dir),
                                                        ntpath.basename(out_filename) + '.children.depth*.batch' + str(
@@ -815,7 +819,7 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
                     current_indices = np.zeros(shape=(size, 2), dtype=int)
                     for idx in range(size):
                         current_indices[idx] = current_idx_tuples[sorted_indices[prev_end + idx]][:2]
-                    print('dump children indices with depth difference (path length from root to child): ' + str(
+                    print('dump children indices with distance (path length from root to child): ' + str(
                         current_depth) + ' ...')
                     current_indices.dump(out_filename + '.children.depth' + str(current_depth) + '.batch' + str(offset))
                     prev_end = end
@@ -840,7 +844,7 @@ def concat_children_indices(out_filename, parent_dir, max_depth):
                 print('size: ' + str(len(concatenated)))
                 # print('shuffle ...')
                 # np.random.shuffle(concatenated)
-                print('dump to: ' + out_filename + '.children.depth' + str(current_depth) + ' ...')
+                #print('dump to: ' + out_filename + '.children.depth' + str(current_depth) + ' ...')
                 concatenated.dump(out_filename + '.children.depth' + str(current_depth))
                 # remove processed batch files
                 for fn in current_children_batch_filenames:
@@ -853,7 +857,7 @@ def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
     collected_child_indices = np.zeros(shape=(0, 3), dtype=int)
     for current_depth in range(1, max_depth + 1):
         if not os.path.isfile(out_filename + '.children.depth' + str(current_depth) + '.collected'):
-            print('load: ' + out_filename + '.children.depth' + str(current_depth))
+            #print('load: ' + out_filename + '.children.depth' + str(current_depth))
             current_depth_indices = np.load(out_filename + '.children.depth' + str(current_depth))
             current_depth_indices = np.pad(current_depth_indices, ((0, 0), (0, 1)),
                                            'constant', constant_values=((0, 0), (0, current_depth)))

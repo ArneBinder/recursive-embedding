@@ -127,6 +127,7 @@ def convert_wikipedia(in_filename, out_filename, dict_filename, sentence_process
 
 
 def parse_articles(out_filename, parent_dir, in_filename, parser, mapping, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
+    # TODO: count types! (to enable cutting of lexicon)
     print('parse articles ...')
     for offset in range(0, max_articles, batch_size):
         if not os.path.isfile(out_filename + '.data.batch' + str(offset)):
@@ -203,6 +204,7 @@ if __name__ == '__main__':
                       max_depth=FLAGS.max_depth,
                       #sample_count=FLAGS.sample_count,
                       batch_size=FLAGS.article_batch_size)
+    print('len(mapping): '+str(len(mapping)))
 
     #print('parse train data ...')
     #convert_sick(FLAGS.corpus_data_input_train,

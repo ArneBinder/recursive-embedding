@@ -183,32 +183,54 @@ class SequenceTreeEmbeddingSequence(object):
         def squz(x):
             return tf.squeeze(x, [1])
 
-        # takes a sequence of scalars and an index as input
-        # and returns the n-th scalar normalized by the sum
+        first = td.Composition()
+        with first.scope():
+            def z(a):
+                return 0
+            x = td.InputTransform(z)
+            nth_ = td.Nth().reads(first.input, x)
+            first.output.reads(nth_)
+
+        # takes a sequence of scalars as input
+        # and returns the first scalar normalized by the sum
         # of all the scalars
-        norm = td.Composition()
-        with norm.scope():
-            sum_ = td.Reduce(td.Function(tf.add)).reads(norm.input[0])
-            nth_ = td.Nth().reads(norm.input[0], norm.input[1])
+        norm_first = td.Composition()
+        with norm_first.scope():
+            sum_ = td.Reduce(td.Function(tf.add)).reads(norm_first.input)
+            nth_ = first.reads(norm_first.input)
             normed_nth = td.Function(tf.div).reads(nth_, sum_)
-            norm.output.reads(normed_nth)
+            norm_first.output.reads(normed_nth)
+
+        ## takes a sequence of scalars and an index as input
+        ## and returns the n-th scalar normalized by the sum
+        ## of all the scalars
+        #norm = td.Composition()
+        #with norm.scope():
+        #    sum_ = td.Reduce(td.Function(tf.add)).reads(norm.input[0])
+        #    nth_ = td.Nth().reads(norm.input[0], norm.input[1])
+        #    normed_nth = td.Function(tf.div).reads(nth_, sum_)
+        #    norm.output.reads(normed_nth)
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
             tree_logits = td.Map(sequence_tree_block(embeddings, sc)
                                  >> scoring_fc >> td.Function(squz) >> td.Function(tf.exp))
 
-        softmax_correct = td.AllOf(td.GetItem('trees') >> tree_logits, td.GetItem('idx_correct')) >> norm
+        #softmax_correct = td.AllOf(td.GetItem('trees') >> tree_logits, td.GetItem('idx_correct')) >> norm
+        softmax_correct = td.GetItem('trees') >> tree_logits >> norm_first
 
         self._compiler = td.Compiler.create(softmax_correct)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
-        self._softmax_correct = self._compiler.output_tensors
+        self._softmax_correct,  = self._compiler.output_tensors
 
         self._loss = tf.reduce_mean(-tf.log(self._softmax_correct))
 
         self._global_step = tf.Variable(0, name='global_step', trainable=False)
         optr = tf.train.GradientDescentOptimizer(0.01)
         self._train_op = optr.minimize(self._loss, global_step=self._global_step)
+        tf.summary.scalar('loss', self._loss)
+        self._acc = tf.reduce_mean(self._softmax_correct)
+        tf.summary.scalar('acc', self._acc)
 
     @property
     def softmax_correct(self):
@@ -217,6 +239,10 @@ class SequenceTreeEmbeddingSequence(object):
     @property
     def loss(self):
         return self._loss
+
+    @property
+    def accuracy(self):
+        return self._acc
 
     @property
     def train_op(self):

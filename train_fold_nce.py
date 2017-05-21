@@ -15,13 +15,13 @@ import random
 # Replication flags:
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log', #'/home/arne/tmp/tf/log',
                        'Directory in which to write event logs and model checkpoints.')
-tf.flags.DEFINE_string('train_data_path', '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence2/WIKIPEDIA_articles1000_maxdepth10',#'/home/arne/tmp/tf/log/model.ckpt-976',
+tf.flags.DEFINE_string('train_data_path', '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#'/home/arne/tmp/tf/log/model.ckpt-976',
                        'train data base path (without extension)')
 #tf.flags.DEFINE_string('data_mapping_path', 'data/nlp/spacy/dict.mapping',
 #                       'model file')
 tf.flags.DEFINE_string('train_dict_file', 'data/nlp/spacy/dict.vecs',
                        'A file containing a numpy array which is used to initialize the embedding vectors.')
-tf.flags.DEFINE_integer('pad_embeddings_to_size', 1300000,
+tf.flags.DEFINE_integer('pad_embeddings_to_size', 1310000,
                         'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
                         '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
                         'mark identity). This value has to be larger then the initial gloVe size ()')
@@ -29,9 +29,9 @@ tf.flags.DEFINE_integer('max_depth', 10,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
-tf.flags.DEFINE_integer('batch_size', 100,#250,
+tf.flags.DEFINE_integer('batch_size', 250,
                         'How many samples to read per batch.')
-tf.flags.DEFINE_integer('max_steps', 10,
+tf.flags.DEFINE_integer('max_steps', 1000,
                         'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
@@ -98,18 +98,22 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
 
         max_candidate_depth = max_depth - path_len
         seq_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
-        seq_tree_seq.idx_correct = 0
+        #seq_tree_seq.idx_correct = 0
+
         # add correct tree
-        preprocessing.build_sequence_tree_with_candidate(seq_data, children, idx, idx_child, max_depth,
-                                                         max_candidate_depth, idx_child,
+        preprocessing.build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx,
+                                                         insert_idx=idx_child, candidate_idx=idx_child,
+                                                         max_depth=max_depth, max_candidate_depth=max_candidate_depth,
                                                          seq_tree=seq_tree_seq.trees.add())
         # add samples
         for _ in range(sample_count):
             candidate_idx = np.random.choice(depths_collected)
-            preprocessing.build_sequence_tree_with_candidate(seq_data, children, idx, idx_child, max_depth,
-                                                             max_candidate_depth, candidate_idx,
+            preprocessing.build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx,
+                                                             insert_idx=idx_child, candidate_idx=candidate_idx,
+                                                             max_depth=max_depth, max_candidate_depth=max_candidate_depth,
                                                              seq_tree=seq_tree_seq.trees.add())
         #pp.pprint(seq_tree_seq)
+        #print('')
         yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + PROTO_CLASS, seq_tree_seq.SerializeToString())
 
 
@@ -129,8 +133,9 @@ def main(unused_argv):
     # load corpus data
     print('load corpus data from: '+FLAGS.train_data_path + '.data ...')
     seq_data = np.load(FLAGS.train_data_path + '.data')
+    seq_parents = np.load(FLAGS.train_data_path + '.parent')
     print('calc children ...')
-    children, roots = preprocessing.children_and_roots(seq_data)
+    children, roots = preprocessing.children_and_roots(seq_parents)
 
     current_max_depth = 1
     train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
@@ -145,7 +150,7 @@ def main(unused_argv):
                                                     'from file ' + FLAGS.train_dict_file
         embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
 
-    with tf.Graph().as_default():
+    with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, embedding_dim]), trainable=True, name='embeddings')
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, embedding_dim])
@@ -155,8 +160,13 @@ def main(unused_argv):
 
             softmax_correct = trainer.softmax_correct
             loss = trainer.loss
+            acc = trainer.accuracy
             train_op = trainer.train_op
             global_step = trainer.global_step
+
+            # Merge all the summaries and write them out to /tmp/mnist_logs (by default)
+            merged = tf.summary.merge_all()
+            train_writer = tf.summary.FileWriter(FLAGS.logdir + '/train', graph)
 
             # collect important variables
             scoring_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCORING_SCOPE)
@@ -173,18 +183,21 @@ def main(unused_argv):
                     input_checkpoint = checkpoint.model_checkpoint_path
                     print('restore model from: '+input_checkpoint)
                     saver.restore(sess, input_checkpoint)
-
+                step = 0
                 for _ in xrange(FLAGS.max_steps):
                     batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
-                    #batch = list(parse_iterator(
-                    #    [([u'Hallo.'], 0)],
-                    #    nlp, preprocessing.process_sentence3, data_maps))
-
                     fdict = trainer.build_feed_dict(batch)
-                    _, step, loss_v, smax_correct = sess.run([train_op, global_step, loss, softmax_correct], feed_dict=fdict)
-                    #print(loss_v)
-                    print('step=%d: loss=%f' % (step, loss_v))
-                    #print(smax_correct)
+                    if step % 10 == 0:
+                        summary, _, step, loss_v, accuracy = sess.run([merged, train_op, global_step, loss, acc],
+                                                                      feed_dict=fdict)
+                        train_writer.add_summary(summary, step)
+                    else:
+                        _, step, loss_v, accuracy = sess.run([train_op, global_step, loss, acc], feed_dict=fdict)
+                    print('step=%d: loss=%f    accuracy=%f' % (step, loss_v, accuracy))
+
+                    if step % 200 == 0:
+                        saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt-' + str(step)))
+
                 saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt-'+str(step)))
 
 
