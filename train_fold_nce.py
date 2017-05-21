@@ -179,6 +179,7 @@ def main(unused_argv):
                     print('step=%d: loss=%f    accuracy=%f' % (step, loss_v, accuracy))
 
                     if step % 200 == 0:
+                        print('save checkpoint ...')
                         saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
 
                 saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
