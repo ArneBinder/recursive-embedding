@@ -65,6 +65,11 @@ def test_read_data_2():
                               args={'content': sentence})  # , tree_mode='sequence')
     print(res)
 
+
+def test_collected_shuffled_child_indices():
+    x = preprocessing.collected_shuffled_child_indices('/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10', 1)
+    print(x.shape)
+
 if __name__ == '__main__':
     #ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     #td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
@@ -73,8 +78,9 @@ if __name__ == '__main__':
     #td.proto_tools.import_proto_file('sequence_node_candidates.proto')
     #test_depth()
     #test_build_build_sequence_tree_with_candidate()
-    test_get_all_children()
+    #test_get_all_children()
     #test_read_data_2()
+    test_collected_shuffled_child_indices()
 
 
 

@@ -1,16 +1,19 @@
 from __future__ import print_function
+
+import fnmatch
+import ntpath
+
 import numpy as np
 import pickle
 import os
 
-from tools import fn_timer, getOrAdd
 import tools
 import constants
 import sequence_node_pb2
 import sequence_node_candidates_pb2
 
 
-@fn_timer
+#@tools.fn_timer
 def get_word_embeddings(vocab):
     #vecs = np.ndarray(shape=(len(vocab)+1, vocab.vectors_length), dtype=np.float32)
     vecs = np.ndarray(shape=(len(vocab), vocab.vectors_length), dtype=np.float32)
@@ -39,7 +42,7 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset)
 
     return sen_data, sen_parents, root_offset
@@ -56,10 +59,10 @@ def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset * 2)
         # add edge type embedding
-        sen_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
@@ -75,16 +78,16 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset * 4)
         # add word embedding embedding
-        sen_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
         sen_parents.append(-1)
         # add edge type embedding
-        sen_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
         sen_parents.append(-2)
         # add edge type embedding embedding
-        sen_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
@@ -102,17 +105,17 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
         # add edge type embedding
-        a_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
         a_parents.append(-1)
         # add entity type
         if token.ent_type != 0:
-            a_data.append(getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
             a_parents.append(-2)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -157,26 +160,26 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
 
         # add word type type embedding
-        a_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
         a_parents.append(-1)
         # add edge type embedding
-        a_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
         a_parents.append(-2)
         # add edge type type embedding
-        a_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
         a_parents.append(-1)
         # add entity type
         if token.ent_type != 0:
-            a_data.append(getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
             a_parents.append(-4)
-            a_data.append(getOrAdd(data_maps, constants.ENTITY_TYPE_EMBEDDING, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.ENTITY_TYPE_EMBEDDING, dict_unknown))
             a_parents.append(-1)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -222,26 +225,26 @@ def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
 
         # add edge type embedding
-        a_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
         a_parents.append(-len(a_data))
         # add pos-tag type embedding
-        a_data.append(getOrAdd(data_maps, token.tag, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.tag, dict_unknown))
         a_parents.append(-len(a_data))
 
         # add entity type embedding
         if token.ent_type != 0:
-            a_data.append(getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
             a_parents.append(-len(a_data))
         # add lemma type embedding
         if token.lemma != token.orth:
-            a_data.append(getOrAdd(data_maps, token.lemma, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.lemma, dict_unknown))
             a_parents.append(-len(a_data))
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -287,41 +290,41 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
 
         # add word type type embedding
-        a_data.append(getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
         a_parents.append(-len(a_data))
         # add edge type embedding
-        a_data.append(getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
         a_parents.append(-len(a_data))
         # add edge type type embedding
-        a_data.append(getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
         a_parents.append(-1)
         # add pos-tag type embedding
-        a_data.append(getOrAdd(data_maps, token.tag, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.tag, dict_unknown))
         a_parents.append(-len(a_data))
         # add pos-tag type type embedding
-        a_data.append(getOrAdd(data_maps, constants.POS_TAG_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.POS_TAG_EMBEDDING, dict_unknown))
         a_parents.append(-1)
 
         # add entity type embedding
         if token.ent_type != 0:
-            a_data.append(getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
             a_parents.append(-len(a_data))
             # add entity type type embedding
-            a_data.append(getOrAdd(data_maps, constants.ENTITY_TYPE_EMBEDDING, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.ENTITY_TYPE_EMBEDDING, dict_unknown))
             a_parents.append(-1)
         # add lemma type embedding
         if token.lemma != token.orth:
-            a_data.append(getOrAdd(data_maps, token.lemma, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.lemma, dict_unknown))
             a_parents.append(-len(a_data))
             # add lemma type type embedding
-            a_data.append(getOrAdd(data_maps, constants.LEMMA_EMBEDDING, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.LEMMA_EMBEDDING, dict_unknown))
             a_parents.append(-1)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -429,7 +432,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
                 if len(seq_data) > start_idx:
                     seq_parents[-1] = 0
             elif tree_mode == 'aggregate':
-                TERMINATOR_id = getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+                TERMINATOR_id = tools.getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
                 for idx in range(start_idx, len(seq_data)):
                     seq_parents[idx] = len(seq_data) - idx
                 seq_data.append(TERMINATOR_id)
@@ -525,7 +528,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
                 if len(seq_data) > start_idx:
                     seq_parents[-1] = 0
             elif tree_mode == 'aggregate':
-                TERMINATOR_id = getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+                TERMINATOR_id = tools.getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
                 for idx in range(start_idx, len(seq_data)):
                     seq_parents[idx] = len(seq_data) - idx
                 seq_data.append(TERMINATOR_id)
@@ -754,6 +757,115 @@ def create_or_read_dict(fn, vocab):
     return v, m
 
 
+def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
+    print('collect depth indices in depth_maps ...')
+    # depth_maps_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.depth.*')
+    depth_map = {}
+    for current_depth in range(max_depth + 1):
+        depth_map[current_depth] = []
+    for idx, current_depth in enumerate(seq_depths):
+        # if not os.path.isfile(out_filename+'.depth.'+str(current_depth)):
+        try:
+            depth_map[current_depth].append(idx)
+        except KeyError:
+            depth_map[current_depth] = [idx]
+
+    depths_collected_files = fnmatch.filter(os.listdir(parent_dir),
+                                            ntpath.basename(out_filename) + '.data*.collected')
+    if len(depths_collected_files) < max_depth:
+        depths_collected = np.array([], dtype=int)
+        for current_depth in reversed(sorted(depth_map.keys())):
+            depths_collected = np.append(depths_collected, depth_map[current_depth])
+            if current_depth < max_depth:
+                np.random.shuffle(depths_collected)
+                depths_collected.dump(out_filename + '.depth' + str(current_depth) + '.collected')
+                print('depth: ' + str(current_depth) + ', size: ' + str(
+                    len(depth_map[current_depth])) + ', collected_size: ' + str(len(depths_collected)))
+
+
+def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size):
+    children_depth_batch_files = fnmatch.filter(os.listdir(parent_dir),
+                                                ntpath.basename(out_filename) + '.children.depth*.batch*')
+    children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
+    if len(children_depth_batch_files) < max_articles / batch_size and len(children_depth_files) < max_depth:
+        for offset in range(0, max_articles, batch_size):
+            current_depth_batch_files = fnmatch.filter(os.listdir(parent_dir),
+                                                       ntpath.basename(out_filename) + '.children.depth*.batch' + str(
+                                                           offset))
+            # skip, if already processed
+            if len(current_depth_batch_files) < max_depth:
+                print('read child indices for offset=' + str(offset) + ' ...')
+                current_idx_tuples = np.load(out_filename + '.children.batch' + str(offset))
+                print(len(current_idx_tuples))
+                print('get depths ...')
+                children_depths = current_idx_tuples[:, 2]
+                print('argsort ...')
+                sorted_indices = np.argsort(children_depths)
+                print('find depth changes ...')
+                depth_changes = []
+                for idx, sort_idx in enumerate(sorted_indices):
+                    current_depth = children_depths[sort_idx]
+                    if idx == len(sorted_indices) - 1 or current_depth != children_depths[sorted_indices[idx + 1]]:
+                        print('new depth: ' + str(current_depth) + ' ends before index pos: ' + str(idx + 1))
+                        depth_changes.append((idx + 1, current_depth))
+                prev_end = 0
+                for (end, current_depth) in depth_changes:
+                    size = end - prev_end
+                    print('size: ' + str(size))
+                    current_indices = np.zeros(shape=(size, 2), dtype=int)
+                    for idx in range(size):
+                        current_indices[idx] = current_idx_tuples[sorted_indices[prev_end + idx]][:2]
+                    print('dump children indices with depth difference (path length from root to child): ' + str(
+                        current_depth) + ' ...')
+                    current_indices.dump(out_filename + '.children.depth' + str(current_depth) + '.batch' + str(offset))
+                    prev_end = end
+                # remove processed batch file
+                os.remove(out_filename + '.children.batch' + str(offset))
+
+
+def concat_children_indices(out_filename, parent_dir, max_depth):
+    print('load and concatenate child indices batches ...')
+    for current_depth in range(1, max_depth + 1):
+        if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
+            print('process batches for depth=' + str(current_depth) + ' ...')
+            l = []
+            current_children_batch_filenames = fnmatch.filter(os.listdir(parent_dir),
+                                                              ntpath.basename(out_filename) + '.children.depth' + str(
+                                                                  current_depth) + '.batch*')
+            if len(current_children_batch_filenames) > 0:
+                for child_index_fn in current_children_batch_filenames:
+                    l.append(np.load(os.path.join(parent_dir, child_index_fn)))
+                print('concatenate ...')
+                concatenated = np.concatenate(l, axis=0)
+                print('size: ' + str(len(concatenated)))
+                # print('shuffle ...')
+                # np.random.shuffle(concatenated)
+                print('dump to: ' + out_filename + '.children.depth' + str(current_depth) + ' ...')
+                concatenated.dump(out_filename + '.children.depth' + str(current_depth))
+                # remove processed batch files
+                for fn in current_children_batch_filenames:
+                    os.remove(os.path.join(parent_dir, fn))
+
+
+def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
+    print('create shuffled child indices ...')
+    # children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
+    collected_child_indices = np.zeros(shape=(0, 3), dtype=int)
+    for current_depth in range(1, max_depth + 1):
+        if not os.path.isfile(out_filename + '.children.depth' + str(current_depth) + '.collected'):
+            print('load: ' + out_filename + '.children.depth' + str(current_depth))
+            current_depth_indices = np.load(out_filename + '.children.depth' + str(current_depth))
+            current_depth_indices = np.pad(current_depth_indices, ((0, 0), (0, 1)),
+                                           'constant', constant_values=((0, 0), (0, current_depth)))
+            collected_child_indices = np.append(collected_child_indices, current_depth_indices, axis=0)
+            np.random.shuffle(collected_child_indices)
+            if dump:
+                # TODO: re-add! (crashes, files to big? --> cpickle size constraint! (2**32 -1))
+                collected_child_indices.dump(out_filename + '.children.depth' + str(current_depth) + '.collected')
+            print('depth: ' + str(current_depth) + ', collected_size: ' + str(len(collected_child_indices)))
+        else:
+            collected_child_indices = np.load(out_filename + '.children.depth' + str(current_depth) + '.collected')
+    return collected_child_indices
 
 
 
