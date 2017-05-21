@@ -29,9 +29,9 @@ tf.flags.DEFINE_integer('max_depth', 10,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
-tf.flags.DEFINE_integer('batch_size', 250,
+tf.flags.DEFINE_integer('batch_size', 250, #1000,
                         'How many samples to read per batch.')
-tf.flags.DEFINE_integer('max_steps', 1000,
+tf.flags.DEFINE_integer('max_steps', 20000, #5000,
                         'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
@@ -91,30 +91,13 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     print('load depths from: '+corpus_path + '.depth'+str(max_depth-1)+'.collected')
     depths_collected = np.load(corpus_path + '.depth'+str(max_depth-1)+'.collected')
     print('current depth size: '+str(len(depths_collected)))
-    for child_tuple in children_indices:
-        idx = child_tuple[0]
-        idx_child = child_tuple[1]
-        path_len = child_tuple[2]
-
-        max_candidate_depth = max_depth - path_len
-        seq_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
-        #seq_tree_seq.idx_correct = 0
-
-        # add correct tree
-        preprocessing.build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx,
-                                                         insert_idx=idx_child, candidate_idx=idx_child,
-                                                         max_depth=max_depth, max_candidate_depth=max_candidate_depth,
-                                                         seq_tree=seq_tree_seq.trees.add())
-        # add samples
-        for _ in range(sample_count):
-            candidate_idx = np.random.choice(depths_collected)
-            preprocessing.build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx,
-                                                             insert_idx=idx_child, candidate_idx=candidate_idx,
-                                                             max_depth=max_depth, max_candidate_depth=max_candidate_depth,
-                                                             seq_tree=seq_tree_seq.trees.add())
-        #pp.pprint(seq_tree_seq)
-        #print('')
-        yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + PROTO_CLASS, seq_tree_seq.SerializeToString())
+    # repeat infinitely
+    while True:
+        for child_tuple in children_indices:
+            seq_tree_seq = preprocessing.create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count,
+                                                             depths_collected)
+            yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
+                                                            seq_tree_seq.SerializeToString())
 
 
 def main(unused_argv):
@@ -158,7 +141,7 @@ def main(unused_argv):
 
             trainer = model_fold.SequenceTreeEmbeddingSequence(embed_w)
 
-            softmax_correct = trainer.softmax_correct
+            #softmax_correct = trainer.softmax_correct
             loss = trainer.loss
             acc = trainer.accuracy
             train_op = trainer.train_op
@@ -196,9 +179,9 @@ def main(unused_argv):
                     print('step=%d: loss=%f    accuracy=%f' % (step, loss_v, accuracy))
 
                     if step % 200 == 0:
-                        saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt-' + str(step)))
+                        saver.save(sess, 'model', global_step=step)
 
-                saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt-'+str(step)))
+                saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
 
 
 if __name__ == '__main__':

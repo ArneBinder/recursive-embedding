@@ -7,10 +7,12 @@ import numpy as np
 import pickle
 import os
 
+import sequence_node_sequence_pb2
 import tools
 import constants
 import sequence_node_pb2
 import sequence_node_candidates_pb2
+import tensorflow_fold as td
 
 
 #@tools.fn_timer
@@ -871,5 +873,28 @@ def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
             collected_child_indices = np.load(out_filename + '.children.depth' + str(current_depth) + '.collected')
     return collected_child_indices
 
+
+def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count, depths_collected):
+    idx = child_tuple[0]
+    idx_child = child_tuple[1]
+    path_len = child_tuple[2]
+
+    max_candidate_depth = max_depth - path_len
+    seq_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
+    # seq_tree_seq.idx_correct = 0
+
+    # add correct tree
+    build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
+                                       candidate_idx=idx_child, max_depth=max_depth,
+                                       max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
+    # add samples
+    for _ in range(sample_count):
+        candidate_idx = np.random.choice(depths_collected)
+        build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
+                                           candidate_idx=candidate_idx, max_depth=max_depth,
+                                           max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
+    # pp.pprint(seq_tree_seq)
+    # print('')
+    return seq_tree_seq
 
 
