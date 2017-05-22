@@ -39,7 +39,7 @@ tf.flags.DEFINE_integer(
     'max_articles', 1000,
     'How many articles to read.')
 tf.flags.DEFINE_integer(
-    'article_batch_size', 250,
+    'article_batch_size', 1000,
     'How many articles to process in one batch.')
 tf.flags.DEFINE_integer(
     'max_depth', 10,
@@ -48,7 +48,7 @@ tf.flags.DEFINE_integer(
 #    'sample_count', 14,
 #    'Amount of samples per tree. This excludes the correct tree.')
 tf.flags.DEFINE_string(
-    'sentence_processor', 'process_sentence7', #'process_sentence8',#'process_sentence3',
+    'sentence_processor', 'process_sentence3', #'process_sentence8',#'process_sentence3',
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_string(
     'tree_mode',
@@ -86,10 +86,10 @@ def articles_from_csv_reader(filename, max_articles=100, skip=0):
 
 
 @tools.fn_timer
-def convert_wikipedia(in_filename, out_filename, dict_filename, sentence_processor, parser, mapping, max_articles=10000,
+def convert_wikipedia(in_filename, out_filename, dict_filename, sentence_processor, parser, mapping, vecs, max_articles=10000,
                       max_depth=10, batch_size=100, tree_mode=None):
     parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
-
+    out_base_name = ntpath.basename(out_filename)
     if not os.path.isfile(out_filename+'.data') \
             or not os.path.isfile(out_filename + '.parent'):
 
@@ -97,14 +97,32 @@ def convert_wikipedia(in_filename, out_filename, dict_filename, sentence_process
             print('load spacy ...')
             parser = spacy.load('en')
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
-        if mapping is None:
-            vecs, mapping = preprocessing.create_or_read_dict(dict_filename, parser.vocab)
+        if mapping or vecs is None:
+            if os.path.isfile(out_filename + '.mapping') and os.path.isfile(out_filename + '.vecs'):
+                vecs, mapping = preprocessing.create_or_read_dict(out_filename, parser.vocab)
+            else:
+                vecs, mapping = preprocessing.create_or_read_dict(dict_filename, parser.vocab)
         seq_data, seq_parents, seq_depths, mapping = parse_articles(out_filename, parent_dir, in_filename, parser,
                                                                     mapping, sentence_processor, max_depth,
                                                                     max_articles, batch_size, tree_mode)
+        seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs)
+        # TODO: save sorted seq_data, mapping, vecs! In the end doesn't work, if it is canceled between
+        # debug
+        mapping_reverted = tools.revert_mapping(mapping)
+        for i, count in enumerate(counts):
+            orth_id = mapping_reverted[i]
+            if orth_id < 0:
+                orth = constants.vocab_manual[orth_id]
+            else:
+                orth = parser.vocab[orth_id].orth_
+            print(orth + ': ' + str(count))
+            if i > 100:
+                break
+        # debug end
+
     else:
         print('load parents from file: '+out_filename + '.parent ...')
-        #seq_data = np.load(out_filename+'.data')
+        seq_data = np.load(out_filename+'.data')
         seq_parents = np.load(out_filename+'.parent')
         if os.path.isfile(out_filename + '.depth'):
             print('load depths from file: ' + out_filename + '.depth ...')
@@ -120,17 +138,27 @@ def convert_wikipedia(in_filename, out_filename, dict_filename, sentence_process
             print('dump depths to file: ' + out_filename + '.depth ...')
             seq_depths.dump(out_filename + '.depth')
 
+
+
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
     preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
-    preprocessing.concat_children_indices(out_filename, parent_dir, max_depth)
-    return parser, mapping
+    #preprocessing.concat_children_indices(out_filename, parent_dir, max_depth)
+
+    print('load and concatenate child indices batches ...')
+    for current_depth in range(1, max_depth + 1):
+        if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
+            preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth) + '.batch*', parent_dir)
+
+    return parser, mapping, vecs
 
 
-def parse_articles(out_filename, parent_dir, in_filename, parser, mapping, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
+def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
+    out_fn = ntpath.basename(out_path)
+
     # TODO: count types! (to enable cutting of lexicon)
     print('parse articles ...')
     for offset in range(0, max_articles, batch_size):
-        if not os.path.isfile(out_filename + '.data.batch' + str(offset)):
+        if not os.path.isfile(out_path + '.data.batch' + str(offset)):
             current_seq_data, current_seq_parents, current_idx_tuples, current_seq_depths = preprocessing.read_data_2(
                 articles_from_csv_reader,
                 sentence_processor, parser, mapping,
@@ -141,37 +169,14 @@ def parse_articles(out_filename, parent_dir, in_filename, parser, mapping, sente
                 batch_size=batch_size,
                 tree_mode=tree_mode)
             print('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
-            current_seq_data.dump(out_filename + '.data.batch' + str(offset))
-            current_seq_parents.dump(out_filename + '.parent.batch' + str(offset))
-            current_seq_depths.dump(out_filename + '.depth.batch' + str(offset))
-            current_idx_tuples.dump(out_filename + '.children.batch' + str(offset))
+            current_seq_data.dump(out_path + '.data.batch' + str(offset))
+            current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
+            current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
+            current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
 
-    list_seq_data = []
-    list_seq_parents = []
-    list_seq_depths = []
-    for offset in range(0, max_articles, batch_size):
-        print('read data, parents and depths for offset=' + str(offset) + ' ...')
-        list_seq_data.append(np.load(out_filename + '.data.batch' + str(offset)))
-        list_seq_parents.append(np.load(out_filename + '.parent.batch' + str(offset)))
-        list_seq_depths.append(np.load(out_filename + '.depth.batch' + str(offset)))
-    print('dump concatenated data, parents and depths ...')
-    seq_data = np.concatenate(list_seq_data, axis=0)
-    seq_data.dump(out_filename + '.data')
-    seq_parents = np.concatenate(list_seq_parents, axis=0)
-    seq_parents.dump(out_filename + '.parent')
-    seq_depths = np.concatenate(list_seq_depths, axis=0)
-    seq_depths.dump(out_filename + '.depth')
-
-    # remove processed batch files
-    print('remove data, parents and depths batch files ...')
-    data_batch_files = fnmatch.filter(os.listdir(parent_dir),
-                                      ntpath.basename(out_filename) + '.data.batch*')
-    parent_batch_files = fnmatch.filter(os.listdir(parent_dir),
-                                        ntpath.basename(out_filename) + '.parent.batch*')
-    depth_batch_files = fnmatch.filter(os.listdir(parent_dir),
-                                       ntpath.basename(out_filename) + '.depth.batch*')
-    for fn in data_batch_files + parent_batch_files + depth_batch_files:
-        os.remove(os.path.join(parent_dir, fn))
+    seq_data = preprocessing.merge_numpy_batch_files(out_fn+'.data.batch*', parent_dir)
+    seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent.batch*', parent_dir)
+    seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth.batch*', parent_dir)
 
     return seq_data, seq_parents, seq_depths, mapping
 
@@ -193,17 +198,19 @@ if __name__ == '__main__':
 
     nlp = None
     mapping = None
+    vecs = None
     #print('handle train data ...')
-    nlp, mapping = convert_wikipedia(FLAGS.corpus_data_input_train,
-                      out_path,
-                      FLAGS.dict_filename,
-                      sentence_processor,
-                      nlp,
-                      mapping,
-                      max_articles=FLAGS.max_articles,
-                      max_depth=FLAGS.max_depth,
-                      #sample_count=FLAGS.sample_count,
-                      batch_size=FLAGS.article_batch_size)
+    nlp, mapping, vecs = convert_wikipedia(FLAGS.corpus_data_input_train,
+                                           out_path,
+                                           FLAGS.dict_filename,
+                                           sentence_processor,
+                                           nlp,
+                                           mapping,
+                                           vecs,
+                                           max_articles=FLAGS.max_articles,
+                                           max_depth=FLAGS.max_depth,
+                                           #sample_count=FLAGS.sample_count,
+                                           batch_size=FLAGS.article_batch_size)
     print('len(mapping): '+str(len(mapping)))
 
     #print('parse train data ...')
@@ -227,4 +234,7 @@ if __name__ == '__main__':
     #print('len(mapping): ' + str(len(mapping)))
 
     if nlp is not None:
-        corpus.write_dict(out_path, mapping, nlp.vocab, constants.vocab_manual)
+        nlp_vocab = nlp.vocab
+    else:
+        nlp_vocab = None
+    corpus.write_dict(out_path, mapping, vecs, nlp_vocab, constants.vocab_manual)

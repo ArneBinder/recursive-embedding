@@ -829,28 +829,7 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
                 os.remove(out_filename + '.children.batch' + str(offset))
 
 
-def concat_children_indices(out_filename, parent_dir, max_depth):
-    print('load and concatenate child indices batches ...')
-    for current_depth in range(1, max_depth + 1):
-        if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
-            print('process batches for depth=' + str(current_depth) + ' ...')
-            l = []
-            current_children_batch_filenames = fnmatch.filter(os.listdir(parent_dir),
-                                                              ntpath.basename(out_filename) + '.children.depth' + str(
-                                                                  current_depth) + '.batch*')
-            if len(current_children_batch_filenames) > 0:
-                for child_index_fn in current_children_batch_filenames:
-                    l.append(np.load(os.path.join(parent_dir, child_index_fn)))
-                print('concatenate ...')
-                concatenated = np.concatenate(l, axis=0)
-                print('size: ' + str(len(concatenated)))
-                # print('shuffle ...')
-                # np.random.shuffle(concatenated)
-                #print('dump to: ' + out_filename + '.children.depth' + str(current_depth) + ' ...')
-                concatenated.dump(out_filename + '.children.depth' + str(current_depth))
-                # remove processed batch files
-                for fn in current_children_batch_filenames:
-                    os.remove(os.path.join(parent_dir, fn))
+#def concat_children_indices(out_file_path, parent_dir, max_depth):
 
 
 def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
@@ -897,4 +876,57 @@ def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count
     # print('')
     return seq_tree_seq
 
+
+def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, overwrite=False):
+    print('concatenate batches: '+batch_file_name)
+    out_fn = batch_file_name.replace('.batch*', '', 1)
+    if os.path.isfile(out_fn) and not overwrite:
+        return np.load(out_fn)
+    batch_file_names = fnmatch.filter(os.listdir(parent_dir), batch_file_name)
+    if len(batch_file_names) == 0:
+        return None
+    if expected_count is not None and len(batch_file_names) != expected_count:
+        return None
+    l = []
+    for fn in batch_file_names:
+        l.append(np.load(os.path.join(parent_dir, fn)))
+    concatenated = np.concatenate(l, axis=0)
+
+    concatenated.dump(os.path.join(parent_dir, out_fn))
+    for fn in batch_file_names:
+        os.remove(os.path.join(parent_dir, fn))
+    return concatenated
+
+
+def sort_embeddings(seq_data, mapping, vecs):
+    print('sort embeddings ...')
+    # count types
+    counts = np.zeros(shape=len(mapping), dtype=int)
+    for d in seq_data:
+        counts[d] += 1
+
+    sorted_indices = np.argsort(counts)
+
+    vecs_mean = np.mean(vecs, axis=0)
+    new_vecs = np.zeros(shape=(len(mapping), vecs.shape[1]))
+    new_counts = np.zeros(shape=len(mapping), dtype=int)
+    converter = np.zeros(shape=len(mapping), dtype=int)
+    #print(vecs.shape[0])
+    #print(len(vecs))
+    for new_idx, old_idx in enumerate(reversed(sorted_indices)):
+        if old_idx < vecs.shape[0]:
+            new_vecs[new_idx] = vecs[old_idx]
+        else:
+            # init missing vecs with mean
+            new_vecs[new_idx] = vecs_mean
+        new_counts[new_idx] = counts[old_idx]
+        converter[old_idx] = new_idx
+
+    for i, d in enumerate(seq_data):
+        seq_data[i] = converter[seq_data[i]]
+
+    for key in mapping.keys():
+        mapping[key] = converter[mapping[key]]
+
+    return seq_data, mapping, new_vecs, new_counts
 
