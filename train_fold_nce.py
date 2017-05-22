@@ -1,6 +1,8 @@
 from __future__ import print_function
 import tensorflow as tf
 import tensorflow_fold as td
+
+import constants
 import model_fold
 import preprocessing
 import spacy
@@ -44,6 +46,28 @@ FLAGS = tf.flags.FLAGS
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 PROTO_CLASS = 'SequenceNodeSequence'
 PROTO_FILE_NAME = 'sequence_node_sequence.proto'
+
+
+def extract_model_embeddings(model_fn=None, out_fn=None):
+    if model_fn is None:
+        # We retrieve our checkpoint fullpath
+        checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
+        assert checkpoint is not None, 'no checkpoint file found in logdir: ' + FLAGS.logdir
+        model_fn = checkpoint.model_checkpoint_path
+    if out_fn is None:
+        out_fn = FLAGS.train_data_path + '.vecs'
+
+    with tf.Graph().as_default():
+        embeddings = tf.Variable(initial_value=tf.constant(0.0), validate_shape=False, name='embeddings')
+        saver = tf.train.Saver()
+        with tf.Session() as sess:
+            print('restore model from: ' + model_fn)
+            saver.restore(sess, model_fn)
+            embeddings_np = sess.run(embeddings)
+            print('embeddings shape:')
+            print(embeddings_np.shape)
+            print('dump embeddings to: ' + out_fn + ' ...')
+            embeddings_np.dump(out_fn)
 
 
 # DEPRECATED
@@ -193,3 +217,4 @@ if __name__ == '__main__':
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file(PROTO_FILE_NAME)
     tf.app.run()
+    #extract_model_embeddings()
