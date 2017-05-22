@@ -874,7 +874,7 @@ def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
     return collected_child_indices
 
 
-def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count, depths_collected):
+def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count, all_depths_collected):
     idx = child_tuple[0]
     idx_child = child_tuple[1]
     path_len = child_tuple[2]
@@ -889,7 +889,7 @@ def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count
                                        max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
     # add samples
     for _ in range(sample_count):
-        candidate_idx = np.random.choice(depths_collected)
+        candidate_idx = np.random.choice(all_depths_collected[max_candidate_depth])
         build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
                                            candidate_idx=candidate_idx, max_depth=max_depth,
                                            max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())

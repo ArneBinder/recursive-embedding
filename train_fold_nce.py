@@ -31,7 +31,7 @@ tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
 tf.flags.DEFINE_integer('batch_size', 250, #1000,
                         'How many samples to read per batch.')
-tf.flags.DEFINE_integer('max_steps', 20000, #5000,
+tf.flags.DEFINE_integer('max_steps', 200000, #5000,
                         'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
@@ -88,14 +88,17 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     children_indices = preprocessing.collected_shuffled_child_indices(corpus_path, max_depth)
     #print(children_indices.shape)
     print('size: ' + str(len(children_indices)))
-    print('load depths from: '+corpus_path + '.depth'+str(max_depth-1)+'.collected')
-    depths_collected = np.load(corpus_path + '.depth'+str(max_depth-1)+'.collected')
-    print('current depth size: '+str(len(depths_collected)))
+    all_depths_collected = []
+    for current_depth in range(max_depth):
+        print('load depths from: '+corpus_path + '.depth'+str(max_depth-1)+'.collected')
+        depths_collected = np.load(corpus_path + '.depth'+str(max_depth-1)+'.collected')
+        all_depths_collected.append(depths_collected)
+    #print('current depth size: '+str(len(depths_collected)))
     # repeat infinitely
     while True:
         for child_tuple in children_indices:
             seq_tree_seq = preprocessing.create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count,
-                                                             depths_collected)
+                                                             all_depths_collected)
             yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
                                                             seq_tree_seq.SerializeToString())
 
