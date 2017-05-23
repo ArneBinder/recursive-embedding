@@ -17,7 +17,7 @@ import random
 # Replication flags:
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log', #'/home/arne/tmp/tf/log',
                        'Directory in which to write event logs and model checkpoints.')
-tf.flags.DEFINE_string('train_data_path', '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#'/home/arne/tmp/tf/log/model.ckpt-976',
+tf.flags.DEFINE_string('train_data_path', '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10',#'/home/arne/tmp/tf/log/model.ckpt-976',
                        'train data base path (without extension)')
 #tf.flags.DEFINE_string('data_mapping_path', 'data/nlp/spacy/dict.mapping',
 #                       'model file')

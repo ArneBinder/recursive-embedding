@@ -876,25 +876,28 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
 
 def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
     print('sort embeddings ...')
+    # this can add keys to mapping (what increases its length)!
+    vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
+    print('initial mapping size: ' + str(len(mapping)))
     # count types
+    print('calculate counts ...')
     counts = np.zeros(shape=len(mapping), dtype=int)
     for d in seq_data:
         counts[d] += 1
 
+    print('argsort ...')
     sorted_indices = np.argsort(counts)
 
     vecs_mean = np.mean(vecs, axis=0)
     new_vecs = np.zeros(shape=(len(mapping), vecs.shape[1]), dtype=vecs.dtype)
     new_counts = np.zeros(shape=len(mapping), dtype=int)
     converter = np.zeros(shape=len(mapping), dtype=int)
-    #print(vecs.shape[0])
-    #print(len(vecs))
 
-    vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
+    print('process reversed(sorted_indices) ...')
     new_idx = 0
     for old_idx in reversed(sorted_indices):
         # keep pre-initialized vecs (count==0) and vocab_manual vecs, but skip other vecs with count < threshold
-        if 0 > counts[old_idx] and old_idx not in vocab_manual_mapped.values() and counts[old_idx] < count_threshold:
+        if 0 < counts[old_idx] < count_threshold and old_idx not in vocab_manual_mapped.values():
             continue
         if old_idx < vecs.shape[0]:
             new_vecs[new_idx] = vecs[old_idx]
@@ -904,26 +907,37 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
         new_counts[new_idx] = counts[old_idx]
         converter[old_idx] = new_idx
         new_idx += 1
+    print('new lex_size: '+str(new_idx))
 
-    #print(new_vecs.shape)
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]
     new_counts = new_counts[:new_idx]
-    #print(new_vecs.shape)
+    converter = converter[:new_idx]
 
+    print('rearrange mappings ...')
+    count_del = 0
     for key in mapping.keys():
         try:
             new_value = converter[mapping[key]]
             mapping[key] = new_value
-        except KeyError:
+        except IndexError:
+            #print('del: '+str(mapping[key]))
+            count_del += 1
             del mapping[key]
+    print('deleted ' + str(count_del) + ' mappings')
 
+    print('len(mapping): '+str(len(mapping)))
+    print('max(mapping.values()): '+ str(max(mapping.values())))
+
+    print('convert data ...')
+    count_unknown = 0
     for i, d in enumerate(seq_data):
         try:
-            seq_data[i] = converter[seq_data[i]]
-        except KeyError:
+            seq_data[i] = converter[d]
+        except IndexError:
             seq_data[i] = mapping[constants.UNKNOWN_EMBEDDING]
+            count_unknown += 1
+    print('set ' + str(count_unknown) + ' data points to UNKNOWN')
 
     return seq_data, mapping, new_vecs, new_counts
-    #return seq_data, mapping, np.zeros(shape=(1297614, vecs.shape[1])), new_counts
 
