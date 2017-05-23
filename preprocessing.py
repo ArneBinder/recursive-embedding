@@ -941,3 +941,20 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
 
     return seq_data, mapping, new_vecs, new_counts
 
+
+def sequence_node_to_arrays(seq_tree):
+    current_data = []
+    current_parents = []
+    children_roots = []
+    for child in seq_tree['children']:
+        child_data, child_parents = sequence_node_to_arrays(child)
+        current_data.extend(child_data)
+        current_parents.extend(child_parents)
+        children_roots.append(len(current_data) - 1)
+    for child_root in children_roots:
+        current_parents[child_root] = len(current_data) - child_root
+    # head is the last element
+    current_data.append(seq_tree['head'])
+    current_parents.append(0)
+
+    return current_data, current_parents
