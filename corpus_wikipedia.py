@@ -130,11 +130,12 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             print('dump depths to file: ' + out_filename + '.depth ...')
             seq_depths.dump(out_filename + '.depth')
 
-    # sort and filter vecs/mappings by counts
-    seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs)
-    corpus.write_dict(out_filename, mapping, vecs)
-    print('dump counts to: ' + out_filename + '.count ...')
-    counts.dump(out_filename + '.count')
+    # TODO: fix this!
+    ## sort and filter vecs/mappings by counts
+    #seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs)
+    #corpus.write_dict(out_filename, mapping, vecs)
+    #print('dump counts to: ' + out_filename + '.count ...')
+    #counts.dump(out_filename + '.count')
 
     # debug
     #if parser is None:
@@ -154,8 +155,6 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     #        break
     # debug end
 
-
-
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
     preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
     #preprocessing.concat_children_indices(out_filename, parent_dir, max_depth)
@@ -171,7 +170,6 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
 def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
     out_fn = ntpath.basename(out_path)
 
-    # TODO: count types! (to enable cutting of lexicon)
     print('parse articles ...')
     for offset in range(0, max_articles, batch_size):
         if not os.path.isfile(out_path + '.data.batch' + str(offset)):
@@ -180,7 +178,9 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
                 sentence_processor, parser, mapping,
                 args={
                     'filename': in_filename,
-                    'max_articles': min(batch_size, max_articles)},
+                    'max_articles': min(batch_size, max_articles),
+                    'skip': offset
+                },
                 max_depth=max_depth,
                 batch_size=batch_size,
                 tree_mode=tree_mode)
