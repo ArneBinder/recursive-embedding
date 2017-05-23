@@ -39,9 +39,9 @@ tf.flags.DEFINE_integer('max_steps', 200000,  # 5000,
                         'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer('summary_step_size', 10,
                         'Emit summary values every summary_step_size steps.')
-tf.flags.DEFINE_integer('save_step_size', 10,  # 200,
+tf.flags.DEFINE_integer('save_step_size', 200,  # 200,
                         'Save the model every save_step_size steps.')
-tf.flags.DEFINE_boolean('force_load_embeddings', False, #True,  #
+tf.flags.DEFINE_boolean('force_load_embeddings', False,  #False, #
                         'Force initialization of embeddings from numpy array in the train directory, even if a model'
                         'checkpoint file is available.')
 tf.flags.DEFINE_string('master', '',
@@ -167,8 +167,6 @@ def main(unused_argv):
 
     # We retrieve our checkpoint fullpath
     checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
-    checkpoint_small = tf.train.get_checkpoint_state(FLAGS.logdir, latest_filename='checkpoint_small')
-    # checkpoint_embeddings = tf.train.get_checkpoint_state(FLAGS.logdir, latest_filename='checkpoint_embeddings')
 
     # print('load data_mapping from: ' + FLAGS.train_data_path + '.mapping ...')
     # data_maps = pickle.load(open(FLAGS.train_data_path + '.mapping', "rb"))
@@ -213,23 +211,26 @@ def main(unused_argv):
             aggr_ordered_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
                                                   scope=model_fold.DEFAULT_AGGR_ORDERED_SCOPE)
             saver_small = tf.train.Saver(var_list=scoring_vars + aggr_ordered_vars + [global_step])
-            # saver_embeddings = tf.train.Saver(var_list=[embed_w])
-            # tf.train.NewCheckpointReader
+            #saver_embeddings = tf.train.Saver(var_list=[embed_w])
 
             saver = tf.train.Saver()
             with tf.Session() as sess:
-                if checkpoint is not None:
-                    input_checkpoint = checkpoint.model_checkpoint_path
-                    print('restore model from: ' + input_checkpoint)
-                    saver.restore(sess, input_checkpoint)
-                if checkpoint is None:
-                    print('initialize variables (except embeddings) ...')
-                    # exclude embedding, will be initialized afterwards
-                    init_vars = [v for v in tf.global_variables() if v != embed_w]
-                    tf.variables_initializer(init_vars).run()
                 if checkpoint is None or FLAGS.force_load_embeddings:
                     print('init embeddings with external vectors ...')
                     sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
+                    if checkpoint is not None:
+                        input_checkpoint = checkpoint.model_checkpoint_path
+                        print('restore variables (except embeddings) from: ' + input_checkpoint + ' ...')
+                        saver_small.restore(sess, input_checkpoint)
+                    else:
+                        print('initialize variables (except embeddings) ...')
+                        # exclude embedding, will be initialized afterwards
+                        init_vars = [v for v in tf.global_variables() if v != embed_w]
+                        tf.variables_initializer(init_vars).run()
+                else:
+                    input_checkpoint = checkpoint.model_checkpoint_path
+                    print('restore all variables from: ' + input_checkpoint)
+                    saver.restore(sess, input_checkpoint)
 
                 step = 0
                 for _ in xrange(FLAGS.max_steps):
@@ -246,12 +247,8 @@ def main(unused_argv):
                     if step % FLAGS.save_step_size == 0:
                         print('save checkpoint ...')
                         saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
-                        saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step,
-                                         latest_filename='checkpoint_small')
 
                 saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
-                saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step,
-                                 latest_filename='checkpoint_small')
 
 
 if __name__ == '__main__':
