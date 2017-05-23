@@ -1,15 +1,20 @@
+import os
+
 import pydot
 import matplotlib.pyplot as plt
 import constants
+import sys
+from PIL import Image
 # from IPython.display import Image, display
 
 
 # def view_pydot(pdot):
 #    plt = Image(pdot.create_png())
 #    display(plt)
+import preprocessing
 
 
-def visualize(filename, sequence_graph, data_maps_rev, vocab):
+def visualize_dep(filename, sequence_graph, data_maps_rev, vocab):
     data, types, parents, edges = sequence_graph
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
     if len(data) > 0:
@@ -47,7 +52,7 @@ def visualize(filename, sequence_graph, data_maps_rev, vocab):
     # view_pydot(graph)
 
 
-def visualize2(filename, sequence_graph, data_maps_rev, vocab, vocab_neg):
+def visualize(filename, sequence_graph, data_maps_rev, vocab, vocab_neg):
     data, parents = sequence_graph
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
     if len(data) > 0:
@@ -58,7 +63,10 @@ def visualize2(filename, sequence_graph, data_maps_rev, vocab, vocab_neg):
             if v_id < 0:
                 l = vocab_neg[v_id]
             else:
-                l = vocab[v_id].orth_
+                try:
+                    l = vocab[v_id].orth_
+                except IndexError:
+                    l = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
             nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor="green"))
 
         for node in nodes:
@@ -78,6 +86,30 @@ def visualize2(filename, sequence_graph, data_maps_rev, vocab, vocab_neg):
     # print(graph.to_string())
 
     graph.write_png(filename)
+
+
+def visualize_seq_node_seq(seq_tree_seq, data_maps_rev, vocab, vocab_neg, file_name='forest_temp.png'):
+    for i, seq_tree in enumerate(seq_tree_seq['trees']):
+        current_data, current_parents = preprocessing.sequence_node_to_arrays(seq_tree)
+        visualize(file_name + '.' + str(i), (current_data, current_parents), data_maps_rev, vocab, vocab_neg)
+
+    file_names = [file_name + '.' + str(i) for i in range(len(seq_tree_seq['trees']))]
+    images = map(Image.open, file_names)
+    widths, heights = zip(*(i.size for i in images))
+
+    max_width = max(widths)
+    total_height = sum(heights)
+
+    new_im = Image.new('RGB', (max_width, total_height))
+
+    y_offset = 0
+    for im in images:
+        new_im.paste(im, (0, y_offset))
+        y_offset += im.size[1]
+
+    new_im.save(file_name)
+    for fn in file_names:
+        os.remove(file_names)
 
 
 def unfold_and_plot(data, width):

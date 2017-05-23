@@ -15,6 +15,9 @@ import numpy as np
 import random
 
 # Replication flags:
+import tools
+import visualize
+
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'Directory in which to write event logs and model checkpoints.')
 tf.flags.DEFINE_string('train_data_path',
@@ -33,9 +36,9 @@ tf.flags.DEFINE_integer('max_depth', 10,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
-tf.flags.DEFINE_integer('batch_size', 250,  # 1000,
+tf.flags.DEFINE_integer('batch_size', 3, #250,  # 1000,
                         'How many samples to read per batch.')
-tf.flags.DEFINE_integer('max_steps', 200000,  # 5000,
+tf.flags.DEFINE_integer('max_steps', 2, #200000,  # 5000,
                         'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer('summary_step_size', 10,
                         'Emit summary values every summary_step_size steps.')
@@ -123,8 +126,12 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
         for child_tuple in children_indices:
             seq_tree_seq = preprocessing.create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count,
                                                              all_depths_collected)
-            yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
+            seq_tree_seq_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
                                                             seq_tree_seq.SerializeToString())
+
+            visualize.visualize_seq_node_seq(seq_tree_seq_, rev_m, parser.vocab, constants.vocab_manual)
+
+            yield seq_tree_seq_
 
 
 # unused
@@ -240,6 +247,15 @@ def main(unused_argv):
 
 
 if __name__ == '__main__':
+    # debug
+    print('load mapping from file: ' + FLAGS.train_data_path + '.mapping ...')
+    m = pickle.load(open(FLAGS.train_data_path + '.mapping', "rb"))
+    print('len(mapping): ' + str(len(m)))
+    rev_m = tools.revert_mapping(m)
+    print('load spacy ...')
+    parser = spacy.load('en')
+    # debug_end
+
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file(PROTO_FILE_NAME)

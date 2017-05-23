@@ -1,7 +1,7 @@
 from __future__ import print_function
 from preprocessing import read_data, articles_from_csv_reader, dummy_str_reader, get_word_embeddings, subgraph, \
     graph_candidates
-from visualize import visualize
+from visualize import visualize_dep
 import numpy as np
 import spacy
 import constants

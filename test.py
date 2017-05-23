@@ -2,7 +2,7 @@ from __future__ import print_function
 from preprocessing import read_data, articles_from_csv_reader, dummy_str_reader, get_word_embeddings
 import spacy
 import constants
-from visualize import visualize
+from visualize import visualize_dep
 from forest import cut_subgraph, forest_candidates, get_children, get_roots, right_outer_nodes
 import numpy as np
 from tools import revert_mapping
@@ -52,7 +52,7 @@ cut_subgraph(sliced_parents)
 sliced_data = seq_data[start:end]
 sliced_types = seq_types[start:end]
 sliced_edges = seq_edges[start:end]
-visualize('forest.png', (sliced_data, sliced_types, sliced_parents, sliced_edges), data_maps_reverse, nlp.vocab)
+visualize_dep('forest.png', (sliced_data, sliced_types, sliced_parents, sliced_edges), data_maps_reverse, nlp.vocab)
 
 #children = get_children(sliced_parents)
 #print(children)
@@ -71,7 +71,7 @@ for i, (children, parent) in enumerate(forests):
     for child in children:
         temp_parents[child] = ind - child
     fn = 'forest_'+str(i)+'.png'
-    visualize(fn, (sliced_data, sliced_types, temp_parents, sliced_edges), data_maps_reverse, nlp.vocab)
+    visualize_dep(fn, (sliced_data, sliced_types, temp_parents, sliced_edges), data_maps_reverse, nlp.vocab)
 
 exit()
 

@@ -181,19 +181,6 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
     return seq_data, seq_parents, seq_depths, mapping
 
 
-def rearrange_embeddings(in_path, out_path):
-    # TODO: fix this!
-    seq_data = np.load(in_path + '.data')
-    vecs, mapping = corpus.create_or_read_dict(in_path)
-    # sort and filter vecs/mappings by counts
-    seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs, count_threshold=2)
-    corpus.write_dict(out_path, mapping, vecs)
-    print('dump counts to: ' + out_path + '.count ...')
-    counts.dump(out_path + '.count')
-    print('dump data to: ' + out_path + '.data ...')
-    seq_data.dump(out_path + '.data')
-
-
 if __name__ == '__main__':
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
@@ -209,22 +196,18 @@ if __name__ == '__main__':
 
     print('output base file name: '+out_path)
 
-    rearrange_embeddings(out_path, out_path + '_debug')
-
-
-
-    #nlp = None
-    #nlp = convert_wikipedia(FLAGS.corpus_data_input_train,
-    #                                       out_path,
-    #                                       FLAGS.init_dict_filename,
-    #                                       sentence_processor,
-    #                                       nlp,
-    #                                       #mapping,
-    #                                       #vecs,
-    #                                       max_articles=FLAGS.max_articles,
-    #                                       max_depth=FLAGS.max_depth,
-    #                                       #sample_count=FLAGS.sample_count,
-    #                                       batch_size=FLAGS.article_batch_size)
+    nlp = None
+    nlp = convert_wikipedia(FLAGS.corpus_data_input_train,
+                                           out_path,
+                                           FLAGS.init_dict_filename,
+                                           sentence_processor,
+                                           nlp,
+                                           #mapping,
+                                           #vecs,
+                                           max_articles=FLAGS.max_articles,
+                                           max_depth=FLAGS.max_depth,
+                                           #sample_count=FLAGS.sample_count,
+                                           batch_size=FLAGS.article_batch_size)
     #print('len(mapping): '+str(len(mapping)))
 
     #print('parse train data ...')

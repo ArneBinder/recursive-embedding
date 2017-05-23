@@ -24,7 +24,7 @@ def read_sentence2(sentence, vis = False):
     # print('counts: ' + str(tools.getFromDicts(nlp.vocab, constants.vocab_manual,)))
 
     if vis:
-        visualize.visualize2('forest_temp.png', (seq_data, seq_parents), data_maps_reverse, nlp.vocab, constants.vocab_manual)
+        visualize.visualize('forest_temp.png', (seq_data, seq_parents), data_maps_reverse, nlp.vocab, constants.vocab_manual)
         #img = Image('forest_temp.png')
         #display(img)
 
