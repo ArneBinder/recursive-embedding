@@ -206,10 +206,12 @@ def main(unused_argv):
                     if step % 200 == 0:
                         print('save checkpoint ...')
                         saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
-                        saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step)
+                        saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step,
+                                         latest_filename='checkpoint_small')
 
                 saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
-                saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step)
+                saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step,
+                                 latest_filename='checkpoint_small')
 
 
 if __name__ == '__main__':
