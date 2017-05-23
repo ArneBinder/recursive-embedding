@@ -3,17 +3,18 @@ import os
 import pydot
 import matplotlib.pyplot as plt
 import constants
-import sys
 from PIL import Image
+import preprocessing
 # from IPython.display import Image, display
 
 
 # def view_pydot(pdot):
 #    plt = Image(pdot.create_png())
 #    display(plt)
-import preprocessing
 
 
+
+# DEPRECATED
 def visualize_dep(filename, sequence_graph, data_maps_rev, vocab):
     data, types, parents, edges = sequence_graph
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
@@ -100,7 +101,7 @@ def visualize_seq_node_seq(seq_tree_seq, data_maps_rev, vocab, vocab_neg, file_n
     max_width = max(widths)
     total_height = sum(heights)
 
-    new_im = Image.new('RGB', (max_width, total_height))
+    new_im = Image.new('RGB', (max_width, total_height), color='white')
 
     y_offset = 0
     for im in images:
@@ -109,7 +110,7 @@ def visualize_seq_node_seq(seq_tree_seq, data_maps_rev, vocab, vocab_neg, file_n
 
     new_im.save(file_name)
     for fn in file_names:
-        os.remove(file_names)
+        os.remove(fn)
 
 
 def unfold_and_plot(data, width):

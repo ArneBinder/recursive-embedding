@@ -128,7 +128,8 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
                                                              all_depths_collected)
             seq_tree_seq_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
                                                             seq_tree_seq.SerializeToString())
-
+            # debug
+            pp.pprint(seq_tree_seq)
             visualize.visualize_seq_node_seq(seq_tree_seq_, rev_m, parser.vocab, constants.vocab_manual)
 
             yield seq_tree_seq_
