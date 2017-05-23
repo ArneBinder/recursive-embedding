@@ -96,7 +96,7 @@ if __name__ == '__main__':
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
-    vecs, mapping = preprocessing.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))

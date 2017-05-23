@@ -101,23 +101,21 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         if init_dict_filename is not None:
             print('initialize vecs and mapping from files ...')
-            vecs, mapping = preprocessing.create_or_read_dict(init_dict_filename, parser.vocab)
+            vecs, mapping = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
+            print('dump embeddings to: ' + out_filename + '.vecs ...')
+            vecs.dump(out_filename + '.vecs')
         else:
-            vecs, mapping = preprocessing.create_or_read_dict(out_filename, parser.vocab)
+            vecs, mapping = corpus.create_or_read_dict(out_filename, parser.vocab)
         # parse
         seq_data, seq_parents, seq_depths, mapping = parse_articles(out_filename, parent_dir, in_filename, parser,
                                                                     mapping, sentence_processor, max_depth,
                                                                     max_articles, batch_size, tree_mode)
-        # sort and filter vecs/mappings by counts
-        seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs)
-        corpus.write_dict(out_filename, mapping, vecs)
-        print('dump counts to: ' + out_filename + '.count ...')
-        counts.dump(out_filename + '.count')
+
     else:
         print('load parents from file: '+out_filename + '.parent ...')
-        #seq_data = np.load(out_filename+'.data')
+        seq_data = np.load(out_filename+'.data')
         seq_parents = np.load(out_filename+'.parent')
-        #vecs, mapping = preprocessing.create_or_read_dict(out_filename)
+        vecs, mapping = corpus.create_or_read_dict(out_filename)
         if os.path.isfile(out_filename + '.depth'):
             print('load depths from file: ' + out_filename + '.depth ...')
             seq_depths = np.load(out_filename+'.depth')
@@ -132,7 +130,11 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             print('dump depths to file: ' + out_filename + '.depth ...')
             seq_depths.dump(out_filename + '.depth')
 
-
+    # sort and filter vecs/mappings by counts
+    seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs)
+    corpus.write_dict(out_filename, mapping, vecs)
+    print('dump counts to: ' + out_filename + '.count ...')
+    counts.dump(out_filename + '.count')
 
     # debug
     #if parser is None:

@@ -176,6 +176,8 @@ def main(unused_argv):
 
             # collect important variables
             scoring_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCORING_SCOPE)
+            aggr_ordered_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_AGGR_ORDERED_SCOPE)
+            saver_small = tf.train.Saver(var_list=scoring_vars+aggr_ordered_vars)
 
             saver = tf.train.Saver()
             with tf.Session() as sess:
@@ -204,8 +206,10 @@ def main(unused_argv):
                     if step % 200 == 0:
                         print('save checkpoint ...')
                         saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
+                        saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step)
 
                 saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
+                saver_small.save(sess, os.path.join(FLAGS.logdir, 'model_small.ckpt'), global_step=step)
 
 
 if __name__ == '__main__':

@@ -735,28 +735,6 @@ def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, se
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
 
 
-def create_or_read_dict(fn, vocab=None):
-    if os.path.isfile(fn+'.vecs'):
-        print('load vecs from file: '+fn + '.vecs ...')
-        v = np.load(fn+'.vecs')
-        print('load mapping from file: ' + fn + '.mapping ...')
-        m = pickle.load(open(fn+'.mapping', "rb"))
-        print('vecs.shape: ' + str(v.shape) + ', len(mapping): ' + str(len(m)))
-    else:
-        out_dir = os.path.abspath(os.path.join(fn, os.pardir))
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
-        print('extract word embeddings from spaCy ...')
-        v, m = get_word_embeddings(vocab)
-        print('vecs.shape: ' + str(v.shape) + ', len(mapping): ' + str(len(m)))
-        print('dump vecs to: ' + fn + '.vecs ...')
-        v.dump(fn + '.vecs')
-        print('dump mappings to: ' + fn + '.mapping ...')
-        with open(fn + '.mapping', "wb") as f:
-            pickle.dump(m, f)
-    return v, m
-
-
 def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
     print('collect depth indices in depth_maps ...')
     # depth_maps_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.depth.*')
@@ -911,7 +889,8 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
     converter = np.zeros(shape=len(mapping), dtype=int)
     #print(vecs.shape[0])
     #print(len(vecs))
-    vocab_manual_mapped = {x: mapping[x] for x in constants.vocab_manual.keys()}
+
+    vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
     new_idx = 0
     for old_idx in reversed(sorted_indices):
         # keep pre-initialized vecs (count==0) and vocab_manual vecs, but skip other vecs with count < threshold
