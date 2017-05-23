@@ -80,20 +80,6 @@ def extract_model_embeddings(model_fn=None, out_fn=None):
 
 
 # DEPRECATED
-def parse_iterator(sequences, parser, sentence_processor, data_maps):
-    # pp = pprint.PrettyPrinter(indent=2)
-    for (s, idx_correct) in sequences:
-        seq_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
-        seq_tree_seq.idx_correct = idx_correct
-        for s2 in s:
-            new_tree = seq_tree_seq.trees.add()
-            preprocessing.build_sequence_tree_from_str(s2, sentence_processor, parser, data_maps, seq_tree=new_tree)
-        # pp.pprint(seq_tree_seq)
-        yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
-                                                        seq_tree_seq.SerializeToString())
-
-
-# DEPRECATED
 def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
     pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
@@ -141,6 +127,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
                                                             seq_tree_seq.SerializeToString())
 
 
+# unused
 def optimistic_restore(session, save_file):
     reader = tf.train.NewCheckpointReader(save_file)
     saved_shapes = reader.get_variable_to_shape_map()
@@ -159,17 +146,23 @@ def optimistic_restore(session, save_file):
 
 
 def main(unused_argv):
-    # lex_size = FLAGS.pad_embeddings_to_size
-    # embedding_dim = constants.EMBEDDINGS_DIMENSION
-
     if not os.path.isdir(FLAGS.logdir):
         os.makedirs(FLAGS.logdir)
 
-    # We retrieve our checkpoint fullpath
+    # get lexicon size from saved model or numpy array
     checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
-
-    # print('load data_mapping from: ' + FLAGS.train_data_path + '.mapping ...')
-    # data_maps = pickle.load(open(FLAGS.train_data_path + '.mapping', "rb"))
+    if checkpoint is not None and not FLAGS.force_load_embeddings:
+        input_checkpoint = checkpoint.model_checkpoint_path
+        print('extract lexicon from model: ' + input_checkpoint + ' ...')
+        reader = tf.train.NewCheckpointReader(input_checkpoint)
+        saved_shapes = reader.get_variable_to_shape_map()
+        embed_shape = saved_shapes[constants.EMBEDDING_VAR_NAME]
+        lex_size = embed_shape[0]
+    else:
+        print('load embeddings (to get lexicon size) from: ' + FLAGS.train_data_path + '.vecs ...')
+        embeddings_np = np.load(FLAGS.train_data_path + '.vecs')
+        lex_size = embeddings_np.shape[0]
+    print('lex_size: ' + str(lex_size))
 
     # load corpus data
     print('load corpus data from: ' + FLAGS.train_data_path + '.data ...')
@@ -179,18 +172,13 @@ def main(unused_argv):
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
-    print('load embeddings (to get lexicon size) from: ' + FLAGS.train_data_path + '.vecs ...')
-    embeddings_np = np.load(FLAGS.train_data_path + '.vecs')
-    lex_size = embeddings_np.shape[0]
-    print('lex_size: '+str(lex_size))
-
     current_max_depth = 1
     train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
                                              FLAGS.sample_count)
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, constants.EMBEDDINGS_DIMENSION]),
-                                  trainable=True, name='embeddings')
+                                  trainable=True, name=constants.EMBEDDING_VAR_NAME)
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, constants.EMBEDDINGS_DIMENSION])
             embedding_init = embed_w.assign(embedding_placeholder)
 
