@@ -5,6 +5,8 @@ from __future__ import print_function
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 
+import constants
+
 DEFAULT_AGGR_ORDERED_SCOPE = 'aggregator_ordered'
 DEFAULT_SCORING_SCOPE = 'scoring'
 
@@ -27,7 +29,8 @@ def sequence_tree_block(embeddings, scope):
       embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
       scope: A scope to share variables over instances of sequence_tree_block
     """
-    state_size = embeddings.shape.as_list()[1]
+    #state_size = embeddings.shape.as_list()[1]
+    state_size = constants.EMBEDDINGS_DIMENSION
     expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
     grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), name_or_scope=scope)
 

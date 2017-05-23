@@ -21,12 +21,12 @@ tf.flags.DEFINE_string('train_data_path', '/media/arne/WIN/Users/Arne/ML/data/co
                        'train data base path (without extension)')
 #tf.flags.DEFINE_string('data_mapping_path', 'data/nlp/spacy/dict.mapping',
 #                       'model file')
-tf.flags.DEFINE_string('train_dict_file', 'data/nlp/spacy/dict.vecs',
-                       'A file containing a numpy array which is used to initialize the embedding vectors.')
-tf.flags.DEFINE_integer('pad_embeddings_to_size', 1310000,
-                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
-                        '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
-                        'mark identity). This value has to be larger then the initial gloVe size ()')
+#tf.flags.DEFINE_string('train_dict_file', 'data/nlp/spacy/dict.vecs',
+#                       'A file containing a numpy array which is used to initialize the embedding vectors.')
+#tf.flags.DEFINE_integer('pad_embeddings_to_size', 1310000,
+#                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
+#                        '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
+#                        'mark identity). This value has to be larger then the initial gloVe size ()')
 tf.flags.DEFINE_integer('max_depth', 10,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
@@ -128,8 +128,8 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
 
 
 def main(unused_argv):
-    lex_size = FLAGS.pad_embeddings_to_size
-    embedding_dim = 300
+    #lex_size = FLAGS.pad_embeddings_to_size
+    #embedding_dim = constants.EMBEDDINGS_DIMENSION
 
     if not os.path.isdir(FLAGS.logdir):
         os.makedirs(FLAGS.logdir)
@@ -143,27 +143,23 @@ def main(unused_argv):
     # load corpus data
     print('load corpus data from: '+FLAGS.train_data_path + '.data ...')
     seq_data = np.load(FLAGS.train_data_path + '.data')
+    print('load corpus parents from: ' + FLAGS.train_data_path + '.parent ...')
     seq_parents = np.load(FLAGS.train_data_path + '.parent')
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
+    print('load embeddings (to get lexicon size) from: ' + FLAGS.train_data_path + '.vecs ...')
+    embeddings_np = np.load(FLAGS.train_data_path + '.vecs')
+    lex_size = embeddings_np.shape[0]
+
     current_max_depth = 1
     train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
                                              FLAGS.sample_count)
-
-    if checkpoint is None:
-        # prepare initial gloVe vectors
-        print('load embeddings from: ' + FLAGS.train_dict_file + ' ...')
-        embeddings_np = np.load(FLAGS.train_dict_file)
-        assert lex_size >= embeddings_np.shape[0], 'pad_embeddings_to_size: ' + lex_size \
-                                                   +' has to be bigger than or equal to the count of embeddings read ' \
-                                                    'from file ' + FLAGS.train_dict_file
-        embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
-
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, embedding_dim]), trainable=True, name='embeddings')
-            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, embedding_dim])
+            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, constants.EMBEDDINGS_DIMENSION]),
+                                  trainable=True, name='embeddings')
+            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, constants.EMBEDDINGS_DIMENSION])
             embedding_init = embed_w.assign(embedding_placeholder)
 
             trainer = model_fold.SequenceTreeEmbeddingSequence(embed_w)
@@ -188,7 +184,7 @@ def main(unused_argv):
                     init_vars = [v for v in tf.global_variables() if v != embed_w]
                     tf.variables_initializer(init_vars).run()
                     print('init embeddings with external vectors...')
-                    sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
+                    sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
                 else:
                     input_checkpoint = checkpoint.model_checkpoint_path
                     print('restore model from: '+input_checkpoint)

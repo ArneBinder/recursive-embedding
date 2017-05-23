@@ -17,11 +17,8 @@ import tensorflow_fold as td
 
 #@tools.fn_timer
 def get_word_embeddings(vocab):
-    #vecs = np.ndarray(shape=(len(vocab)+1, vocab.vectors_length), dtype=np.float32)
     vecs = np.ndarray(shape=(len(vocab), vocab.vectors_length), dtype=np.float32)
-    #vecs[constants.NOT_IN_WORD_DICT] = np.zeros(vocab.vectors_length)
     m = {}
-    #i = 1
     i = 0
     for lexeme in vocab:
         m[lexeme.orth] = i
@@ -49,6 +46,7 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
 
     return sen_data, sen_parents, root_offset
 
+
 # embeddings for:
 # word, edge
 def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
@@ -68,6 +66,7 @@ def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
+
 
 # embeddings for:
 # word, word embedding, edge, edge embedding
@@ -93,6 +92,7 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
+
 
 # embeddings for:
 # words, edges, entity type (if !=0)
@@ -735,22 +735,20 @@ def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, se
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
 
 
-def create_or_read_dict(fn, vocab):
+def create_or_read_dict(fn, vocab=None):
     if os.path.isfile(fn+'.vecs'):
         print('load vecs from file: '+fn + '.vecs ...')
         v = np.load(fn+'.vecs')
-        print('read mapping from file: ' + fn + '.mapping ...')
+        print('load mapping from file: ' + fn + '.mapping ...')
         m = pickle.load(open(fn+'.mapping', "rb"))
-        print('vecs.shape: ' + str(v.shape))
-        print('len(mapping): ' + str(len(m)))
+        print('vecs.shape: ' + str(v.shape) + ', len(mapping): ' + str(len(m)))
     else:
         out_dir = os.path.abspath(os.path.join(fn, os.pardir))
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
         print('extract word embeddings from spaCy ...')
         v, m = get_word_embeddings(vocab)
-        print('vecs.shape: ' + str(v.shape))
-        print('len(mapping): ' + str(len(m)))
+        print('vecs.shape: ' + str(v.shape) + ', len(mapping): ' + str(len(m)))
         print('dump vecs to: ' + fn + '.vecs ...')
         v.dump(fn + '.vecs')
         print('dump mappings to: ' + fn + '.mapping ...')
@@ -898,7 +896,7 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
     return concatenated
 
 
-def sort_embeddings(seq_data, mapping, vecs):
+def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
     print('sort embeddings ...')
     # count types
     counts = np.zeros(shape=len(mapping), dtype=int)
@@ -908,12 +906,17 @@ def sort_embeddings(seq_data, mapping, vecs):
     sorted_indices = np.argsort(counts)
 
     vecs_mean = np.mean(vecs, axis=0)
-    new_vecs = np.zeros(shape=(len(mapping), vecs.shape[1]))
+    new_vecs = np.zeros(shape=(len(mapping), vecs.shape[1]), dtype=vecs.dtype)
     new_counts = np.zeros(shape=len(mapping), dtype=int)
     converter = np.zeros(shape=len(mapping), dtype=int)
     #print(vecs.shape[0])
     #print(len(vecs))
-    for new_idx, old_idx in enumerate(reversed(sorted_indices)):
+    vocab_manual_mapped = {x: mapping[x] for x in constants.vocab_manual.keys()}
+    new_idx = 0
+    for old_idx in reversed(sorted_indices):
+        # keep pre-initialized vecs (count==0) and vocab_manual vecs, but skip other vecs with count < threshold
+        if 0 > counts[old_idx] and old_idx not in vocab_manual_mapped.values() and counts[old_idx] < count_threshold:
+            continue
         if old_idx < vecs.shape[0]:
             new_vecs[new_idx] = vecs[old_idx]
         else:
@@ -921,12 +924,27 @@ def sort_embeddings(seq_data, mapping, vecs):
             new_vecs[new_idx] = vecs_mean
         new_counts[new_idx] = counts[old_idx]
         converter[old_idx] = new_idx
+        new_idx += 1
 
-    for i, d in enumerate(seq_data):
-        seq_data[i] = converter[seq_data[i]]
+    #print(new_vecs.shape)
+    # cut arrays
+    new_vecs = new_vecs[:new_idx, :]
+    new_counts = new_counts[:new_idx]
+    #print(new_vecs.shape)
 
     for key in mapping.keys():
-        mapping[key] = converter[mapping[key]]
+        try:
+            new_value = converter[mapping[key]]
+            mapping[key] = new_value
+        except KeyError:
+            del mapping[key]
+
+    for i, d in enumerate(seq_data):
+        try:
+            seq_data[i] = converter[seq_data[i]]
+        except KeyError:
+            seq_data[i] = mapping[constants.UNKNOWN_EMBEDDING]
 
     return seq_data, mapping, new_vecs, new_counts
+    #return seq_data, mapping, np.zeros(shape=(1297614, vecs.shape[1])), new_counts
 

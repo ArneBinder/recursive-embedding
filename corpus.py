@@ -4,12 +4,13 @@ import pickle
 import tools
 
 
-def write_dict(out_path, mapping, vecs, vocab_nlp, vocab_manual):
+def write_dict(out_path, mapping, vecs, vocab_nlp=None, vocab_manual=None):
+    print('dump embeddings to: ' + out_path + '.vecs ...')
+    vecs.dump(out_path + '.vecs')
     print('dump mappings to: ' + out_path + '.mapping ...')
     with open(out_path + '.mapping', "wb") as f:
         pickle.dump(mapping, f)
-    print('dump embeddings to: ' + out_path + '.vecs ...')
-    vecs.dump(out_path + '.vecs')
+    print('vecs.shape: ' + str(vecs.shape) + ', len(mapping): ' + str(len(mapping)))
 
     if vocab_nlp is not None:
         print('write tsv dict: ' + out_path + '.tsv ...')
