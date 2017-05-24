@@ -44,7 +44,7 @@ tf.flags.DEFINE_integer('summary_step_size', 10,
                         'Emit summary values every summary_step_size steps.')
 tf.flags.DEFINE_integer('save_step_size', 200,  # 200,
                         'Save the model every save_step_size steps.')
-tf.flags.DEFINE_boolean('force_load_embeddings', False,  #False, #
+tf.flags.DEFINE_boolean('force_reload_embeddings', False,  #False, #
                         'Force initialization of embeddings from numpy array in the train directory, even if a model'
                         'checkpoint file is available.')
 tf.flags.DEFINE_string('master', '',
@@ -163,7 +163,7 @@ def main(unused_argv):
 
     # get lexicon size from saved model or numpy array
     checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
-    if checkpoint is not None and not FLAGS.force_load_embeddings:
+    if checkpoint is not None and not FLAGS.force_reload_embeddings:
         input_checkpoint = checkpoint.model_checkpoint_path
         print('extract lexicon from model: ' + input_checkpoint + ' ...')
         reader = tf.train.NewCheckpointReader(input_checkpoint)
@@ -215,7 +215,7 @@ def main(unused_argv):
 
             saver = tf.train.Saver()
             with tf.Session() as sess:
-                if checkpoint is None or FLAGS.force_load_embeddings:
+                if checkpoint is None or FLAGS.force_reload_embeddings:
                     print('init embeddings with external vectors ...')
                     sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
                     if checkpoint is not None:
