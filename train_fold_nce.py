@@ -11,6 +11,7 @@ import pprint
 import os
 import sequence_node_sequence_pb2
 import sequence_node_candidates_pb2
+import sequence_node_pb2
 import numpy as np
 import random
 
@@ -137,6 +138,27 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
             #visualize.visualize_seq_node_seq(seq_tree_seq_, rev_m, parser.vocab, constants.vocab_manual)
 
             yield seq_tree_seq_
+
+
+# continuous bag of trees model
+def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sample_count):
+    print('load depths from: ' + corpus_path + '.depth1.collected')
+    depth1_collected = np.load(corpus_path + '.depth1.collected')
+    while True:
+        # take all trees with depth > 0 as train data
+        for idx in depth1_collected:
+            seq_tree = sequence_node_pb2.SequenceNode()
+            preprocessing.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
+            seq_tree_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNode',
+                                                            seq_tree.SerializeToString())
+            seq_tree_seq = {'trees': [seq_tree_]}
+            for _ in range(sample_count):
+                seq_tree_new_ = seq_tree_.copy()
+                new_head = np.random.choice(seq_data)
+                seq_tree_new_['head'] = new_head
+                seq_tree_seq['trees'].append(seq_tree_new_)
+
+            yield seq_tree_seq
 
 
 # unused

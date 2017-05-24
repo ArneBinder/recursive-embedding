@@ -653,21 +653,21 @@ def calc_depth(children, parents, depth, start):
 
 # Build a sequence_tree from a data and a parents sequence.
 # All roots are children of a headless node.
-def build_sequence_tree(seq_data, children, root, seq_tree = None):
+def build_sequence_tree(seq_data, children, root, seq_tree, max_depth=9999):
     # assume, all parents are inside this array!
     # collect children
     #children, roots = children_and_roots(seq_parents)
 
     """Recursively build a tree of SequenceNode_s"""
-    def build(seq_node, seq_data, children, pos):
+    def build(seq_node, seq_data, children, pos, max_depth):
         seq_node.head = seq_data[pos]
-        if pos in children:
+        if pos in children and max_depth > 0:
             for child_pos in children[pos]:
-                build(seq_node.children.add(), seq_data, children, child_pos)
+                build(seq_node.children.add(), seq_data, children, child_pos, max_depth - 1)
 
     if seq_tree is None:
         seq_tree = sequence_node_pb2.SequenceNode()
-    build(seq_tree, seq_data, children, root)
+    build(seq_tree, seq_data, children, root, max_depth)
 
     #seq_trees = []
     #seq_tree = sequence_node_pb2.SequenceNode()
