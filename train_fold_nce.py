@@ -87,6 +87,16 @@ def extract_model_embeddings(model_fn=None, out_fn=None):
             embeddings_np.dump(out_fn)
 
 
+def add_training_remarks(filename, new_remarks):
+    if os.path.exists(filename):
+        append_write = 'a'  # append if already exists
+    else:
+        append_write = 'w'  # make a new file if not
+    remarks = open(filename, append_write)
+    remarks.write(new_remarks + '\n')
+    remarks.close()
+
+
 # DEPRECATED
 def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
     pp = pprint.PrettyPrinter(indent=2)
@@ -119,7 +129,12 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     print('create collected shuffled children indices ...')
     children_indices = preprocessing.collected_shuffled_child_indices(corpus_path, max_depth)
     # print(children_indices.shape)
-    print('train data size: ' + str(len(children_indices)))
+    size = len(children_indices)
+    print('train data size: ' + str(size))
+    # save training info
+    if 'FLAGS' in globals():
+        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nsize: '
+                             + str(size))
     all_depths_collected = []
     for current_depth in range(max_depth):
         print('load depths from: ' + corpus_path + '.depth' + str(max_depth - 1) + '.collected')
@@ -144,7 +159,12 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
 def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sample_count):
     print('load depths from: ' + corpus_path + '.depth1.collected')
     depth1_collected = np.load(corpus_path + '.depth1.collected')
-    print('train data size: ' + str(len(depth1_collected)))
+    size = len(depth1_collected)
+    print('train data size: ' + str(size))
+    # save training info
+    if 'FLAGS' in globals():
+        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nsize: '
+                             + str(size))
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
@@ -208,8 +228,10 @@ def main(unused_argv):
     children, roots = preprocessing.children_and_roots(seq_parents)
 
     current_max_depth = 1
-    train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
-                                             FLAGS.sample_count)
+    #train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
+    #                                         FLAGS.sample_count)
+    train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, current_max_depth, seq_data, children,
+                                                  FLAGS.sample_count)
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, constants.EMBEDDINGS_DIMENSION]),
