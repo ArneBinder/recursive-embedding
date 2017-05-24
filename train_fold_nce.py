@@ -133,8 +133,8 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nsize: '
-                             + str(size))
+        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nmode: '
+                             + 'default' + '\nsize: ' + str(size))
     all_depths_collected = []
     for current_depth in range(max_depth):
         print('load depths from: ' + corpus_path + '.depth' + str(max_depth - 1) + '.collected')
@@ -163,8 +163,8 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nsize: '
-                             + str(size))
+        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nmode: '
+                             + 'cbot' + '\nsize: ' + str(size))
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
