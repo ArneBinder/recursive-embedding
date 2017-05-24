@@ -69,6 +69,10 @@ def extract_model_embeddings(model_fn=None, out_fn=None):
     if out_fn is None:
         out_fn = FLAGS.train_data_path + '.vecs'
 
+    # backup previous embeddings
+    if os.path.isfile(out_fn):
+        os.rename(out_fn, out_fn + '.previous')
+
     with tf.Graph().as_default():
         embeddings = tf.Variable(initial_value=tf.constant(0.0), validate_shape=False, name='embeddings')
         saver = tf.train.Saver()
