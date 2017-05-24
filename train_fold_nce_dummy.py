@@ -91,7 +91,7 @@ def main(unused_argv):
             global_step = trainer.global_step
 
             # collect important variables
-            scoring_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCORING_SCOPE)
+            scoring_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_SCORING)
 
             # Add ops to save and restore all the variables.
             saver = tf.train.Saver()

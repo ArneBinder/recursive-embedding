@@ -7,9 +7,11 @@ import tensorflow_fold.public.blocks as td
 
 import constants
 
-DEFAULT_AGGR_ORDERED_SCOPE = 'aggregator_ordered'
-DEFAULT_SCORING_SCOPE = 'scoring'
-
+DEFAULT_SCOPE_AGGR_ORDERED = 'aggregator_ordered'
+DEFAULT_SCOPE_SCORING = 'scoring'
+DIMENSION_EMBEDDINGS = 300
+VAR_NAME_EMBEDDING = 'embeddings'
+VAR_NAME_GLOBAL_STEP = 'global_step'
 
 def dprint(x):
     r = tf.Print(x, [tf.shape(x)])
@@ -30,7 +32,7 @@ def sequence_tree_block(embeddings, scope):
       scope: A scope to share variables over instances of sequence_tree_block
     """
     #state_size = embeddings.shape.as_list()[1]
-    state_size = constants.EMBEDDINGS_DIMENSION
+    state_size = DIMENSION_EMBEDDINGS
     expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
     grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), name_or_scope=scope)
 
@@ -82,7 +84,7 @@ def sequence_tree_block(embeddings, scope):
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE):
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED):
         self._aggregator_ordered_scope = aggregator_ordered_scope
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
@@ -112,7 +114,7 @@ class SimilaritySequenceTreeTupleModel(object):
         #                     tf.argmax(logits, 1)),
         #            dtype=tf.float32))
 
-        self._global_step = tf.Variable(0, name='global_step', trainable=False)
+        self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
         optr = tf.train.GradientDescentOptimizer(0.01)
         self._train_op = optr.minimize(self._loss, global_step=self._global_step)
 
@@ -154,7 +156,7 @@ class SimilaritySequenceTreeTupleModel(object):
 
 class SequenceTreeEmbedding(object):
 
-    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE):
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED):
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
             model = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> sequence_tree_block(embeddings, sc)
@@ -177,7 +179,7 @@ class SequenceTreeEmbeddingSequence(object):
         entropy loss with regard to the correct tree.
     """
 
-    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE, scoring_scope=DEFAULT_SCORING_SCOPE):
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED, scoring_scope=DEFAULT_SCOPE_SCORING):
 
         # This layer maps a sequence tree embedding to an 'integrity' score
         with tf.variable_scope(scoring_scope) as scoring_sc:
@@ -228,7 +230,7 @@ class SequenceTreeEmbeddingSequence(object):
 
         self._loss = tf.reduce_mean(-tf.log(self._softmax_correct))
 
-        self._global_step = tf.Variable(0, name='global_step', trainable=False)
+        self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
         optr = tf.train.GradientDescentOptimizer(0.01)
         self._train_op = optr.minimize(self._loss, global_step=self._global_step)
         tf.summary.scalar('loss', self._loss)
@@ -364,7 +366,7 @@ class SequenceTreeEmbeddingWithCandidates(object):
         entropy loss with regard to the correct tree.
     """
 
-    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_AGGR_ORDERED_SCOPE, scoring_scope=DEFAULT_SCORING_SCOPE):
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED, scoring_scope=DEFAULT_SCOPE_SCORING):
 
         # This layer maps a sequence tree embedding to an 'integrity' score
         with tf.variable_scope(scoring_scope) as scoring_sc:
@@ -404,7 +406,7 @@ class SequenceTreeEmbeddingWithCandidates(object):
 
         self._loss = tf.reduce_mean(-tf.log(self._softmax_correct))
 
-        self._global_step = tf.Variable(0, name='global_step', trainable=False)
+        self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
         optr = tf.train.GradientDescentOptimizer(0.01)
         self._train_op = optr.minimize(self._loss, global_step=self._global_step)
 

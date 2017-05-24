@@ -144,7 +144,7 @@ def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
                                                         seq_tree_seq.SerializeToString())
 
 
-def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_count):
+def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_count, offset=0):
     pp = pprint.PrettyPrinter(indent=2)
 
     # load corpus depth_max dependent data:
@@ -165,6 +165,10 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     # repeat infinitely
     while True:
         for child_tuple in children_indices:
+            if offset > 0:
+                offset -= 1
+                continue
+
             seq_tree_seq = preprocessing.create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count,
                                                              all_depths_collected)
             seq_tree_seq_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
@@ -177,7 +181,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
 
 
 # continuous bag of trees model
-def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sample_count):
+def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sample_count, offset):
     print('load depths from: ' + corpus_path + '.depth1.collected')
     depth1_collected = np.load(corpus_path + '.depth1.collected')
     size = len(depth1_collected)
@@ -188,6 +192,10 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
+            if offset > 0:
+                offset -= 1
+                continue
+
             seq_tree = sequence_node_pb2.SequenceNode()
             preprocessing.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
             seq_tree_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNode',
@@ -224,16 +232,22 @@ def main(unused_argv):
     if not os.path.isdir(FLAGS.logdir):
         os.makedirs(FLAGS.logdir)
 
+    lex_size = None
+    loaded_global_step = 0
     # get lexicon size from saved model or numpy array
     checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
-    if checkpoint is not None and not FLAGS.force_reload_embeddings:
+    if checkpoint is not None:
         input_checkpoint = checkpoint.model_checkpoint_path
-        print('extract lexicon from model: ' + input_checkpoint + ' ...')
         reader = tf.train.NewCheckpointReader(input_checkpoint)
-        saved_shapes = reader.get_variable_to_shape_map()
-        embed_shape = saved_shapes[constants.EMBEDDING_VAR_NAME]
-        lex_size = embed_shape[0]
-    else:
+        loaded_global_step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
+        print('loaded_global_step: '+str(loaded_global_step))
+        if not FLAGS.force_reload_embeddings:
+            print('extract lexicon from model: ' + input_checkpoint + ' ...')
+            saved_shapes = reader.get_variable_to_shape_map()
+            embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
+            lex_size = embed_shape[0]
+
+    if lex_size is None:
         print('load embeddings (to get lexicon size) from: ' + FLAGS.train_data_path + '.vecs ...')
         embeddings_np = np.load(FLAGS.train_data_path + '.vecs')
         lex_size = embeddings_np.shape[0]
@@ -247,16 +261,16 @@ def main(unused_argv):
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
-    #current_max_depth = 1
+    # ATTENTION: when batch_size changes, offset != loaded_global_step * FLAGS.batch_size
     #train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
-    #                                         FLAGS.sample_count)
+    #                                         FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
     train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
-                                                  FLAGS.sample_count)
+                                                  FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, constants.EMBEDDINGS_DIMENSION]),
-                                  trainable=True, name=constants.EMBEDDING_VAR_NAME)
-            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, constants.EMBEDDINGS_DIMENSION])
+            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
+                                  trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
+            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
 
             trainer = model_fold.SequenceTreeEmbeddingSequence(embed_w)
@@ -272,9 +286,9 @@ def main(unused_argv):
             train_writer = tf.summary.FileWriter(FLAGS.logdir + '/train', graph)
 
             # collect important variables
-            scoring_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCORING_SCOPE)
+            scoring_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_SCORING)
             aggr_ordered_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                                  scope=model_fold.DEFAULT_AGGR_ORDERED_SCOPE)
+                                                  scope=model_fold.DEFAULT_SCOPE_AGGR_ORDERED)
             saver_small = tf.train.Saver(var_list=scoring_vars + aggr_ordered_vars + [global_step])
             #saver_embeddings = tf.train.Saver(var_list=[embed_w])
 
@@ -316,7 +330,22 @@ def main(unused_argv):
                 saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
 
 
+def debug():
+    # get lexicon size from saved model or numpy array
+    checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
+    if checkpoint is not None:
+        input_checkpoint = checkpoint.model_checkpoint_path
+        print('extract lexicon from model: ' + input_checkpoint + ' ...')
+        reader = tf.train.NewCheckpointReader(input_checkpoint)
+        saved_shapes = reader.get_variable_to_shape_map()
+        #embed_shape = saved_shapes[constants.EMBEDDING_VAR_NAME]
+        global_step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
+        print(global_step)
+        #lex_size = embed_shape[0]
+
 if __name__ == '__main__':
+    debug()
+
     ## debug
     #print('load mapping from file: ' + FLAGS.train_data_path + '.mapping ...')
     #m = pickle.load(open(FLAGS.train_data_path + '.mapping', "rb"))
@@ -326,8 +355,8 @@ if __name__ == '__main__':
     #parser = spacy.load('en')
     ## debug_end
 
-    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-    td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
-    td.proto_tools.import_proto_file(PROTO_FILE_NAME)
-    tf.app.run()
+    #ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    #td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
+    #td.proto_tools.import_proto_file(PROTO_FILE_NAME)
+    #tf.app.run()
     # extract_model_embeddings()
