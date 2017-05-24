@@ -119,7 +119,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     print('create collected shuffled children indices ...')
     children_indices = preprocessing.collected_shuffled_child_indices(corpus_path, max_depth)
     # print(children_indices.shape)
-    print('size: ' + str(len(children_indices)))
+    print('train data size: ' + str(len(children_indices)))
     all_depths_collected = []
     for current_depth in range(max_depth):
         print('load depths from: ' + corpus_path + '.depth' + str(max_depth - 1) + '.collected')
@@ -144,6 +144,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
 def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sample_count):
     print('load depths from: ' + corpus_path + '.depth1.collected')
     depth1_collected = np.load(corpus_path + '.depth1.collected')
+    print('train data size: ' + str(len(depth1_collected)))
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
