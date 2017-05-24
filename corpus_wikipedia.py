@@ -116,7 +116,8 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
         # sort and filter vecs/mappings by counts
         seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs,
                                                                         count_threshold=FLAGS.count_threshold)
-        corpus.write_dict(out_path, mapping, vecs)
+        # write out vecs, mapping and tsv containing strings
+        corpus.write_dict(out_path, mapping, vecs, parser.vocab, constants.vocab_manual)
         print('dump data to: ' + out_path + '.data ...')
         seq_data.dump(out_path + '.data')
         print('dump counts to: ' + out_path + '.count ...')
