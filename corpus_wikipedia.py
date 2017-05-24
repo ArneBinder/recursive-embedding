@@ -34,7 +34,7 @@ tf.flags.DEFINE_string(
     'Base filename of the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'init_dict_filename', None, #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#None, #'data/nlp/spacy/dict',
-    'The path to the output data files (samples, embedding vectors, mappings).')
+    'The path to embedding and mapping files (without extension) to reuse them for the new corpus.')
 tf.flags.DEFINE_integer(
     'max_articles', 10000,
     'How many articles to read.')
