@@ -111,8 +111,8 @@ def dump_flags(out_fn, add_data=None):
     current_run['save_step_size'] = FLAGS.save_step_size
     current_run['force_reload_embeddings'] = FLAGS.force_reload_embeddings
     if add_data is not None:
-        for k, v in add_data:
-            current_run[k] = v
+        for k in add_data.keys():
+            current_run[k] = add_data[k]
 
     runs.append(current_run)
     with open(out_fn, 'w') as outfile:
@@ -242,7 +242,7 @@ def main(unused_argv):
         loaded_global_step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
         print('loaded_global_step: '+str(loaded_global_step))
         if not FLAGS.force_reload_embeddings:
-            print('extract lexicon from model: ' + input_checkpoint + ' ...')
+            print('extract lexicon size from model: ' + input_checkpoint + ' ...')
             saved_shapes = reader.get_variable_to_shape_map()
             embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
             lex_size = embed_shape[0]
@@ -262,7 +262,7 @@ def main(unused_argv):
     children, roots = preprocessing.children_and_roots(seq_parents)
 
     # ATTENTION: when batch_size changes, offset != loaded_global_step * FLAGS.batch_size
-    #train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
+    #train_iterator = iterator_sequence_trees(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
     #                                         FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
     train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
                                                   FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
@@ -330,21 +330,7 @@ def main(unused_argv):
                 saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
 
 
-def debug():
-    # get lexicon size from saved model or numpy array
-    checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
-    if checkpoint is not None:
-        input_checkpoint = checkpoint.model_checkpoint_path
-        print('extract lexicon from model: ' + input_checkpoint + ' ...')
-        reader = tf.train.NewCheckpointReader(input_checkpoint)
-        saved_shapes = reader.get_variable_to_shape_map()
-        #embed_shape = saved_shapes[constants.EMBEDDING_VAR_NAME]
-        global_step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
-        print(global_step)
-        #lex_size = embed_shape[0]
-
 if __name__ == '__main__':
-    debug()
 
     ## debug
     #print('load mapping from file: ' + FLAGS.train_data_path + '.mapping ...')
@@ -355,8 +341,8 @@ if __name__ == '__main__':
     #parser = spacy.load('en')
     ## debug_end
 
-    #ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-    #td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
-    #td.proto_tools.import_proto_file(PROTO_FILE_NAME)
-    #tf.app.run()
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
+    td.proto_tools.import_proto_file(PROTO_FILE_NAME)
+    tf.app.run()
     # extract_model_embeddings()
