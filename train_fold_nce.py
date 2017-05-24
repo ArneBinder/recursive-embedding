@@ -1,4 +1,6 @@
 from __future__ import print_function
+
+import datetime
 import tensorflow as tf
 import tensorflow_fold as td
 
@@ -14,6 +16,8 @@ import sequence_node_candidates_pb2
 import sequence_node_pb2
 import numpy as np
 import random
+import json
+import jsonpickle
 
 # Replication flags:
 import tools
@@ -33,7 +37,7 @@ tf.flags.DEFINE_string('train_data_path',
 #                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
 #                        '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
 #                        'mark identity). This value has to be larger then the initial gloVe size ()')
-tf.flags.DEFINE_integer('max_depth', 10,
+tf.flags.DEFINE_integer('max_depth', 1,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
@@ -87,14 +91,32 @@ def extract_model_embeddings(model_fn=None, out_fn=None):
             embeddings_np.dump(out_fn)
 
 
-def add_training_remarks(filename, new_remarks):
-    if os.path.exists(filename):
-        append_write = 'a'  # append if already exists
-    else:
-        append_write = 'w'  # make a new file if not
-    remarks = open(filename, append_write)
-    remarks.write(new_remarks + '\n')
-    remarks.close()
+def dump_flags(out_fn, add_data=None):
+    print('dump flags to: ' + out_fn + ' ...')
+    runs = []
+    if os.path.exists(out_fn):
+        with open(out_fn) as data_file:
+            runs = json.load(data_file)
+
+    current_run = {}
+    current_run['id'] = len(runs)
+    current_run['time'] = datetime.datetime.now().isoformat()
+    current_run['logdir'] = FLAGS.logdir
+    current_run['train_data_path'] = FLAGS.train_data_path
+    current_run['max_depth'] = FLAGS.max_depth
+    current_run['sample_count'] = FLAGS.sample_count
+    current_run['batch_size'] = FLAGS.batch_size
+    current_run['max_steps'] = FLAGS.max_steps
+    current_run['summary_step_size'] = FLAGS.summary_step_size
+    current_run['save_step_size'] = FLAGS.save_step_size
+    current_run['force_reload_embeddings'] = FLAGS.force_reload_embeddings
+    if add_data is not None:
+        for k, v in add_data:
+            current_run[k] = v
+
+    runs.append(current_run)
+    with open(out_fn, 'w') as outfile:
+        json.dump(runs, outfile, indent=2, sort_keys=True)
 
 
 # DEPRECATED
@@ -133,8 +155,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nmode: '
-                             + 'default' + '\nsize: ' + str(size))
+        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'train_mode': 'default', 'corpus_size': size})
     all_depths_collected = []
     for current_depth in range(max_depth):
         print('load depths from: ' + corpus_path + '.depth' + str(max_depth - 1) + '.collected')
@@ -163,8 +184,7 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        add_training_remarks(os.path.join(FLAGS.logdir, 'remarks.txt'), 'corpus: ' + FLAGS.train_data_path + '\nmode: '
-                             + 'cbot' + '\nsize: ' + str(size))
+        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'train_mode': 'cbot', 'corpus_size': size})
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
@@ -227,10 +247,10 @@ def main(unused_argv):
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
-    current_max_depth = 1
+    #current_max_depth = 1
     #train_iterator = iterator_sequence_trees(FLAGS.train_data_path, current_max_depth, seq_data, children,
     #                                         FLAGS.sample_count)
-    train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, current_max_depth, seq_data, children,
+    train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
                                                   FLAGS.sample_count)
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
