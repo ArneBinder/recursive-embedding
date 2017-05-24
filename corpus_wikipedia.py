@@ -21,7 +21,7 @@ import ntpath
 import re
 
 tf.flags.DEFINE_string(
-    'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
+    'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', #'/home/arne/devel/ML/data/corpora/WIKIPEDIA/wikipedia-23886057.csv',#'/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
     'The path to the SICK train data file.')
 #tf.flags.DEFINE_string(
 #    'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
@@ -33,7 +33,7 @@ tf.flags.DEFINE_string(
     'corpus_data_output_fn', 'WIKIPEDIA',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
-    'init_dict_filename', '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#None, #'data/nlp/spacy/dict',
+    'init_dict_filename', None, #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#None, #'data/nlp/spacy/dict',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_integer(
     'max_articles', 10000,
@@ -44,6 +44,9 @@ tf.flags.DEFINE_integer(
 tf.flags.DEFINE_integer(
     'max_depth', 10,
     'The maximal depth of the sequence trees.')
+tf.flags.DEFINE_integer(
+    'count_threshold', 2,
+    'Change data types which occur less then count_threshold times to UNKNOWN')
 #tf.flags.DEFINE_integer(
 #    'sample_count', 14,
 #    'Amount of samples per tree. This excludes the correct tree.')
@@ -111,7 +114,8 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
                                                                     mapping, sentence_processor, max_depth,
                                                                     max_articles, batch_size, tree_mode)
         # sort and filter vecs/mappings by counts
-        seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs, count_threshold=2)
+        seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs,
+                                                                        count_threshold=FLAGS.count_threshold)
         corpus.write_dict(out_path, mapping, vecs)
         print('dump data to: ' + out_path + '.data ...')
         seq_data.dump(out_path + '.data')
@@ -152,6 +156,7 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
     out_fn = ntpath.basename(out_path)
 
     print('parse articles ...')
+    child_idx_offset = 0
     for offset in range(0, max_articles, batch_size):
         if not os.path.isfile(out_path + '.data.batch' + str(offset)):
             current_seq_data, current_seq_parents, current_idx_tuples, current_seq_depths = preprocessing.read_data_2(
@@ -164,12 +169,17 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
                 },
                 max_depth=max_depth,
                 batch_size=batch_size,
-                tree_mode=tree_mode)
+                tree_mode=tree_mode,
+                child_idx_offset=child_idx_offset)
             print('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
             current_seq_data.dump(out_path + '.data.batch' + str(offset))
             current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
             current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
             current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
+            child_idx_offset += len(current_seq_data)
+        else:
+            current_seq_data = np.load(out_path + '.data.batch' + str(offset))
+            child_idx_offset += len(current_seq_data)
 
     seq_data = preprocessing.merge_numpy_batch_files(out_fn+'.data.batch*', parent_dir)
     seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent.batch*', parent_dir)

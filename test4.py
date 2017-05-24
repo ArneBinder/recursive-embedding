@@ -93,8 +93,8 @@ def test_collected_shuffled_child_indices():
 def test_iterator_sequence_trees():
     pp = pprint.PrettyPrinter(indent=2)
 
-    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10'
-    sample_count = 15
+    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence3/WIKIPEDIA_articles1000_maxdepth10'
+    sample_count = 5
     max_depth = 1
 
     print('load mapping from file: ' + train_path + '.mapping ...')
@@ -112,13 +112,21 @@ def test_iterator_sequence_trees():
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
+    #visualize.visualize('orig.png', (seq_data, seq_parents), rev_m, parser.vocab, constants.vocab_manual)
+
     for i, seq_tree_seq in enumerate(train_fold_nce.iterator_sequence_trees(train_path, max_depth, seq_data, children,
                                                                             sample_count)):
-        pp.pprint(seq_tree_seq)
-        visualize.visualize_seq_node_seq(seq_tree_seq, rev_m, parser.vocab, constants.vocab_manual,
-                                         'forest_out_' + str(i) + '.png')
-        if i >= 0:
+        if i == 1000000:
             break
+
+        #pp.pprint(seq_tree_seq)
+        t_all = [str(seq_tree_seq['trees'][j]) for j in range(sample_count + 1)]
+        if len(set(t_all)) <= 1:
+            print('IDX: ' + str(i))
+            print(t_all[0])
+            #pp.pprint(seq_tree_seq)
+            visualize.visualize_seq_node_seq(seq_tree_seq, rev_m, parser.vocab, constants.vocab_manual,
+                                         'forest_out_' + str(i) + '.png')
 
 
 if __name__ == '__main__':

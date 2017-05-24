@@ -379,7 +379,7 @@ def get_root(parents, idx):
     return i
 
 
-def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, tree_mode=None, expand_dict=True):
+def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, tree_mode=None, expand_dict=True, child_idx_offset=0):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -455,29 +455,14 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
         depth_list.append(depth)
 
         have_children = np.array(children.keys())
-        #print('have_children:')
-        #print(have_children)
-        #print('depth:')
-        #print(depth)
 
-        #print('calc indices ...')
-        #idx_tuples = np.zeros(shape=(0, 3), dtype=int)
-        #idx_tuples = [] #np.zeros(shape=(0, 3), dtype=int)
-        # print('current_depth: '+str(current_depth))
         for i, idx in enumerate(have_children):
-            #if (i * 100) % len(have_children) == 0:
-            #    print('generate tuples ... ', i * 100 / len(have_children), '%')
-            #for current_depth in range(1, min(max_depth, depth[idx])):
-            for (child, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):#, max_depth_only=True):
-                #idx_tuples = np.append(idx_tuples, [[idx, child, child_steps_to_root]])
-                idx_tuples.append((idx, child, child_steps_to_root))
+            for (child, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
+                idx_tuples.append((idx + start_idx + child_idx_offset, child - idx, child_steps_to_root))
 
     print('sentences read: '+str(sen_count))
-    #data = np.array(seq_data)
-    #parents = np.array(seq_parents)
-    #root = prev_root
 
-    return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list) #data, parents#, root #, np.array(seq_edges)#, dep_map
+    return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
 
 
 def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
@@ -582,6 +567,23 @@ def children_and_roots(seq_parents):
         p_idx = i + p
         chs = children.get(p_idx, [])
         chs.append(i)
+        children[p_idx] = chs
+    return children, roots
+
+
+# unused
+def children_offsets_and_roots(seq_parents):
+    # assume, all parents are inside this array!
+    # collect children
+    children = {}
+    roots = []
+    for i, p in enumerate(seq_parents):
+        if p == 0:  # is it a root?
+            roots.append(i)
+            continue
+        p_idx = i + p
+        chs = children.get(p_idx, [])
+        chs.append(-p)
         children[p_idx] = chs
     return children, roots
 
@@ -753,7 +755,9 @@ def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
     if len(depths_collected_files) < max_depth:
         depths_collected = np.array([], dtype=int)
         for current_depth in reversed(sorted(depth_map.keys())):
-            depths_collected = np.append(depths_collected, depth_map[current_depth])
+            # if appending an empty list to an empty depths_collected, the dtype will change to float!
+            if len(depth_map[current_depth]) > 0:
+                depths_collected = np.append(depths_collected, depth_map[current_depth])
             if current_depth < max_depth:
                 np.random.shuffle(depths_collected)
                 depths_collected.dump(out_filename + '.depth' + str(current_depth) + '.collected')
@@ -805,9 +809,6 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
                 os.remove(out_filename + '.children.batch' + str(offset))
 
 
-#def concat_children_indices(out_file_path, parent_dir, max_depth):
-
-
 def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
     print('create shuffled child indices ...')
     # children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
@@ -831,7 +832,7 @@ def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
 
 def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count, all_depths_collected):
     idx = child_tuple[0]
-    idx_child = child_tuple[1]
+    idx_child = child_tuple[0] + child_tuple[1]
     path_len = child_tuple[2]
 
     max_candidate_depth = max_depth - path_len
@@ -891,7 +892,7 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
     vecs_mean = np.mean(vecs, axis=0)
     new_vecs = np.zeros(shape=(len(mapping), vecs.shape[1]), dtype=vecs.dtype)
     new_counts = np.zeros(shape=len(mapping), dtype=int)
-    converter = np.zeros(shape=len(mapping), dtype=int)
+    converter = -np.ones(shape=len(mapping), dtype=int)
 
     print('process reversed(sorted_indices) ...')
     new_idx = 0
@@ -912,16 +913,14 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]
     new_counts = new_counts[:new_idx]
-    converter = converter[:new_idx]
 
     print('rearrange mappings ...')
     count_del = 0
     for key in mapping.keys():
-        try:
-            new_value = converter[mapping[key]]
+        new_value = converter[mapping[key]]
+        if new_value >= 0:
             mapping[key] = new_value
-        except IndexError:
-            #print('del: '+str(mapping[key]))
+        else:
             count_del += 1
             del mapping[key]
     print('deleted ' + str(count_del) + ' mappings')
@@ -932,9 +931,9 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
     print('convert data ...')
     count_unknown = 0
     for i, d in enumerate(seq_data):
-        try:
+        if converter[d] >= 0:
             seq_data[i] = converter[d]
-        except IndexError:
+        else:
             seq_data[i] = mapping[constants.UNKNOWN_EMBEDDING]
             count_unknown += 1
     print('set ' + str(count_unknown) + ' data points to UNKNOWN')
