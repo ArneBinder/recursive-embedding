@@ -52,7 +52,7 @@ tf.flags.DEFINE_integer('save_step_size', 200,  # 200,
 tf.flags.DEFINE_boolean('force_reload_embeddings', False,  #False, #
                         'Force initialization of embeddings from numpy array in the train directory, even if a model'
                         'checkpoint file is available.')
-tf.flags.DEFINE_string('train_mode', 'cbot', #None,
+tf.flags.DEFINE_string('train_mode', 'cbot', #None,#
                        'The way to prepare the train data sets. '
                        'possible values: "cbot" (continuous bag of trees) or None')
 tf.flags.DEFINE_string('master', '',
@@ -159,7 +159,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size})
+        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size, 'data_offset': offset})
     all_depths_collected = []
     for current_depth in range(max_depth):
         print('load depths from: ' + corpus_path + '.depth' + str(max_depth - 1) + '.collected')
@@ -192,7 +192,7 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size})
+        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size, 'data_offset': offset})
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
