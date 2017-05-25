@@ -52,6 +52,9 @@ tf.flags.DEFINE_integer('save_step_size', 200,  # 200,
 tf.flags.DEFINE_boolean('force_reload_embeddings', False,  #False, #
                         'Force initialization of embeddings from numpy array in the train directory, even if a model'
                         'checkpoint file is available.')
+tf.flags.DEFINE_string('train_mode', 'cbot', #None,
+                       'The way to prepare the train data sets. '
+                       'possible values: "cbot" (continuous bag of trees) or None')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
 tf.flags.DEFINE_integer('task', 0,
@@ -110,6 +113,7 @@ def dump_flags(out_fn, add_data=None):
     current_run['summary_step_size'] = FLAGS.summary_step_size
     current_run['save_step_size'] = FLAGS.save_step_size
     current_run['force_reload_embeddings'] = FLAGS.force_reload_embeddings
+    current_run['train_mode'] = FLAGS.train_mode
     if add_data is not None:
         for k in add_data.keys():
             current_run[k] = add_data[k]
@@ -155,7 +159,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'train_mode': 'default', 'corpus_size': size})
+        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size})
     all_depths_collected = []
     for current_depth in range(max_depth):
         print('load depths from: ' + corpus_path + '.depth' + str(max_depth - 1) + '.collected')
@@ -188,7 +192,7 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
     print('train data size: ' + str(size))
     # save training info
     if 'FLAGS' in globals():
-        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'train_mode': 'cbot', 'corpus_size': size})
+        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size})
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
@@ -261,11 +265,16 @@ def main(unused_argv):
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
-    # ATTENTION: when batch_size changes, offset != loaded_global_step * FLAGS.batch_size
-    #train_iterator = iterator_sequence_trees(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
-    #                                         FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
-    train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
-                                                  FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
+    # ATTENTION: if batch_size changes, offset doesn't equal loaded_global_step * FLAGS.batch_size!
+    if FLAGS.train_mode is None:
+        train_iterator = iterator_sequence_trees(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
+                                                 FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
+    elif FLAGS.train_mode == 'cbot':
+        train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
+                                                      FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
+    else:
+        raise NameError('unknown train_mode: '+FLAGS.train_mode)
+
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
