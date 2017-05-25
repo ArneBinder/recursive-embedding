@@ -37,7 +37,7 @@ tf.flags.DEFINE_string('train_data_path',
 #                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
 #                        '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
 #                        'mark identity). This value has to be larger then the initial gloVe size ()')
-tf.flags.DEFINE_integer('max_depth', 1,
+tf.flags.DEFINE_integer('max_depth', 3,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
@@ -94,7 +94,7 @@ def extract_model_embeddings(model_fn=None, out_fn=None):
             embeddings_np.dump(out_fn)
 
 
-def dump_flags(out_fn, add_data=None):
+def dump_flags(out_fn, global_step, add_data=None):
     print('dump flags to: ' + out_fn + ' ...')
     runs = []
     if os.path.exists(out_fn):
@@ -102,7 +102,6 @@ def dump_flags(out_fn, add_data=None):
             runs = json.load(data_file)
 
     current_run = {}
-    current_run['id'] = len(runs)
     current_run['time'] = datetime.datetime.now().isoformat()
     current_run['logdir'] = FLAGS.logdir
     current_run['train_data_path'] = FLAGS.train_data_path
@@ -114,13 +113,25 @@ def dump_flags(out_fn, add_data=None):
     current_run['save_step_size'] = FLAGS.save_step_size
     current_run['force_reload_embeddings'] = FLAGS.force_reload_embeddings
     current_run['train_mode'] = FLAGS.train_mode
+    current_run['step_start'] = global_step
     if add_data is not None:
         for k in add_data.keys():
             current_run[k] = add_data[k]
 
+    if len(runs) > 0:
+        last_run = sorted(runs, key=lambda run: run['id'])[-1]
+        current_run['id'] = last_run['id'] + 1
+        last_run_steps = global_step - last_run['step_start']
+        last_run_data_count = last_run_steps * last_run['batch_size']
+        current_run['data_offset'] = last_run['data_offset'] + last_run_data_count
+    else:
+        current_run['id'] = 0
+        current_run['data_offset'] = 0
+
     runs.append(current_run)
     with open(out_fn, 'w') as outfile:
         json.dump(runs, outfile, indent=2, sort_keys=True)
+    return current_run
 
 
 # DEPRECATED
@@ -148,7 +159,7 @@ def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
                                                         seq_tree_seq.SerializeToString())
 
 
-def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_count, offset=0):
+def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_count, loaded_global_step=0):
     pp = pprint.PrettyPrinter(indent=2)
 
     # load corpus depth_max dependent data:
@@ -157,9 +168,12 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
     # print(children_indices.shape)
     size = len(children_indices)
     print('train data size: ' + str(size))
+    offset = 0
     # save training info
     if 'FLAGS' in globals():
-        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size, 'data_offset': offset})
+        current_run = dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), loaded_global_step, add_data={'corpus_size': size})
+        print('data_offset: '+str(current_run['data_offset']))
+        offset = current_run['data_offset'] % size
     all_depths_collected = []
     for current_depth in range(max_depth):
         print('load depths from: ' + corpus_path + '.depth' + str(max_depth - 1) + '.collected')
@@ -185,14 +199,17 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
 
 
 # continuous bag of trees model
-def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sample_count, offset):
+def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sample_count, loaded_global_step):
     print('load depths from: ' + corpus_path + '.depth1.collected')
     depth1_collected = np.load(corpus_path + '.depth1.collected')
     size = len(depth1_collected)
     print('train data size: ' + str(size))
+    offset = 0
     # save training info
     if 'FLAGS' in globals():
-        dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), add_data={'corpus_size': size, 'data_offset': offset})
+        current_run = dump_flags(os.path.join(FLAGS.logdir, 'runs.json'), loaded_global_step, add_data={'corpus_size': size})
+        print('data_offset: '+str(current_run['data_offset']))
+        offset = current_run['data_offset'] % size
     while True:
         # take all trees with depth > 0 as train data
         for idx in depth1_collected:
@@ -243,7 +260,7 @@ def main(unused_argv):
     if checkpoint is not None:
         input_checkpoint = checkpoint.model_checkpoint_path
         reader = tf.train.NewCheckpointReader(input_checkpoint)
-        loaded_global_step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
+        loaded_global_step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP).astype(int)
         print('loaded_global_step: '+str(loaded_global_step))
         if not FLAGS.force_reload_embeddings:
             print('extract lexicon size from model: ' + input_checkpoint + ' ...')
@@ -265,13 +282,12 @@ def main(unused_argv):
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
-    # ATTENTION: if batch_size changes, offset doesn't equal loaded_global_step * FLAGS.batch_size!
     if FLAGS.train_mode is None:
         train_iterator = iterator_sequence_trees(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
-                                                 FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
+                                                 FLAGS.sample_count, loaded_global_step)
     elif FLAGS.train_mode == 'cbot':
         train_iterator = iterator_sequence_trees_cbot(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
-                                                      FLAGS.sample_count, loaded_global_step * FLAGS.batch_size)
+                                                      FLAGS.sample_count, loaded_global_step)
     else:
         raise NameError('unknown train_mode: '+FLAGS.train_mode)
 
