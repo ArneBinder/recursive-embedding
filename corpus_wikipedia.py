@@ -181,6 +181,8 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
     seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
     seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
 
+    print('parsed data size: '+str(len(seq_data)))
+
     return seq_data, seq_parents, seq_depths, mapping
 
 

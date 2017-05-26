@@ -442,6 +442,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
             else:
                 raise NameError('unknown tree_mode: ' + tree_mode)
 
+        # TODO: check this!
         # get current parents
         current_seq_parents = np.array(seq_parents[start_idx:])
 
@@ -452,8 +453,6 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
 
         depth_list.append(depth)
 
-        #have_children = np.array(children.keys())
-
         for idx in children.keys():
             for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
                 idx_tuples.append((idx + start_idx + child_idx_offset, child_offset, child_steps_to_root))
@@ -461,6 +460,26 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     print('sentences read: '+str(sen_count))
 
     return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
+
+
+def calc_depths_and_child_indices((parents, max_depth, child_idx_offset)):#(out_path, offset, max_depth)):
+    #parents = np.load(out_path + '.parent.batch' + str(offset))
+    # calc children and roots
+    children, roots = children_and_roots(parents)
+    # calc depth for every position
+    depth = calc_seq_depth(children, roots, parents)
+
+    #depth.dump(out_path + '.depth.batch' + str(offset))
+
+    idx_tuples = []
+
+    for idx in children.keys():
+        for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
+            idx_tuples.append((idx+child_idx_offset, child_offset, child_steps_to_root))
+
+    #np.array(idx_tuples).dump(out_path + '.children.batch' + str(offset))
+
+    return depth, np.array(idx_tuples)
 
 
 def calc_seq_depth(children, roots, seq_parents):
@@ -774,6 +793,9 @@ def batch_file_count(total_count, batch_size):
 
 
 def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size):
+    # not yet used
+    #child_idx_offset = 0
+    ##
     children_depth_batch_files = fnmatch.filter(os.listdir(parent_dir),
                                                 ntpath.basename(out_filename) + '.children.depth*.batch*')
     children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
@@ -786,6 +808,8 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
             if len(current_depth_batch_files) < max_depth:
                 print('read child indices for offset=' + str(offset) + ' ...')
                 current_idx_tuples = np.load(out_filename + '.children.batch' + str(offset))
+                # add offset
+                #current_idx_tuples += np.array([child_idx_offset, 0, 0])
                 print(len(current_idx_tuples))
                 print('get depths ...')
                 children_depths = current_idx_tuples[:, 2]
@@ -811,6 +835,10 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
                     prev_end = end
                 # remove processed batch file
                 os.remove(out_filename + '.children.batch' + str(offset))
+            # not yet used
+            #seq_data = np.load(out_filename + '.parent.batch' + str(offset))
+            #child_idx_offset += len(seq_data)
+            ##
 
 
 def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
