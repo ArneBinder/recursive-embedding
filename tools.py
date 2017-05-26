@@ -5,7 +5,7 @@ import os
 import spacy
 import constants
 
-nlp = spacy.load('en')
+#nlp = spacy.load('en')
 
 def mkdir_p(path):
     try:
@@ -52,13 +52,6 @@ def avg_dif(a):
         l.append(a[i+1] - a[i])
 
     return sum(l) / len(l)
-
-
-def revert_mapping(mapping):
-    temp = {}
-    for key in mapping:
-        temp[mapping[key]] = key
-    return temp
 
 
 def getOrAdd(d, idx, idx_alt=None):

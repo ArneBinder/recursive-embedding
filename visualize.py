@@ -4,14 +4,19 @@ import pydot
 import matplotlib.pyplot as plt
 import constants
 from PIL import Image
+
+import corpus
 import preprocessing
 # from IPython.display import Image, display
+import spacy
 
 
 # def view_pydot(pdot):
 #    plt = Image(pdot.create_png())
 #    display(plt)
+import tools
 
+parser = spacy.load('en')
 
 
 # DEPRECATED
@@ -53,21 +58,25 @@ def visualize_dep(filename, sequence_graph, data_maps_rev, vocab):
     # view_pydot(graph)
 
 
-def visualize(filename, sequence_graph, data_maps_rev, vocab, vocab_neg):
+def visualize(filename, sequence_graph, data_maps, vocab=None, vocab_neg=None):
+    data_maps_rev = corpus.revert_mapping(data_maps)
+
+    if vocab is None:
+        vocab = parser.vocab
+    if vocab_neg is None:
+        vocab_neg = constants.vocab_manual
+
     data, parents = sequence_graph
+    parents = parents.copy()
+    for i, p in enumerate(parents):
+        if i + p < 0 or i + p >= len(parents):
+            parents[i] = 0
+
     graph = pydot.Dot(graph_type='digraph', rankdir='LR')
     if len(data) > 0:
         nodes = []
-        for i in range(len(data)):
-            # print('data[i]: ' + str(data[i]))
-            v_id = data_maps_rev[data[i]]
-            if v_id < 0:
-                l = vocab_neg[v_id]
-            else:
-                try:
-                    l = vocab[v_id].orth_
-                except IndexError:
-                    l = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+        for i, d in enumerate(data):
+            l = data_to_word(d, data_maps_rev, vocab, vocab_neg)
             nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor="green"))
 
         for node in nodes:
@@ -126,3 +135,15 @@ def getFromVocs(d_pos, d_neg, e):
     if e < 0:
         return d_neg[e]
     return d_pos[e].orth_
+
+
+def data_to_word(d_, rev_m_, vocab_, vocab_man_):
+    v_id = rev_m_[d_]
+    if v_id < 0:
+        t = vocab_man_[v_id]
+    else:
+        try:
+            t = vocab_[v_id].orth_
+        except IndexError:
+            t = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+    return t

@@ -17,7 +17,7 @@ def write_dict(out_path, mapping, vecs, vocab_nlp=None, vocab_manual=None):
 
     if vocab_nlp is not None:
         print('write tsv dict: ' + out_path + '.tsv ...')
-        rev_map = tools.revert_mapping(mapping)
+        rev_map = revert_mapping(mapping)
         with open(out_path + '.tsv', 'wb') as csvfile:
             fieldnames = ['label', 'id_orig']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', quotechar='|',
@@ -53,3 +53,10 @@ def create_or_read_dict(fn, vocab=None):
         with open(fn + '.mapping', "wb") as f:
             pickle.dump(m, f)
     return v, m
+
+
+def revert_mapping(mapping):
+    temp = {}
+    for key in mapping:
+        temp[mapping[key]] = key
+    return temp

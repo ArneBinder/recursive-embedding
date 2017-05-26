@@ -465,6 +465,13 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
 
 
+def calc_seq_depth(children, roots, seq_parents):
+    depth = -np.ones(len(seq_parents), dtype=np.int16)
+    for root in roots:
+        calc_depth(children, seq_parents, depth, root)
+    return depth
+
+
 def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
 
     # ids of the dictionaries to query the data point referenced by seq_data
@@ -575,27 +582,26 @@ def children_and_roots(seq_parents):
 def children_offsets_and_roots(seq_parents):
     # assume, all parents are inside this array!
     # collect children
-    children = {}
+    children = [[] for _ in xrange(len(seq_parents))]
     roots = []
     for i, p in enumerate(seq_parents):
         if p == 0:  # is it a root?
             roots.append(i)
             continue
         p_idx = i + p
-        chs = children.get(p_idx, [])
-        chs.append(-p)
-        children[p_idx] = chs
+        children[p_idx].append(-p)
     return children, roots
 
 
 def get_all_children_rec(idx, children, max_depth, current_depth=0, max_depth_only=False):
-    if idx not in children or max_depth == 0:
+    #if idx not in children or max_depth == 0:
+    if len(children[idx]) == 0 or max_depth == 0:
         return []
     result = []
     for child in children[idx]:
         if not max_depth_only or current_depth + 1 == max_depth:
             result.append((child, current_depth + 1))
-        result.extend(get_all_children_rec(child, children, max_depth-1, current_depth + 1, max_depth_only))
+        result.extend(get_all_children_rec(idx + child, children, max_depth-1, current_depth + 1, max_depth_only))
     return result
 
 
@@ -616,16 +622,19 @@ def calc_depth_rec(children, depth, idx):
 def calc_depth(children, parents, depth, start):
     idx = start
     children_idx = list()
-    if start in children:
+    #if start in children:
+    if len(children[start]) > 0:
         children_idx.append(0)
         while len(children_idx) > 0:
             current_child_idx = children_idx.pop()
             # go down
-            idx = children[idx][current_child_idx]
+            #idx = children[idx][current_child_idx]
+            idx += children[idx][current_child_idx]
             # not already calculated?
             if depth[idx] < 0:
                 # no children --> depth == 0
-                if idx not in children:
+                #if idx not in children:
+                if len(children[idx]) == 0:
                     depth[idx] = 0
                 else:
                     # calc children
@@ -751,7 +760,7 @@ def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
             depth_map[current_depth] = [idx]
 
     depths_collected_files = fnmatch.filter(os.listdir(parent_dir),
-                                            ntpath.basename(out_filename) + '.data*.collected')
+                                            ntpath.basename(out_filename) + '.depth*.collected')
     if len(depths_collected_files) < max_depth:
         depths_collected = np.array([], dtype=int)
         for current_depth in reversed(sorted(depth_map.keys())):
@@ -812,7 +821,7 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
 def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
     print('create shuffled child indices ...')
     # children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
-    collected_child_indices = np.zeros(shape=(0, 3), dtype=int)
+    collected_child_indices = np.zeros(shape=(0, 3), dtype=np.int32)
     for current_depth in range(1, max_depth + 1):
         if not os.path.isfile(out_filename + '.children.depth' + str(current_depth) + '.collected'):
             #print('load: ' + out_filename + '.children.depth' + str(current_depth))
@@ -856,10 +865,11 @@ def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count
 
 def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, overwrite=False):
     print('concatenate batches: '+batch_file_name)
-    out_fn = batch_file_name.replace('.batch*', '', 1)
-    if os.path.isfile(out_fn) and not overwrite:
-        return np.load(out_fn)
-    batch_file_names = fnmatch.filter(os.listdir(parent_dir), batch_file_name)
+    #out_fn = batch_file_name.replace('.batch*', '', 1)
+    if os.path.isfile(batch_file_name) and not overwrite:
+        return np.load(batch_file_name)
+    batch_file_names = fnmatch.filter(os.listdir(parent_dir), batch_file_name + '.batch*')
+    batch_file_names = sorted(batch_file_names, key=lambda s: int(s[len(batch_file_name + '.batch'):]))
     if len(batch_file_names) == 0:
         return None
     if expected_count is not None and len(batch_file_names) != expected_count:
@@ -869,7 +879,7 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
         l.append(np.load(os.path.join(parent_dir, fn)))
     concatenated = np.concatenate(l, axis=0)
 
-    concatenated.dump(os.path.join(parent_dir, out_fn))
+    concatenated.dump(os.path.join(parent_dir, batch_file_name))
     for fn in batch_file_names:
         os.remove(os.path.join(parent_dir, fn))
     return concatenated

@@ -96,7 +96,9 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     if not os.path.isfile(out_filename+'.data') \
             or not os.path.isfile(out_filename + '.parent')\
             or not os.path.isfile(out_filename + '.mapping')\
-            or not os.path.isfile(out_filename + '.vecs'):
+            or not os.path.isfile(out_filename + '.vecs') \
+            or not os.path.isfile(out_filename + '.depth') \
+            or not os.path.isfile(out_filename + '.count'):
 
         if parser is None:
             print('load spacy ...')
@@ -125,21 +127,21 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     else:
         print('load parents from file: '+out_filename + '.parent ...')
         #seq_data = np.load(out_filename+'.data')
-        seq_parents = np.load(out_filename+'.parent')
+        #seq_parents = np.load(out_filename+'.parent')
         #vecs, mapping = corpus.create_or_read_dict(out_filename)
-        if os.path.isfile(out_filename + '.depth'):
-            print('load depths from file: ' + out_filename + '.depth ...')
-            seq_depths = np.load(out_filename+'.depth')
-        else:
-            print('calc children and roots ...')
-            seq_children, seq_roots = preprocessing.children_and_roots(seq_parents)
-            # calc depth for every position
-            print('calc depths ...')
-            seq_depths = -np.ones(len(seq_parents), dtype=np.int)
-            for root in seq_roots:
-                preprocessing.calc_depth(seq_children, seq_parents, seq_depths, root)
-            print('dump depths to file: ' + out_filename + '.depth ...')
-            seq_depths.dump(out_filename + '.depth')
+        #if os.path.isfile(out_filename + '.depth'):
+        print('load depths from file: ' + out_filename + '.depth ...')
+        seq_depths = np.load(out_filename+'.depth')
+        #else:
+        #    print('calc children and roots ...')
+        #    seq_children, seq_roots = preprocessing.children_and_roots(seq_parents)
+        #    # calc depth for every position
+        #    print('calc depths ...')
+        #    seq_depths = -np.ones(len(seq_parents), dtype=np.int)
+        #    for root in seq_roots:
+        #        preprocessing.calc_depth(seq_children, seq_parents, seq_depths, root)
+        #    print('dump depths to file: ' + out_filename + '.depth ...')
+        #    seq_depths.dump(out_filename + '.depth')
 
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
     preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
@@ -148,7 +150,9 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     print('load and concatenate child indices batches ...')
     for current_depth in range(1, max_depth + 1):
         if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
-            preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth) + '.batch*', parent_dir)
+            preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth), parent_dir)
+
+    #preprocessing.collected_shuffled_child_indices(out_filename, max_depth, dump=True)
 
     return parser#, mapping, vecs
 
@@ -159,35 +163,40 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
     print('parse articles ...')
     child_idx_offset = 0
     for offset in range(0, max_articles, batch_size):
-        if not os.path.isfile(out_path + '.data.batch' + str(offset)):
-            current_seq_data, current_seq_parents, current_idx_tuples, current_seq_depths = preprocessing.read_data_2(
-                articles_from_csv_reader,
-                sentence_processor, parser, mapping,
-                args={
-                    'filename': in_filename,
-                    'max_articles': min(batch_size, max_articles),
-                    'skip': offset
-                },
-                max_depth=max_depth,
-                batch_size=batch_size,
-                tree_mode=tree_mode,
-                child_idx_offset=child_idx_offset)
-            print('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
-            current_seq_data.dump(out_path + '.data.batch' + str(offset))
-            current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
-            current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
-            current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
-            child_idx_offset += len(current_seq_data)
-        else:
-            current_seq_data = np.load(out_path + '.data.batch' + str(offset))
-            child_idx_offset += len(current_seq_data)
+        # all or none: otherwise the mapping lacks entries!
+        #if not careful or not os.path.isfile(out_path + '.data.batch' + str(offset)) \
+        #        or not os.path.isfile(out_path + '.parent.batch' + str(offset)) \
+        #        or not os.path.isfile(out_path + '.depth.batch' + str(offset)) \
+        #        or not os.path.isfile(out_path + '.children.batch' + str(offset)):
+        current_seq_data, current_seq_parents, current_idx_tuples, current_seq_depths = preprocessing.read_data_2(
+            articles_from_csv_reader,
+            sentence_processor, parser, mapping,
+            args={
+                'filename': in_filename,
+                'max_articles': min(batch_size, max_articles),
+                'skip': offset
+            },
+            max_depth=max_depth,
+            batch_size=batch_size,
+            tree_mode=tree_mode,
+            child_idx_offset=child_idx_offset)
+        print('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
+        current_seq_data.dump(out_path + '.data.batch' + str(offset))
+        current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
+        current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
+        current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
+        child_idx_offset += len(current_seq_data)
+        #if careful:
+        #   print('dump mappings to: ' + out_path + '.mapping ...')
+        #   with open(out_path + '.mapping', "wb") as f:
+        #       pickle.dump(mapping, f)
+        #else:
+        #    current_seq_data = np.load(out_path + '.data.batch' + str(offset))
+        #    child_idx_offset += len(current_seq_data)
 
-    seq_data = preprocessing.merge_numpy_batch_files(out_fn+'.data.batch*', parent_dir)
-    seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent.batch*', parent_dir)
-    seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth.batch*', parent_dir)
-    print('dump mappings to: ' + out_path + '.mapping ...')
-    with open(out_path + '.mapping', "wb") as f:
-        pickle.dump(mapping, f)
+    seq_data = preprocessing.merge_numpy_batch_files(out_fn+'.data', parent_dir)
+    seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
+    seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
 
     return seq_data, seq_parents, seq_depths, mapping
 

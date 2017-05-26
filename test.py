@@ -5,7 +5,7 @@ import constants
 from visualize import visualize_dep
 from forest import cut_subgraph, forest_candidates, get_children, get_roots, right_outer_nodes
 import numpy as np
-from tools import revert_mapping
+from corpus import revert_mapping
 import json
 
 slice_size = 75

@@ -2,6 +2,7 @@ import pickle
 import spacy
 
 import constants
+import corpus
 import preprocessing
 
 import numpy as np
@@ -9,14 +10,15 @@ import pprint
 import tensorflow_fold as td
 import os
 
+import sequence_node_pb2
 import tools
 import train_fold_nce
 import visualize
 
-seq_data = [3646, 117, 112, 385, 853, 120, 109, 2014, 7453, 70, 110, 145, 139, 70]
-seq_parents = [1, 10, 2, 1, -3, -1, 2, 1, -3, -8, 1, 0, -1, -2]
+seq_data = [3646, 1297620, 117, 53146, 112, 48, 385, 1297621, 853, 43, 120, 60, 109, 48, 2014, 9123, 7453, 1297622, 70, 62, 110, 1297620, 145, 53146, 139, 1297623, 70, 62]#[3646, 117, 112, 385, 853, 120, 109, 2014, 7453, 70, 110, 145, 139, 70]
+seq_parents = [2, -1, 0, -1, 4, -1, 2, -1, -6, -1, -2, -1, 4, -1, 2, -1, -6, -1, -16, -1, 2, -1, 0, -1, -2, -1, -4, -1]#[1, 10, 2, 1, -3, -1, 2, 1, -3, -8, 1, 0, -1, -2]
 print('calc children and roots ...')
-children, roots = preprocessing.children_and_roots(seq_parents)
+children, roots = preprocessing.children_offsets_and_roots(seq_parents)
 print(children)
 print(roots)
 
@@ -100,7 +102,7 @@ def test_iterator_sequence_trees():
     print('load mapping from file: ' + train_path + '.mapping ...')
     m = pickle.load(open(train_path + '.mapping', "rb"))
     print('len(mapping): ' + str(len(m)))
-    rev_m = tools.revert_mapping(m)
+    rev_m = corpus.revert_mapping(m)
     print('load spacy ...')
     parser = spacy.load('en')
 
@@ -132,16 +134,9 @@ def test_iterator_sequence_trees():
 def test_iterator_sequence_trees_cbot():
     pp = pprint.PrettyPrinter(indent=2)
 
-    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence3/WIKIPEDIA_articles1000_maxdepth10'
+    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10'
     sample_count = 5
-    max_depth = 1
-
-    print('load mapping from file: ' + train_path + '.mapping ...')
-    m = pickle.load(open(train_path + '.mapping', "rb"))
-    print('len(mapping): ' + str(len(m)))
-    rev_m = tools.revert_mapping(m)
-    print('load spacy ...')
-    parser = spacy.load('en')
+    max_depth = 3
 
     # load corpus data
     print('load corpus data from: ' + train_path + '.data ...')
@@ -150,12 +145,35 @@ def test_iterator_sequence_trees_cbot():
     seq_parents = np.load(train_path + '.parent')
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
+    print(children[3106218])
+
+    print('load depths from: ' + train_path + '.depth1.collected')
+    depth1_collected = np.load(train_path + '.depth1.collected')
+
+    idx = depth1_collected[9663491] # idx = 3106218
+    print('idx: '+str(idx))
+    print('load depths ...')
+    seq_depths = np.load(train_path + '.depth')
+    print('depth of idx: '+str(seq_depths[idx]))
+
+    print('children of idx:')
+    print(children[idx])
+    seq_tree = sequence_node_pb2.SequenceNode()
+    preprocessing.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
+    pp.pprint(seq_tree)
+
+    print('load mapping from file: ' + train_path + '.mapping ...')
+    m = pickle.load(open(train_path + '.mapping', "rb"))
+    print('len(mapping): ' + str(len(m)))
+    rev_m = corpus.revert_mapping(m)
+    print('load spacy ...')
+    parser = spacy.load('en')
 
     #visualize.visualize('orig.png', (seq_data, seq_parents), rev_m, parser.vocab, constants.vocab_manual)
 
     for i, seq_tree_seq in enumerate(train_fold_nce.iterator_sequence_trees_cbot(train_path, max_depth, seq_data, children,
-                                                                            sample_count)):
-        if i == 3:
+                                                                            sample_count, loaded_global_step=0)):
+        if i == 1:
             break
 
         #pp.pprint(seq_tree_seq)
@@ -181,8 +199,8 @@ if __name__ == '__main__':
     #test_collected_shuffled_child_indices()
     #test_sequence_tree_to_arrays()
     #test_iterator_sequence_trees()
-    test_iterator_sequence_trees_cbot()
-
+    #test_iterator_sequence_trees_cbot()
+    test_depth()
 
 
 
