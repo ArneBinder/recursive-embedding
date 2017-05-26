@@ -125,23 +125,8 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
         print('dump counts to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
     else:
-        print('load parents from file: '+out_filename + '.parent ...')
-        #seq_data = np.load(out_filename+'.data')
-        #seq_parents = np.load(out_filename+'.parent')
-        #vecs, mapping = corpus.create_or_read_dict(out_filename)
-        #if os.path.isfile(out_filename + '.depth'):
         print('load depths from file: ' + out_filename + '.depth ...')
         seq_depths = np.load(out_filename+'.depth')
-        #else:
-        #    print('calc children and roots ...')
-        #    seq_children, seq_roots = preprocessing.children_and_roots(seq_parents)
-        #    # calc depth for every position
-        #    print('calc depths ...')
-        #    seq_depths = -np.ones(len(seq_parents), dtype=np.int)
-        #    for root in seq_roots:
-        #        preprocessing.calc_depth(seq_children, seq_parents, seq_depths, root)
-        #    print('dump depths to file: ' + out_filename + '.depth ...')
-        #    seq_depths.dump(out_filename + '.depth')
 
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
     preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
@@ -152,9 +137,7 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
         if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
             preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth), parent_dir)
 
-    #preprocessing.collected_shuffled_child_indices(out_filename, max_depth, dump=True)
-
-    return parser#, mapping, vecs
+    return parser
 
 
 def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
