@@ -18,7 +18,7 @@ import visualize
 seq_data = [3646, 1297620, 117, 53146, 112, 48, 385, 1297621, 853, 43, 120, 60, 109, 48, 2014, 9123, 7453, 1297622, 70, 62, 110, 1297620, 145, 53146, 139, 1297623, 70, 62]#[3646, 117, 112, 385, 853, 120, 109, 2014, 7453, 70, 110, 145, 139, 70]
 seq_parents = [2, -1, 0, -1, 4, -1, 2, -1, -6, -1, -2, -1, 4, -1, 2, -1, -6, -1, -16, -1, 2, -1, 0, -1, -2, -1, -4, -1]#[1, 10, 2, 1, -3, -1, 2, 1, -3, -8, 1, 0, -1, -2]
 print('calc children and roots ...')
-children, roots = preprocessing.children_offsets_and_roots(seq_parents)
+children, roots = preprocessing.children_and_roots(seq_parents)
 print(children)
 print(roots)
 
@@ -95,14 +95,14 @@ def test_collected_shuffled_child_indices():
 def test_iterator_sequence_trees():
     pp = pprint.PrettyPrinter(indent=2)
 
-    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence3/WIKIPEDIA_articles1000_maxdepth10'
+    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles100_maxdepth10'
     sample_count = 5
     max_depth = 1
 
     print('load mapping from file: ' + train_path + '.mapping ...')
     m = pickle.load(open(train_path + '.mapping', "rb"))
     print('len(mapping): ' + str(len(m)))
-    rev_m = corpus.revert_mapping(m)
+    #rev_m = corpus.revert_mapping(m)
     print('load spacy ...')
     parser = spacy.load('en')
 
@@ -127,14 +127,14 @@ def test_iterator_sequence_trees():
             print('IDX: ' + str(i))
             print(t_all[0])
             #pp.pprint(seq_tree_seq)
-            visualize.visualize_seq_node_seq(seq_tree_seq, rev_m, parser.vocab, constants.vocab_manual,
+            visualize.visualize_seq_node_seq(seq_tree_seq, m, parser.vocab, constants.vocab_manual,
                                          'forest_out_' + str(i) + '.png')
 
 
 def test_iterator_sequence_trees_cbot():
     pp = pprint.PrettyPrinter(indent=2)
 
-    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10'
+    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles100_maxdepth10'
     sample_count = 5
     max_depth = 3
 
@@ -145,27 +145,28 @@ def test_iterator_sequence_trees_cbot():
     seq_parents = np.load(train_path + '.parent')
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
-    print(children[3106218])
+    #print(children[3106218])
 
     print('load depths from: ' + train_path + '.depth1.collected')
     depth1_collected = np.load(train_path + '.depth1.collected')
 
-    idx = depth1_collected[9663491] # idx = 3106218
-    print('idx: '+str(idx))
+    #idx = depth1_collected[9663491] # idx = 3106218
+    #print('idx: '+str(idx))
     print('load depths ...')
     seq_depths = np.load(train_path + '.depth')
-    print('depth of idx: '+str(seq_depths[idx]))
+    #print('depth of idx: '+str(seq_depths[idx]))
 
     print('children of idx:')
-    print(children[idx])
-    seq_tree = sequence_node_pb2.SequenceNode()
-    preprocessing.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
-    pp.pprint(seq_tree)
+    #print(children[idx])
+    #seq_tree = sequence_node_pb2.SequenceNode()
+    #preprocessing.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
+    #pp.pprint(seq_tree)
 
     print('load mapping from file: ' + train_path + '.mapping ...')
     m = pickle.load(open(train_path + '.mapping', "rb"))
+    #print(4 in m.values)
     print('len(mapping): ' + str(len(m)))
-    rev_m = corpus.revert_mapping(m)
+    #rev_m = corpus.revert_mapping(m)
     print('load spacy ...')
     parser = spacy.load('en')
 
@@ -173,7 +174,7 @@ def test_iterator_sequence_trees_cbot():
 
     for i, seq_tree_seq in enumerate(train_fold_nce.iterator_sequence_trees_cbot(train_path, max_depth, seq_data, children,
                                                                             sample_count, loaded_global_step=0)):
-        if i == 1:
+        if i == 5:
             break
 
         #pp.pprint(seq_tree_seq)
@@ -182,8 +183,29 @@ def test_iterator_sequence_trees_cbot():
         print('IDX: ' + str(i))
         #print(t_all[0])
         pp.pprint(seq_tree_seq)
-        visualize.visualize_seq_node_seq(seq_tree_seq, rev_m, parser.vocab, constants.vocab_manual,
+        visualize.visualize_seq_node_seq(seq_tree_seq, m, parser.vocab, constants.vocab_manual,
                                      'forest_out_' + str(i) + '.png')
+
+
+def test_check_depth_collected():
+    train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles100_maxdepth10'
+    print('load depths ...')
+    seq_depths = np.load(train_path + '.depth')
+    print(len(seq_depths))
+
+    max_depth = 10
+
+    deph_collected = []
+    for i in range(max_depth):
+        print('load depths from: ' + train_path + '.depth'+str(i)+'.collected')
+        dc = np.load(train_path + '.depth'+str(i)+'.collected')
+        print(len(dc))
+        deph_collected.append(dc)
+
+    for i, current_depth in enumerate(seq_depths):
+        for d in range(min(current_depth+1, max_depth)):
+            if i not in deph_collected[d]:
+                print(str(i) +' not in '+str(d))
 
 
 if __name__ == '__main__':
@@ -200,7 +222,8 @@ if __name__ == '__main__':
     #test_sequence_tree_to_arrays()
     #test_iterator_sequence_trees()
     #test_iterator_sequence_trees_cbot()
-    test_depth()
+    #test_depth()
+    test_check_depth_collected()
 
 
 

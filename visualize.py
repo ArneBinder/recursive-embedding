@@ -1,3 +1,4 @@
+import copy
 import os
 
 import pydot
@@ -67,7 +68,8 @@ def visualize(filename, sequence_graph, data_maps, vocab=None, vocab_neg=None):
         vocab_neg = constants.vocab_manual
 
     data, parents = sequence_graph
-    parents = parents.copy()
+    # copy, because we modify parent
+    parents = copy.copy(parents)
     for i, p in enumerate(parents):
         if i + p < 0 or i + p >= len(parents):
             parents[i] = 0
@@ -98,10 +100,10 @@ def visualize(filename, sequence_graph, data_maps, vocab=None, vocab_neg=None):
     graph.write_png(filename)
 
 
-def visualize_seq_node_seq(seq_tree_seq, data_maps_rev, vocab, vocab_neg, file_name='forest_temp.png'):
+def visualize_seq_node_seq(seq_tree_seq, data_maps, vocab, vocab_neg, file_name='forest_temp.png'):
     for i, seq_tree in enumerate(seq_tree_seq['trees']):
         current_data, current_parents = preprocessing.sequence_node_to_arrays(seq_tree)
-        visualize(file_name + '.' + str(i), (current_data, current_parents), data_maps_rev, vocab, vocab_neg)
+        visualize(file_name + '.' + str(i), (current_data, current_parents), data_maps, vocab, vocab_neg)
 
     file_names = [file_name + '.' + str(i) for i in range(len(seq_tree_seq['trees']))]
     images = map(Image.open, file_names)

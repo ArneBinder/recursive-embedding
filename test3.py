@@ -19,13 +19,13 @@ def read_sentence2(sentence, vis = False):
     seq_data, seq_parents, root = preprocessing.read_data(preprocessing.string_reader, preprocessing.process_sentence5, nlp, data_maps2, args={'content': sentence})
     print('root: ' + str(root))
 
-    data_maps_reverse = corpus.revert_mapping(data_maps2)
+    #data_maps_reverse = corpus.revert_mapping(data_maps2)
 
     #print( 'counts: ' +str(getCounts(seq_data, nlp.vocab, constants.vocab_manual, data_maps_reverse)))
     # print('counts: ' + str(tools.getFromDicts(nlp.vocab, constants.vocab_manual,)))
 
     if vis:
-        visualize.visualize('forest_temp.png', (seq_data, seq_parents), data_maps_reverse, nlp.vocab, constants.vocab_manual)
+        visualize.visualize('forest_temp.png', (seq_data, seq_parents), data_maps2, nlp.vocab, constants.vocab_manual)
         #img = Image('forest_temp.png')
         #display(img)
 

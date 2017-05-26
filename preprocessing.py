@@ -448,17 +448,15 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
         # calc children and roots
         children, roots = children_and_roots(current_seq_parents)
         # calc depth for every position
-        depth = -np.ones(len(current_seq_parents), dtype=np.int)
-        for root in roots:
-            calc_depth(children, current_seq_parents, depth, root)
+        depth = calc_seq_depth(children, roots, current_seq_parents)
 
         depth_list.append(depth)
 
-        have_children = np.array(children.keys())
+        #have_children = np.array(children.keys())
 
-        for i, idx in enumerate(have_children):
-            for (child, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
-                idx_tuples.append((idx + start_idx + child_idx_offset, child - idx, child_steps_to_root))
+        for idx in children.keys():
+            for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
+                idx_tuples.append((idx + start_idx + child_idx_offset, child_offset, child_steps_to_root))
 
     print('sentences read: '+str(sen_count))
 
@@ -466,6 +464,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
 
 
 def calc_seq_depth(children, roots, seq_parents):
+    # ATTENTION: int16 restricts the max sentence count per tree to 32767
     depth = -np.ones(len(seq_parents), dtype=np.int16)
     for root in roots:
         calc_depth(children, seq_parents, depth, root)
@@ -562,7 +561,8 @@ def addMissingEmbeddings(seq_data, embeddings):
     return new_embeddings, len(new_embedding_ids)
 
 
-def children_and_roots(seq_parents):
+# unused
+def children_indices_and_roots(seq_parents):
     # assume, all parents are inside this array!
     # collect children
     children = {}
@@ -578,24 +578,26 @@ def children_and_roots(seq_parents):
     return children, roots
 
 
-# unused
-def children_offsets_and_roots(seq_parents):
+def children_and_roots(seq_parents):
     # assume, all parents are inside this array!
     # collect children
-    children = [[] for _ in xrange(len(seq_parents))]
+    #children = [[] for _ in xrange(len(seq_parents))]
+    children = {}
     roots = []
     for i, p in enumerate(seq_parents):
         if p == 0:  # is it a root?
             roots.append(i)
             continue
         p_idx = i + p
-        children[p_idx].append(-p)
+        chs = children.get(p_idx, [])
+        chs.append(-p)
+        children[p_idx] = chs
     return children, roots
 
 
 def get_all_children_rec(idx, children, max_depth, current_depth=0, max_depth_only=False):
     #if idx not in children or max_depth == 0:
-    if len(children[idx]) == 0 or max_depth == 0:
+    if idx not in children or max_depth == 0:
         return []
     result = []
     for child in children[idx]:
@@ -622,8 +624,8 @@ def calc_depth_rec(children, depth, idx):
 def calc_depth(children, parents, depth, start):
     idx = start
     children_idx = list()
-    #if start in children:
-    if len(children[start]) > 0:
+    if start in children:
+    #if len(children[start]) > 0:
         children_idx.append(0)
         while len(children_idx) > 0:
             current_child_idx = children_idx.pop()
@@ -633,8 +635,8 @@ def calc_depth(children, parents, depth, start):
             # not already calculated?
             if depth[idx] < 0:
                 # no children --> depth == 0
-                #if idx not in children:
-                if len(children[idx]) == 0:
+                if idx not in children:
+                #if len(children[idx]) == 0:
                     depth[idx] = 0
                 else:
                     # calc children
@@ -665,24 +667,17 @@ def calc_depth(children, parents, depth, start):
 def build_sequence_tree(seq_data, children, root, seq_tree, max_depth=9999):
     # assume, all parents are inside this array!
     # collect children
-    #children, roots = children_and_roots(seq_parents)
 
     """Recursively build a tree of SequenceNode_s"""
-    def build(seq_node, seq_data, children, pos, max_depth):
+    def build(seq_node, pos, max_depth):
         seq_node.head = seq_data[pos]
         if pos in children and max_depth > 0:
-            for child_pos in children[pos]:
-                build(seq_node.children.add(), seq_data, children, child_pos, max_depth - 1)
+            for child_offset in children[pos]:
+                build(seq_node.children.add(), pos + child_offset, max_depth - 1)
 
     if seq_tree is None:
         seq_tree = sequence_node_pb2.SequenceNode()
-    build(seq_tree, seq_data, children, root, max_depth)
-
-    #seq_trees = []
-    #seq_tree = sequence_node_pb2.SequenceNode()
-    #for root in roots:
-    #    root_tree = sequence_node_pb2.SequenceNode() # seq_tree.children.add() #sequence_node_pb2.SequenceNode()
-    #    build(root_tree, seq_data, children, root)
+    build(seq_tree, root, max_depth)
 
     return seq_tree
 
@@ -693,11 +688,11 @@ def build_sequence_tree_with_candidate(seq_data, children, root, insert_idx, can
     def build(seq_node, pos, max_depth, inserted):
         seq_node.head = seq_data[pos]
         if pos in children and max_depth > 0:
-            for child_pos in children[pos]:
-                if child_pos == insert_idx and not inserted:
+            for child_offset in children[pos]:
+                if pos + child_offset == insert_idx and not inserted:
                     build(seq_node.children.add(), candidate_idx, max_candidate_depth, True)
                 else:
-                    build(seq_node.children.add(), child_pos, max_depth - 1, inserted)
+                    build(seq_node.children.add(), pos + child_offset, max_depth - 1, inserted)
 
     if seq_tree is None:
         seq_tree = sequence_node_pb2.SequenceNode()
@@ -706,7 +701,7 @@ def build_sequence_tree_with_candidate(seq_data, children, root, insert_idx, can
     return seq_tree
 
 
-def build_sequence_tree_with_candidates(seq_data, parents, children, root, insert_idx, candidate_indices, seq_tree = None):
+def build_sequence_tree_with_candidates(seq_data, parents, children, root, insert_idx, candidate_indices, seq_tree=None, max_depth=999):
     # assume, all parents and candidate_indices are inside this array!
 
     # create path from insert_idx to root
@@ -717,24 +712,24 @@ def build_sequence_tree_with_candidates(seq_data, parents, children, root, inser
         candidate_parent = candidate_parent + parents[candidate_parent]
 
     """Recursively build a tree of SequenceNode_s"""
-    def build(seq_node, pos):
+    def build(seq_node, pos, max_depth):
         if pos == insert_idx and len(candidate_path) == 0:
             for candidate_idx in [pos] + candidate_indices:
-                build_sequence_tree(seq_data, children, candidate_idx, seq_tree=seq_node.candidates.add())
+                build_sequence_tree(seq_data, children, candidate_idx, seq_node.candidates.add(), max_depth - 1)
         else:
             seq_node.head = seq_data[pos]
-            if pos in children:
+            if pos in children and max_depth > 0:
                 candidate_child = candidate_path.pop()
-                for child_pos in children[pos]:
-                    if candidate_child == child_pos:
+                for child_offset in children[pos]:
+                    if candidate_child == pos + child_offset:
                         x = seq_node.children_candidate
-                        build(x, child_pos)
+                        build(x, pos + child_offset, max_depth - 1)
                     else:
-                        build_sequence_tree(seq_data, children, child_pos, seq_tree=seq_node.children.add())
+                        build_sequence_tree(seq_data, children, pos + child_offset, seq_node.children.add(), max_depth - 1)
 
     if seq_tree is None:
         seq_tree = sequence_node_candidates_pb2.SequenceNodeCandidates()
-    build(seq_tree, root)
+    build(seq_tree, root, max_depth)
 
     return seq_tree
 
@@ -747,22 +742,22 @@ def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, se
 
 
 def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
-    print('collect depth indices in depth_maps ...')
-    # depth_maps_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.depth.*')
-    depth_map = {}
-    for current_depth in range(max_depth + 1):
-        depth_map[current_depth] = []
-    for idx, current_depth in enumerate(seq_depths):
-        # if not os.path.isfile(out_filename+'.depth.'+str(current_depth)):
-        try:
-            depth_map[current_depth].append(idx)
-        except KeyError:
-            depth_map[current_depth] = [idx]
-
     depths_collected_files = fnmatch.filter(os.listdir(parent_dir),
                                             ntpath.basename(out_filename) + '.depth*.collected')
     if len(depths_collected_files) < max_depth:
-        depths_collected = np.array([], dtype=int)
+        print('collect depth indices in depth_maps ...')
+        # depth_maps_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.depth.*')
+        depth_map = {}
+        for current_depth in range(max_depth + 1):
+            depth_map[current_depth] = []
+        for idx, current_depth in enumerate(seq_depths):
+            # if not os.path.isfile(out_filename+'.depth.'+str(current_depth)):
+            try:
+                depth_map[current_depth].append(idx)
+            except KeyError:
+                depth_map[current_depth] = [idx]
+
+        depths_collected = np.array([], dtype=np.int16)
         for current_depth in reversed(sorted(depth_map.keys())):
             # if appending an empty list to an empty depths_collected, the dtype will change to float!
             if len(depth_map[current_depth]) > 0:
