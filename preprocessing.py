@@ -402,7 +402,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     else:
         unknown_default = constants.UNKNOWN_EMBEDDING
 
-    print('start read_data ...')
+    #print('start read_data ...')
     sen_count = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
         #seq_data = list()

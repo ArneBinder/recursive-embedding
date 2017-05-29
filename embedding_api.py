@@ -117,9 +117,9 @@ def cluster():
         params = json.loads(data)
         embeddings = params['embeddings']
 
-    best_labels = get_cluster_ids(embeddings=np.array(embeddings))
+    best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
 
-    json_data = json.dumps({'cluster_labels': best_labels.tolist()})
+    json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
     print("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -151,8 +151,8 @@ def embed_and_cluster():
         print('use sentence_processor=' + sentence_processor.__name__)
 
     embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
-    cluster_ids = get_cluster_ids(embeddings)
-    json_data = json.dumps({'embeddings': cluster_ids.tolist()})
+    best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
+    json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
     print("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -178,7 +178,7 @@ def get_cluster_ids(embeddings):
                 best_by_silh_coeff = [sscore, knn, k]
                 best_labels = clusters.labels_
                 # print best_by_silh_coeff, "\n", best_labels # TODO erase
-    return best_labels
+    return best_labels, best_by_silh_coeff[0]
 
 
 def get_embeddings(sequences, sentence_processor, tree_mode):
