@@ -1,6 +1,9 @@
 from __future__ import print_function
 import tensorflow as tf
 import tensorflow_fold as td
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.neighbors import kneighbors_graph
+from sklearn import metrics
 
 import constants
 import model_fold
@@ -47,15 +50,6 @@ app = Flask(__name__)
 cors = CORS(app)
 
 
-def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
-    # pp = pprint.PrettyPrinter(indent=2)
-    for s in sequences:
-        seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps,
-                                                              tree_mode=tree_mode, expand_dict=False)
-        # pp.pprint(seq_tree)
-        yield seq_tree.SerializeToString()
-
-
 @app.route("/api/embed", methods=['POST'])
 def embed():
     start = time.time()
@@ -68,18 +62,22 @@ def embed():
         params = json.loads(data)
         sequences = params['sequences']
 
-    ##################################################
-    # Tensorflow part
-    ##################################################
-    batch = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, FLAGS.tree_mode))
-    fdict = embedder.build_feed_dict(batch)
-    _tree_embeddings, = sess.run(tree_embeddings, feed_dict=fdict)
-    ##################################################
-    # END Tensorflow part
-    ##################################################
-
-    json_data = json.dumps({'embeddings': np.array(_tree_embeddings).tolist()})
     print('Embeddings requested for: ' + str(sequences))
+
+    tree_mode = FLAGS.tree_mode
+    if 'tree_mode' in params:
+        tree_mode = params['tree_mode']
+        assert tree_mode in [None, 'sequence', 'aggregate'], 'unknown tree_mode=' + tree_mode
+        print('use tree_mode=' + tree_mode)
+
+    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
+    if 'sentence_processor' in params:
+        sentence_processor = getattr(preprocessing, params['sentence_processor'])
+        print('use sentence_processor=' + sentence_processor.__name__)
+
+    embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
+
+    json_data = json.dumps({'embeddings': embeddings.tolist()})
     print("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -88,7 +86,7 @@ def embed():
 @app.route("/api/distance", methods=['POST'])
 def sim():
     start = time.time()
-
+    print('Similarity requested')
     data = request.data.decode("utf-8")
     if data == "":
         params = request.form
@@ -101,10 +99,108 @@ def sim():
     result = pairwise_distances(embeddings, metric="cosine")  # spatial.distance.cosine(embeddings[0], embeddings[1])
 
     json_data = json.dumps({'distance': result.tolist()})
-    print('Similarity requested')  # : '+str(sequences))
     print("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
+
+
+@app.route("/api/cluster", methods=['POST'])
+def cluster():
+    start = time.time()
+    print('Clusters requested')
+
+    data = request.data.decode("utf-8")
+    if data == "":
+        params = request.form
+        embeddings = json.loads(params['embeddings'])
+    else:
+        params = json.loads(data)
+        embeddings = params['embeddings']
+
+    best_labels = get_cluster_ids(embeddings=np.array(embeddings))
+
+    json_data = json.dumps({'cluster_labels': best_labels.tolist()})
+    print("Time spent handling the request: %f" % (time.time() - start))
+
+    return json_data
+
+
+@app.route("/api/embedandcluster", methods=['POST'])
+def embed_and_cluster():
+    start = time.time()
+
+    data = request.data.decode("utf-8")
+    if data == "":
+        params = request.form
+        sequences = json.loads(params['sequences'])
+    else:
+        params = json.loads(data)
+        sequences = params['sequences']
+
+    print('Cluster requested for: ' + str(sequences))
+
+    tree_mode = FLAGS.tree_mode
+    if 'tree_mode' in params:
+        tree_mode = params['tree_mode']
+        assert tree_mode in [None, 'sequence', 'aggregate'], 'unknown tree_mode=' + tree_mode
+        print('use tree_mode=' + tree_mode)
+
+    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
+    if 'sentence_processor' in params:
+        sentence_processor = getattr(preprocessing, params['sentence_processor'])
+        print('use sentence_processor=' + sentence_processor.__name__)
+
+    embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
+    cluster_ids = get_cluster_ids(embeddings)
+    json_data = json.dumps({'embeddings': cluster_ids.tolist()})
+    print("Time spent handling the request: %f" % (time.time() - start))
+
+    return json_data
+
+
+def get_cluster_ids(embeddings):
+    X = embeddings
+    k_min = 3
+    k_max = (embeddings.shape[0] / 3) + 2  # minimum viable clustering
+    knn_min = 3
+    knn_max = 12
+    best_by_silh_coeff = [-1, -1, -1]
+    best_labels = None
+    for k in range(k_min, k_max):
+        for knn in range(knn_min, knn_max):
+            connectivity = kneighbors_graph(X, n_neighbors=knn, include_self=False)
+            clusters = AgglomerativeClustering(n_clusters=k, linkage="ward", affinity='euclidean',
+                                               connectivity=connectivity).fit(X)
+            sscore = metrics.silhouette_score(X, clusters.labels_, metric='euclidean')
+            # print "{:<3}\t{:<3}\t{:<6}".format(k, knn,  "%.4f" % sscore)
+            if sscore > best_by_silh_coeff[0]:
+                # record best silh
+                best_by_silh_coeff = [sscore, knn, k]
+                best_labels = clusters.labels_
+                # print best_by_silh_coeff, "\n", best_labels # TODO erase
+    return best_labels
+
+
+def get_embeddings(sequences, sentence_processor, tree_mode):
+    ##################################################
+    # Tensorflow part
+    ##################################################
+    batch = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
+    fdict = embedder.build_feed_dict(batch)
+    _tree_embeddings, = sess.run(tree_embeddings, feed_dict=fdict)
+    ##################################################
+    # END Tensorflow part
+    ##################################################
+    return np.array(_tree_embeddings)
+
+
+def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
+    # pp = pprint.PrettyPrinter(indent=2)
+    for s in sequences:
+        seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps,
+                                                              tree_mode=tree_mode, expand_dict=False)
+        # pp.pprint(seq_tree)
+        yield seq_tree.SerializeToString()
 
 
 if __name__ == '__main__':
@@ -127,8 +223,6 @@ if __name__ == '__main__':
     nlp.pipeline = [nlp.tagger, nlp.parser]
     print('load data_mapping from: ' + FLAGS.data_mapping_path + ' ...')
     data_maps = pickle.load(open(FLAGS.data_mapping_path, "rb"))
-
-    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
 
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
