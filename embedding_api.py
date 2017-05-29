@@ -67,7 +67,7 @@ def embed():
     tree_mode = FLAGS.tree_mode
     if 'tree_mode' in params:
         tree_mode = params['tree_mode']
-        assert tree_mode in [None, 'sequence', 'aggregate'], 'unknown tree_mode=' + tree_mode
+        assert tree_mode in [None, 'sequence', 'aggregate', 'tree'], 'unknown tree_mode=' + tree_mode
         print('use tree_mode=' + tree_mode)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
@@ -142,7 +142,7 @@ def embed_and_cluster():
     tree_mode = FLAGS.tree_mode
     if 'tree_mode' in params:
         tree_mode = params['tree_mode']
-        assert tree_mode in [None, 'sequence', 'aggregate'], 'unknown tree_mode=' + tree_mode
+        assert tree_mode in constants.tree_modes, 'unknown tree_mode=' + tree_mode
         print('use tree_mode=' + tree_mode)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)

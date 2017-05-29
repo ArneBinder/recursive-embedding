@@ -534,7 +534,9 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
             i += 1
         # overwrite structure, if a special mode is set
         if tree_mode is not None:
-            if tree_mode == 'sequence':
+            if tree_mode not in constants.tree_modes:
+                raise NameError('unknown tree_mode: ' + tree_mode)
+            elif tree_mode == 'sequence':
                 for idx in range(start_idx, len(seq_data)-1):
                     seq_parents[idx] = 1
                 if len(seq_data) > start_idx:
@@ -545,9 +547,6 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
                     seq_parents[idx] = len(seq_data) - idx
                 seq_data.append(TERMINATOR_id)
                 seq_parents.append(0)
-            else:
-                raise NameError('unknown tree_mode: ' + tree_mode)
-
 
     print('sentences read: '+str(i))
     data = np.array(seq_data)

@@ -12,6 +12,8 @@ vocab_manual = {WORD_EMBEDDING: u'WORD', EDGE_EMBEDDING: u'EDGE', UNKNOWN_EMBEDD
                 TERMINATOR_EMBEDDING: u'TERMINATOR', ENTITY_TYPE_EMBEDDING: u'ENTITY_TYPE',
                 LEMMA_EMBEDDING: u'LEMMA', POS_TAG_EMBEDDING: u'POS_TAG'}
 
+tree_modes = [None, 'sequence', 'aggregate', 'tree']
+
 #DEPRECATED
 
 # edges
