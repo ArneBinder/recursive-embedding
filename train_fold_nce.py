@@ -4,24 +4,15 @@ import datetime
 import tensorflow as tf
 import tensorflow_fold as td
 
-import constants
 import model_fold
 import preprocessing
-import spacy
-import pickle
 import pprint
 import os
 import sequence_node_sequence_pb2
-import sequence_node_candidates_pb2
 import sequence_node_pb2
 import numpy as np
-import random
 import json
-import jsonpickle
 
-# Replication flags:
-import tools
-import visualize
 
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'Directory in which to write event logs and model checkpoints.')
@@ -37,13 +28,13 @@ tf.flags.DEFINE_string('train_data_path',
 #                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
 #                        '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
 #                        'mark identity). This value has to be larger then the initial gloVe size ()')
-tf.flags.DEFINE_integer('max_depth', 3,
+tf.flags.DEFINE_integer('max_depth', 5,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
 tf.flags.DEFINE_integer('batch_size', 250,  # 1000,
                         'How many samples to read per batch.')
-tf.flags.DEFINE_integer('max_steps', 200000,  # 5000,
+tf.flags.DEFINE_integer('max_steps', 1000000,  # 5000,
                         'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer('summary_step_size', 10,
                         'Emit summary values every summary_step_size steps.')

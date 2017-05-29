@@ -52,7 +52,7 @@ tf.flags.DEFINE_integer(
 #    'Amount of samples per tree. This excludes the correct tree.')
 tf.flags.DEFINE_string(
     'sentence_processor', 'process_sentence7', #'process_sentence8',#'process_sentence3',
-    'How long to make the expression embedding vectors.')
+    'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string(
     'tree_mode',
     None,
