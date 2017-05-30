@@ -24,7 +24,7 @@ tf.flags.DEFINE_string('data_mapping_path',
                        '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10.mapping',
                        # 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
                        'model file')
-tf.flags.DEFINE_string('sentence_processor', 'process_sentence2',  # 'process_sentence8',#'process_sentence3',
+tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string('tree_mode',
                        None,
@@ -96,7 +96,7 @@ def sim():
         sequences = params['embeddings']
 
     embeddings = np.array(sequences)
-    result = pairwise_distances(embeddings, metric="cosine")  # spatial.distance.cosine(embeddings[0], embeddings[1])
+    result = pairwise_distances(embeddings, metric='euclidean')  # spatial.distance.cosine(embeddings[0], embeddings[1])
 
     json_data = json.dumps({'distance': result.tolist()})
     print("Time spent handling the request: %f" % (time.time() - start))
@@ -159,7 +159,6 @@ def embed_and_cluster():
 
 
 def get_cluster_ids(embeddings):
-    X = embeddings
     k_min = 3
     k_max = (embeddings.shape[0] / 3) + 2  # minimum viable clustering
     knn_min = 3
@@ -168,10 +167,10 @@ def get_cluster_ids(embeddings):
     best_labels = None
     for k in range(k_min, k_max):
         for knn in range(knn_min, knn_max):
-            connectivity = kneighbors_graph(X, n_neighbors=knn, include_self=False)
+            connectivity = kneighbors_graph(embeddings, n_neighbors=knn, include_self=False)
             clusters = AgglomerativeClustering(n_clusters=k, linkage="ward", affinity='euclidean',
-                                               connectivity=connectivity).fit(X)
-            sscore = metrics.silhouette_score(X, clusters.labels_, metric='euclidean')
+                                               connectivity=connectivity).fit(embeddings)
+            sscore = metrics.silhouette_score(embeddings, clusters.labels_, metric='euclidean')
             # print "{:<3}\t{:<3}\t{:<6}".format(k, knn,  "%.4f" % sscore)
             if sscore > best_by_silh_coeff[0]:
                 # record best silh
