@@ -85,13 +85,19 @@ def request_embeddings(sequences, sentence_processor='process_sentence7', tree_m
 def main():
     pp = pprint.PrettyPrinter(indent=2)
     posts, labels = posts_and_labels()
-    label_set_list = list(labels)
-    m = {v: i for i, v in enumerate(label_set_list)}
+    labels_list = list(labels)
+    m = {v: i for i, v in enumerate(labels_list)}
 
     posts_content = [posts[p_id]['content'] for p_id in posts]
     posts_vecs_label = [label_vector(posts[p_id], m) for p_id in posts]
-
     posts_vecs_embedding = request_embeddings(posts_content)
+
+    # TODO: cache vecs
+
+    distances_labels = pairwise_distances(posts_vecs_label, metric='euclidean')
+    distances_embeddings = pairwise_distances(posts_vecs_embedding, metric='euclidean')
+
+    # TODO: evaluate embeddings
 
     print('')
 
@@ -105,7 +111,6 @@ def main():
     #    v = label_vector(post, m)
     #    print(v)
 
-    #print(label_distance(posts[posts.keys()[0]], posts[posts.keys()[1]]))
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
