@@ -187,7 +187,7 @@ def visualize():
         logging.info('use sentence_processor=' + sentence_processor.__name__)
 
     parsed_datas = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
-    visualize_list(parsed_datas, types_list, file_name='forest_temp.png')
+    visualize_list(parsed_datas, types_list, file_name='temp_forest.png')
     logging.info("Time spent handling the request: %f" % (time.time() - start))
     return send_file('forest_temp.png')
 

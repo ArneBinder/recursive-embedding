@@ -110,14 +110,14 @@ def visualize(filename, sequence_graph, types_string=None, data_maps=None, vocab
     graph.write_png(filename)
 
 
-def visualize_seq_node_list(seq_tree_list, types_string, file_name='forest_temp.png'):
+def visualize_seq_node_list(seq_tree_list, types_string, file_name='temp_forest.png'):
     for i, seq_tree in enumerate(seq_tree_list):
         current_data, current_parents = preprocessing.sequence_node_to_arrays(seq_tree)
         visualize(file_name + '.' + str(i), (current_data, current_parents), types_string=types_string)
     concat_visuals(file_name, len(seq_tree_list))
 
 
-def visualize_list(sequence_graph_list, types_string, file_name='forest_temp.png'):
+def visualize_list(sequence_graph_list, types_string, file_name='temp_forest.png'):
     for i, seq_graph in enumerate(sequence_graph_list):
         current_data, current_parents = seq_graph
         visualize(file_name + '.' + str(i), (current_data, current_parents), types_string=types_string)
