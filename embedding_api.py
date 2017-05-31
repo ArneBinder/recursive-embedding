@@ -120,9 +120,10 @@ def cluster():
         params = json.loads(data)
         embeddings = params['embeddings']
 
-    best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
-
-    json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
+    # best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
+    labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
+    # json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
+    json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -154,8 +155,10 @@ def embed_and_cluster():
         logging.info('use sentence_processor=' + sentence_processor.__name__)
 
     embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
-    best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
-    json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
+    #best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
+    labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
+    #json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
+    json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -198,8 +201,13 @@ def get_cluster_ids(embeddings):
     k_max = (embeddings.shape[0] / 3) + 2  # minimum viable clustering
     knn_min = 3
     knn_max = 12
-    best_by_silh_coeff = [-1, -1, -1]
-    best_labels = None
+    #best_by_silh_coeff = [-1, -1, -1]
+    #best_labels = None
+    labels = []
+    meta = []
+    best_idx = -1
+    best_score = -1
+    idx = 0
     for k in range(k_min, k_max):
         for knn in range(knn_min, knn_max):
             connectivity = kneighbors_graph(embeddings, n_neighbors=knn, include_self=False)
@@ -207,12 +215,17 @@ def get_cluster_ids(embeddings):
                                                connectivity=connectivity).fit(embeddings)
             sscore = metrics.silhouette_score(embeddings, clusters.labels_, metric='euclidean')
             # print "{:<3}\t{:<3}\t{:<6}".format(k, knn,  "%.4f" % sscore)
-            if sscore > best_by_silh_coeff[0]:
+            labels.append(clusters.labels_.tolist())
+            meta.append([sscore.astype(float), knn, k])
+            if sscore > best_score:
                 # record best silh
-                best_by_silh_coeff = [sscore, knn, k]
-                best_labels = clusters.labels_
+                best_score = sscore
+                best_idx = idx
+                #best_by_silh_coeff = [sscore, knn, k]
+                #best_labels = clusters.labels_
                 # print best_by_silh_coeff, "\n", best_labels # TODO erase
-    return best_labels, best_by_silh_coeff[0]
+            idx += 1
+    return labels, meta, best_idx#best_labels, best_by_silh_coeff[0]
 
 
 def get_embeddings(sequences, sentence_processor, tree_mode):

@@ -403,11 +403,9 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     else:
         unknown_default = constants.UNKNOWN_EMBEDDING
 
-    #print('start read_data ...')
+    logging.info('start read_data ...')
     sen_count = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
-        #seq_data = list()
-        #seq_parents = list()
         prev_root = None
         start_idx = len(seq_data)
         for sentence in parsed_data.sents:
@@ -429,7 +427,9 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
             sen_count += 1
         # overwrite structure, if a special mode is set
         if tree_mode is not None:
-            if tree_mode == 'sequence':
+            if tree_mode not in constants.tree_modes:
+                raise NameError('unknown tree_mode: ' + tree_mode)
+            elif tree_mode == 'sequence':
                 for idx in range(start_idx, len(seq_data)-1):
                     seq_parents[idx] = 1
                 if len(seq_data) > start_idx:
@@ -440,8 +440,6 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
                     seq_parents[idx] = len(seq_data) - idx
                 seq_data.append(TERMINATOR_id)
                 seq_parents.append(0)
-            else:
-                raise NameError('unknown tree_mode: ' + tree_mode)
 
         # TODO: check this!
         # get current parents
@@ -461,6 +459,72 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     logging.info('sentences read: '+str(sen_count))
 
     return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
+
+
+def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
+
+    # ids of the dictionaries to query the data point referenced by seq_data
+    # at the moment there is just one: WORD_EMBEDDING
+    #seq_types = list()
+    # ids (dictionary) of the data points in the dictionary specified by seq_types
+    seq_data = list()
+    # ids (dictionary) of relations to the heads (parents)
+    #seq_edges = list()
+    # ids (sequence) of the heads (parents)
+    seq_parents = list()
+    prev_root = None
+
+    #roots = list()
+
+    if expand_dict:
+        unknown_default = None
+    else:
+        unknown_default = constants.UNKNOWN_EMBEDDING
+
+    logging.info('start read_data ...')
+    sen_count = 0
+    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
+        prev_root = None
+        start_idx = len(seq_data)
+        for sentence in parsed_data.sents:
+            processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
+            # skip not processed sentences (see process_sentence)
+            if processed_sen is None:
+                continue
+
+            sen_data, sen_parents, root_offset = processed_sen
+
+            current_root = len(seq_data) + root_offset
+
+            seq_parents += sen_parents
+            seq_data += sen_data
+
+            if prev_root is not None:
+                seq_parents[prev_root] = current_root - prev_root
+            prev_root = current_root
+            sen_count += 1
+        # overwrite structure, if a special mode is set
+        if tree_mode is not None:
+            if tree_mode not in constants.tree_modes:
+                raise NameError('unknown tree_mode: ' + tree_mode)
+            elif tree_mode == 'sequence':
+                for idx in range(start_idx, len(seq_data)-1):
+                    seq_parents[idx] = 1
+                if len(seq_data) > start_idx:
+                    seq_parents[-1] = 0
+            elif tree_mode == 'aggregate':
+                TERMINATOR_id = tools.getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+                for idx in range(start_idx, len(seq_data)):
+                    seq_parents[idx] = len(seq_data) - idx
+                seq_data.append(TERMINATOR_id)
+                seq_parents.append(0)
+
+    logging.info('sentences read: '+str(sen_count))
+    data = np.array(seq_data)
+    parents = np.array(seq_parents)
+    #root = prev_root
+
+    return data, parents#, root #, np.array(seq_edges)#, dep_map
 
 
 def calc_depths_and_child_indices((parents, max_depth, child_idx_offset)):#(out_path, offset, max_depth)):
@@ -489,73 +553,6 @@ def calc_seq_depth(children, roots, seq_parents):
     for root in roots:
         calc_depth(children, seq_parents, depth, root)
     return depth
-
-
-def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
-
-    # ids of the dictionaries to query the data point referenced by seq_data
-    # at the moment there is just one: WORD_EMBEDDING
-    #seq_types = list()
-    # ids (dictionary) of the data points in the dictionary specified by seq_types
-    seq_data = list()
-    # ids (dictionary) of relations to the heads (parents)
-    #seq_edges = list()
-    # ids (sequence) of the heads (parents)
-    seq_parents = list()
-    prev_root = None
-
-    #roots = list()
-
-    if expand_dict:
-        unknown_default = None
-    else:
-        unknown_default = constants.UNKNOWN_EMBEDDING
-
-    logging.info('start read_data ...')
-    i = 0
-    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
-        prev_root = None
-        start_idx = len(seq_data)
-        for sentence in parsed_data.sents:
-            processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
-            # skip not processed sentences (see process_sentence)
-            if processed_sen is None:
-                continue
-
-            sen_data, sen_parents, root_offset = processed_sen
-
-            current_root = len(seq_data) + root_offset
-
-            seq_parents += sen_parents
-            seq_data += sen_data
-
-            if prev_root is not None:
-                seq_parents[prev_root] = current_root - prev_root
-            prev_root = current_root
-            i += 1
-        # overwrite structure, if a special mode is set
-        if tree_mode is not None:
-            if tree_mode not in constants.tree_modes:
-                raise NameError('unknown tree_mode: ' + tree_mode)
-            elif tree_mode == 'sequence':
-                for idx in range(start_idx, len(seq_data)-1):
-                    seq_parents[idx] = 1
-                if len(seq_data) > start_idx:
-                    seq_parents[-1] = 0
-            elif tree_mode == 'aggregate':
-                TERMINATOR_id = tools.getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
-                for idx in range(start_idx, len(seq_data)):
-                    seq_parents[idx] = len(seq_data) - idx
-                seq_data.append(TERMINATOR_id)
-                seq_parents.append(0)
-
-    logging.info('sentences read: '+str(i))
-    data = np.array(seq_data)
-    parents = np.array(seq_parents)
-    #root = prev_root
-
-    return data, parents#, root #, np.array(seq_edges)#, dep_map
-
 
 def addMissingEmbeddings(seq_data, embeddings):
     # get current count of embeddings
