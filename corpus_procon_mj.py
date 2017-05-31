@@ -34,7 +34,7 @@ def posts_and_labels():
     posts = {}
     labels_set = set()
     for post in raw_posts_iter:
-        post_id = post['post_id']
+        post_id = int(post['post_id'])
         # take all columns except post_id and labels. post_id will be the dict key and labels are processed further
         posts[post_id] = {k: post[k] for k in post.keys() if k != 'post_id' and k != 'labels'}
         labels_mapped = []
@@ -89,27 +89,29 @@ def main():
     m = {v: i for i, v in enumerate(labels_list)}
 
     posts_content = [posts[p_id]['content'] for p_id in posts]
+    print(json.dumps(posts_content))
     posts_vecs_label = [label_vector(posts[p_id], m) for p_id in posts]
-    posts_vecs_embedding = request_embeddings(posts_content)
+    #posts_vecs_embedding = request_embeddings(posts_content)
 
     # TODO: cache vecs
 
     distances_labels = pairwise_distances(posts_vecs_label, metric='euclidean')
-    distances_embeddings = pairwise_distances(posts_vecs_embedding, metric='euclidean')
+    #distances_embeddings = pairwise_distances(posts_vecs_embedding, metric='euclidean')
 
     # TODO: evaluate embeddings
 
-    print('')
+    #print('')
 
 
-    #for i, post_id in enumerate(posts):
-    #    if i > 10:
-    #        break
-    #    print(post_id)
-    #    post = posts[post_id]
-    #    pp.pprint(post)
-    #    v = label_vector(post, m)
-    #    print(v)
+    for i, post_id in enumerate(sorted(posts.keys())):
+        #if i > 10:
+        #    break
+        labels_mapped_joined = ", ".join(posts[post_id]['labels'])
+        #print(str(post_id) + '\t' + labels_mapped_joined)
+        #post = posts[post_id]
+        #pp.pprint(post)
+        #v = label_vector(post, m)
+        #print(v)
 
 
 if __name__ == '__main__':

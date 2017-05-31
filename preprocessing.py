@@ -3,6 +3,7 @@ from __future__ import print_function
 import fnmatch
 import ntpath
 
+import logging
 import numpy as np
 import pickle
 import os
@@ -457,7 +458,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
             for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
                 idx_tuples.append((idx + start_idx + child_idx_offset, child_offset, child_steps_to_root))
 
-    print('sentences read: '+str(sen_count))
+    logging.info('sentences read: '+str(sen_count))
 
     return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
 
@@ -510,7 +511,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
     else:
         unknown_default = constants.UNKNOWN_EMBEDDING
 
-    print('start read_data ...')
+    logging.info('start read_data ...')
     i = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
         prev_root = None
@@ -548,7 +549,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
                 seq_data.append(TERMINATOR_id)
                 seq_parents.append(0)
 
-    print('sentences read: '+str(i))
+    logging.info('sentences read: '+str(i))
     data = np.array(seq_data)
     parents = np.array(seq_parents)
     #root = prev_root
@@ -565,9 +566,9 @@ def addMissingEmbeddings(seq_data, embeddings):
     if len(new_embedding_ids) == 0:
         return
 
-    #print('new_embedding_ids: ' + str(new_embedding_ids))
-    #print('new_embedding_ids[0]: ' + str(new_embedding_ids[0]))
-    #print('l: ' + str(l))
+    #logging.info('new_embedding_ids: ' + str(new_embedding_ids))
+    #logging.info('new_embedding_ids[0]: ' + str(new_embedding_ids[0]))
+    #logging.info('l: ' + str(l))
     # check integrity
     assert new_embedding_ids[0] == l, str(new_embedding_ids[0]) + ' != ' + str(l)
     assert new_embedding_ids[-1] == l + len(new_embedding_ids) - 1, str(new_embedding_ids[-1]) + ' != ' + str(l + len(new_embedding_ids) - 1)
@@ -759,11 +760,17 @@ def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, se
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
 
 
+def build_sequence_tree_from_parse(seq_graph, seq_tree=None):
+    seq_data, seq_parents = seq_graph
+    children, roots = children_and_roots(seq_parents)
+    return build_sequence_tree(seq_data, children, roots[0], seq_tree)
+
+
 def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
     depths_collected_files = fnmatch.filter(os.listdir(parent_dir),
                                             ntpath.basename(out_filename) + '.depth*.collected')
     if len(depths_collected_files) < max_depth:
-        print('collect depth indices in depth_maps ...')
+        logging.info('collect depth indices in depth_maps ...')
         # depth_maps_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.depth.*')
         depth_map = {}
         for current_depth in range(max_depth + 1):
@@ -783,7 +790,7 @@ def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
             if current_depth < max_depth:
                 np.random.shuffle(depths_collected)
                 depths_collected.dump(out_filename + '.depth' + str(current_depth) + '.collected')
-                print('depth: ' + str(current_depth) + ', size: ' + str(
+                logging.info('depth: ' + str(current_depth) + ', size: ' + str(
                     len(depth_map[current_depth])) + ', collected_size: ' + str(len(depths_collected)))
 
 
@@ -805,30 +812,30 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
                                                            offset))
             # skip, if already processed
             if len(current_depth_batch_files) < max_depth:
-                print('read child indices for offset=' + str(offset) + ' ...')
+                logging.info('read child indices for offset=' + str(offset) + ' ...')
                 current_idx_tuples = np.load(out_filename + '.children.batch' + str(offset))
                 # add offset
                 #current_idx_tuples += np.array([child_idx_offset, 0, 0])
-                print(len(current_idx_tuples))
-                print('get depths ...')
+                logging.info(len(current_idx_tuples))
+                logging.info('get depths ...')
                 children_depths = current_idx_tuples[:, 2]
-                print('argsort ...')
+                logging.info('argsort ...')
                 sorted_indices = np.argsort(children_depths)
-                print('find depth changes ...')
+                logging.info('find depth changes ...')
                 depth_changes = []
                 for idx, sort_idx in enumerate(sorted_indices):
                     current_depth = children_depths[sort_idx]
                     if idx == len(sorted_indices) - 1 or current_depth != children_depths[sorted_indices[idx + 1]]:
-                        print('new depth: ' + str(current_depth) + ' ends before index pos: ' + str(idx + 1))
+                        logging.info('new depth: ' + str(current_depth) + ' ends before index pos: ' + str(idx + 1))
                         depth_changes.append((idx + 1, current_depth))
                 prev_end = 0
                 for (end, current_depth) in depth_changes:
                     size = end - prev_end
-                    print('size: ' + str(size))
+                    logging.info('size: ' + str(size))
                     current_indices = np.zeros(shape=(size, 2), dtype=int)
                     for idx in range(size):
                         current_indices[idx] = current_idx_tuples[sorted_indices[prev_end + idx]][:2]
-                    print('dump children indices with distance (path length from root to child): ' + str(
+                    logging.info('dump children indices with distance (path length from root to child): ' + str(
                         current_depth) + ' ...')
                     current_indices.dump(out_filename + '.children.depth' + str(current_depth) + '.batch' + str(offset))
                     prev_end = end
@@ -841,12 +848,12 @@ def rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles
 
 
 def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
-    print('create shuffled child indices ...')
+    logging.info('create shuffled child indices ...')
     # children_depth_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.children.depth*')
     collected_child_indices = np.zeros(shape=(0, 3), dtype=np.int32)
     for current_depth in range(1, max_depth + 1):
         if not os.path.isfile(out_filename + '.children.depth' + str(current_depth) + '.collected'):
-            #print('load: ' + out_filename + '.children.depth' + str(current_depth))
+            #logging.info('load: ' + out_filename + '.children.depth' + str(current_depth))
             current_depth_indices = np.load(out_filename + '.children.depth' + str(current_depth))
             current_depth_indices = np.pad(current_depth_indices, ((0, 0), (0, 1)),
                                            'constant', constant_values=((0, 0), (0, current_depth)))
@@ -855,7 +862,7 @@ def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
             if dump:
                 # TODO: re-add! (crashes, files to big? --> cpickle size constraint! (2**32 -1))
                 collected_child_indices.dump(out_filename + '.children.depth' + str(current_depth) + '.collected')
-            print('depth: ' + str(current_depth) + ', collected_size: ' + str(len(collected_child_indices)))
+            logging.info('depth: ' + str(current_depth) + ', collected_size: ' + str(len(collected_child_indices)))
         else:
             collected_child_indices = np.load(out_filename + '.children.depth' + str(current_depth) + '.collected')
     return collected_child_indices
@@ -886,7 +893,7 @@ def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count
 
 
 def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, overwrite=False):
-    print('concatenate batches: '+batch_file_name)
+    logging.info('concatenate batches: '+batch_file_name)
     #out_fn = batch_file_name.replace('.batch*', '', 1)
     if os.path.isfile(batch_file_name) and not overwrite:
         return np.load(batch_file_name)
@@ -908,17 +915,17 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
 
 
 def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
-    print('sort embeddings ...')
+    logging.info('sort embeddings ...')
     # this can add keys to mapping (what increases its length)!
     vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
-    print('initial mapping size: ' + str(len(mapping)))
+    logging.info('initial mapping size: ' + str(len(mapping)))
     # count types
-    print('calculate counts ...')
+    logging.info('calculate counts ...')
     counts = np.zeros(shape=len(mapping), dtype=int)
     for d in seq_data:
         counts[d] += 1
 
-    print('argsort ...')
+    logging.info('argsort ...')
     sorted_indices = np.argsort(counts)
 
     vecs_mean = np.mean(vecs, axis=0)
@@ -926,7 +933,7 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
     new_counts = np.zeros(shape=len(mapping), dtype=int)
     converter = -np.ones(shape=len(mapping), dtype=int)
 
-    print('process reversed(sorted_indices) ...')
+    logging.info('process reversed(sorted_indices) ...')
     new_idx = 0
     for old_idx in reversed(sorted_indices):
         # keep pre-initialized vecs (count==0) and vocab_manual vecs, but skip other vecs with count < threshold
@@ -940,13 +947,13 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
         new_counts[new_idx] = counts[old_idx]
         converter[old_idx] = new_idx
         new_idx += 1
-    print('new lex_size: '+str(new_idx))
+    logging.info('new lex_size: '+str(new_idx))
 
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]
     new_counts = new_counts[:new_idx]
 
-    print('rearrange mappings ...')
+    logging.info('rearrange mappings ...')
     count_del = 0
     for key in mapping.keys():
         new_value = converter[mapping[key]]
@@ -955,12 +962,12 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
         else:
             count_del += 1
             del mapping[key]
-    print('deleted ' + str(count_del) + ' mappings')
+    logging.info('deleted ' + str(count_del) + ' mappings')
 
-    print('len(mapping): '+str(len(mapping)))
-    print('max(mapping.values()): '+ str(max(mapping.values())))
+    logging.info('len(mapping): '+str(len(mapping)))
+    logging.info('max(mapping.values()): '+ str(max(mapping.values())))
 
-    print('convert data ...')
+    logging.info('convert data ...')
     count_unknown = 0
     for i, d in enumerate(seq_data):
         if converter[d] >= 0:
@@ -968,7 +975,7 @@ def sort_embeddings(seq_data, mapping, vecs, count_threshold=1):
         else:
             seq_data[i] = mapping[constants.UNKNOWN_EMBEDDING]
             count_unknown += 1
-    print('set ' + str(count_unknown) + ' data points to UNKNOWN')
+    logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
 
     return seq_data, mapping, new_vecs, new_counts
 

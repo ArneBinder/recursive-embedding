@@ -6,22 +6,25 @@ from sklearn.neighbors import kneighbors_graph
 from sklearn import metrics
 
 import constants
+import corpus
 import model_fold
 import preprocessing
 import spacy
 import pickle
 import os
 import json, time
-from flask import Flask, request
+from flask import Flask, request, send_from_directory, send_file
 from flask_cors import CORS
 import numpy as np
 # from scipy import spatial # crashes!
 from sklearn.metrics import pairwise_distances
+import logging
+from visualize import visualize_list
 
 tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'directory containing the model')
 tf.flags.DEFINE_string('data_mapping_path',
-                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10.mapping',
+                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10',
                        # 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
                        'model file')
 tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
@@ -46,7 +49,7 @@ PROTO_CLASS = 'SequenceNode'
 ##################################################
 # API part
 ##################################################
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='')
 cors = CORS(app)
 
 
@@ -62,23 +65,23 @@ def embed():
         params = json.loads(data)
         sequences = params['sequences']
 
-    print('Embeddings requested for: ' + str(sequences))
+    logging.info('Embeddings requested for: ' + str(sequences))
 
     tree_mode = FLAGS.tree_mode
     if 'tree_mode' in params:
         tree_mode = params['tree_mode']
         assert tree_mode in [None, 'sequence', 'aggregate', 'tree'], 'unknown tree_mode=' + tree_mode
-        print('use tree_mode=' + tree_mode)
+        logging.info('use tree_mode=' + tree_mode)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     if 'sentence_processor' in params:
         sentence_processor = getattr(preprocessing, params['sentence_processor'])
-        print('use sentence_processor=' + sentence_processor.__name__)
+        logging.info('use sentence_processor=' + sentence_processor.__name__)
 
     embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
 
     json_data = json.dumps({'embeddings': embeddings.tolist()})
-    print("Time spent handling the request: %f" % (time.time() - start))
+    logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
 
@@ -86,7 +89,7 @@ def embed():
 @app.route("/api/distance", methods=['POST'])
 def sim():
     start = time.time()
-    print('Similarity requested')
+    logging.info('Similarity requested')
     data = request.data.decode("utf-8")
     if data == "":
         params = request.form
@@ -99,7 +102,7 @@ def sim():
     result = pairwise_distances(embeddings, metric='euclidean')  # spatial.distance.cosine(embeddings[0], embeddings[1])
 
     json_data = json.dumps({'distance': result.tolist()})
-    print("Time spent handling the request: %f" % (time.time() - start))
+    logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
 
@@ -107,7 +110,7 @@ def sim():
 @app.route("/api/cluster", methods=['POST'])
 def cluster():
     start = time.time()
-    print('Clusters requested')
+    logging.info('Clusters requested')
 
     data = request.data.decode("utf-8")
     if data == "":
@@ -120,7 +123,7 @@ def cluster():
     best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
 
     json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
-    print("Time spent handling the request: %f" % (time.time() - start))
+    logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
 
@@ -137,28 +140,60 @@ def embed_and_cluster():
         params = json.loads(data)
         sequences = params['sequences']
 
-    print('Cluster requested for: ' + str(sequences))
+    logging.info('Cluster requested for: ' + str(sequences))
 
     tree_mode = FLAGS.tree_mode
     if 'tree_mode' in params:
         tree_mode = params['tree_mode']
         assert tree_mode in constants.tree_modes, 'unknown tree_mode=' + tree_mode
-        print('use tree_mode=' + tree_mode)
+        logging.info('use tree_mode=' + tree_mode)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     if 'sentence_processor' in params:
         sentence_processor = getattr(preprocessing, params['sentence_processor'])
-        print('use sentence_processor=' + sentence_processor.__name__)
+        logging.info('use sentence_processor=' + sentence_processor.__name__)
 
     embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
     best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
     json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
-    print("Time spent handling the request: %f" % (time.time() - start))
+    logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
 
 
+@app.route("/api/visualize", methods=['POST'])
+def visualize():
+    start = time.time()
+
+    data = request.data.decode("utf-8")
+    if data == "":
+        params = request.form
+        sequences = json.loads(params['sequences'])
+    else:
+        params = json.loads(data)
+        sequences = params['sequences']
+
+    logging.info('Visualization requested for: ' + str(sequences))
+
+    tree_mode = FLAGS.tree_mode
+    if 'tree_mode' in params:
+        tree_mode = params['tree_mode']
+        assert tree_mode in [None, 'sequence', 'aggregate', 'tree'], 'unknown tree_mode=' + tree_mode
+        logging.info('use tree_mode=' + tree_mode)
+
+    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
+    if 'sentence_processor' in params:
+        sentence_processor = getattr(preprocessing, params['sentence_processor'])
+        logging.info('use sentence_processor=' + sentence_processor.__name__)
+
+    parsed_datas = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
+    visualize_list(parsed_datas, types_list, file_name='forest_temp.png')
+    logging.info("Time spent handling the request: %f" % (time.time() - start))
+    return send_file('forest_temp.png')
+
+
 def get_cluster_ids(embeddings):
+    logging.info('get clusters ...')
     k_min = 3
     k_max = (embeddings.shape[0] / 3) + 2  # minimum viable clustering
     knn_min = 3
@@ -181,10 +216,12 @@ def get_cluster_ids(embeddings):
 
 
 def get_embeddings(sequences, sentence_processor, tree_mode):
+    logging.info('get embeddings ...')
     ##################################################
     # Tensorflow part
     ##################################################
-    batch = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
+    batch = [preprocessing.build_sequence_tree_from_parse(parsed_data).SerializeToString() for parsed_data in
+             parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode)] #list(seq_tree_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
     fdict = embedder.build_feed_dict(batch)
     _tree_embeddings, = sess.run(tree_embeddings, feed_dict=fdict)
     ##################################################
@@ -193,7 +230,7 @@ def get_embeddings(sequences, sentence_processor, tree_mode):
     return np.array(_tree_embeddings)
 
 
-def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
+def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
     # pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
         seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps,
@@ -202,7 +239,16 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
         yield seq_tree.SerializeToString()
 
 
+def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
+    for s in sequences:
+        seq_data, seq_parents = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
+                                                        data_maps, args={'content': s}, tree_mode=tree_mode,
+                                                        expand_dict=False)
+        yield seq_data, seq_parents
+
+
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file('sequence_node.proto')
@@ -212,16 +258,18 @@ if __name__ == '__main__':
     input_checkpoint = checkpoint.model_checkpoint_path
 
     reader = tf.train.NewCheckpointReader(input_checkpoint)
-    print('extract lexicon size from model: ' + input_checkpoint + ' ...')
+    logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
     saved_shapes = reader.get_variable_to_shape_map()
     embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
     lex_size = embed_shape[0]
 
-    print('load spacy ...')
+    logging.info('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
-    print('load data_mapping from: ' + FLAGS.data_mapping_path + ' ...')
-    data_maps = pickle.load(open(FLAGS.data_mapping_path, "rb"))
+    logging.info('load data_mapping from: ' + FLAGS.data_mapping_path + '.mapping ...')
+    data_maps = pickle.load(open(FLAGS.data_mapping_path + '.mapping', "rb"))
+    logging.info('load types_list from: ' + FLAGS.data_mapping_path + '.tsv ...')
+    types_list = list(corpus.create_or_read_dict_types_string(FLAGS.data_mapping_path))
 
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
@@ -237,8 +285,8 @@ if __name__ == '__main__':
             # do some work with the model.
             sess = tf.Session()
             # Restore variables from disk.
-            print('restore model from: ' + input_checkpoint + '...')
+            logging.info('restore model from: ' + input_checkpoint + '...')
             saver.restore(sess, input_checkpoint)
 
-    print('Starting the API')
+    logging.info('Starting the API')
     app.run()
