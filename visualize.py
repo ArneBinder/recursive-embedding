@@ -90,7 +90,7 @@ def visualize(filename, sequence_graph, types):
             if d < len(types):
                 l = types[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
             else:
-                l = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+                l = types[constants.UNKNOWN_EMBEDDING]
             nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor="green"))
 
         for node in nodes:

@@ -5,6 +5,7 @@ import pickle
 
 import logging
 import numpy as np
+import spacy
 
 import constants
 import preprocessing
@@ -33,9 +34,10 @@ def write_dict(out_path, ids, vecs, types=None, counts=None):
     ids.dump(out_path + '.id')
     if types is not None:
         logging.info('write types to: ' + out_path + '.types ...')
-        with codecs.open(out_path + '.type', 'w', 'utf-8') as f:
+        with open(out_path + '.type', 'wb') as f:
+            writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for t in types:
-                f.write(t + '\n')
+                writer.writerow([t.encode("utf-8")])
     if counts is not None:
         logging.info('dump counts to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
@@ -49,14 +51,14 @@ def create_or_read_dict(fn, vocab=None):
         logging.info('load ids from file: ' + fn + '.id ...')
         i = np.load(fn+'.id')
         logging.info('read types from file: ' + fn + '.type ...')
-        t = list(read_types(fn))
+        t = read_types(fn)
         logging.info('vecs.shape: ' + str(v.shape) + ', len(ids): ' + str(len(i)))
     else:
         out_dir = os.path.abspath(os.path.join(fn, os.pardir))
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
         logging.info('extract word embeddings from spaCy ...')
-        v, i, t = preprocessing.get_word_embeddings(vocab)
+        v, i, t = get_word_embeddings(vocab)
         write_dict(fn, i, v, t)
     return v, i, t
 
@@ -76,9 +78,10 @@ def revert_mapping_np(mapping):
 
 
 def read_types(out_path):
-    with codecs.open(out_path + '.type', 'r', 'utf-8') as f:
-        for line in f:
-            yield line.rstrip('\n')
+    with open(out_path + '.type') as csvfile:
+        reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
+        types = [row[0].decode("utf-8") for row in reader]
+    return types
 
 
 def mapping_from_list(l):
@@ -94,11 +97,97 @@ def tsv_to_ids_and_types(fn):
     with open(fn + '.tsv') as csvfile:
         print('read type strings from ' + fn + '.tsv ...')
         reader = csv.DictReader(csvfile, delimiter='\t', quotechar='|')
-        with open(fn + '.type', 'w') as f:
+        with open(fn + '.type', 'wb') as f:
+            writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for row in reader:
                 ids.append(int(row[TSV_COLUMN_NAME_ID]))
-                f.write(row[TSV_COLUMN_NAME_LABEL] + '\n')
+                writer.writerow([row[TSV_COLUMN_NAME_LABEL]])
+                #f.write(row[TSV_COLUMN_NAME_LABEL] + '\n')
 
     print('convert and dump ids...')
     ids_np = np.array(ids)
     ids_np.dump(fn + '.id')
+
+
+def move_to_front(fn, idx):
+    ids = np.load(fn + '.id.bk')
+    vecs = np.load(fn + '.vec.bk')
+    with open(fn + '.type.bk') as csvfile:
+        reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
+        types = [row[0] for row in reader]
+    data = np.load(fn + '.data.bk')
+    print(len(ids))
+    print(len(vecs))
+    print(len(types))
+    print(len(data))
+
+    #converter = np.zeros(shape=len(ids), dtype=np.int32)
+
+    new_ids = np.zeros(shape=ids.shape, dtype=ids.dtype)
+    new_vecs = np.zeros(shape=vecs.shape, dtype=vecs.dtype)
+    new_types = [None] * len(ids)
+
+    for i in range(idx):
+        new_ids[i+1] = ids[i]
+        new_vecs[i+1] = vecs[i]
+        new_types[i+1] = types[i]
+
+    new_ids[0] = ids[idx]
+    new_vecs[0] = vecs[idx]
+    new_types[0] = types[idx]
+
+    for i in range(idx+1, len(ids)):
+        new_ids[i] = ids[i]
+        new_vecs[i] = vecs[i]
+        new_types[i] = types[i]
+
+    new_data = np.zeros(shape=data.shape, dtype=data.dtype)
+    for i, d in enumerate(data):
+        if d < idx:
+            new_data[i] = data[i] + 1
+        elif d == idx:
+            new_data[i] = 0
+        else:
+            new_data[i] = data[i]
+
+    new_ids.dump(fn + '.id')
+    new_vecs.dump(fn + '.vec')
+    new_data.dump(fn + '.data')
+    with open(fn + '.type', 'wb') as f:
+        writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        for t in new_types:
+            writer.writerow([t])
+
+
+def get_word_embeddings(vocab):
+    # add unknown
+    unknown_idx = vocab[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]].orth
+    # subtract 1, implementation of len() for vocab is incorrect
+    size = len(vocab) - 1
+    vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
+    ids = -np.ones(shape=(size, ), dtype=np.int32)
+    # constants.UNKNOWN_IDX=0
+    types = [constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]
+    # constants.UNKNOWN_IDX=0
+    ids[0] = unknown_idx
+    i = 1
+    for lexeme in vocab:
+        if lexeme.orth == unknown_idx:
+            continue
+        vecs[i] = lexeme.vector
+        ids[i] = lexeme.orth
+        types.append(lexeme.orth_)
+        i += 1
+    # constants.UNKNOWN_IDX=0
+    vecs[0] = np.mean(vecs[1:], axis=0)
+    return vecs, ids, types
+
+
+def calc_ids_from_types(types, vocab=None):
+    ids = np.ndarray(shape=(len(types), ), dtype=np.int32)
+    if vocab is None:
+        parser = spacy.load('en')
+        vocab = parser.vocab
+    for i, t in enumerate(types):
+        ids[i] = vocab[t].orth
+    return ids

@@ -1,6 +1,7 @@
 
 # special embeddings (have to be negative to get recognized during visualization)
-UNKNOWN_EMBEDDING = -1
+UNKNOWN_EMBEDDING = 0
+
 TERMINATOR_EMBEDDING = -2
 EDGE_EMBEDDING = -3
 WORD_EMBEDDING = -4

@@ -272,12 +272,16 @@ if __name__ == '__main__':
 
     logging.info('load spacy ...')
     nlp = spacy.load('en')
-    nlp.pipeline = [nlp.tagger, nlp.parser]
+    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
     logging.info('load ids ...')
     ids = np.load(FLAGS.data_mapping_path + '.id')
+    logging.info('len(ids)='+str(len(ids)))
     data_maps = corpus.mapping_from_list(ids)
     logging.info('read types ...')
-    types = list(corpus.read_types(FLAGS.data_mapping_path))
+    types = corpus.read_types(FLAGS.data_mapping_path)
+    logging.info('len(types)=' + str(len(types)))
+
+    #TODO: implement force load embeddings from numpy array
 
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):

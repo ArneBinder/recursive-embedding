@@ -46,7 +46,7 @@ tf.flags.DEFINE_integer(
 #    'sample_count', 14,
 #    'Amount of samples per tree. This excludes the correct tree.')
 tf.flags.DEFINE_string(
-    'sentence_processor', 'process_sentence3', #'process_sentence8',#'process_sentence3',
+    'sentence_processor', 'process_sentence7', #'process_sentence8',#'process_sentence3',
     'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string(
     'tree_mode',
@@ -111,6 +111,7 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
                                                                 ids, sentence_processor, max_depth,
                                                                 max_articles, batch_size, tree_mode)
         # sort and filter vecs/mappings by counts
+        # TODO: fix this!
         seq_data, ids, vecs, counts = preprocessing.sort_embeddings(seq_data, ids, vecs,
                                                                     count_threshold=FLAGS.count_threshold)
         # write out vecs, mapping and tsv containing strings
