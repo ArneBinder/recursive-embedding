@@ -959,6 +959,8 @@ def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshol
         new_counts[new_idx] = counts[old_idx]
         new_ids[new_idx] = ids[old_idx]
         if new_ids[new_idx] == constants.UNKNOWN_EMBEDDING:
+            logging.info('old_idx_unknown=' + str(old_idx))
+            logging.info('new_idx_unknown=' + str(new_idx))
             new_idx_unknown = new_idx
 
         converter[old_idx] = new_idx
