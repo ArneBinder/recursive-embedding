@@ -69,49 +69,16 @@ def revert_mapping(mapping):
 
 
 def revert_mapping_np(mapping):
-    #max_val = max(mapping.values())
     temp = -np.ones(shape=len(mapping), dtype=np.int32)
     for key in mapping:
         temp[mapping[key]] = key
     return temp
 
 
-#def write_dict_plain_token(out_path, mapping, spacy_vocab):
-#    logging.info('write tsv dict: ' + out_path + '.tsv ...')
-#    rev_map = revert_mapping_np(mapping)
-#    with open(out_path + '.tsv', 'wb') as csvfile:
-#        fieldnames = [TSV_COLUMN_NAME_LABEL, TSV_COLUMN_NAME_ID]
-#        writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', quotechar='|',
-#                                quoting=csv.QUOTE_MINIMAL)
-#        writer.writeheader()
-#        for i in range(len(rev_map)):
-#            id_orig = rev_map[i]
-#            if id_orig >= 0:
-#                label = spacy_vocab[id_orig].orth_
-#            else:
-#                label = constants.vocab_manual[id_orig]
-#            writer.writerow({'label': label.encode("utf-8"), 'id_orig': str(id_orig)})
-
-
-#def create_or_read_dict_types_string(fn, mapping=None, spacy_vocab=None):
-#    if not os.path.isfile(fn + '.tsv'):
-#        assert mapping is not None and spacy_vocab is not None, 'no mapping and/or spacy_vocab defined'
-#        write_dict_plain_token(fn, mapping, spacy_vocab)
-#    with open(fn + '.tsv') as csvfile:
-#        logging.info('read type strings from ' + fn + '.tsv ...')
-#        reader = csv.DictReader(csvfile, delimiter='\t', quotechar='|')
-#        for row in reader:
-#            yield row[TSV_COLUMN_NAME_LABEL]
-
-
-#def write_types(out_path, types):
-
-
-
 def read_types(out_path):
     with codecs.open(out_path + '.type', 'r', 'utf-8') as f:
-        for t in f:
-            yield t
+        for line in f:
+            yield line.rstrip('\n')
 
 
 def mapping_from_list(l):

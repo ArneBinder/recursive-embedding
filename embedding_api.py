@@ -1,26 +1,28 @@
 from __future__ import print_function
+
+import json
+import logging
+import os
+import sys
+import time
+
+import numpy as np
+import spacy
 import tensorflow as tf
 import tensorflow_fold as td
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.neighbors import kneighbors_graph
+from flask import Flask, request, send_file
+from flask_cors import CORS
 from sklearn import metrics
+from sklearn.cluster import AgglomerativeClustering
+# from scipy import spatial # crashes!
+from sklearn.metrics import pairwise_distances
+from sklearn.neighbors import kneighbors_graph
 
 import constants
 import corpus
 import model_fold
 import preprocessing
-import spacy
-import pickle
-import os
-import json, time
-from flask import Flask, request, send_from_directory, send_file
-from flask_cors import CORS
-import numpy as np
-# from scipy import spatial # crashes!
-from sklearn.metrics import pairwise_distances
-import logging
 import visualize as vis
-import sys
 
 tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'directory containing the model')
@@ -121,9 +123,7 @@ def cluster():
         params = json.loads(data)
         embeddings = params['embeddings']
 
-    # best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
     labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
-    # json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
     json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
@@ -156,9 +156,7 @@ def embed_and_cluster():
         logging.info('use sentence_processor=' + sentence_processor.__name__)
 
     embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
-    #best_labels, best_silh_coeff = get_cluster_ids(embeddings=np.array(embeddings))
     labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
-    #json_data = json.dumps({'cluster_labels': best_labels.tolist(), 'silhouette_coefficient': best_silh_coeff.astype(float)})
     json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
@@ -202,8 +200,6 @@ def get_cluster_ids(embeddings):
     k_max = (embeddings.shape[0] / 3) + 2  # minimum viable clustering
     knn_min = 3
     knn_max = 12
-    #best_by_silh_coeff = [-1, -1, -1]
-    #best_labels = None
     labels = []
     meta = []
     best_idx = -1
@@ -222,11 +218,8 @@ def get_cluster_ids(embeddings):
                 # record best silh
                 best_score = sscore
                 best_idx = idx
-                #best_by_silh_coeff = [sscore, knn, k]
-                #best_labels = clusters.labels_
-                # print best_by_silh_coeff, "\n", best_labels # TODO erase
             idx += 1
-    return labels, meta, best_idx#best_labels, best_by_silh_coeff[0]
+    return labels, meta, best_idx
 
 
 def get_embeddings(sequences, sentence_processor, tree_mode):
@@ -280,10 +273,6 @@ if __name__ == '__main__':
     logging.info('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
-    #logging.info('load data_mapping from: ' + FLAGS.data_mapping_path + '.mapping ...')
-    #data_maps = pickle.load(open(FLAGS.data_mapping_path + '.mapping', "rb"))
-    #logging.info('load types_list from: ' + FLAGS.data_mapping_path + '.tsv ...')
-    #types_list = list(corpus.create_or_read_dict_types_string(FLAGS.data_mapping_path))
     logging.info('load ids ...')
     ids = np.load(FLAGS.data_mapping_path + '.id')
     data_maps = corpus.mapping_from_list(ids)

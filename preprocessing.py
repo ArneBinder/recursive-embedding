@@ -1,19 +1,17 @@
 from __future__ import print_function
 
 import fnmatch
-import ntpath
-
 import logging
-import numpy as np
-import pickle
+import ntpath
 import os
 
+import numpy as np
+
+import constants
+import sequence_node_candidates_pb2
+import sequence_node_pb2
 import sequence_node_sequence_pb2
 import tools
-import constants
-import sequence_node_pb2
-import sequence_node_candidates_pb2
-import tensorflow_fold as td
 
 
 #@tools.fn_timer

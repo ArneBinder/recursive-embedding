@@ -1,16 +1,13 @@
 import csv
+import os
 import pprint
+
+import spacy
+import tensorflow as tf
 
 import corpus
 import preprocessing
-import similarity_tree_tuple_pb2#, sequence_node_sequence_pb2
-import spacy
-import tensorflow as tf
-import pickle
-import os
-import numpy as np
-import tools
-import constants
+import similarity_tree_tuple_pb2  # , sequence_node_sequence_pb2
 
 tf.flags.DEFINE_string(
     'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',

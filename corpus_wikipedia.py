@@ -1,26 +1,19 @@
 from __future__ import print_function
+
 import csv
-import os
-from sys import maxsize
 import logging
+import ntpath
+import os
 import sys
+from sys import maxsize
 
-import pickle
-import tensorflow as tf
 import numpy as np
-
 import spacy
+import tensorflow as tf
 
-import constants
 import corpus
 import preprocessing
-import sequence_node_sequence_pb2
 import tools
-import random
-from multiprocessing import Pool
-import fnmatch
-import ntpath
-import re
 
 tf.flags.DEFINE_string(
     'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', #'/home/arne/devel/ML/data/corpora/WIKIPEDIA/wikipedia-23886057.csv',#'/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
@@ -108,12 +101,10 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         if init_dict_filename is not None:
             logging.info('initialize vecs and mapping from files ...')
-            #vecs, mapping = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
             vecs, ids, types = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
             logging.info('dump embeddings to: ' + out_filename + '.vec ...')
             vecs.dump(out_filename + '.vec')
         else:
-            #vecs, mapping = corpus.create_or_read_dict(out_filename, parser.vocab)
             vecs, ids, types = corpus.create_or_read_dict(out_filename, parser.vocab)
         # parse
         seq_data, seq_parents, seq_depths, ids = parse_articles(out_filename, parent_dir, in_filename, parser,
@@ -126,8 +117,6 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
         corpus.write_dict(out_path, ids, vecs, types)
         logging.info('dump data to: ' + out_path + '.data ...')
         seq_data.dump(out_path + '.data')
-        #logging.info('dump counts to: ' + out_path + '.count ...')
-        #counts.dump(out_path + '.count')
     else:
         logging.info('load depths from file: ' + out_filename + '.depth ...')
         seq_depths = np.load(out_filename+'.depth')
@@ -213,9 +202,6 @@ if __name__ == '__main__':
                                            FLAGS.init_dict_filename,
                                            sentence_processor,
                                            nlp,
-                                           #mapping,
-                                           #vecs,
                                            max_articles=FLAGS.max_articles,
                                            max_depth=FLAGS.max_depth,
-                                           #sample_count=FLAGS.sample_count,
                                            batch_size=FLAGS.article_batch_size)
