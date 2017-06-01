@@ -112,8 +112,9 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
                                                                 max_articles, batch_size, tree_mode)
         # sort and filter vecs/mappings by counts
         # TODO: fix this!
-        seq_data, ids, vecs, counts = preprocessing.sort_embeddings(seq_data, ids, vecs,
-                                                                    count_threshold=FLAGS.count_threshold)
+        seq_data, ids, vecs, counts, types = preprocessing.sort_and_cut_and_fill_dict(seq_data, ids, vecs, types,
+                                                                                      parser.vocab,
+                                                                                      count_threshold=FLAGS.count_threshold)
         # write out vecs, mapping and tsv containing strings
         corpus.write_dict(out_path, ids, vecs, types)
         logging.info('dump data to: ' + out_path + '.data ...')
@@ -123,13 +124,13 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
         seq_depths = np.load(out_filename+'.depth')
 
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
-    preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
+    #preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
     #preprocessing.concat_children_indices(out_filename, parent_dir, max_depth)
 
-    logging.info('load and concatenate child indices batches ...')
-    for current_depth in range(1, max_depth + 1):
-        if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
-            preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth), parent_dir)
+    #logging.info('load and concatenate child indices batches ...')
+    #for current_depth in range(1, max_depth + 1):
+    #    if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
+    #        preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth), parent_dir)
 
     return parser
 
@@ -146,7 +147,8 @@ def parse_articles(out_path, parent_dir, in_filename, parser, ids, sentence_proc
         #        or not os.path.isfile(out_path + '.parent.batch' + str(offset)) \
         #        or not os.path.isfile(out_path + '.depth.batch' + str(offset)) \
         #        or not os.path.isfile(out_path + '.children.batch' + str(offset)):
-        current_seq_data, current_seq_parents, current_idx_tuples, current_seq_depths = preprocessing.read_data_2(
+        #current_seq_data, current_seq_parents, current_idx_tuples, current_seq_depths = preprocessing.read_data_2(
+        current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
             articles_from_csv_reader,
             sentence_processor, parser, mapping,
             args={
@@ -154,15 +156,17 @@ def parse_articles(out_path, parent_dir, in_filename, parser, ids, sentence_proc
                 'max_articles': min(batch_size, max_articles),
                 'skip': offset
             },
-            max_depth=max_depth,
+            #max_depth=max_depth,
             batch_size=batch_size,
             tree_mode=tree_mode,
-            child_idx_offset=child_idx_offset)
+            calc_depths=True,
+            #child_idx_offset=child_idx_offset
+        )
         logging.info('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
         current_seq_data.dump(out_path + '.data.batch' + str(offset))
         current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
         current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
-        current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
+        #current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
         child_idx_offset += len(current_seq_data)
         #if careful:
         #   logging.info('dump mappings to: ' + out_path + '.mapping ...')

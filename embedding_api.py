@@ -27,7 +27,7 @@ import visualize as vis
 tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'directory containing the model')
 tf.flags.DEFINE_string('data_mapping_path',
-                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10',
+                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',
                        # 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
                        'model file')
 tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
@@ -248,7 +248,7 @@ def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, tree_mod
 
 def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
     for s in sequences:
-        seq_data, seq_parents = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
+        seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
                                                         data_maps, args={'content': s}, tree_mode=tree_mode,
                                                         expand_dict=False)
         yield seq_data, seq_parents

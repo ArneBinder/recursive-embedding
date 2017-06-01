@@ -47,7 +47,7 @@ def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
     pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
         seq_data, seq_parents = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser, data_maps,
-                                          args={'content': s}, expand_dict=False)
+                                                        args={'content': s}, expand_dict=False)
         children, roots = preprocessing.children_and_roots(seq_parents)
 
         # dummy position

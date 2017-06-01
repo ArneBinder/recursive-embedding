@@ -60,7 +60,7 @@ def getOrAdd(d, idx, idx_alt=None):
     # word doesnt occur in dictionary
     except KeyError:
         if idx_alt is not None:
-            return idx_alt #d[idx_alt]
+            return d[idx_alt]
         res = len(d)
         d[idx] = res
         #try:

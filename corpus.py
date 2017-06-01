@@ -58,7 +58,7 @@ def create_or_read_dict(fn, vocab=None):
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
         logging.info('extract word embeddings from spaCy ...')
-        v, i, t = get_word_embeddings(vocab)
+        v, i, t = get_dict_from_vocab(vocab)
         write_dict(fn, i, v, t)
     return v, i, t
 
@@ -104,11 +104,13 @@ def tsv_to_ids_and_types(fn):
                 writer.writerow([row[TSV_COLUMN_NAME_LABEL]])
                 #f.write(row[TSV_COLUMN_NAME_LABEL] + '\n')
 
+    print('len(ids)='+str(len(ids)))
     print('convert and dump ids...')
     ids_np = np.array(ids)
     ids_np.dump(fn + '.id')
 
 
+#debug
 def move_to_front(fn, idx):
     ids = np.load(fn + '.id.bk')
     vecs = np.load(fn + '.vec.bk')
@@ -159,35 +161,65 @@ def move_to_front(fn, idx):
             writer.writerow([t])
 
 
-def get_word_embeddings(vocab):
+def get_dict_from_vocab(vocab):
+    manual_vocab_reverted = revert_mapping(constants.vocab_manual)
     # add unknown
-    unknown_idx = vocab[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]].orth
+    #unknown_idx = vocab[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]].orth
     # subtract 1, implementation of len() for vocab is incorrect
-    size = len(vocab) - 1
+    size = len(vocab)
+    #print(size)
     vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
     ids = -np.ones(shape=(size, ), dtype=np.int32)
     # constants.UNKNOWN_IDX=0
-    types = [constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]
-    # constants.UNKNOWN_IDX=0
-    ids[0] = unknown_idx
+    types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+    types = [types_unknown]
+    # constants.UNKNOWN_EMBEDDING=0
+    ids[0] = constants.UNKNOWN_EMBEDDING
     i = 1
     for lexeme in vocab:
-        if lexeme.orth == unknown_idx:
+        # exclude entities which are in vocab_manual to avoid collisions
+        if lexeme.orth_ in manual_vocab_reverted:
+            logging.warn('found token in vocab with orth_ in manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
+            #size -= 1
             continue
         vecs[i] = lexeme.vector
         ids[i] = lexeme.orth
         types.append(lexeme.orth_)
         i += 1
+    #print(i)
     # constants.UNKNOWN_IDX=0
-    vecs[0] = np.mean(vecs[1:], axis=0)
+    vecs[0] = np.mean(vecs[1:i], axis=0)
+
+    #print(len(ids))
+    #print(vecs.shape)
+    #print(len(types))
+
+    # cut, if orth id was in vocab
+    if i < size:
+        vecs = vecs[:i]
+        ids = ids[:i]
+        types = types[:i]
+
+    #print(len(ids))
+    #print(vecs.shape)
+    #print(len(types))
+
     return vecs, ids, types
 
 
 def calc_ids_from_types(types, vocab=None):
+    manual_vocab_reverted = revert_mapping(constants.vocab_manual)
+    vocab_added = {}
     ids = np.ndarray(shape=(len(types), ), dtype=np.int32)
     if vocab is None:
         parser = spacy.load('en')
         vocab = parser.vocab
     for i, t in enumerate(types):
-        ids[i] = vocab[t].orth
+        if t in manual_vocab_reverted:
+            ids[i] = manual_vocab_reverted[t]
+            logging.debug('add vocab manual id='+str(ids[i]) + ' for type='+t)
+        else:
+            ids[i] = vocab[t].orth
+        assert ids[i] not in vocab_added, 'type='+t+' exists more then one time in types at pos=' + str(vocab_added[ids[i]]) + ' and at pos=' + str(i)
+        vocab_added[ids[i]] = i
     return ids

@@ -363,7 +363,7 @@ def get_root(parents, idx):
     return i
 
 
-def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, tree_mode=None, expand_dict=True, child_idx_offset=0):
+def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, tree_mode=None, expand_dict=True, calc_depths_child_indices=False, child_idx_offset=0):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -424,27 +424,30 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
                 seq_data.append(TERMINATOR_id)
                 seq_parents.append(0)
 
-        # TODO: check this!
-        # get current parents
-        current_seq_parents = np.array(seq_parents[start_idx:])
+        if calc_depths_child_indices:
+            # TODO: check this!
+            # get current parents
+            current_seq_parents = np.array(seq_parents[start_idx:])
 
-        # calc children and roots
-        children, roots = children_and_roots(current_seq_parents)
-        # calc depth for every position
-        depth = calc_seq_depth(children, roots, current_seq_parents)
+            # calc children and roots
+            #logging.info('calc children and roots ...')
+            children, roots = children_and_roots(current_seq_parents)
+            # calc depth for every position
+            depth = calc_seq_depth(children, roots, current_seq_parents)
 
-        depth_list.append(depth)
+            depth_list.append(depth)
 
-        for idx in children.keys():
-            for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
-                idx_tuples.append((idx + start_idx + child_idx_offset, child_offset, child_steps_to_root))
+            #logging.info('calc child indices ...')
+            for idx in children.keys():
+                for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
+                    idx_tuples.append((idx + start_idx + child_idx_offset, child_offset, child_steps_to_root))
 
     logging.info('sentences read: '+str(sen_count))
 
     return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
 
 
-def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=None, expand_dict=True):
+def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, tree_mode=None, expand_dict=True, calc_depths=False):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -459,6 +462,8 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
 
     #roots = list()
 
+    depth_list = [[]]
+
     if expand_dict:
         unknown_default = None
     else:
@@ -466,7 +471,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
 
     logging.info('start read_data ...')
     sen_count = 0
-    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=1000):
+    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
         prev_root = None
         start_idx = len(seq_data)
         for sentence in parsed_data.sents:
@@ -502,12 +507,23 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, tree_mode=
                 seq_data.append(TERMINATOR_id)
                 seq_parents.append(0)
 
+        if calc_depths:
+            # get current parents
+            current_seq_parents = np.array(seq_parents[start_idx:])
+
+            #logging.info('calc children and roots ...')
+            children, roots = children_and_roots(current_seq_parents)
+            # calc depth for every position
+            #logging.info('calc depths ...')
+            depth = calc_seq_depth(children, roots, current_seq_parents)
+            depth_list.append(depth)
+
     logging.info('sentences read: '+str(sen_count))
     data = np.array(seq_data)
     parents = np.array(seq_parents)
     #root = prev_root
 
-    return data, parents#, root #, np.array(seq_edges)#, dep_map
+    return data, parents, np.concatenate(depth_list) #, root #, np.array(seq_edges)#, dep_map
 
 
 def calc_depths_and_child_indices((parents, max_depth, child_idx_offset)):#(out_path, offset, max_depth)):
@@ -734,7 +750,7 @@ def build_sequence_tree_with_candidates(seq_data, parents, children, root, inser
 
 
 def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, tree_mode=None, expand_dict=True):
-    seq_data, seq_parents = read_data(identity_reader, sentence_processor, parser, data_maps,
+    seq_data, seq_parents, _ = read_data(identity_reader, sentence_processor, parser, data_maps,
                                             args={'content': str_}, tree_mode=tree_mode, expand_dict=expand_dict)
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
@@ -894,11 +910,13 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
     return concatenated
 
 
-def sort_embeddings(seq_data, ids, vecs, types, vocab, count_threshold=1):
+def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshold=1):
     logging.info('sort embeddings ...')
     # this can add keys to mapping (what increases its length)!
     #vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
     logging.info('initial ids size: ' + str(len(ids)))
+    logging.info('initial vecs shape: ' + str(vecs.shape))
+    logging.info('initial types size: ' + str(len(types)))
     # count types
     logging.info('calculate counts ...')
     counts = np.zeros(shape=len(ids), dtype=int)
@@ -915,34 +933,38 @@ def sort_embeddings(seq_data, ids, vecs, types, vocab, count_threshold=1):
     new_types = [None] * len(ids)
     converter = -np.ones(shape=len(ids), dtype=int)
 
+    print(len(new_types))
+
     logging.info('process reversed(sorted_indices) ...')
-    new_idx = 1
+    new_idx = 0
+    new_idx_unknown = -1
     #old_idx_unknown = -1
     for old_idx in reversed(sorted_indices):
-        current_new_idx = new_idx
+        #current_new_idx = new_idx
         # move UNKNOWN to idx = 0
-        if old_idx == 0: #types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
-            current_new_idx = 0
+        #if old_idx == 0: #types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
+        #    current_new_idx = 0
         # keep pre-initialized vecs (count==0) and first entry (UNKNOWN), but skip other vecs with count < threshold
-        if 0 < counts[old_idx] < count_threshold and old_idx != 0: # and ids[old_idx] != constants.UNKNOWN_EMBEDDING: #not in vocab_manual_mapped.values():
+        if 0 < counts[old_idx] < count_threshold and ids[old_idx] != constants.UNKNOWN_EMBEDDING: # and ids[old_idx] != constants.UNKNOWN_EMBEDDING: #not in vocab_manual_mapped.values():
             continue
         if old_idx < vecs.shape[0]:
-            new_vecs[current_new_idx] = vecs[old_idx]
+            new_vecs[new_idx] = vecs[old_idx]
+            new_types[new_idx] = types[old_idx]
         else:
             # init missing vecs with mean
-            new_vecs[current_new_idx] = vecs_mean
-        if old_idx < len(types):
-            new_types[current_new_idx] = types[old_idx]
-        else:
+            new_vecs[new_idx] = vecs_mean
             # init missing type with vocab
-            new_types[current_new_idx] = vocab[ids[old_idx]].orth_
-        new_counts[current_new_idx] = counts[old_idx]
-        new_ids[current_new_idx] = ids[old_idx]
+            new_types[new_idx] = vocab[ids[old_idx]].orth_
 
-        converter[old_idx] = current_new_idx
+        new_counts[new_idx] = counts[old_idx]
+        new_ids[new_idx] = ids[old_idx]
+        if new_ids[new_idx] == constants.UNKNOWN_EMBEDDING:
+            new_idx_unknown = new_idx
+
+        converter[old_idx] = new_idx
         new_idx += 1
 
-    #assert old_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
+    assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
 
     logging.info('new lex_size: '+str(new_idx))
 
@@ -973,7 +995,7 @@ def sort_embeddings(seq_data, ids, vecs, types, vocab, count_threshold=1):
             seq_data[i] = converter[d]
         # set to UNKNOWN
         else:
-            seq_data[i] = 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
+            seq_data[i] = new_idx_unknown #0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
             count_unknown += 1
     logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
 
