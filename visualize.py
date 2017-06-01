@@ -18,10 +18,11 @@ import spacy
 import tools
 
 parser = None #spacy.load('en')
-TEMP_FN_TSV = 'temp'
+TEMP_FN = 'temp_forest.png'
 
-if os.path.isfile(TEMP_FN_TSV+'.tsv'):
-    os.remove(TEMP_FN_TSV+'.tsv')
+if os.path.isfile(TEMP_FN):
+    os.remove(TEMP_FN)
+
 
 # DEPRECATED
 def visualize_dep(filename, sequence_graph, data_maps_rev, vocab):
@@ -62,9 +63,10 @@ def visualize_dep(filename, sequence_graph, data_maps_rev, vocab):
     # view_pydot(graph)
 
 
-def visualize(filename, sequence_graph, types_string=None, data_maps=None, vocab=None):
-    if types_string is None:
-        types_string = list(corpus.create_or_read_dict_types_string(TEMP_FN_TSV, mapping=data_maps, spacy_vocab=vocab))
+def visualize(filename, sequence_graph, types):
+    #if types_string is None:
+    #    types = list(corpus.read_types(FLAGS.data_mapping_path + '.type'))
+    #    types_string = list(corpus.create_or_read_dict_types_string(TEMP_FN_TSV, mapping=data_maps, spacy_vocab=vocab))
         #data_maps_rev = corpus.revert_mapping(data_maps)
 
         #if vocab is None:
@@ -85,8 +87,8 @@ def visualize(filename, sequence_graph, types_string=None, data_maps=None, vocab
     if len(data) > 0:
         nodes = []
         for i, d in enumerate(data):
-            if d < len(types_string):
-                l = types_string[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
+            if d < len(types):
+                l = types[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
             else:
                 l = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
             nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor="green"))
@@ -106,25 +108,24 @@ def visualize(filename, sequence_graph, types_string=None, data_maps=None, vocab
                                       dir='back'))
 
     # print(graph.to_string())
-
     graph.write_png(filename)
 
 
-def visualize_seq_node_list(seq_tree_list, types_string, file_name='temp_forest.png'):
+def visualize_seq_node_list(seq_tree_list, types, file_name=TEMP_FN):
     for i, seq_tree in enumerate(seq_tree_list):
         current_data, current_parents = preprocessing.sequence_node_to_arrays(seq_tree)
-        visualize(file_name + '.' + str(i), (current_data, current_parents), types_string=types_string)
-    concat_visuals(file_name, len(seq_tree_list))
+        visualize(file_name + '.' + str(i), (current_data, current_parents), types)
+    concat_visualizations(file_name, len(seq_tree_list))
 
 
-def visualize_list(sequence_graph_list, types_string, file_name='temp_forest.png'):
+def visualize_list(sequence_graph_list, types, file_name=TEMP_FN):
     for i, seq_graph in enumerate(sequence_graph_list):
         current_data, current_parents = seq_graph
-        visualize(file_name + '.' + str(i), (current_data, current_parents), types_string=types_string)
-    concat_visuals(file_name, len(sequence_graph_list))
+        visualize(file_name + '.' + str(i), (current_data, current_parents), types)
+    concat_visualizations(file_name, len(sequence_graph_list))
 
 
-def concat_visuals(file_name, count):
+def concat_visualizations(file_name, count):
     file_names = [file_name + '.' + str(i) for i in range(count)]
     images = map(Image.open, file_names)
     widths, heights = zip(*(i.size for i in images))
@@ -143,6 +144,7 @@ def concat_visuals(file_name, count):
     for fn in file_names:
         os.remove(fn)
 
+
 def unfold_and_plot(data, width):
     t = data.squeeze().data
     print(len(t))
@@ -152,12 +154,14 @@ def unfold_and_plot(data, width):
     plt.imshow(unfolded, aspect='auto', interpolation='none')
 
 
+# deprecated
 def getFromVocs(d_pos, d_neg, e):
     if e < 0:
         return d_neg[e]
     return d_pos[e].orth_
 
 
+# deprecated
 def data_to_word(d_, rev_m_, vocab_, vocab_man_):
     v_id = rev_m_[d_]
     if v_id < 0:

@@ -19,7 +19,8 @@ import numpy as np
 # from scipy import spatial # crashes!
 from sklearn.metrics import pairwise_distances
 import logging
-from visualize import visualize_list
+import visualize as vis
+import sys
 
 tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'directory containing the model')
@@ -190,9 +191,9 @@ def visualize():
         logging.info('use sentence_processor=' + sentence_processor.__name__)
 
     parsed_datas = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
-    visualize_list(parsed_datas, types_list, file_name='temp_forest.png')
+    vis.visualize_list(parsed_datas, types, file_name=vis.TEMP_FN)
     logging.info("Time spent handling the request: %f" % (time.time() - start))
-    return send_file('forest_temp.png')
+    return send_file(vis.TEMP_FN)
 
 
 def get_cluster_ids(embeddings):
@@ -261,7 +262,7 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file('sequence_node.proto')
@@ -279,10 +280,15 @@ if __name__ == '__main__':
     logging.info('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.parser]
-    logging.info('load data_mapping from: ' + FLAGS.data_mapping_path + '.mapping ...')
-    data_maps = pickle.load(open(FLAGS.data_mapping_path + '.mapping', "rb"))
-    logging.info('load types_list from: ' + FLAGS.data_mapping_path + '.tsv ...')
-    types_list = list(corpus.create_or_read_dict_types_string(FLAGS.data_mapping_path))
+    #logging.info('load data_mapping from: ' + FLAGS.data_mapping_path + '.mapping ...')
+    #data_maps = pickle.load(open(FLAGS.data_mapping_path + '.mapping', "rb"))
+    #logging.info('load types_list from: ' + FLAGS.data_mapping_path + '.tsv ...')
+    #types_list = list(corpus.create_or_read_dict_types_string(FLAGS.data_mapping_path))
+    logging.info('load ids ...')
+    ids = np.load(FLAGS.data_mapping_path + '.id')
+    data_maps = corpus.mapping_from_list(ids)
+    logging.info('read types ...')
+    types = list(corpus.read_types(FLAGS.data_mapping_path))
 
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):

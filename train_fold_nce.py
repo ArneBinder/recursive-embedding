@@ -22,7 +22,7 @@ tf.flags.DEFINE_string('train_data_path',
                        'train data base path (without extension)')
 # tf.flags.DEFINE_string('data_mapping_path', 'data/nlp/spacy/dict.mapping',
 #                       'model file')
-# tf.flags.DEFINE_string('train_dict_file', 'data/nlp/spacy/dict.vecs',
+# tf.flags.DEFINE_string('train_dict_file', 'data/nlp/spacy/dict.vec',
 #                       'A file containing a numpy array which is used to initialize the embedding vectors.')
 # tf.flags.DEFINE_integer('pad_embeddings_to_size', 1310000,
 #                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
@@ -66,14 +66,14 @@ def extract_model_embeddings(model_fn=None, out_fn=None):
         assert checkpoint is not None, 'no checkpoint file found in logdir: ' + FLAGS.logdir
         model_fn = checkpoint.model_checkpoint_path
     if out_fn is None:
-        out_fn = FLAGS.train_data_path + '.vecs'
+        out_fn = FLAGS.train_data_path + '.vec'
 
     # backup previous embeddings
     if os.path.isfile(out_fn):
         os.rename(out_fn, out_fn + '.previous')
 
     with tf.Graph().as_default():
-        embeddings = tf.Variable(initial_value=tf.constant(0.0), validate_shape=False, name='embeddings')
+        embeddings = tf.Variable(initial_value=tf.constant(0.0), validate_shape=False, name=model_fold.VAR_NAME_EMBEDDING)
         saver = tf.train.Saver()
         with tf.Session() as sess:
             print('restore model from: ' + model_fn)
@@ -260,8 +260,8 @@ def main(unused_argv):
             lex_size = embed_shape[0]
 
     if lex_size is None:
-        print('load embeddings (to get lexicon size) from: ' + FLAGS.train_data_path + '.vecs ...')
-        embeddings_np = np.load(FLAGS.train_data_path + '.vecs')
+        print('load embeddings (to get lexicon size) from: ' + FLAGS.train_data_path + '.vec ...')
+        embeddings_np = np.load(FLAGS.train_data_path + '.vec')
         lex_size = embeddings_np.shape[0]
     print('lex_size: ' + str(lex_size))
 

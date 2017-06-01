@@ -111,12 +111,14 @@ class Tester(unittest.TestCase):
         sample_count = 5
         max_depth = 1
 
-        print('load mapping from file: ' + train_path + '.mapping ...')
-        m = pickle.load(open(train_path + '.mapping', "rb"))
-        print('len(mapping): ' + str(len(m)))
+
+        types = corpus.read_types(train_path)
+        #print('load mapping from file: ' + train_path + '.mapping ...')
+        #m = pickle.load(open(train_path + '.mapping', "rb"))
+        #print('len(mapping): ' + str(len(m)))
         #rev_m = corpus.revert_mapping(m)
-        print('load spacy ...')
-        parser = spacy.load('en')
+        #print('load spacy ...')
+        #parser = spacy.load('en')
 
         # load corpus data
         print('load corpus data from: ' + train_path + '.data ...')
@@ -126,7 +128,7 @@ class Tester(unittest.TestCase):
         print('calc children ...')
         children, roots = preprocessing.children_and_roots(seq_parents)
 
-        token_list = list(corpus.create_or_read_dict_types_string(train_path, mapping=m, spacy_vocab=parser.vocab))
+        #token_list = list(corpus.create_or_read_dict_types_string(train_path, mapping=m, spacy_vocab=parser.vocab))
 
         #visualize.visualize('orig.png', (seq_data, seq_parents), rev_m, parser.vocab, constants.vocab_manual)
 
@@ -141,7 +143,7 @@ class Tester(unittest.TestCase):
                 print('IDX: ' + str(i))
                 print(t_all[0])
                 #pp.pprint(seq_tree_seq)
-                visualize.visualize_seq_node_list(seq_tree_seq['trees'], token_list, 'forest_out_' + str(i) + '.png')
+                visualize.visualize_seq_node_list(seq_tree_seq['trees'], types, 'forest_out_' + str(i) + '.png')
 
     #@unittest.skip("skip")
     def test_iterator_sequence_trees_cbot(self):
@@ -150,6 +152,8 @@ class Tester(unittest.TestCase):
         train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles100_maxdepth10'
         sample_count = 5
         max_depth = 3
+
+        types = corpus.read_types(train_path)
 
         # load corpus data
         print('load corpus data from: ' + train_path + '.data ...')
@@ -160,16 +164,16 @@ class Tester(unittest.TestCase):
         children, roots = preprocessing.children_and_roots(seq_parents)
         #print(children[3106218])
 
-        print('load depths from: ' + train_path + '.depth1.collected')
-        depth1_collected = np.load(train_path + '.depth1.collected')
+        #print('load depths from: ' + train_path + '.depth1.collected')
+        #depth1_collected = np.load(train_path + '.depth1.collected')
 
         #idx = depth1_collected[9663491] # idx = 3106218
         #print('idx: '+str(idx))
-        print('load depths ...')
-        seq_depths = np.load(train_path + '.depth')
+        #print('load depths ...')
+        #seq_depths = np.load(train_path + '.depth')
         #print('depth of idx: '+str(seq_depths[idx]))
 
-        print('children of idx:')
+        #print('children of idx:')
         #print(children[idx])
         #seq_tree = sequence_node_pb2.SequenceNode()
         #preprocessing.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
@@ -183,7 +187,7 @@ class Tester(unittest.TestCase):
         #print('load spacy ...')
         #parser = spacy.load('en')
 
-        token_list = list(corpus.create_or_read_dict_types_string(train_path))
+        #token_list = list(corpus.create_or_read_dict_types_string(train_path))
 
         #visualize.visualize('orig.png', (seq_data, seq_parents), rev_m, parser.vocab, constants.vocab_manual)
 
@@ -198,7 +202,7 @@ class Tester(unittest.TestCase):
             print('IDX: ' + str(i))
             #print(t_all[0])
             pp.pprint(seq_tree_seq)
-            visualize.visualize_seq_node_list(seq_tree_seq['trees'], token_list, 'forest_out_' + str(i) + '.png')
+            visualize.visualize_seq_node_list(seq_tree_seq['trees'], types, 'forest_out_' + str(i) + '.png')
 
     @unittest.skip("skip")
     def test_check_depth_collected(self):

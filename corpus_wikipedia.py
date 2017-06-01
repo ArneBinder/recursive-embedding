@@ -2,6 +2,8 @@ from __future__ import print_function
 import csv
 import os
 from sys import maxsize
+import logging
+import sys
 
 import pickle
 import tensorflow as tf
@@ -36,7 +38,7 @@ tf.flags.DEFINE_string(
     'init_dict_filename', None, #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#None, #'data/nlp/spacy/dict',
     'The path to embedding and mapping files (without extension) to reuse them for the new corpus.')
 tf.flags.DEFINE_integer(
-    'max_articles', 10000,
+    'max_articles', 1000,
     'How many articles to read.')
 tf.flags.DEFINE_integer(
     'article_batch_size', 250,
@@ -51,7 +53,7 @@ tf.flags.DEFINE_integer(
 #    'sample_count', 14,
 #    'Amount of samples per tree. This excludes the correct tree.')
 tf.flags.DEFINE_string(
-    'sentence_processor', 'process_sentence7', #'process_sentence8',#'process_sentence3',
+    'sentence_processor', 'process_sentence3', #'process_sentence8',#'process_sentence3',
     'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string(
     'tree_mode',
@@ -68,7 +70,7 @@ FLAGS = tf.flags.FLAGS
 
 def articles_from_csv_reader(filename, max_articles=100, skip=0):
     csv.field_size_limit(maxsize)
-    print('parse', max_articles, 'articles...')
+    logging.info('parse ' + str(max_articles) + ' articles...')
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=['article-id', 'content'])
         i = 0
@@ -81,7 +83,7 @@ def articles_from_csv_reader(filename, max_articles=100, skip=0):
             if (i * 10) % max_articles == 0:
                 # sys.stdout.write("progress: %d%%   \r" % (i * 100 / max_rows))
                 # sys.stdout.flush()
-                print('read article:', row['article-id'], '... ', i * 100 / max_articles, '%')
+                logging.info('read article: ' + row['article-id'] + '... ' + str(i * 100 / max_articles) + '%')
             i += 1
             content = row['content'].decode('utf-8')
             # cut the title (is separated by two spaces from main content)
@@ -95,44 +97,46 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     out_base_name = ntpath.basename(out_filename)
     if not os.path.isfile(out_filename+'.data') \
             or not os.path.isfile(out_filename + '.parent')\
-            or not os.path.isfile(out_filename + '.mapping')\
-            or not os.path.isfile(out_filename + '.vecs') \
+            or not os.path.isfile(out_filename + '.id') \
+            or not os.path.isfile(out_filename + '.vec') \
             or not os.path.isfile(out_filename + '.depth') \
             or not os.path.isfile(out_filename + '.count'):
 
         if parser is None:
-            print('load spacy ...')
+            logging.info('load spacy ...')
             parser = spacy.load('en')
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         if init_dict_filename is not None:
-            print('initialize vecs and mapping from files ...')
-            vecs, mapping = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
-            print('dump embeddings to: ' + out_filename + '.vecs ...')
-            vecs.dump(out_filename + '.vecs')
+            logging.info('initialize vecs and mapping from files ...')
+            #vecs, mapping = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
+            vecs, ids, types = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
+            logging.info('dump embeddings to: ' + out_filename + '.vec ...')
+            vecs.dump(out_filename + '.vec')
         else:
-            vecs, mapping = corpus.create_or_read_dict(out_filename, parser.vocab)
+            #vecs, mapping = corpus.create_or_read_dict(out_filename, parser.vocab)
+            vecs, ids, types = corpus.create_or_read_dict(out_filename, parser.vocab)
         # parse
-        seq_data, seq_parents, seq_depths, mapping = parse_articles(out_filename, parent_dir, in_filename, parser,
-                                                                    mapping, sentence_processor, max_depth,
-                                                                    max_articles, batch_size, tree_mode)
+        seq_data, seq_parents, seq_depths, ids = parse_articles(out_filename, parent_dir, in_filename, parser,
+                                                                ids, sentence_processor, max_depth,
+                                                                max_articles, batch_size, tree_mode)
         # sort and filter vecs/mappings by counts
-        seq_data, mapping, vecs, counts = preprocessing.sort_embeddings(seq_data, mapping, vecs,
-                                                                        count_threshold=FLAGS.count_threshold)
+        seq_data, ids, vecs, counts = preprocessing.sort_embeddings(seq_data, ids, vecs,
+                                                                    count_threshold=FLAGS.count_threshold)
         # write out vecs, mapping and tsv containing strings
-        corpus.write_dict(out_path, mapping, vecs, parser.vocab, constants.vocab_manual)
-        print('dump data to: ' + out_path + '.data ...')
+        corpus.write_dict(out_path, ids, vecs, types)
+        logging.info('dump data to: ' + out_path + '.data ...')
         seq_data.dump(out_path + '.data')
-        print('dump counts to: ' + out_path + '.count ...')
-        counts.dump(out_path + '.count')
+        #logging.info('dump counts to: ' + out_path + '.count ...')
+        #counts.dump(out_path + '.count')
     else:
-        print('load depths from file: ' + out_filename + '.depth ...')
+        logging.info('load depths from file: ' + out_filename + '.depth ...')
         seq_depths = np.load(out_filename+'.depth')
 
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
     preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
     #preprocessing.concat_children_indices(out_filename, parent_dir, max_depth)
 
-    print('load and concatenate child indices batches ...')
+    logging.info('load and concatenate child indices batches ...')
     for current_depth in range(1, max_depth + 1):
         if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
             preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth), parent_dir)
@@ -140,10 +144,11 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     return parser
 
 
-def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
+def parse_articles(out_path, parent_dir, in_filename, parser, ids, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
     out_fn = ntpath.basename(out_path)
 
-    print('parse articles ...')
+    mapping = corpus.mapping_from_list(ids)
+    logging.info('parse articles ...')
     child_idx_offset = 0
     for offset in range(0, max_articles, batch_size):
         # all or none: otherwise the mapping lacks entries!
@@ -163,14 +168,14 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
             batch_size=batch_size,
             tree_mode=tree_mode,
             child_idx_offset=child_idx_offset)
-        print('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
+        logging.info('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
         current_seq_data.dump(out_path + '.data.batch' + str(offset))
         current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
         current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
         current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
         child_idx_offset += len(current_seq_data)
         #if careful:
-        #   print('dump mappings to: ' + out_path + '.mapping ...')
+        #   logging.info('dump mappings to: ' + out_path + '.mapping ...')
         #   with open(out_path + '.mapping', "wb") as f:
         #       pickle.dump(mapping, f)
         #else:
@@ -181,12 +186,13 @@ def parse_articles(out_path, parent_dir, in_filename, parser, mapping, sentence_
     seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
     seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
 
-    print('parsed data size: '+str(len(seq_data)))
+    logging.info('parsed data size: '+str(len(seq_data)))
 
-    return seq_data, seq_parents, seq_depths, mapping
+    return seq_data, seq_parents, seq_depths, corpus.revert_mapping_np(mapping)
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
     if not os.path.isdir(out_dir):
@@ -199,7 +205,7 @@ if __name__ == '__main__':
     out_path = out_path + '_articles' + str(FLAGS.max_articles)
     out_path = out_path + '_maxdepth' + str(FLAGS.max_depth)
 
-    print('output base file name: '+out_path)
+    logging.info('output base file name: '+out_path)
 
     nlp = None
     nlp = convert_wikipedia(FLAGS.corpus_data_input_train,
@@ -213,22 +219,3 @@ if __name__ == '__main__':
                                            max_depth=FLAGS.max_depth,
                                            #sample_count=FLAGS.sample_count,
                                            batch_size=FLAGS.article_batch_size)
-    #print('len(mapping): '+str(len(mapping)))
-
-    #print('parse train data ...')
-    #convert_sick(FLAGS.corpus_data_input_train,
-    #             out_path + '.train',
-    #             sentence_processor,
-    #             nlp,
-    #             mapping,
-    #             FLAGS.corpus_size,
-    #             FLAGS.tree_mode)
-
-    #print('parse test data ...')
-    #convert_sick(FLAGS.corpus_data_input_test,
-    #             out_path + '.test',
-    #             sentence_processor,
-    #             nlp,
-    #             mapping,
-    #             FLAGS.corpus_size,
-    #             FLAGS.tree_mode)

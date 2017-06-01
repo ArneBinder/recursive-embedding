@@ -57,13 +57,13 @@ def sick_raw_reader(filename):
 
 
 # build similarity_tree_tuple objects
-def sick_reader(filename, sentence_processor, parser, data_maps, tree_mode=None):
+def sick_reader(filename, sentence_processor, parser, mapping, tree_mode=None):
     for i, t in enumerate(sick_raw_reader(filename)):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps,
+        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, mapping,
                                                    sim_tree_tuple.first, tree_mode)
-        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps,
+        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, mapping,
                                                    sim_tree_tuple.second, tree_mode)
         sim_tree_tuple.similarity = (score - 1.) / 4.
         yield sim_tree_tuple
@@ -96,7 +96,9 @@ if __name__ == '__main__':
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
-    vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    #vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    vecs, ids, types = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    mapping = corpus.mapping_from_list(ids)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
@@ -127,7 +129,8 @@ if __name__ == '__main__':
 
     print('len(mapping): ' + str(len(mapping)))
 
-    corpus.write_dict(out_path, mapping, nlp.vocab, constants.vocab_manual)
+    ids = corpus.revert_mapping_np(mapping)
+    corpus.write_dict(out_path, ids, vecs, types)
 
 
 
