@@ -327,7 +327,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     else:
         unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
-    logging.info('start read_data ...')
+    logging.debug('start read_data ...')
     sen_count = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
         prev_root = None
@@ -383,7 +383,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
                 for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
                     idx_tuples.append((idx + start_idx + child_idx_offset, child_offset, child_steps_to_root))
 
-    logging.info('sentences read: '+str(sen_count))
+    logging.debug('sentences read: '+str(sen_count))
 
     return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
 
@@ -411,7 +411,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
     else:
         unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
-    logging.info('start read_data ...')
+    logging.debug('start read_data ...')
     sen_count = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
         prev_root = None
@@ -460,7 +460,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
             depth = calc_seq_depth(children, roots, current_seq_parents)
             depth_list.append(depth)
 
-    logging.info('sentences read: '+str(sen_count))
+    logging.debug('sentences read: '+str(sen_count))
     data = np.array(seq_data)
     parents = np.array(seq_parents)
     #root = prev_root

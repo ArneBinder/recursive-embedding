@@ -26,10 +26,13 @@ import visualize as vis
 
 tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'directory containing the model')
-tf.flags.DEFINE_string('data_mapping_path',
-                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',
+tf.flags.DEFINE_string('data_mapping',
+                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10',
                        # 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
-                       'model file')
+                       'Path to the "<data_mapping>.type" file (for visualization) and optional the ".vec" file, '
+                       'see flag: load_embeddings')
+tf.flags.DEFINE_boolean('load_embeddings', False,
+                        'Load embeddings from numpy array located at "<data_mapping>.vec"')
 tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string('tree_mode',
@@ -264,30 +267,32 @@ if __name__ == '__main__':
     checkpoint = tf.train.get_checkpoint_state(FLAGS.model_dir)
     input_checkpoint = checkpoint.model_checkpoint_path
 
-    reader = tf.train.NewCheckpointReader(input_checkpoint)
-    logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
-    saved_shapes = reader.get_variable_to_shape_map()
-    embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
-    lex_size = embed_shape[0]
+    if FLAGS.load_embeddings:
+        logging.info('load new embeddings from: '+FLAGS.data_mapping+'.vec ...')
+        embeddings_np = np.load(FLAGS.data_mapping+'.vec')
+        lex_size = embeddings_np.shape[0]
+    else:
+        reader = tf.train.NewCheckpointReader(input_checkpoint)
+        logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
+        saved_shapes = reader.get_variable_to_shape_map()
+        embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
+        lex_size = embed_shape[0]
 
     logging.info('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
-    #logging.info('load ids ...')
-    #ids = np.load(FLAGS.data_mapping_path + '.id')
-    #logging.info('len(ids)='+str(len(ids)))
 
     logging.info('read types ...')
-    types = corpus.read_types(FLAGS.data_mapping_path)
-    logging.info('len(types)=' + str(len(types)))
+    types = corpus.read_types(FLAGS.data_mapping)
+    logging.info('dict size: ' + str(len(types)))
     data_maps = corpus.mapping_from_list(types)
-
-    #TODO: implement force load embeddings from numpy array
 
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
                                   trainable=True, name='embeddings')
+            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
+            embedding_init = embed_w.assign(embedding_placeholder)
             embedder = model_fold.SequenceTreeEmbedding(embed_w)
             tree_embeddings = embedder.tree_embeddings
 
@@ -300,6 +305,10 @@ if __name__ == '__main__':
             # Restore variables from disk.
             logging.info('restore model from: ' + input_checkpoint + '...')
             saver.restore(sess, input_checkpoint)
+
+            if FLAGS.load_embeddings:
+                print('init embeddings with external vectors ...')
+                sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
 
     logging.info('Starting the API')
     app.run()
