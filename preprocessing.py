@@ -125,7 +125,7 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
         a_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         a_parents.append(-1)
         # add entity type
-        if token.ent_type != 0:
+        if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
             a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-2)
         sen_a.append((a_data, a_parents))
@@ -166,7 +166,7 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
         a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         a_parents.append(-1)
         # add entity type
-        if token.ent_type != 0:
+        if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
             a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-4)
             a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_TYPE_EMBEDDING], dict_unknown))
@@ -208,7 +208,7 @@ def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None):
         a_parents.append(-len(a_data))
 
         # add entity type embedding
-        if token.ent_type != 0:
+        if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
             a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-len(a_data))
         # add lemma type embedding
@@ -261,7 +261,7 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
         a_parents.append(-1)
 
         # add entity type embedding
-        if token.ent_type != 0:
+        if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
             a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-len(a_data))
             # add entity type type embedding
