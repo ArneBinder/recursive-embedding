@@ -18,9 +18,6 @@ import tools
 tf.flags.DEFINE_string(
     'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', #'/home/arne/devel/ML/data/corpora/WIKIPEDIA/wikipedia-23886057.csv',#'/home/arne/devel/ML/data/corpora/WIKIPEDIA/documents_utf8_filtered_20pageviews.csv', # '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
     'The path to the SICK train data file.')
-#tf.flags.DEFINE_string(
-#    'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
-#    'The path to the SICK test data file.')
 tf.flags.DEFINE_string(
     'corpus_data_output_dir', '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia',#'data/corpora/wikipedia',
     'The path to the output data files (samples, embedding vectors, mappings).')
@@ -87,34 +84,35 @@ def articles_from_csv_reader(filename, max_articles=100, skip=0):
 def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_processor, parser, #mapping, vecs,
                       max_articles=10000, max_depth=10, batch_size=100, tree_mode=None):
     parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
-    #out_base_name = ntpath.basename(out_filename)
-    if not os.path.isfile(out_filename+'.data') \
+    out_base_name = ntpath.basename(out_filename)
+    if not os.path.isfile(out_filename+'.data')\
             or not os.path.isfile(out_filename + '.parent')\
-            or not os.path.isfile(out_filename + '.vec') \
-            or not os.path.isfile(out_filename + '.depth') \
+            or not os.path.isfile(out_filename + '.vec')\
+            or not os.path.isfile(out_filename + '.depth')\
             or not os.path.isfile(out_filename + '.count'):
-
-        if parser is None:
+        if not parser:
             logging.info('load spacy ...')
             parser = spacy.load('en')
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
-        if init_dict_filename is not None:
-            logging.info('initialize vecs and mapping from files ...')
-            vecs, types = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
-            logging.info('dump embeddings to: ' + out_filename + '.vec ...')
-            vecs.dump(out_filename + '.vec')
+        # get vecs and types and save it at out_filename
+        if init_dict_filename:
+            vecs, types = corpus.create_or_read_dict(init_dict_filename)
+            corpus.write_dict(out_filename, vecs=vecs, types=types)
         else:
-            vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
+            corpus.create_or_read_dict(out_filename, vocab=parser.vocab, dont_read=True)
 
         # parse
-        seq_data, types = parse_articles(out_filename, parent_dir, in_filename, parser, types, sentence_processor,
-                                         max_depth, max_articles, batch_size, tree_mode)
+        parse_articles(out_filename, in_filename, parser, sentence_processor, max_articles, batch_size, tree_mode)
+        # merge batches
+        preprocessing.merge_numpy_batch_files(out_base_name + '.parent', parent_dir)
+        preprocessing.merge_numpy_batch_files(out_base_name + '.depth', parent_dir)
+        seq_data = preprocessing.merge_numpy_batch_files(out_base_name + '.data', parent_dir)
     else:
-        vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
         logging.info('load data from file: ' + out_filename + '.data ...')
         seq_data = np.load(out_filename + '.data')
 
     if not os.path.isfile(out_filename + '.converter') or not os.path.isfile(out_filename + '.new_idx_unknown'):
+        vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
         # sort and filter vecs/mappings by counts
         converter, vecs, counts, types, new_idx_unknown = preprocessing.sort_and_cut_and_fill_dict(seq_data, vecs, types,
                                                                                  count_threshold=FLAGS.count_threshold)
@@ -172,59 +170,36 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     return parser
 
 
-def parse_articles(out_path, parent_dir, in_filename, parser, types, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
-    out_fn = ntpath.basename(out_path)
-
+def parse_articles(out_path, in_filename, parser, sentence_processor, max_articles, batch_size, tree_mode):
+    types = corpus.read_types(out_path)
     mapping = corpus.mapping_from_list(types)
     logging.info('parse articles ...')
-    child_idx_offset = 0
     for offset in range(0, max_articles, batch_size):
         # all or none: otherwise the mapping lacks entries!
-        #if not careful or not os.path.isfile(out_path + '.data.batch' + str(offset)) \
-        #        or not os.path.isfile(out_path + '.parent.batch' + str(offset)) \
-        #        or not os.path.isfile(out_path + '.depth.batch' + str(offset)) \
-        #        or not os.path.isfile(out_path + '.children.batch' + str(offset)):
-        #current_seq_data, current_seq_parents, current_idx_tuples, current_seq_depths = preprocessing.read_data_2(
-        current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
-            articles_from_csv_reader,
-            sentence_processor, parser, mapping,
-            args={
-                'filename': in_filename,
-                'max_articles': min(batch_size, max_articles),
-                'skip': offset
-            },
-            #max_depth=max_depth,
-            batch_size=batch_size,
-            tree_mode=tree_mode,
-            calc_depths=True,
-            #child_idx_offset=child_idx_offset
-        )
-        logging.info('dump data, parents, depths and child indices for offset=' + str(offset) + ' ...')
-        current_seq_data.dump(out_path + '.data.batch' + str(offset))
-        current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
-        current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
-        #current_idx_tuples.dump(out_path + '.children.batch' + str(offset))
-        child_idx_offset += len(current_seq_data)
-        #if careful:
-        #   logging.info('dump mappings to: ' + out_path + '.mapping ...')
-        #   with open(out_path + '.mapping', "wb") as f:
-        #       pickle.dump(mapping, f)
-        #else:
-        #    current_seq_data = np.load(out_path + '.data.batch' + str(offset))
-        #    child_idx_offset += len(current_seq_data)
+        if not os.path.isfile(out_path + '.data.batch' + str(offset))\
+                or not os.path.isfile(out_path + '.parent.batch' + str(offset))\
+                or not os.path.isfile(out_path + '.depth.batch' + str(offset)):
+            logging.info('parse articles for offset=' + str(offset) + ' ...')
+            current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
+                articles_from_csv_reader,
+                sentence_processor, parser, mapping,
+                args={
+                    'filename': in_filename,
+                    'max_articles': min(batch_size, max_articles),
+                    'skip': offset
+                },
+                #max_depth=max_depth,
+                batch_size=batch_size,
+                tree_mode=tree_mode,
+                calc_depths=True,
+                #child_idx_offset=child_idx_offset
+            )
+            corpus.write_dict(out_path, types=corpus.revert_mapping_to_list(mapping))
+            logging.info('dump data, parents and depths ...')
+            current_seq_data.dump(out_path + '.data.batch' + str(offset))
+            current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
+            current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
 
-    corpus.write_dict(out_path, types=types)
-
-    #seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
-    preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
-    #seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
-    preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
-    seq_data = preprocessing.merge_numpy_batch_files(out_fn + '.data', parent_dir)
-
-    logging.info('parsed data size: '+str(len(seq_data)))
-
-    #return seq_data, seq_parents, seq_depths, corpus.revert_mapping_to_list(mapping)
-    return seq_data, corpus.revert_mapping_to_list(mapping)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)

@@ -880,8 +880,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     for old_idx in reversed(sorted_indices):
         # keep unknown and save new unknown index
         if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
-            logging.info('old_idx_unknown=' + str(old_idx))
-            logging.info('new_idx_unknown=' + str(new_idx))
+            logging.info('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
             new_idx_unknown = new_idx
         # keep pre-initialized vecs (count==0), but skip other vecs with count < threshold
         elif 0 < counts[old_idx] < count_threshold:
@@ -900,7 +899,6 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
 
     assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
 
-    logging.info('new_idx_unknown: ' + str(new_idx_unknown))
     logging.info('new lex_size: '+str(new_idx))
 
     # cut arrays

@@ -94,6 +94,7 @@ if __name__ == '__main__':
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     #vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    corpus.make_parent_dir(FLAGS.dict_filename)
     vecs, types = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
     mapping = corpus.mapping_from_list(types)
 

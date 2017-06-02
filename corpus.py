@@ -42,20 +42,18 @@ def write_dict(out_path, vecs=None, types=None, counts=None):
         counts.dump(out_path + '.count')
 
 
-def create_or_read_dict(fn, vocab=None):
-    if os.path.isfile(fn+'.vec') and os.path.isfile(fn+'.type') and os.path.isfile(fn+'.id'):
+def create_or_read_dict(fn, vocab=None, dont_read=False):
+    if os.path.isfile(fn+'.vec') and os.path.isfile(fn+'.type'):
+        if dont_read:
+            return
         logging.info('load vecs from file: '+fn + '.vec ...')
         v = np.load(fn+'.vec')
-        logging.info('read types from file: ' + fn + '.type ...')
         t = read_types(fn)
         logging.info('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
     else:
-        out_dir = os.path.abspath(os.path.join(fn, os.pardir))
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
         logging.info('extract word embeddings from spaCy ...')
         v, t = get_dict_from_vocab(vocab)
-        write_dict(fn, v, t)
+        write_dict(fn, vecs=v, types=t)
     return v, t
 
 
@@ -81,6 +79,7 @@ def revert_mapping_to_np(mapping):
 
 
 def read_types(out_path):
+    logging.info('read types from file: ' + out_path + '.type ...')
     with open(out_path + '.type') as csvfile:
         reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
         types = [row[0].decode("utf-8") for row in reader]
@@ -173,7 +172,7 @@ def get_dict_from_vocab(vocab):
     for lexeme in vocab:
         # exclude entities which are in vocab_manual to avoid collisions
         if lexeme.orth_ in manual_vocab_reverted:
-            logging.warn('found token in vocab with orth_="'+lexeme.orth_+'", which is already in manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
+            logging.warn('found token in parser vocab with orth_="'+lexeme.orth_+'", which is already in manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
             continue
         vecs[i] = lexeme.vector
         types.append(lexeme.orth_)
@@ -266,3 +265,9 @@ def calc_ids_from_types(types, vocab=None):
         assert ids[i] not in vocab_added, 'type='+t+' exists more then one time in types at pos=' + str(vocab_added[ids[i]]) + ' and at pos=' + str(i)
         vocab_added[ids[i]] = i
     return ids
+
+
+def make_parent_dir(fn):
+    out_dir = os.path.abspath(os.path.join(fn, os.pardir))
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)
