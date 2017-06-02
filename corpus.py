@@ -30,8 +30,6 @@ TSV_COLUMN_NAME_ID = 'id_orig'
 def write_dict(out_path, vecs, types=None, counts=None):
     logging.info('dump embeddings to: ' + out_path + '.vec ...')
     vecs.dump(out_path + '.vec')
-    #logging.info('dump ids to: ' + out_path + '.id ...')
-    #ids.dump(out_path + '.id')
     if types is not None:
         logging.info('write types to: ' + out_path + '.types ...')
         with open(out_path + '.type', 'wb') as f:
@@ -48,8 +46,6 @@ def create_or_read_dict(fn, vocab=None):
     if os.path.isfile(fn+'.vec') and os.path.isfile(fn+'.type') and os.path.isfile(fn+'.id'):
         logging.info('load vecs from file: '+fn + '.vec ...')
         v = np.load(fn+'.vec')
-        #logging.info('load ids from file: ' + fn + '.id ...')
-        #i = np.load(fn+'.id')
         logging.info('read types from file: ' + fn + '.type ...')
         t = read_types(fn)
         logging.info('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
@@ -109,7 +105,6 @@ def tsv_to_ids_and_types(fn):
             for row in reader:
                 ids.append(int(row[TSV_COLUMN_NAME_ID]))
                 writer.writerow([row[TSV_COLUMN_NAME_LABEL]])
-                #f.write(row[TSV_COLUMN_NAME_LABEL] + '\n')
 
     print('len(ids)='+str(len(ids)))
     print('convert and dump ids...')
@@ -170,54 +165,88 @@ def move_to_front(fn, idx):
 
 def get_dict_from_vocab(vocab):
     manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
-    # add unknown
-    #unknown_idx = vocab[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]].orth
-    # subtract 1, implementation of len() for vocab is incorrect
     size = len(vocab)
-    #print(size)
     vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
-    #ids = -np.ones(shape=(size, ), dtype=np.int32)
-    # constants.UNKNOWN_IDX=0
     types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
     types = [types_unknown]
-    # constants.UNKNOWN_EMBEDDING=0
-    #ids[0] = constants.UNKNOWN_EMBEDDING
     i = 1
     for lexeme in vocab:
         # exclude entities which are in vocab_manual to avoid collisions
         if lexeme.orth_ in manual_vocab_reverted:
             logging.warn('found token in vocab with orth_="'+lexeme.orth_+'", which is already in manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
-            #size -= 1
             continue
         vecs[i] = lexeme.vector
-        #ids[i] = lexeme.orth
         types.append(lexeme.orth_)
         i += 1
-    #print(i)
     # constants.UNKNOWN_IDX=0
     vecs[0] = np.mean(vecs[1:i], axis=0)
 
-    #print(len(ids))
-    #print(vecs.shape)
-    #print(len(types))
-
-    # cut, if orth id was in vocab
     if i < size:
         vecs = vecs[:i]
-        #ids = ids[:i]
         types = types[:i]
-
-    #print(len(ids))
-    #print(vecs.shape)
-    #print(len(types))
 
     return vecs, types
 
 
+# TODO: test this!
 def replace_dict(vecs1, types1, vecs2, types2):
+    assert vecs1.shape[0] == len(types1), 'count of embeddings in vecs1 = ' + vecs1.shape[0] + \
+                                          ' does not equal length of types1 = ' + str(len(types1))
+    assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = ' + vecs2.shape[0] + \
+                                          ' does not equal length of types2 = ' + str(len(types2))
+    logging.info('size of dict1: '+str(len(types1)))
+    logging.info('size of dict2: ' + str(len(types2)))
     mapping2 = mapping_from_list(types2)
 
-    #for idx in range(len())
+    indices_delete = []
+    indices2_added = []
+    for idx, t in enumerate(types1):
+        if t in mapping2:
+            idx2 = mapping2[t]
+            indices2_added.append(idx2)
+            types1[idx] = types2[idx2]
+            vecs1[idx] = vecs2[idx2]
+        else:
+            indices_delete.append(idx)
+
+    for idx in indices_delete:
+        del types1[idx]
+
+    vecs1 = np.delete(vecs1, indices_delete, 0)
+    logging.info('removed ' + str(len(indices_delete)) + ' entries from dict1')
+
+    types2_indices_add = list(set(range(len(types2))).difference(indices2_added))
+
+    types1.extend([types2[idx] for idx in types2_indices_add])
+    vecs1 = np.append(vecs1, vecs2[types2_indices_add], axis=0)
+    logging.info('added ' + str(len(types2_indices_add)) + ' entries to dict1')
+    return vecs1, types1
+
+
+# TODO: test this!
+def merge_into_dict(vecs1, types1, vecs2, types2):
+    assert vecs1.shape[0] == len(types1), 'count of embeddings in vecs1 = ' + vecs1.shape[0] + \
+                                          ' does not equal length of types1 = ' + str(len(types1))
+    assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = ' + vecs2.shape[0] + \
+                                          ' does not equal length of types2 = ' + str(len(types2))
+    logging.info('size of dict1: ' + str(len(types1)))
+    logging.info('size of dict2: ' + str(len(types2)))
+
+    mapping2 = mapping_from_list(types2)
+
+    indices2_added = []
+    for idx, t in enumerate(types1):
+        if t in mapping2:
+            idx2 = mapping2[t]
+            indices2_added.append(idx2)
+            types1[idx] = types2[idx2]
+            vecs1[idx] = vecs2[idx2]
+
+    types2_indices_add = list(set(range(len(types2))).difference(indices2_added))
+    types1.extend([types2[idx] for idx in types2_indices_add])
+    vecs1 = np.append(vecs1, vecs2[types2_indices_add], axis=0)
+    logging.info('added ' + str(len(types2_indices_add)) + ' entries to dict1')
+    return vecs1, types1
 
 
 # deprected
