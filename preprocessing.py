@@ -14,6 +14,31 @@ import sequence_node_sequence_pb2
 import tools
 
 
+def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
+    root_offset = 0
+    result_data = list()
+    result_parents = list()
+    l = len(sen_data)
+    for i in range(l):
+        # set root
+        if sen_parents[i] == 0:
+            root_offset = len(result_data)
+        # add main data
+        result_data.append(sen_data[i])
+        # shift parent indices
+        parent_idx = sen_parents[i] + i
+        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
+        # add (shifted) main parent
+        result_parents.append(sen_parents[i] + shift)
+        # insert additional data
+        a_data, a_parents = sen_a[i]
+        if len(a_data) > 0:
+            result_data.extend(a_data)
+            result_parents.extend(a_parents)
+
+    return result_data, result_parents, root_offset
+
+
 # embeddings for:
 # word
 def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
@@ -25,7 +50,7 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset)
 
     return sen_data, sen_parents, root_offset
@@ -43,10 +68,10 @@ def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset * 2)
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
@@ -63,16 +88,16 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset * 4)
         # add word embedding embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.WORD_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-2)
         # add edge type embedding embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
 
     return sen_data, sen_parents, root_offset
@@ -91,17 +116,17 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
         # add edge type embedding
-        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         a_parents.append(-1)
         # add entity type
         if token.ent_type != 0:
-            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-2)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -109,28 +134,7 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_offsets.append(current_offset)
         last_offset = current_offset
 
-    root_offset = 0
-    result_data = list()
-    result_parents = list()
-    l = len(sen_data)
-    for i in range(l):
-        # set root
-        if sen_parents[i] == 0:
-            root_offset = len(result_data)
-        # add main data
-        result_data.append(sen_data[i])
-        # shift parent indices
-        parent_idx = sen_parents[i] + i
-        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
-        # add (shifted) main parent
-        result_parents.append(sen_parents[i] + shift)
-        # insert additional data
-        a_data, a_parents = sen_a[i]
-        if len(a_data) > 0:
-            result_data.extend(a_data)
-            result_parents.extend(a_parents)
-
-    return result_data, result_parents, root_offset
+    return merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a)
 
 
 # embeddings for:
@@ -146,26 +150,26 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
 
         # add word type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.WORD_EMBEDDING], dict_unknown))
         a_parents.append(-1)
         # add edge type embedding
-        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         a_parents.append(-2)
         # add edge type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         a_parents.append(-1)
         # add entity type
         if token.ent_type != 0:
-            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-4)
-            a_data.append(tools.getOrAdd(data_maps, constants.ENTITY_TYPE_EMBEDDING, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_TYPE_EMBEDDING], dict_unknown))
             a_parents.append(-1)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -173,28 +177,7 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_offsets.append(current_offset)
         last_offset = current_offset
 
-    root_offset = 0
-    result_data = list()
-    result_parents = list()
-    l = len(sen_data)
-    for i in range(l):
-        # set root
-        if sen_parents[i] == 0:
-            root_offset = len(result_data)
-        # add main data
-        result_data.append(sen_data[i])
-        # shift parent indices
-        parent_idx = sen_parents[i] + i
-        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
-        # add (shifted) main parent
-        result_parents.append(sen_parents[i] + shift)
-        # insert additional data
-        a_data, a_parents = sen_a[i]
-        if len(a_data) > 0:
-            result_data.extend(a_data)
-            result_parents.extend(a_parents)
-
-    return result_data, result_parents, root_offset
+    return merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a)
 
 
 # embeddings for:
@@ -211,26 +194,26 @@ def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
 
         # add edge type embedding
-        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         a_parents.append(-len(a_data))
         # add pos-tag type embedding
-        a_data.append(tools.getOrAdd(data_maps, token.tag, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.tag_, dict_unknown))
         a_parents.append(-len(a_data))
 
         # add entity type embedding
         if token.ent_type != 0:
-            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-len(a_data))
         # add lemma type embedding
         if token.lemma != token.orth:
-            a_data.append(tools.getOrAdd(data_maps, token.lemma, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.lemma_, dict_unknown))
             a_parents.append(-len(a_data))
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -238,28 +221,7 @@ def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_offsets.append(current_offset)
         last_offset = current_offset
 
-    root_offset = 0
-    result_data = list()
-    result_parents = list()
-    l = len(sen_data)
-    for i in range(l):
-        # set root
-        if sen_parents[i] == 0:
-            root_offset = len(result_data)
-        # add main data
-        result_data.append(sen_data[i])
-        # shift parent indices
-        parent_idx = sen_parents[i] + i
-        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
-        # add (shifted) main parent
-        result_parents.append(sen_parents[i] + shift)
-        # insert additional data
-        a_data, a_parents = sen_a[i]
-        if len(a_data) > 0:
-            result_data.extend(a_data)
-            result_parents.extend(a_parents)
-
-    return result_data, result_parents, root_offset
+    return merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a)
 
 
 # embeddings for:
@@ -276,41 +238,41 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
         token = parsed_data[i]
         parent_offset = token.head.i - i
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth, dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset)
         # additional data for this token
         a_data = list()
         a_parents = list()
 
         # add word type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.WORD_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.WORD_EMBEDDING], dict_unknown))
         a_parents.append(-len(a_data))
         # add edge type embedding
-        a_data.append(tools.getOrAdd(data_maps, token.dep, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         a_parents.append(-len(a_data))
         # add edge type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.EDGE_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         a_parents.append(-1)
         # add pos-tag type embedding
-        a_data.append(tools.getOrAdd(data_maps, token.tag, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, token.tag_, dict_unknown))
         a_parents.append(-len(a_data))
         # add pos-tag type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.POS_TAG_EMBEDDING, dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.POS_TAG_EMBEDDING], dict_unknown))
         a_parents.append(-1)
 
         # add entity type embedding
         if token.ent_type != 0:
-            a_data.append(tools.getOrAdd(data_maps, token.ent_type, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-len(a_data))
             # add entity type type embedding
-            a_data.append(tools.getOrAdd(data_maps, constants.ENTITY_TYPE_EMBEDDING, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_TYPE_EMBEDDING], dict_unknown))
             a_parents.append(-1)
         # add lemma type embedding
         if token.lemma != token.orth:
-            a_data.append(tools.getOrAdd(data_maps, token.lemma, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, token.lemma_, dict_unknown))
             a_parents.append(-len(a_data))
             # add lemma type type embedding
-            a_data.append(tools.getOrAdd(data_maps, constants.LEMMA_EMBEDDING, dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.LEMMA_EMBEDDING], dict_unknown))
             a_parents.append(-1)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -318,28 +280,7 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_offsets.append(current_offset)
         last_offset = current_offset
 
-    root_offset = 0
-    result_data = list()
-    result_parents = list()
-    l = len(sen_data)
-    for i in range(l):
-        # set root
-        if sen_parents[i] == 0:
-            root_offset = len(result_data)
-        # add main data
-        result_data.append(sen_data[i])
-        # shift parent indices
-        parent_idx = sen_parents[i] + i
-        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
-        # add (shifted) main parent
-        result_parents.append(sen_parents[i] + shift)
-        # insert additional data
-        a_data, a_parents = sen_a[i]
-        if len(a_data) > 0:
-            result_data.extend(a_data)
-            result_parents.extend(a_parents)
-
-    return result_data, result_parents, root_offset
+    return merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a)
 
 
 def dummy_str_reader():
@@ -384,7 +325,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     if expand_dict:
         unknown_default = None
     else:
-        unknown_default = constants.UNKNOWN_EMBEDDING
+        unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
     logging.info('start read_data ...')
     sen_count = 0
@@ -462,12 +403,13 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
 
     #roots = list()
 
+    # init as list of lists to allow numpy concatenation even if empty
     depth_list = [[]]
 
     if expand_dict:
         unknown_default = None
     else:
-        unknown_default = constants.UNKNOWN_EMBEDDING
+        unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
     logging.info('start read_data ...')
     sen_count = 0
@@ -910,8 +852,9 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
     return concatenated
 
 
-def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshold=1):
+def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, count_threshold=1):
     logging.info('sort embeddings ...')
+    new_max_size = len(types)
     # this can add keys to mapping (what increases its length)!
     #vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
     logging.info('initial ids size: ' + str(len(ids)))
@@ -919,7 +862,7 @@ def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshol
     logging.info('initial types size: ' + str(len(types)))
     # count types
     logging.info('calculate counts ...')
-    counts = np.zeros(shape=len(ids), dtype=int)
+    counts = np.zeros(shape=new_max_size, dtype=int)
     for d in seq_data:
         counts[d] += 1
 
@@ -927,11 +870,11 @@ def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshol
     sorted_indices = np.argsort(counts)
 
     vecs_mean = np.mean(vecs, axis=0)
-    new_vecs = np.zeros(shape=(len(ids), vecs.shape[1]), dtype=vecs.dtype)
-    new_counts = np.zeros(shape=len(ids), dtype=int)
-    new_ids = np.zeros(shape=len(ids), dtype=int)
-    new_types = [None] * len(ids)
-    converter = -np.ones(shape=len(ids), dtype=int)
+    new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
+    new_counts = np.zeros(shape=new_max_size, dtype=int)
+    #new_ids = np.zeros(shape=new_max_size, dtype=int)
+    new_types = [None] * new_max_size
+    converter = -np.ones(shape=new_max_size, dtype=int)
 
     print(len(new_types))
 
@@ -940,28 +883,37 @@ def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshol
     new_idx_unknown = -1
     #old_idx_unknown = -1
     for old_idx in reversed(sorted_indices):
+        # keep unknown and save new unknown index
+        if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
+            logging.info('old_idx_unknown=' + str(old_idx))
+            logging.info('new_idx_unknown=' + str(new_idx))
+            new_idx_unknown = new_idx
+        # keep pre-initialized vecs (count==0), but skip other vecs with count < threshold
+        elif 0 < counts[old_idx] < count_threshold:
+            continue
         #current_new_idx = new_idx
         # move UNKNOWN to idx = 0
         #if old_idx == 0: #types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
         #    current_new_idx = 0
         # keep pre-initialized vecs (count==0) and first entry (UNKNOWN), but skip other vecs with count < threshold
-        if 0 < counts[old_idx] < count_threshold and ids[old_idx] != constants.UNKNOWN_EMBEDDING: # and ids[old_idx] != constants.UNKNOWN_EMBEDDING: #not in vocab_manual_mapped.values():
-            continue
+        #if 0 < counts[old_idx] < count_threshold and ids[old_idx] != constants.UNKNOWN_EMBEDDING: # and ids[old_idx] != constants.UNKNOWN_EMBEDDING: #not in vocab_manual_mapped.values():
+        #    continue
         if old_idx < vecs.shape[0]:
             new_vecs[new_idx] = vecs[old_idx]
-            new_types[new_idx] = types[old_idx]
+
         else:
             # init missing vecs with mean
             new_vecs[new_idx] = vecs_mean
             # init missing type with vocab
-            new_types[new_idx] = vocab[ids[old_idx]].orth_
+            #new_types[new_idx] = vocab[ids[old_idx]].orth_
 
+        new_types[new_idx] = types[old_idx]
         new_counts[new_idx] = counts[old_idx]
-        new_ids[new_idx] = ids[old_idx]
-        if new_ids[new_idx] == constants.UNKNOWN_EMBEDDING:
-            logging.info('old_idx_unknown=' + str(old_idx))
-            logging.info('new_idx_unknown=' + str(new_idx))
-            new_idx_unknown = new_idx
+        #new_ids[new_idx] = ids[old_idx]
+        #if new_types[new_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
+        #    logging.info('old_idx_unknown=' + str(old_idx))
+        #    logging.info('new_idx_unknown=' + str(new_idx))
+        #    new_idx_unknown = new_idx
 
         converter[old_idx] = new_idx
         new_idx += 1
@@ -973,7 +925,7 @@ def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshol
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]
     new_counts = new_counts[:new_idx]
-    new_ids = new_ids[:new_idx]
+    #new_ids = new_ids[:new_idx]
     new_types = new_types[:new_idx]
 
     #logging.info('rearrange mappings ...')
@@ -1001,7 +953,7 @@ def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, vocab, count_threshol
             count_unknown += 1
     logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
 
-    return seq_data, new_ids, new_vecs, new_counts, new_types
+    return seq_data, new_vecs, new_counts, new_types
 
 
 def sequence_node_to_arrays(seq_tree):

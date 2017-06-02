@@ -70,6 +70,13 @@ def revert_mapping(mapping):
     return temp
 
 
+def revert_mapping_to_list(mapping):
+    temp = [None] * len(mapping)
+    for key in mapping:
+        temp[mapping[key]] = key
+    return temp
+
+
 def revert_mapping_np(mapping):
     temp = -np.ones(shape=len(mapping), dtype=np.int32)
     for key in mapping:
@@ -179,7 +186,7 @@ def get_dict_from_vocab(vocab):
     for lexeme in vocab:
         # exclude entities which are in vocab_manual to avoid collisions
         if lexeme.orth_ in manual_vocab_reverted:
-            logging.warn('found token in vocab with orth_='+lexeme.orth_+' in manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
+            logging.warn('found token in vocab with orth_="'+lexeme.orth_+'", which is already in manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
             #size -= 1
             continue
         vecs[i] = lexeme.vector

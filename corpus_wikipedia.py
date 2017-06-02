@@ -31,7 +31,7 @@ tf.flags.DEFINE_string(
     'init_dict_filename', None, #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#None, #'data/nlp/spacy/dict',
     'The path to embedding and mapping files (without extension) to reuse them for the new corpus.')
 tf.flags.DEFINE_integer(
-    'max_articles', 1000,
+    'max_articles', 1,
     'How many articles to read.')
 tf.flags.DEFINE_integer(
     'article_batch_size', 250,
@@ -106,15 +106,18 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             vecs.dump(out_filename + '.vec')
         else:
             vecs, ids, types = corpus.create_or_read_dict(out_filename, parser.vocab)
+
+        print('1:' +str(len(parser.vocab)))
         # parse
-        seq_data, seq_parents, seq_depths, ids = parse_articles(out_filename, parent_dir, in_filename, parser,
-                                                                ids, sentence_processor, max_depth,
-                                                                max_articles, batch_size, tree_mode)
+        seq_data, seq_parents, seq_depths, types = parse_articles(out_filename, parent_dir, in_filename, parser,
+                                                                  types, sentence_processor, max_depth,
+                                                                  max_articles, batch_size, tree_mode)
+        print('3:' + str(len(parser.vocab)))
         # sort and filter vecs/mappings by counts
         # TODO: fix this!
-        seq_data, ids, vecs, counts, types = preprocessing.sort_and_cut_and_fill_dict(seq_data, ids, vecs, types,
-                                                                                      parser.vocab,
-                                                                                      count_threshold=FLAGS.count_threshold)
+        seq_data, vecs, counts, types = preprocessing.sort_and_cut_and_fill_dict(seq_data, ids, vecs, types,
+                                                                                 count_threshold=FLAGS.count_threshold)
+        print('5:' + str(len(parser.vocab)))
         # write out vecs, mapping and tsv containing strings
         corpus.write_dict(out_path, ids, vecs, types)
         logging.info('dump data to: ' + out_path + '.data ...')
@@ -135,10 +138,10 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     return parser
 
 
-def parse_articles(out_path, parent_dir, in_filename, parser, ids, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
+def parse_articles(out_path, parent_dir, in_filename, parser, types, sentence_processor, max_depth, max_articles, batch_size, tree_mode):
     out_fn = ntpath.basename(out_path)
 
-    mapping = corpus.mapping_from_list(ids)
+    mapping = corpus.mapping_from_list(types)
     logging.info('parse articles ...')
     child_idx_offset = 0
     for offset in range(0, max_articles, batch_size):
@@ -181,8 +184,9 @@ def parse_articles(out_path, parent_dir, in_filename, parser, ids, sentence_proc
     seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
 
     logging.info('parsed data size: '+str(len(seq_data)))
+    print('2:' + str(len(parser.vocab)))
 
-    return seq_data, seq_parents, seq_depths, corpus.revert_mapping_np(mapping)
+    return seq_data, seq_parents, seq_depths, corpus.revert_mapping_to_list(mapping)
 
 
 if __name__ == '__main__':
