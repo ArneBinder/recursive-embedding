@@ -855,14 +855,11 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
 def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     logging.info('sort embeddings ...')
     new_max_size = len(types)
-    # this can add keys to mapping (what increases its length)!
-    #vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
-    #logging.info('initial ids size: ' + str(len(ids)))
     logging.info('initial vecs shape: ' + str(vecs.shape))
     logging.info('initial types size: ' + str(len(types)))
     # count types
     logging.info('calculate counts ...')
-    counts = np.zeros(shape=new_max_size, dtype=int)
+    counts = np.zeros(shape=new_max_size, dtype=np.int32)
     for d in seq_data:
         counts[d] += 1
 
@@ -871,17 +868,15 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
 
     vecs_mean = np.mean(vecs, axis=0)
     new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
-    new_counts = np.zeros(shape=new_max_size, dtype=int)
-    #new_ids = np.zeros(shape=new_max_size, dtype=int)
+    new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
     new_types = [None] * new_max_size
-    converter = -np.ones(shape=new_max_size, dtype=int)
+    converter = -np.ones(shape=new_max_size, dtype=np.int32)
 
     print(len(new_types))
 
     logging.info('process reversed(sorted_indices) ...')
     new_idx = 0
     new_idx_unknown = -1
-    #old_idx_unknown = -1
     for old_idx in reversed(sorted_indices):
         # keep unknown and save new unknown index
         if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
@@ -891,69 +886,29 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
         # keep pre-initialized vecs (count==0), but skip other vecs with count < threshold
         elif 0 < counts[old_idx] < count_threshold:
             continue
-        #current_new_idx = new_idx
-        # move UNKNOWN to idx = 0
-        #if old_idx == 0: #types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
-        #    current_new_idx = 0
-        # keep pre-initialized vecs (count==0) and first entry (UNKNOWN), but skip other vecs with count < threshold
-        #if 0 < counts[old_idx] < count_threshold and ids[old_idx] != constants.UNKNOWN_EMBEDDING: # and ids[old_idx] != constants.UNKNOWN_EMBEDDING: #not in vocab_manual_mapped.values():
-        #    continue
         if old_idx < vecs.shape[0]:
             new_vecs[new_idx] = vecs[old_idx]
 
         else:
             # init missing vecs with mean
             new_vecs[new_idx] = vecs_mean
-            # init missing type with vocab
-            #new_types[new_idx] = vocab[ids[old_idx]].orth_
 
         new_types[new_idx] = types[old_idx]
         new_counts[new_idx] = counts[old_idx]
-        #new_ids[new_idx] = ids[old_idx]
-        #if new_types[new_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
-        #    logging.info('old_idx_unknown=' + str(old_idx))
-        #    logging.info('new_idx_unknown=' + str(new_idx))
-        #    new_idx_unknown = new_idx
-
         converter[old_idx] = new_idx
         new_idx += 1
 
     assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
 
+    logging.info('new_idx_unknown: ' + str(new_idx_unknown))
     logging.info('new lex_size: '+str(new_idx))
 
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]
     new_counts = new_counts[:new_idx]
-    #new_ids = new_ids[:new_idx]
     new_types = new_types[:new_idx]
 
-    #logging.info('rearrange mappings ...')
-    #count_del = 0
-    #for key in mapping.keys():
-    #    new_value = converter[mapping[key]]
-    #    if new_value >= 0:
-    #        mapping[key] = new_value
-    #    else:
-    #        count_del += 1
-    #        del mapping[key]
-    #logging.info('deleted ' + str(count_del) + ' mappings')
-
-    #logging.info('len(new_ids): '+str(len(new_ids)))
-    #logging.info('max(mapping.values()): '+ str(max(mapping.values())))
-
-    logging.info('convert data ...')
-    count_unknown = 0
-    for i, d in enumerate(seq_data):
-        if converter[d] >= 0:
-            seq_data[i] = converter[d]
-        # set to UNKNOWN
-        else:
-            seq_data[i] = new_idx_unknown #0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
-            count_unknown += 1
-    logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
-
-    return seq_data, new_vecs, new_counts, new_types
+    return seq_data, new_vecs, new_counts, new_types, new_idx_unknown
 
 
 def sequence_node_to_arrays(seq_tree):

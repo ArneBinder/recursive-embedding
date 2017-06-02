@@ -40,7 +40,7 @@ tf.flags.DEFINE_integer(
     'max_depth', 10,
     'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer(
-    'count_threshold', 2,
+    'count_threshold', 3,
     'Change data types which occur less then count_threshold times to UNKNOWN')
 #tf.flags.DEFINE_integer(
 #    'sample_count', 14,
@@ -87,10 +87,9 @@ def articles_from_csv_reader(filename, max_articles=100, skip=0):
 def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_processor, parser, #mapping, vecs,
                       max_articles=10000, max_depth=10, batch_size=100, tree_mode=None):
     parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
-    out_base_name = ntpath.basename(out_filename)
+    #out_base_name = ntpath.basename(out_filename)
     if not os.path.isfile(out_filename+'.data') \
             or not os.path.isfile(out_filename + '.parent')\
-            or not os.path.isfile(out_filename + '.id') \
             or not os.path.isfile(out_filename + '.vec') \
             or not os.path.isfile(out_filename + '.depth') \
             or not os.path.isfile(out_filename + '.count'):
@@ -107,25 +106,61 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
         else:
             vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
 
-        print('1:' +str(len(parser.vocab)))
         # parse
-        seq_data, seq_parents, seq_depths, types = parse_articles(out_filename, parent_dir, in_filename, parser,
-                                                                  types, sentence_processor, max_depth,
-                                                                  max_articles, batch_size, tree_mode)
-        print('3:' + str(len(parser.vocab)))
-        # sort and filter vecs/mappings by counts
-        seq_data, vecs, counts, types = preprocessing.sort_and_cut_and_fill_dict(seq_data, vecs, types,
-                                                                                 count_threshold=FLAGS.count_threshold)
-        print('5:' + str(len(parser.vocab)))
-        # write out vecs, mapping and tsv containing strings
-        corpus.write_dict(out_path, vecs, types)
-        logging.info('dump data to: ' + out_path + '.data ...')
-        seq_data.dump(out_path + '.data')
+        seq_data, types = parse_articles(out_filename, parent_dir, in_filename, parser, types, sentence_processor,
+                                         max_depth, max_articles, batch_size, tree_mode)
     else:
-        logging.info('load depths from file: ' + out_filename + '.depth ...')
-        seq_depths = np.load(out_filename+'.depth')
+        vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
+        logging.info('load data from file: ' + out_filename + '.data ...')
+        seq_data = np.load(out_filename + '.data')
 
+    if not os.path.isfile(out_filename + '.converter') or not os.path.isfile(out_filename + '.new_idx_unknown'):
+        # sort and filter vecs/mappings by counts
+        converter, vecs, counts, types, new_idx_unknown = preprocessing.sort_and_cut_and_fill_dict(seq_data, vecs, types,
+                                                                                 count_threshold=FLAGS.count_threshold)
+        # write out vecs, mapping and tsv containing strings
+        corpus.write_dict(out_filename, vecs=vecs, types=types, counts=counts)
+        logging.info('dump converter to: ' + out_filename + '.converter ...')
+        converter.dump(out_filename + '.converter')
+        logging.info('dump new_idx_unknown to: ' + out_filename + '.new_idx_unknown ...')
+        np.array(new_idx_unknown).dump(out_filename + '.new_idx_unknown')
+
+    if os.path.isfile(out_filename + '.converter') and os.path.isfile(out_filename + '.new_idx_unknown'):
+        logging.info('load converter from file: ' + out_filename + '.converter ...')
+        converter = np.load(out_filename + '.converter')
+        logging.info('load new_idx_unknown from file: ' + out_filename + '.new_idx_unknown ...')
+        new_idx_unknown = np.load(out_filename + '.new_idx_unknown')
+        logging.info('convert data ...')
+        count_unknown = 0
+        for i, d in enumerate(seq_data):
+            if converter[d] >= 0:
+                seq_data[i] = converter[d]
+            # set to UNKNOWN
+            else:
+                seq_data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
+                count_unknown += 1
+        logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
+
+        logging.info('dump data to: ' + out_filename + '.data ...')
+        seq_data.dump(out_filename + '.data')
+        logging.info('delete converter and new_idx_unknown ...')
+        os.remove(out_filename + '.converter')
+        os.remove(out_filename + '.new_idx_unknown')
+
+    logging.info('load depths from file: ' + out_filename + '.depth ...')
+    seq_depths = np.load(out_filename + '.depth')
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
+
+    logging.info('load parents from file: ' + out_filename + '.parent ...')
+    seq_parents = np.load(out_filename + '.parent')
+    logging.info('collect roots ...')
+    roots = []
+    for i, parent in enumerate(seq_parents):
+        if parent == 0:
+            roots.append(i)
+    logging.info('dump roots to: ' + out_filename + '.root ...')
+    np.array(roots, dtype=np.int32).dump(out_filename + '.root')
+
     #preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
     #preprocessing.concat_children_indices(out_filename, parent_dir, max_depth)
 
@@ -178,15 +213,18 @@ def parse_articles(out_path, parent_dir, in_filename, parser, types, sentence_pr
         #    current_seq_data = np.load(out_path + '.data.batch' + str(offset))
         #    child_idx_offset += len(current_seq_data)
 
-    seq_data = preprocessing.merge_numpy_batch_files(out_fn+'.data', parent_dir)
-    seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
-    seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
+    corpus.write_dict(out_path, types=types)
+
+    #seq_parents = preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
+    preprocessing.merge_numpy_batch_files(out_fn + '.parent', parent_dir)
+    #seq_depths = preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
+    preprocessing.merge_numpy_batch_files(out_fn + '.depth', parent_dir)
+    seq_data = preprocessing.merge_numpy_batch_files(out_fn + '.data', parent_dir)
 
     logging.info('parsed data size: '+str(len(seq_data)))
-    print('2:' + str(len(parser.vocab)))
 
-    return seq_data, seq_parents, seq_depths, corpus.revert_mapping_to_list(mapping)
-
+    #return seq_data, seq_parents, seq_depths, corpus.revert_mapping_to_list(mapping)
+    return seq_data, corpus.revert_mapping_to_list(mapping)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)

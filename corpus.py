@@ -27,19 +27,19 @@ TSV_COLUMN_NAME_ID = 'id_orig'
 #    if vocab_nlp is not None:
 #        write_dict_plain_token(out_path, mapping, vocab_nlp)
 
-def write_dict(out_path, vecs, types=None, counts=None):
-    logging.info('dump embeddings to: ' + out_path + '.vec ...')
-    vecs.dump(out_path + '.vec')
+def write_dict(out_path, vecs=None, types=None, counts=None):
+    if vecs is not None:
+        logging.info('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
+        vecs.dump(out_path + '.vec')
     if types is not None:
-        logging.info('write types to: ' + out_path + '.types ...')
+        logging.info('write types (len='+str(len(types))+') to: ' + out_path + '.types ...')
         with open(out_path + '.type', 'wb') as f:
             writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for t in types:
                 writer.writerow([t.encode("utf-8")])
     if counts is not None:
-        logging.info('dump counts to: ' + out_path + '.count ...')
+        logging.info('dump counts (len='+str(len(counts))+') to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
-    logging.info('vecs.shape: ' + str(vecs.shape) + ', len(types): ' + str(len(types)))
 
 
 def create_or_read_dict(fn, vocab=None):
