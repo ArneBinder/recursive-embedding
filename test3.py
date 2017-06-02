@@ -8,7 +8,7 @@ import visualize
 nlp = spacy.load('en')
 nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 print('extract word embeddings from spaCy...')
-vecs, ids, types = corpus.get_dict_from_vocab(nlp.vocab)
+vecs, types = corpus.get_dict_from_vocab(nlp.vocab)
 # for processing parser output
 #data_maps = {constants.WORD_EMBEDDING: mapping}
 #data_maps2 = mapping
@@ -17,7 +17,7 @@ vecs, ids, types = corpus.get_dict_from_vocab(nlp.vocab)
 
 def read_sentence2(sentence, vis = False):
 
-    mapping = corpus.mapping_from_list(ids)
+    mapping = corpus.mapping_from_list(types)
     seq_data, seq_parents = preprocessing.read_data(preprocessing.string_reader, preprocessing.process_sentence5, nlp, mapping, args={'content': sentence})
     #print('root: ' + str(root))
 

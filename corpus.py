@@ -27,11 +27,11 @@ TSV_COLUMN_NAME_ID = 'id_orig'
 #    if vocab_nlp is not None:
 #        write_dict_plain_token(out_path, mapping, vocab_nlp)
 
-def write_dict(out_path, ids, vecs, types=None, counts=None):
+def write_dict(out_path, vecs, types=None, counts=None):
     logging.info('dump embeddings to: ' + out_path + '.vec ...')
     vecs.dump(out_path + '.vec')
-    logging.info('dump ids to: ' + out_path + '.id ...')
-    ids.dump(out_path + '.id')
+    #logging.info('dump ids to: ' + out_path + '.id ...')
+    #ids.dump(out_path + '.id')
     if types is not None:
         logging.info('write types to: ' + out_path + '.types ...')
         with open(out_path + '.type', 'wb') as f:
@@ -41,29 +41,29 @@ def write_dict(out_path, ids, vecs, types=None, counts=None):
     if counts is not None:
         logging.info('dump counts to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
-    logging.info('vecs.shape: ' + str(vecs.shape) + ', len(ids): ' + str(len(ids)))
+    logging.info('vecs.shape: ' + str(vecs.shape) + ', len(types): ' + str(len(types)))
 
 
 def create_or_read_dict(fn, vocab=None):
     if os.path.isfile(fn+'.vec') and os.path.isfile(fn+'.type') and os.path.isfile(fn+'.id'):
         logging.info('load vecs from file: '+fn + '.vec ...')
         v = np.load(fn+'.vec')
-        logging.info('load ids from file: ' + fn + '.id ...')
-        i = np.load(fn+'.id')
+        #logging.info('load ids from file: ' + fn + '.id ...')
+        #i = np.load(fn+'.id')
         logging.info('read types from file: ' + fn + '.type ...')
         t = read_types(fn)
-        logging.info('vecs.shape: ' + str(v.shape) + ', len(ids): ' + str(len(i)))
+        logging.info('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
     else:
         out_dir = os.path.abspath(os.path.join(fn, os.pardir))
         if not os.path.isdir(out_dir):
             os.makedirs(out_dir)
         logging.info('extract word embeddings from spaCy ...')
-        v, i, t = get_dict_from_vocab(vocab)
-        write_dict(fn, i, v, t)
-    return v, i, t
+        v, t = get_dict_from_vocab(vocab)
+        write_dict(fn, v, t)
+    return v, t
 
 
-def revert_mapping(mapping):
+def revert_mapping_to_map(mapping):
     temp = {}
     for key in mapping:
         temp[mapping[key]] = key
@@ -77,7 +77,7 @@ def revert_mapping_to_list(mapping):
     return temp
 
 
-def revert_mapping_np(mapping):
+def revert_mapping_to_np(mapping):
     temp = -np.ones(shape=len(mapping), dtype=np.int32)
     for key in mapping:
         temp[mapping[key]] = key
@@ -169,19 +169,19 @@ def move_to_front(fn, idx):
 
 
 def get_dict_from_vocab(vocab):
-    manual_vocab_reverted = revert_mapping(constants.vocab_manual)
+    manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
     # add unknown
     #unknown_idx = vocab[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]].orth
     # subtract 1, implementation of len() for vocab is incorrect
     size = len(vocab)
     #print(size)
     vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
-    ids = -np.ones(shape=(size, ), dtype=np.int32)
+    #ids = -np.ones(shape=(size, ), dtype=np.int32)
     # constants.UNKNOWN_IDX=0
     types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
     types = [types_unknown]
     # constants.UNKNOWN_EMBEDDING=0
-    ids[0] = constants.UNKNOWN_EMBEDDING
+    #ids[0] = constants.UNKNOWN_EMBEDDING
     i = 1
     for lexeme in vocab:
         # exclude entities which are in vocab_manual to avoid collisions
@@ -190,7 +190,7 @@ def get_dict_from_vocab(vocab):
             #size -= 1
             continue
         vecs[i] = lexeme.vector
-        ids[i] = lexeme.orth
+        #ids[i] = lexeme.orth
         types.append(lexeme.orth_)
         i += 1
     #print(i)
@@ -204,18 +204,25 @@ def get_dict_from_vocab(vocab):
     # cut, if orth id was in vocab
     if i < size:
         vecs = vecs[:i]
-        ids = ids[:i]
+        #ids = ids[:i]
         types = types[:i]
 
     #print(len(ids))
     #print(vecs.shape)
     #print(len(types))
 
-    return vecs, ids, types
+    return vecs, types
 
 
+def replace_dict(vecs1, types1, vecs2, types2):
+    mapping2 = mapping_from_list(types2)
+
+    #for idx in range(len())
+
+
+# deprected
 def calc_ids_from_types(types, vocab=None):
-    manual_vocab_reverted = revert_mapping(constants.vocab_manual)
+    manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
     vocab_added = {}
     ids = np.ndarray(shape=(len(types), ), dtype=np.int32)
     if vocab is None:

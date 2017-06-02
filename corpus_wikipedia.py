@@ -31,7 +31,7 @@ tf.flags.DEFINE_string(
     'init_dict_filename', None, #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#None, #'data/nlp/spacy/dict',
     'The path to embedding and mapping files (without extension) to reuse them for the new corpus.')
 tf.flags.DEFINE_integer(
-    'max_articles', 1,
+    'max_articles', 1000,
     'How many articles to read.')
 tf.flags.DEFINE_integer(
     'article_batch_size', 250,
@@ -101,11 +101,11 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         if init_dict_filename is not None:
             logging.info('initialize vecs and mapping from files ...')
-            vecs, ids, types = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
+            vecs, types = corpus.create_or_read_dict(init_dict_filename, parser.vocab)
             logging.info('dump embeddings to: ' + out_filename + '.vec ...')
             vecs.dump(out_filename + '.vec')
         else:
-            vecs, ids, types = corpus.create_or_read_dict(out_filename, parser.vocab)
+            vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
 
         print('1:' +str(len(parser.vocab)))
         # parse
@@ -114,12 +114,11 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
                                                                   max_articles, batch_size, tree_mode)
         print('3:' + str(len(parser.vocab)))
         # sort and filter vecs/mappings by counts
-        # TODO: fix this!
-        seq_data, vecs, counts, types = preprocessing.sort_and_cut_and_fill_dict(seq_data, ids, vecs, types,
+        seq_data, vecs, counts, types = preprocessing.sort_and_cut_and_fill_dict(seq_data, vecs, types,
                                                                                  count_threshold=FLAGS.count_threshold)
         print('5:' + str(len(parser.vocab)))
         # write out vecs, mapping and tsv containing strings
-        corpus.write_dict(out_path, ids, vecs, types)
+        corpus.write_dict(out_path, vecs, types)
         logging.info('dump data to: ' + out_path + '.data ...')
         seq_data.dump(out_path + '.data')
     else:

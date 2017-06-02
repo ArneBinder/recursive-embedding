@@ -91,8 +91,8 @@ class Tester(unittest.TestCase):
         nlp = spacy.load('en')
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
         print('extract word embeddings from spaCy...')
-        vecs, ids, types = corpus.get_dict_from_vocab(nlp.vocab)
-        mapping = corpus.mapping_from_list(ids)
+        vecs, types = corpus.get_dict_from_vocab(nlp.vocab)
+        mapping = corpus.mapping_from_list(types)
         sentence = 'London is a big city in the United Kingdom. I like this.'
         res = preprocessing.read_data_2(preprocessing.string_reader, preprocessing.process_sentence2, nlp, mapping,
                                   args={'content': sentence})  # , tree_mode='sequence')

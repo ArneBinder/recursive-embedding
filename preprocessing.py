@@ -852,12 +852,12 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
     return concatenated
 
 
-def sort_and_cut_and_fill_dict(seq_data, ids, vecs, types, count_threshold=1):
+def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     logging.info('sort embeddings ...')
     new_max_size = len(types)
     # this can add keys to mapping (what increases its length)!
     #vocab_manual_mapped = {x: tools.getOrAdd(mapping, x) for x in constants.vocab_manual.keys()}
-    logging.info('initial ids size: ' + str(len(ids)))
+    #logging.info('initial ids size: ' + str(len(ids)))
     logging.info('initial vecs shape: ' + str(vecs.shape))
     logging.info('initial types size: ' + str(len(types)))
     # count types

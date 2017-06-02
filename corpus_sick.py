@@ -94,8 +94,8 @@ if __name__ == '__main__':
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     #vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
-    vecs, ids, types = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
-    mapping = corpus.mapping_from_list(ids)
+    vecs, types = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    mapping = corpus.mapping_from_list(types)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
@@ -126,8 +126,8 @@ if __name__ == '__main__':
 
     print('len(mapping): ' + str(len(mapping)))
 
-    ids = corpus.revert_mapping_np(mapping)
-    corpus.write_dict(out_path, ids, vecs, types)
+    types = corpus.revert_mapping_to_list(mapping)
+    corpus.write_dict(out_path, vecs, types)
 
 
 
