@@ -177,16 +177,16 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     return parser
 
 
-def parse_articles(out_path, in_filename, parser, sentence_processor, max_articles, batch_size, tree_mode,
+def parse_articles(out_filename, in_filename, parser, sentence_processor, max_articles, batch_size, tree_mode,
                    article_offset):
-    types = corpus.read_types(out_path)
+    types = corpus.read_types(out_filename)
     mapping = corpus.mapping_from_list(types)
     logging.info('parse articles ...')
     for offset in range(0, max_articles, batch_size):
         # all or none: otherwise the mapping lacks entries!
-        if not os.path.isfile(out_path + '.data.batch' + str(offset)) \
-                or not os.path.isfile(out_path + '.parent.batch' + str(offset)) \
-                or not os.path.isfile(out_path + '.depth.batch' + str(offset)):
+        if not os.path.isfile(out_filename + '.data.batch' + str(offset)) \
+                or not os.path.isfile(out_filename + '.parent.batch' + str(offset)) \
+                or not os.path.isfile(out_filename + '.depth.batch' + str(offset)):
             logging.info('parse articles for offset=' + str(offset) + ' ...')
             current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
                 articles_from_csv_reader,
@@ -202,17 +202,17 @@ def parse_articles(out_path, in_filename, parser, sentence_processor, max_articl
                 calc_depths=True,
                 # child_idx_offset=child_idx_offset
             )
-            corpus.write_dict(out_path, types=corpus.revert_mapping_to_list(mapping))
+            corpus.write_dict(out_filename, types=corpus.revert_mapping_to_list(mapping))
             logging.info('dump data, parents and depths ...')
-            current_seq_data.dump(out_path + '.data.batch' + str(offset))
-            current_seq_parents.dump(out_path + '.parent.batch' + str(offset))
-            current_seq_depths.dump(out_path + '.depth.batch' + str(offset))
+            current_seq_data.dump(out_filename + '.data.batch' + str(offset))
+            current_seq_parents.dump(out_filename + '.parent.batch' + str(offset))
+            current_seq_depths.dump(out_filename + '.depth.batch' + str(offset))
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
-    out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
+    sentence_proc = getattr(preprocessing, FLAGS.sentence_processor)
+    out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_proc.func_name))
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
 
@@ -226,11 +226,11 @@ if __name__ == '__main__':
     logging.info('output base file name: ' + out_path)
 
     nlp = None
-    nlp = convert_wikipedia(FLAGS.corpus_data_input_train,
-                            out_path,
-                            FLAGS.init_dict_filename,
-                            sentence_processor,
-                            nlp,
+    nlp = convert_wikipedia(in_filename=FLAGS.corpus_data_input_train,
+                            out_filename=out_path,
+                            init_dict_filename=FLAGS.init_dict_filename,
+                            sentence_processor=sentence_proc,
+                            parser=nlp,
                             max_articles=FLAGS.max_articles,
                             max_depth=FLAGS.max_depth,
                             batch_size=FLAGS.article_batch_size,
