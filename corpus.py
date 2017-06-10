@@ -29,16 +29,16 @@ TSV_COLUMN_NAME_ID = 'id_orig'
 
 def write_dict(out_path, vecs=None, types=None, counts=None):
     if vecs is not None:
-        logging.info('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
+        logging.debug('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
         vecs.dump(out_path + '.vec')
     if types is not None:
-        logging.info('write types (len='+str(len(types))+') to: ' + out_path + '.types ...')
+        logging.debug('write types (len='+str(len(types))+') to: ' + out_path + '.types ...')
         with open(out_path + '.type', 'wb') as f:
             writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for t in types:
                 writer.writerow([t.encode("utf-8")])
     if counts is not None:
-        logging.info('dump counts (len='+str(len(counts))+') to: ' + out_path + '.count ...')
+        logging.debug('dump counts (len='+str(len(counts))+') to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
 
 
@@ -46,12 +46,12 @@ def create_or_read_dict(fn, vocab=None, dont_read=False):
     if os.path.isfile(fn+'.vec') and os.path.isfile(fn+'.type'):
         if dont_read:
             return
-        logging.info('load vecs from file: '+fn + '.vec ...')
+        logging.debug('load vecs from file: '+fn + '.vec ...')
         v = np.load(fn+'.vec')
         t = read_types(fn)
-        logging.info('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
+        logging.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
     else:
-        logging.info('extract word embeddings from spaCy ...')
+        logging.debug('extract word embeddings from spaCy ...')
         v, t = get_dict_from_vocab(vocab)
         write_dict(fn, vecs=v, types=t)
     return v, t
@@ -79,7 +79,7 @@ def revert_mapping_to_np(mapping):
 
 
 def read_types(out_path):
-    logging.info('read types from file: ' + out_path + '.type ...')
+    logging.debug('read types from file: ' + out_path + '.type ...')
     with open(out_path + '.type') as csvfile:
         reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
         types = [row[0].decode("utf-8") for row in reader]
@@ -89,6 +89,8 @@ def read_types(out_path):
 def mapping_from_list(l):
     m = {}
     for i, x in enumerate(l):
+        if x in m:
+            logging.warn('already in dict: "'+x+'" at idx: '+str(m[x]))
         m[x] = i
     return m
 
@@ -210,10 +212,15 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
     logging.info('size of dict1: '+str(len(types1)))
     logging.info('size of dict2: ' + str(len(types2)))
     mapping2 = mapping_from_list(types2)
+    logging.debug(len(mapping2))
+    logging.debug(np.array_equal(vecs1, vecs2))
+    logging.debug(types1 == types2)
 
     indices_delete = []
     indices2_added = []
+    indices2_added_debug = []
     for idx, t in enumerate(types1):
+        indices2_added_debug.append(idx)
         if t in mapping2:
             idx2 = mapping2[t]
             types1[idx] = types2[idx2]
@@ -232,7 +239,14 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
         logging.info('removed ' + str(len(indices_delete)) + ' entries from dict1')
 
     if add:
-        types2_indices_add = list(set(range(len(types2))).difference(indices2_added))
+        indices_types2 = sorted(range(len(types2)))
+        indices_types2_set = set(indices_types2)
+        indices2_added = sorted(indices2_added)
+        logging.debug(indices_types2 == indices2_added)
+        logging.debug(indices_types2 == indices2_added_debug)
+        logging.debug(indices2_added_debug == indices2_added)
+
+        types2_indices_add = list(indices_types2_set.difference(indices2_added))
 
         types1.extend([types2[idx] for idx in types2_indices_add])
         vecs1 = np.append(vecs1, vecs2[types2_indices_add], axis=0)

@@ -33,7 +33,7 @@ tf.flags.DEFINE_integer(
     'max_articles', 10000,
     'How many articles to read.')
 tf.flags.DEFINE_integer(
-    'article_batch_size', 1000,  # 250,
+    'article_batch_size', 2500,  # 250,
     'How many articles to process in one batch.')
 tf.flags.DEFINE_integer(
     'article_offset', 0,
@@ -114,56 +114,67 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
         preprocessing.merge_numpy_batch_files(out_base_name + '.depth', parent_dir)
         seq_data = preprocessing.merge_numpy_batch_files(out_base_name + '.data', parent_dir)
     else:
-        logging.info('load data from file: ' + out_filename + '.data ...')
+        logging.debug('load data from file: ' + out_filename + '.data ...')
         seq_data = np.load(out_filename + '.data')
 
-    if not os.path.isfile(out_filename + '.converter') or not os.path.isfile(out_filename + '.new_idx_unknown'):
+    logging.info('data size: '+str(len(seq_data)))
+
+    if not os.path.isfile(out_filename + '.converter') \
+            or not os.path.isfile(out_filename + '.new_idx_unknown')\
+            or not os.path.isfile(out_filename + '.lex_size'):
         vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
         # sort and filter vecs/mappings by counts
-        converter, vecs, counts, types, new_idx_unknown = preprocessing.sort_and_cut_and_fill_dict(seq_data, vecs,
+        converter, vecs, types, counts, new_idx_unknown = preprocessing.sort_and_cut_and_fill_dict(seq_data, vecs,
                                                                                                    types,
                                                                                                    count_threshold=FLAGS.count_threshold)
         # write out vecs, mapping and tsv containing strings
         corpus.write_dict(out_filename, vecs=vecs, types=types, counts=counts)
-        logging.info('dump converter to: ' + out_filename + '.converter ...')
+        logging.debug('dump converter to: ' + out_filename + '.converter ...')
         converter.dump(out_filename + '.converter')
-        logging.info('dump new_idx_unknown to: ' + out_filename + '.new_idx_unknown ...')
+        logging.debug('dump new_idx_unknown to: ' + out_filename + '.new_idx_unknown ...')
         np.array(new_idx_unknown).dump(out_filename + '.new_idx_unknown')
+        logging.debug('dump lex_size to: ' + out_filename + '.lex_size ...')
+        np.array(len(types)).dump(out_filename + '.lex_size')
 
     if os.path.isfile(out_filename + '.converter') and os.path.isfile(out_filename + '.new_idx_unknown'):
-        logging.info('load converter from file: ' + out_filename + '.converter ...')
+        logging.debug('load converter from file: ' + out_filename + '.converter ...')
         converter = np.load(out_filename + '.converter')
-        logging.info('load new_idx_unknown from file: ' + out_filename + '.new_idx_unknown ...')
+        logging.debug('load new_idx_unknown from file: ' + out_filename + '.new_idx_unknown ...')
         new_idx_unknown = np.load(out_filename + '.new_idx_unknown')
+        logging.debug('load lex_size from file: ' + out_filename + '.lex_size ...')
+        lex_size = np.load(out_filename + '.lex_size')
+        logging.debug('lex_size=' + str(lex_size))
         logging.info('convert data ...')
         count_unknown = 0
         for i, d in enumerate(seq_data):
-            if converter[d] >= 0:
-                seq_data[i] = converter[d]
+            new_idx = converter[d]
+            if 0 <= new_idx < lex_size:
+                seq_data[i] = new_idx
             # set to UNKNOWN
             else:
                 seq_data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
                 count_unknown += 1
         logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
 
-        logging.info('dump data to: ' + out_filename + '.data ...')
+        logging.debug('dump data to: ' + out_filename + '.data ...')
         seq_data.dump(out_filename + '.data')
-        logging.info('delete converter and new_idx_unknown ...')
+        logging.debug('delete converter, new_idx_unknown and lex_size ...')
         os.remove(out_filename + '.converter')
         os.remove(out_filename + '.new_idx_unknown')
+        os.remove(out_filename + '.lex_size')
 
-    logging.info('load depths from file: ' + out_filename + '.depth ...')
+    logging.debug('load depths from file: ' + out_filename + '.depth ...')
     seq_depths = np.load(out_filename + '.depth')
     preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
 
-    logging.info('load parents from file: ' + out_filename + '.parent ...')
+    logging.debug('load parents from file: ' + out_filename + '.parent ...')
     seq_parents = np.load(out_filename + '.parent')
-    logging.info('collect roots ...')
+    logging.debug('collect roots ...')
     roots = []
     for i, parent in enumerate(seq_parents):
         if parent == 0:
             roots.append(i)
-    logging.info('dump roots to: ' + out_filename + '.root ...')
+    logging.debug('dump roots to: ' + out_filename + '.root ...')
     np.array(roots, dtype=np.int32).dump(out_filename + '.root')
 
     # preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
@@ -210,7 +221,7 @@ def parse_articles(out_filename, in_filename, parser, sentence_processor, max_ar
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     sentence_proc = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_proc.func_name))
     if not os.path.isdir(out_dir):
@@ -220,8 +231,9 @@ if __name__ == '__main__':
     if FLAGS.tree_mode is not None:
         out_path = out_path + '_' + FLAGS.tree_mode
 
+    #out_path = out_path + '_maxdepth' + str(FLAGS.max_depth)
     out_path = out_path + '_articles' + str(FLAGS.max_articles)
-    out_path = out_path + '_maxdepth' + str(FLAGS.max_depth)
+    out_path = out_path + '_offset' + str(FLAGS.article_offset)
 
     logging.info('output base file name: ' + out_path)
 

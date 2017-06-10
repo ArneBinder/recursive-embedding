@@ -390,21 +390,13 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
 
 def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, tree_mode=None, expand_dict=True, calc_depths=False):
 
-    # ids of the dictionaries to query the data point referenced by seq_data
-    # at the moment there is just one: WORD_EMBEDDING
-    #seq_types = list()
-    # ids (dictionary) of the data points in the dictionary specified by seq_types
+    # ids (dictionary) of the data points in the dictionary
     seq_data = list()
-    # ids (dictionary) of relations to the heads (parents)
-    #seq_edges = list()
-    # ids (sequence) of the heads (parents)
+    # offsets of the parents
     seq_parents = list()
-    prev_root = None
 
-    #roots = list()
-
-    # init as list of lists to allow numpy concatenation even if empty
-    depth_list = [[]]
+    # init as list containing an empty dummy array with dtype=int16 to allow numpy concatenation even if empty
+    depth_list = [np.ndarray(shape=(0,), dtype=np.int16)]
 
     if expand_dict:
         unknown_default = None
@@ -712,14 +704,19 @@ def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):
         logging.info('collect depth indices in depth_maps ...')
         # depth_maps_files = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(out_filename) + '.depth.*')
         depth_map = {}
-        for current_depth in range(max_depth + 1):
-            depth_map[current_depth] = []
+
         for idx, current_depth in enumerate(seq_depths):
             # if not os.path.isfile(out_filename+'.depth.'+str(current_depth)):
             try:
                 depth_map[current_depth].append(idx)
             except KeyError:
                 depth_map[current_depth] = [idx]
+
+        # fill missing depths
+        real_max_depth = max(depth_map.keys())
+        for current_depth in range(real_max_depth + 1):
+            if current_depth not in depth_map:
+                depth_map[current_depth] = []
 
         depths_collected = np.array([], dtype=np.int16)
         for current_depth in reversed(sorted(depth_map.keys())):
@@ -854,17 +851,17 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
 
 
 def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
-    logging.info('sort embeddings ...')
+    logging.info('sort, cut and fill embeddings ...')
     new_max_size = len(types)
     logging.info('initial vecs shape: ' + str(vecs.shape))
     logging.info('initial types size: ' + str(len(types)))
     # count types
-    logging.info('calculate counts ...')
+    logging.debug('calculate counts ...')
     counts = np.zeros(shape=new_max_size, dtype=np.int32)
     for d in seq_data:
         counts[d] += 1
 
-    logging.info('argsort ...')
+    logging.debug('argsort ...')
     sorted_indices = np.argsort(counts)
 
     vecs_mean = np.mean(vecs, axis=0)
@@ -873,15 +870,13 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     new_types = [None] * new_max_size
     converter = -np.ones(shape=new_max_size, dtype=np.int32)
 
-    print(len(new_types))
-
-    logging.info('process reversed(sorted_indices) ...')
+    logging.debug('process reversed(sorted_indices) ...')
     new_idx = 0
     new_idx_unknown = -1
     for old_idx in reversed(sorted_indices):
         # keep unknown and save new unknown index
         if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
-            logging.info('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
+            logging.debug('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
             new_idx_unknown = new_idx
         # keep pre-initialized vecs (count==0), but skip other vecs with count < threshold
         elif 0 < counts[old_idx] < count_threshold:
@@ -907,7 +902,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     new_counts = new_counts[:new_idx]
     new_types = new_types[:new_idx]
 
-    return seq_data, new_vecs, new_counts, new_types, new_idx_unknown
+    return converter, new_vecs, new_types, new_counts, new_idx_unknown
 
 
 def sequence_node_to_arrays(seq_tree):

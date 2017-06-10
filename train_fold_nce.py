@@ -4,6 +4,7 @@ import datetime
 import tensorflow as tf
 import tensorflow_fold as td
 
+import corpus
 import model_fold
 import preprocessing
 import pprint
@@ -12,6 +13,9 @@ import sequence_node_sequence_pb2
 import sequence_node_pb2
 import numpy as np
 import json
+import shutil
+import logging
+import sys
 
 
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
@@ -57,6 +61,8 @@ FLAGS = tf.flags.FLAGS
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 PROTO_CLASS = 'SequenceNodeSequence'
 PROTO_FILE_NAME = 'sequence_node_sequence.proto'
+
+log_filename = os.path.join(FLAGS.logdir, 'model.ckpt')
 
 
 def extract_model_embeddings(model_fn=None, out_fn=None):
@@ -244,25 +250,38 @@ def main(unused_argv):
     if not os.path.isdir(FLAGS.logdir):
         os.makedirs(FLAGS.logdir)
 
-    lex_size = None
+    #lex_size = None
     loaded_global_step = 0
+    #embeddings_checkpoint = None
+    #types_checkpoint = None
+    embeddings_corpus = None
     # get lexicon size from saved model or numpy array
     checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
-    if checkpoint is not None:
+    if checkpoint:
         input_checkpoint = checkpoint.model_checkpoint_path
         reader = tf.train.NewCheckpointReader(input_checkpoint)
         loaded_global_step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP).astype(int)
         print('loaded_global_step: '+str(loaded_global_step))
-        if not FLAGS.force_reload_embeddings:
+        if FLAGS.force_reload_embeddings:
+            print('extract embeddings from checkpoint: ' + input_checkpoint + ' ...')
+            embeddings_checkpoint = reader.get_tensor(model_fold.VAR_NAME_EMBEDDING)
+            embeddings_corpus = np.load(FLAGS.train_data_path + '.vec')
+            types_checkpoint = corpus.read_types(input_checkpoint)
+            types_corpus = corpus.read_types(FLAGS.train_data_path)
+            print('merge checkpoint dict into corpus dict (add all entries from checkpoint, don\'t remove anything '
+                  'from corpus dict) ...')
+            embeddings_corpus, types_corpus = corpus.merge_dicts(embeddings_corpus, types_corpus, embeddings_checkpoint, types_checkpoint, add=True, remove=False)
+            lex_size = embeddings_corpus.shape[0]
+        else:
             print('extract lexicon size from model: ' + input_checkpoint + ' ...')
             saved_shapes = reader.get_variable_to_shape_map()
             embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
             lex_size = embed_shape[0]
+    else:
+        print('load embeddings from: ' + FLAGS.train_data_path + '.vec ...')
+        embeddings_corpus = np.load(FLAGS.train_data_path + '.vec')
+        lex_size = embeddings_corpus.shape[0]
 
-    if lex_size is None:
-        print('load embeddings (to get lexicon size) from: ' + FLAGS.train_data_path + '.vec ...')
-        embeddings_np = np.load(FLAGS.train_data_path + '.vec')
-        lex_size = embeddings_np.shape[0]
     print('lex_size: ' + str(lex_size))
 
     # load corpus data
@@ -273,7 +292,7 @@ def main(unused_argv):
     print('calc children ...')
     children, roots = preprocessing.children_and_roots(seq_parents)
 
-    if FLAGS.train_mode is None:
+    if not FLAGS.train_mode:
         train_iterator = iterator_sequence_trees(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,
                                                  FLAGS.sample_count, loaded_global_step)
     elif FLAGS.train_mode == 'cbot':
@@ -310,10 +329,14 @@ def main(unused_argv):
 
             saver = tf.train.Saver()
             with tf.Session() as sess:
-                if checkpoint is None or FLAGS.force_reload_embeddings:
+                if checkpoint and not FLAGS.force_reload_embeddings:
+                    input_checkpoint = checkpoint.model_checkpoint_path
+                    print('restore all variables from: ' + input_checkpoint)
+                    saver.restore(sess, input_checkpoint)
+                else:
                     print('init embeddings with external vectors ...')
-                    sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
-                    if checkpoint is not None:
+                    sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_corpus})
+                    if checkpoint:
                         input_checkpoint = checkpoint.model_checkpoint_path
                         print('restore variables (except embeddings) from: ' + input_checkpoint + ' ...')
                         saver_small.restore(sess, input_checkpoint)
@@ -322,12 +345,15 @@ def main(unused_argv):
                         # exclude embedding, will be initialized afterwards
                         init_vars = [v for v in tf.global_variables() if v != embed_w]
                         tf.variables_initializer(init_vars).run()
-                else:
-                    input_checkpoint = checkpoint.model_checkpoint_path
-                    print('restore all variables from: ' + input_checkpoint)
-                    saver.restore(sess, input_checkpoint)
 
                 step = 0
+                if not checkpoint:
+                    print('save initial checkpoint ...')
+                    saver.save(sess, log_filename, global_step=step)
+                    checkpoint_fn = tf.train.get_checkpoint_state(FLAGS.logdir).model_checkpoint_path
+                    print('copy types to: ' + checkpoint_fn + '.type')
+                    shutil.copyfile(FLAGS.train_data_path + '.type', checkpoint_fn + '.type')
+
                 for _ in xrange(FLAGS.max_steps):
                     batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                     fdict = trainer.build_feed_dict(batch)
@@ -341,9 +367,15 @@ def main(unused_argv):
 
                     if step % FLAGS.save_step_size == 0:
                         print('save checkpoint ...')
-                        saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
+                        # last checkpoint
+                        previous_checkpoint_fn = tf.train.get_checkpoint_state(FLAGS.logdir).model_checkpoint_path
+                        # save checkpoint
+                        saver.save(sess, log_filename, global_step=step)
+                        current_checkpoint_fn = tf.train.get_checkpoint_state(FLAGS.logdir).model_checkpoint_path
+                        print('copy types ...')
+                        shutil.copyfile(previous_checkpoint_fn + '.type', current_checkpoint_fn + '.type')
 
-                saver.save(sess, os.path.join(FLAGS.logdir, 'model.ckpt'), global_step=step)
+                saver.save(sess, log_filename, global_step=step)
 
 
 if __name__ == '__main__':
@@ -356,7 +388,7 @@ if __name__ == '__main__':
     #print('load spacy ...')
     #parser = spacy.load('en')
     ## debug_end
-
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file(PROTO_FILE_NAME)
