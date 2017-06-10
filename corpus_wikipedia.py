@@ -28,10 +28,10 @@ tf.flags.DEFINE_string(
     'init_dict_filename', None, #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles1000_maxdepth10',#None, #'data/nlp/spacy/dict',
     'The path to embedding and mapping files (without extension) to reuse them for the new corpus.')
 tf.flags.DEFINE_integer(
-    'max_articles', 1000,
+    'max_articles', 10000,
     'How many articles to read.')
 tf.flags.DEFINE_integer(
-    'article_batch_size', 250,
+    'article_batch_size', 1000, #250,
     'How many articles to process in one batch.')
 tf.flags.DEFINE_integer(
     'max_depth', 10,

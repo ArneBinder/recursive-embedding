@@ -1,15 +1,15 @@
-import codecs
+#import codecs
 import csv
 import os
-import pickle
+#import pickle
 
 import logging
 import numpy as np
 import spacy
 
 import constants
-import preprocessing
-import tools
+#import preprocessing
+#import tools
 
 
 TSV_COLUMN_NAME_LABEL = 'label'
@@ -187,8 +187,22 @@ def get_dict_from_vocab(vocab):
     return vecs, types
 
 
-# TODO: test this!
-def replace_dict(vecs1, types1, vecs2, types2):
+def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
+    """
+    Replace all embeddings in vecs1 which are contained in vecs2 (indexed via types).
+    If remove=True remove the embeddings not contained in vecs2.
+    If add=True add the embeddings from vecs2, which are not already in vecs1.
+
+    Inplace modification of vecs1 and types1!
+
+    :param vecs1: embeddings from first dict
+    :param types1: types from first dict
+    :param vecs2: embeddings from second dict
+    :param types2: types from second dict
+    :param remove: if remove=True remove the embeddings not contained in vecs2
+    :param add: if add=True add the embeddings from vecs2, which are not already in vecs1
+    :return: the modified embeddings and types
+    """
     assert vecs1.shape[0] == len(types1), 'count of embeddings in vecs1 = ' + vecs1.shape[0] + \
                                           ' does not equal length of types1 = ' + str(len(types1))
     assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = ' + vecs2.shape[0] + \
@@ -202,49 +216,27 @@ def replace_dict(vecs1, types1, vecs2, types2):
     for idx, t in enumerate(types1):
         if t in mapping2:
             idx2 = mapping2[t]
-            indices2_added.append(idx2)
             types1[idx] = types2[idx2]
             vecs1[idx] = vecs2[idx2]
+            if add:
+                indices2_added.append(idx2)
         else:
-            indices_delete.append(idx)
+            if remove:
+                indices_delete.append(idx)
 
-    for idx in indices_delete:
-        del types1[idx]
+    if remove:
+        for idx in reversed(indices_delete):
+            del types1[idx]
 
-    vecs1 = np.delete(vecs1, indices_delete, 0)
-    logging.info('removed ' + str(len(indices_delete)) + ' entries from dict1')
+        vecs1 = np.delete(vecs1, indices_delete, axis=0)
+        logging.info('removed ' + str(len(indices_delete)) + ' entries from dict1')
 
-    types2_indices_add = list(set(range(len(types2))).difference(indices2_added))
+    if add:
+        types2_indices_add = list(set(range(len(types2))).difference(indices2_added))
 
-    types1.extend([types2[idx] for idx in types2_indices_add])
-    vecs1 = np.append(vecs1, vecs2[types2_indices_add], axis=0)
-    logging.info('added ' + str(len(types2_indices_add)) + ' entries to dict1')
-    return vecs1, types1
-
-
-# TODO: test this!
-def merge_into_dict(vecs1, types1, vecs2, types2):
-    assert vecs1.shape[0] == len(types1), 'count of embeddings in vecs1 = ' + vecs1.shape[0] + \
-                                          ' does not equal length of types1 = ' + str(len(types1))
-    assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = ' + vecs2.shape[0] + \
-                                          ' does not equal length of types2 = ' + str(len(types2))
-    logging.info('size of dict1: ' + str(len(types1)))
-    logging.info('size of dict2: ' + str(len(types2)))
-
-    mapping2 = mapping_from_list(types2)
-
-    indices2_added = []
-    for idx, t in enumerate(types1):
-        if t in mapping2:
-            idx2 = mapping2[t]
-            indices2_added.append(idx2)
-            types1[idx] = types2[idx2]
-            vecs1[idx] = vecs2[idx2]
-
-    types2_indices_add = list(set(range(len(types2))).difference(indices2_added))
-    types1.extend([types2[idx] for idx in types2_indices_add])
-    vecs1 = np.append(vecs1, vecs2[types2_indices_add], axis=0)
-    logging.info('added ' + str(len(types2_indices_add)) + ' entries to dict1')
+        types1.extend([types2[idx] for idx in types2_indices_add])
+        vecs1 = np.append(vecs1, vecs2[types2_indices_add], axis=0)
+        logging.info('added ' + str(len(types2_indices_add)) + ' entries to dict1')
     return vecs1, types1
 
 

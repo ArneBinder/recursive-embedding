@@ -145,7 +145,7 @@ class Tester(unittest.TestCase):
                 #pp.pprint(seq_tree_seq)
                 visualize.visualize_seq_node_list(seq_tree_seq['trees'], types, 'forest_out_' + str(i) + '.png')
 
-    #@unittest.skip("skip")
+    @unittest.skip("skip")
     def test_iterator_sequence_trees_cbot(self):
         pp = pprint.PrettyPrinter(indent=2)
 
@@ -224,6 +224,21 @@ class Tester(unittest.TestCase):
             for d in range(min(current_depth+1, max_depth)):
                 if i not in deph_collected[d]:
                     print(str(i) +' not in '+str(d))
+
+    def test_merge_dicts(self):
+        vecs1 = np.array([[0.11], [0.21], [0.31], [0.51], [0.61], [0.71], [0.91]])          # missing: 0.01, 0.41, 0.81
+        #vecs1 = np.ndarray(shape=(0, 1))
+        vecs2 = np.array([[0.52], [0.12], [0.32], [0.82], [0.02], [0.62], [0.72], [0.42]])  # missing: 0.22, 0.92
+        #vecs2 = np.ndarray(shape=(0, 1))
+
+        types1 = ['1', '2', '3', '5', '6', '7', '9']
+        #types1 = []
+        types2 = ['5', '1', '3', '8', '0', '6', '7', '4']
+        #types2 = []
+
+        new_vecs, new_types = corpus.merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True)
+        print(new_vecs)
+        print(new_types)
 
 
 #def test_create_or_read_dict_plain_token():

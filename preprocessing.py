@@ -468,7 +468,8 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
     return data, parents, np.concatenate(depth_list) #, root #, np.array(seq_edges)#, dep_map
 
 
-def calc_depths_and_child_indices((parents, max_depth, child_idx_offset)):#(out_path, offset, max_depth)):
+def calc_depths_and_child_indices(x):#(out_path, offset, max_depth)):
+    (parents, max_depth, child_idx_offset) = x
     #parents = np.load(out_path + '.parent.batch' + str(offset))
     # calc children and roots
     children, roots = children_and_roots(parents)
