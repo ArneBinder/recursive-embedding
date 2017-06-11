@@ -1,6 +1,8 @@
 from __future__ import print_function
 
 import datetime
+import fnmatch
+
 import tensorflow as tf
 import tensorflow_fold as td
 
@@ -21,7 +23,7 @@ import sys
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'Directory in which to write event logs and model checkpoints.')
 tf.flags.DEFINE_string('train_data_path',
-                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10',
+                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8/WIKIPEDIA_articles10000_offset0',
                        # '/home/arne/tmp/tf/log/model.ckpt-976',
                        'train data base path (without extension)')
 # tf.flags.DEFINE_string('data_mapping_path', 'data/nlp/spacy/dict.mapping',
@@ -32,13 +34,13 @@ tf.flags.DEFINE_string('train_data_path',
 #                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
 #                        '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
 #                        'mark identity). This value has to be larger then the initial gloVe size ()')
-tf.flags.DEFINE_integer('max_depth', 5,
+tf.flags.DEFINE_integer('max_depth', 2,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')
 tf.flags.DEFINE_integer('batch_size', 250,  # 1000,
                         'How many samples to read per batch.')
-tf.flags.DEFINE_integer('max_steps', 1000000,  # 5000,
+tf.flags.DEFINE_integer('max_steps', 180000,  # 5000,
                         'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer('summary_step_size', 10,
                         'Emit summary values every summary_step_size steps.')
@@ -62,7 +64,7 @@ PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 PROTO_CLASS = 'SequenceNodeSequence'
 PROTO_FILE_NAME = 'sequence_node_sequence.proto'
 
-log_filename = os.path.join(FLAGS.logdir, 'model.ckpt')
+MODEL_FILENAME = 'model.ckpt'
 
 
 def extract_model_embeddings(model_fn=None, out_fn=None):
@@ -246,14 +248,30 @@ def optimistic_restore(session, save_file):
     saver.restore(session, save_file)
 
 
+def save_checkpoint(saver, session, step, logdir):
+    print('save checkpoint ...')
+    # last checkpoint
+    previous_checkpoint_fn = tf.train.get_checkpoint_state(logdir).model_checkpoint_path
+    # save checkpoint
+    saver.save(session, os.path.join(logdir, MODEL_FILENAME), global_step=step)
+    current_checkpoint_fn = tf.train.get_checkpoint_state(logdir).model_checkpoint_path
+    print('copy types ...')
+    shutil.copyfile(previous_checkpoint_fn + '.type', current_checkpoint_fn + '.type')
+
+    # clean type files
+    print('clean type files ...')
+    type_files = [s[:-len('.type')] for s in fnmatch.filter(os.listdir(logdir), MODEL_FILENAME + '-*.type')]
+    meta_files = [s[:-len('.meta')] for s in fnmatch.filter(os.listdir(logdir), MODEL_FILENAME + '-*.meta')]
+    for fn in type_files:
+        if fn not in meta_files:
+            os.remove(os.path.join(logdir, fn + '.type'))
+
+
 def main(unused_argv):
     if not os.path.isdir(FLAGS.logdir):
         os.makedirs(FLAGS.logdir)
 
-    #lex_size = None
     loaded_global_step = 0
-    #embeddings_checkpoint = None
-    #types_checkpoint = None
     embeddings_corpus = None
     # get lexicon size from saved model or numpy array
     checkpoint = tf.train.get_checkpoint_state(FLAGS.logdir)
@@ -349,7 +367,7 @@ def main(unused_argv):
                 step = 0
                 if not checkpoint:
                     print('save initial checkpoint ...')
-                    saver.save(sess, log_filename, global_step=step)
+                    saver.save(sess, os.path.join(FLAGS.logdir, MODEL_FILENAME), global_step=step)
                     checkpoint_fn = tf.train.get_checkpoint_state(FLAGS.logdir).model_checkpoint_path
                     print('copy types to: ' + checkpoint_fn + '.type')
                     shutil.copyfile(FLAGS.train_data_path + '.type', checkpoint_fn + '.type')
@@ -366,16 +384,9 @@ def main(unused_argv):
                     print('step=%d: loss=%f    accuracy=%f' % (step, loss_v, accuracy))
 
                     if step % FLAGS.save_step_size == 0:
-                        print('save checkpoint ...')
-                        # last checkpoint
-                        previous_checkpoint_fn = tf.train.get_checkpoint_state(FLAGS.logdir).model_checkpoint_path
-                        # save checkpoint
-                        saver.save(sess, log_filename, global_step=step)
-                        current_checkpoint_fn = tf.train.get_checkpoint_state(FLAGS.logdir).model_checkpoint_path
-                        print('copy types ...')
-                        shutil.copyfile(previous_checkpoint_fn + '.type', current_checkpoint_fn + '.type')
+                        save_checkpoint(saver=saver, session=sess, step=step, logdir=FLAGS.logdir)
 
-                saver.save(sess, log_filename, global_step=step)
+                save_checkpoint(saver=saver, session=sess, step=step, logdir=FLAGS.logdir)
 
 
 if __name__ == '__main__':
