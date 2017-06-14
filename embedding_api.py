@@ -17,6 +17,7 @@ from sklearn.cluster import AgglomerativeClustering
 # from scipy import spatial # crashes!
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import kneighbors_graph
+from sklearn.preprocessing import normalize
 
 import constants
 import corpus
@@ -132,6 +133,20 @@ def cluster():
 
     labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
     json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
+    logging.info("Time spent handling the request: %f" % (time.time() - start))
+
+    return json_data
+
+
+@app.route("/api/norm", methods=['POST'])
+def norm():
+    start = time.time()
+    logging.info('Norms requested')
+    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+
+    _, norms = normalize(embeddings, norm='l2', axis=1, copy=False, return_norm=True)
+
+    json_data = json.dumps({'norm': norms.tolist()})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
