@@ -27,7 +27,7 @@ import visualize as vis
 tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
                        'directory containing the model')
 tf.flags.DEFINE_string('data_mapping',
-                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10',
+                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8/WIKIPEDIA_articles10000_offset0',
                        # 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
                        'Path to the "<data_mapping>.type" file (for visualization) and optional the ".vec" file, '
                        'see flag: load_embeddings')
@@ -59,32 +59,50 @@ app = Flask(__name__, static_url_path='')
 cors = CORS(app)
 
 
+def form_data_to_dict(form_data):
+    result = {}
+    for k in form_data:
+        try:
+            result[k] = json.loads(form_data[k])
+        except ValueError:
+            result[k] = form_data[k]
+    return result
+
+
+def get_or_calc_embeddings(data):
+    if data == "":
+        params = form_data_to_dict(request.form)
+    else:
+        params = json.loads(data)
+
+    if 'embeddings' in params:
+        embeddings_str = params['embeddings']
+        embeddings = np.array(embeddings_str)
+    elif 'sequences' in params:
+        sequences = params['sequences']
+        tree_mode = FLAGS.tree_mode
+        if 'tree_mode' in params:
+            tree_mode = params['tree_mode']
+            assert tree_mode in [None, 'sequence', 'aggregate', 'tree'], 'unknown tree_mode=' + tree_mode
+            logging.info('use tree_mode=' + tree_mode)
+
+        sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
+        if 'sentence_processor' in params:
+            sentence_processor = getattr(preprocessing, params['sentence_processor'])
+            logging.info('use sentence_processor=' + sentence_processor.__name__)
+
+        embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
+    else:
+        raise ValueError('no embeddings or sequences found in request')
+
+    return embeddings, params
+
+
 @app.route("/api/embed", methods=['POST'])
 def embed():
     start = time.time()
-
-    data = request.data.decode("utf-8")
-    if data == "":
-        params = request.form
-        sequences = json.loads(params['sequences'])
-    else:
-        params = json.loads(data)
-        sequences = params['sequences']
-
-    logging.info('Embeddings requested for: ' + str(sequences))
-
-    tree_mode = FLAGS.tree_mode
-    if 'tree_mode' in params:
-        tree_mode = params['tree_mode']
-        assert tree_mode in [None, 'sequence', 'aggregate', 'tree'], 'unknown tree_mode=' + tree_mode
-        logging.info('use tree_mode=' + tree_mode)
-
-    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
-    if 'sentence_processor' in params:
-        sentence_processor = getattr(preprocessing, params['sentence_processor'])
-        logging.info('use sentence_processor=' + sentence_processor.__name__)
-
-    embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
+    logging.info('Embeddings requested')
+    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
 
     json_data = json.dumps({'embeddings': embeddings.tolist()})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
@@ -95,17 +113,10 @@ def embed():
 @app.route("/api/distance", methods=['POST'])
 def sim():
     start = time.time()
-    logging.info('Similarity requested')
-    data = request.data.decode("utf-8")
-    if data == "":
-        params = request.form
-        sequences = json.loads(params['embeddings'])
-    else:
-        params = json.loads(data)
-        sequences = params['embeddings']
+    logging.info('Distance requested')
+    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
 
-    embeddings = np.array(sequences)
-    result = pairwise_distances(embeddings, metric='euclidean')  # spatial.distance.cosine(embeddings[0], embeddings[1])
+    result = pairwise_distances(embeddings, metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
 
     json_data = json.dumps({'distance': result.tolist()})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
@@ -117,48 +128,8 @@ def sim():
 def cluster():
     start = time.time()
     logging.info('Clusters requested')
+    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
 
-    data = request.data.decode("utf-8")
-    if data == "":
-        params = request.form
-        embeddings = json.loads(params['embeddings'])
-    else:
-        params = json.loads(data)
-        embeddings = params['embeddings']
-
-    labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
-    json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
-    logging.info("Time spent handling the request: %f" % (time.time() - start))
-
-    return json_data
-
-
-@app.route("/api/embedandcluster", methods=['POST'])
-def embed_and_cluster():
-    start = time.time()
-
-    data = request.data.decode("utf-8")
-    if data == "":
-        params = request.form
-        sequences = json.loads(params['sequences'])
-    else:
-        params = json.loads(data)
-        sequences = params['sequences']
-
-    logging.info('Cluster requested for: ' + str(sequences))
-
-    tree_mode = FLAGS.tree_mode
-    if 'tree_mode' in params:
-        tree_mode = params['tree_mode']
-        assert tree_mode in constants.tree_modes, 'unknown tree_mode=' + tree_mode
-        logging.info('use tree_mode=' + tree_mode)
-
-    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
-    if 'sentence_processor' in params:
-        sentence_processor = getattr(preprocessing, params['sentence_processor'])
-        logging.info('use sentence_processor=' + sentence_processor.__name__)
-
-    embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
     labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
     json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
     logging.info("Time spent handling the request: %f" % (time.time() - start))

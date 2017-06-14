@@ -304,6 +304,7 @@ def get_root(parents, idx):
     return i
 
 
+# deprecated
 def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, tree_mode=None, expand_dict=True, calc_depths_child_indices=False, child_idx_offset=0):
 
     # ids of the dictionaries to query the data point referenced by seq_data
