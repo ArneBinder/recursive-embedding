@@ -69,16 +69,43 @@ def form_data_to_dict(form_data):
     return result
 
 
-def get_or_calc_embeddings(data):
-    if data == "":
-        params = form_data_to_dict(request.form)
-    else:
-        params = json.loads(data)
+def make_serializable(d):
+    if type(d) == dict:
+        for k in d:
+            d[k] = make_serializable(d[k])
+    elif type(d) == list:
+        for i in range(len(d)):
+            d[i] = make_serializable(d[i])
+    elif type(d) == np.ndarray:
+        d = d.tolist()
 
-    if 'embeddings' in params:
-        embeddings_str = params['embeddings']
-        embeddings = np.array(embeddings_str)
-        scores = None
+    return d
+
+
+def filter_result(r):
+    if 'whitelist' in r:
+        wl = r['whitelist']
+        for k in r.keys():
+            if k not in wl:
+                del r[k]
+    elif 'blacklist' in r:
+        bl = r['blacklist']
+        for k in r.keys():
+            if k in bl:
+                del r[k]
+    return r
+
+
+def get_params(data):
+    if data == "":
+        return form_data_to_dict(request.form)
+    else:
+        return json.loads(data)
+
+
+def get_or_calc_sequence_data(params):
+    if 'data_sequences' in params:
+        params['data_sequences'] = np.array(params['data_sequences'])
     elif 'sequences' in params:
         sequences = params['sequences']
         tree_mode = FLAGS.tree_mode
@@ -92,20 +119,41 @@ def get_or_calc_embeddings(data):
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=' + sentence_processor.__name__)
 
-        embeddings, scores = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
+        params['data_sequences'] = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
+
+    else:
+        raise ValueError('no sequences or data_sequences found in request')
+
+
+def get_or_calc_embeddings(params):
+    if 'embeddings' in params:
+        params['embeddings'] = np.array(params['embeddings'])
+    elif 'data_sequences' or 'sequences' in params:
+        get_or_calc_sequence_data(params)
+
+        data_sequences = params['data_sequences']
+        batch = [preprocessing.build_sequence_tree_from_parse(parsed_data).SerializeToString() for parsed_data in
+                 data_sequences]
+        if len(batch) > 0:
+            fdict = embedder.build_feed_dict(batch)
+            embeddings, scores = sess.run([tree_embeddings, embedding_scores], feed_dict=fdict)
+        else:
+            embeddings = np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
+            scores = np.zeros(shape=(0,), dtype=np.float32)
+        params['embeddings'] = embeddings
+        params['scores'] = scores
     else:
         raise ValueError('no embeddings or sequences found in request')
-
-    return embeddings, scores, params
 
 
 @app.route("/api/embed", methods=['POST'])
 def embed():
     start = time.time()
     logging.info('Embeddings requested')
-    embeddings, scores, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    params = get_params(request.data.decode("utf-8"))
+    get_or_calc_embeddings(params)
 
-    json_data = json.dumps({'embeddings': embeddings.tolist(), 'scores': scores.tolist()})
+    json_data = json.dumps(filter_result(make_serializable(params)))
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -115,11 +163,12 @@ def embed():
 def sim():
     start = time.time()
     logging.info('Distance requested')
-    embeddings, _, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    params = get_params(request.data.decode("utf-8"))
+    get_or_calc_embeddings(params)
 
-    result = pairwise_distances(embeddings, metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
-
-    json_data = json.dumps({'distance': result.tolist()})
+    result = pairwise_distances(params['embeddings'], metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
+    params['distances'] = result.tolist()
+    json_data = json.dumps(filter_result(make_serializable(params)))
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -129,10 +178,14 @@ def sim():
 def cluster():
     start = time.time()
     logging.info('Clusters requested')
-    embeddings, _, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    params = get_params(request.data.decode("utf-8"))
+    get_or_calc_embeddings(params)
 
-    labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
-    json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
+    labels, meta, best_idx = get_cluster_ids(embeddings=np.array(params['embeddings']))
+    params['cluster_labels'] = labels
+    params['meta_data'] = meta
+    params['best_idx'] = best_idx
+    json_data = json.dumps(filter_result(make_serializable(params)))
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -142,11 +195,13 @@ def cluster():
 def norm():
     start = time.time()
     logging.info('Norms requested')
-    embeddings, _, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    params = get_params(request.data.decode("utf-8"))
+    get_or_calc_embeddings(params)
 
-    _, norms = normalize(embeddings, norm='l2', axis=1, copy=False, return_norm=True)
+    _, norms = normalize(params['embeddings'], norm='l2', axis=1, copy=False, return_norm=True)
 
-    json_data = json.dumps({'norm': norms.tolist()})
+    params['norms'] = norms.tolist()
+    json_data = json.dumps(filter_result(make_serializable(params)))
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -155,30 +210,11 @@ def norm():
 @app.route("/api/visualize", methods=['POST'])
 def visualize():
     start = time.time()
+    logging.info('Visualizations requested')
+    params = get_params(request.data.decode("utf-8"))
+    get_or_calc_sequence_data(params)
 
-    data = request.data.decode("utf-8")
-    if data == "":
-        params = request.form
-        sequences = json.loads(params['sequences'])
-    else:
-        params = json.loads(data)
-        sequences = params['sequences']
-
-    logging.info('Visualization requested for: ' + str(sequences))
-
-    tree_mode = FLAGS.tree_mode
-    if 'tree_mode' in params:
-        tree_mode = params['tree_mode']
-        assert tree_mode in [None, 'sequence', 'aggregate', 'tree'], 'unknown tree_mode=' + tree_mode
-        logging.info('use tree_mode=' + tree_mode)
-
-    sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
-    if 'sentence_processor' in params:
-        sentence_processor = getattr(preprocessing, params['sentence_processor'])
-        logging.info('use sentence_processor=' + sentence_processor.__name__)
-
-    parsed_datas = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
-    vis.visualize_list(parsed_datas, types, file_name=vis.TEMP_FN)
+    vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
     logging.info("Time spent handling the request: %f" % (time.time() - start))
     return send_file(vis.TEMP_FN)
 
@@ -211,23 +247,6 @@ def get_cluster_ids(embeddings):
     return labels, meta, best_idx
 
 
-def get_embeddings(sequences, sentence_processor, tree_mode):
-    logging.info('get embeddings ...')
-    if len(sequences) == 0:
-        return np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
-    ##################################################
-    # Tensorflow part
-    ##################################################
-    batch = [preprocessing.build_sequence_tree_from_parse(parsed_data).SerializeToString() for parsed_data in
-             parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode)] #list(seq_tree_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
-    fdict = embedder.build_feed_dict(batch)
-    _tree_embeddings, _embedding_scores = sess.run([tree_embeddings, embedding_scores], feed_dict=fdict)
-    ##################################################
-    # END Tensorflow part
-    ##################################################
-    return _tree_embeddings, _embedding_scores
-
-
 def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
     # pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
@@ -242,7 +261,7 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
         seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
                                                            data_maps, args={'content': s}, tree_mode=tree_mode,
                                                            expand_dict=False)
-        yield seq_data, seq_parents
+        yield np.array([seq_data, seq_parents])
 
 
 if __name__ == '__main__':

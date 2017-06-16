@@ -13,6 +13,7 @@ DIMENSION_EMBEDDINGS = 300
 VAR_NAME_EMBEDDING = 'embeddings'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 
+
 def dprint(x):
     r = tf.Print(x, [tf.shape(x)])
     return r
@@ -171,7 +172,6 @@ class SequenceTreeEmbedding(object):
 
         self._compiler = td.Compiler.create(model)
         self._tree_embeddings, self._scores = self._compiler.output_tensors
-        #self._tree_embeddings, = self._compiler.output_tensors
 
     @property
     def tree_embeddings(self):
