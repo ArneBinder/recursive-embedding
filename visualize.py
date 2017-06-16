@@ -6,18 +6,8 @@ import matplotlib.pyplot as plt
 import constants
 from PIL import Image
 
-import corpus
 import preprocessing
-# from IPython.display import Image, display
-import spacy
 
-
-# def view_pydot(pdot):
-#    plt = Image(pdot.create_png())
-#    display(plt)
-import tools
-
-parser = None #spacy.load('en')
 TEMP_FN = 'temp_forest.png'
 
 if os.path.isfile(TEMP_FN):
@@ -64,17 +54,6 @@ def visualize_dep(filename, sequence_graph, data_maps_rev, vocab):
 
 
 def visualize(filename, sequence_graph, types):
-    #if types_string is None:
-    #    types = list(corpus.read_types(FLAGS.data_mapping_path + '.type'))
-    #    types_string = list(corpus.create_or_read_dict_types_string(TEMP_FN_TSV, mapping=data_maps, spacy_vocab=vocab))
-        #data_maps_rev = corpus.revert_mapping(data_maps)
-
-        #if vocab is None:
-        #    if parser is None:
-        #        parser = spacy.load('en')
-        #    vocab = parser.vocab
-        #if vocab_neg is None:
-        #    vocab_neg = constants.vocab_manual
 
     data, parents = sequence_graph
     # copy, because we modify parent
@@ -144,7 +123,7 @@ def concat_visualizations(file_name, count):
     for fn in file_names:
         os.remove(fn)
 
-
+# deprecated
 def unfold_and_plot(data, width):
     t = data.squeeze().data
     print(len(t))

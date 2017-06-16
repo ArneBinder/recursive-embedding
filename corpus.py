@@ -166,15 +166,20 @@ def move_to_front(fn, idx):
 
 def get_dict_from_vocab(vocab):
     manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
-    size = len(vocab)
+    size = len(vocab) + len(constants.vocab_manual)
     vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
-    types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-    types = [types_unknown]
-    i = 1
+    #types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+    #types = [types_unknown]
+
+    # add manual vocab at first
+    # the vecs remain zeros
+    types = constants.vocab_manual.values()
+    #i = 1
+    i = len(constants.vocab_manual)
     for lexeme in vocab:
         # exclude entities which are in vocab_manual to avoid collisions
         if lexeme.orth_ in manual_vocab_reverted:
-            logging.warn('found token in parser vocab with orth_="'+lexeme.orth_+'", which is already in manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
+            logging.warn('found token in parser vocab with orth_="'+lexeme.orth_+'", which was already added from manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
             continue
         vecs[i] = lexeme.vector
         types.append(lexeme.orth_)

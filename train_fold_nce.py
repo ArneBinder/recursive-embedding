@@ -34,7 +34,7 @@ tf.flags.DEFINE_string('train_data_path',
 #                        'The initial GloVe embedding matrix loaded from spaCy is padded to hold unknown lexical ids '
 #                        '(dependency edge types, pos tag types, or any other type added by the sentence_processor to '
 #                        'mark identity). This value has to be larger then the initial gloVe size ()')
-tf.flags.DEFINE_integer('max_depth', 3,
+tf.flags.DEFINE_integer('max_depth', 5,
                         'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer('sample_count', 15,
                         'The amount of generated samples per correct sequence tree.')

@@ -91,7 +91,7 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset * 4)
         # add word embedding embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.WORD_EMBEDDING], dict_unknown))
+        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
         # add edge type embedding
         sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
@@ -157,7 +157,7 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
         a_parents = list()
 
         # add word type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.WORD_EMBEDDING], dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
         a_parents.append(-1)
         # add edge type embedding
         a_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
@@ -169,7 +169,7 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
         if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
             a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-4)
-            a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_TYPE_EMBEDDING], dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_EMBEDDING], dict_unknown))
             a_parents.append(-1)
         sen_a.append((a_data, a_parents))
         # count additional data for every main data point
@@ -245,7 +245,7 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
         a_parents = list()
 
         # add word type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.WORD_EMBEDDING], dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
         a_parents.append(-len(a_data))
         # add edge type embedding
         a_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
@@ -257,7 +257,7 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
         a_data.append(tools.getOrAdd(data_maps, token.tag_, dict_unknown))
         a_parents.append(-len(a_data))
         # add pos-tag type type embedding
-        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.POS_TAG_EMBEDDING], dict_unknown))
+        a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.POS_EMBEDDING], dict_unknown))
         a_parents.append(-1)
 
         # add entity type embedding
@@ -265,7 +265,7 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
             a_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             a_parents.append(-len(a_data))
             # add entity type type embedding
-            a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_TYPE_EMBEDDING], dict_unknown))
+            a_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_EMBEDDING], dict_unknown))
             a_parents.append(-1)
         # add lemma type embedding
         if token.lemma != token.orth:
@@ -360,7 +360,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
                 if len(seq_data) > start_idx:
                     seq_parents[-1] = 0
             elif tree_mode == 'aggregate':
-                TERMINATOR_id = tools.getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+                TERMINATOR_id = tools.getOrAdd(data_maps, constants.AGGREGATOR_EMBEDDING, unknown_default)
                 for idx in range(start_idx, len(seq_data)):
                     seq_parents[idx] = len(seq_data) - idx
                 seq_data.append(TERMINATOR_id)
@@ -436,10 +436,10 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
                 if len(seq_data) > start_idx:
                     seq_parents[-1] = 0
             elif tree_mode == 'aggregate':
-                TERMINATOR_id = tools.getOrAdd(data_maps, constants.TERMINATOR_EMBEDDING, unknown_default)
+                aggregator_id = tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], unknown_default)
                 for idx in range(start_idx, len(seq_data)):
                     seq_parents[idx] = len(seq_data) - idx
-                seq_data.append(TERMINATOR_id)
+                seq_data.append(aggregator_id)
                 seq_parents.append(0)
 
         if calc_depths:

@@ -19,7 +19,6 @@ from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import normalize
 
-import constants
 import corpus
 import model_fold
 import preprocessing
@@ -79,6 +78,7 @@ def get_or_calc_embeddings(data):
     if 'embeddings' in params:
         embeddings_str = params['embeddings']
         embeddings = np.array(embeddings_str)
+        scores = None
     elif 'sequences' in params:
         sequences = params['sequences']
         tree_mode = FLAGS.tree_mode
@@ -92,20 +92,20 @@ def get_or_calc_embeddings(data):
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=' + sentence_processor.__name__)
 
-        embeddings = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
+        embeddings, scores = get_embeddings(sequences=sequences, sentence_processor=sentence_processor, tree_mode=tree_mode)
     else:
         raise ValueError('no embeddings or sequences found in request')
 
-    return embeddings, params
+    return embeddings, scores, params
 
 
 @app.route("/api/embed", methods=['POST'])
 def embed():
     start = time.time()
     logging.info('Embeddings requested')
-    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    embeddings, scores, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
 
-    json_data = json.dumps({'embeddings': embeddings.tolist()})
+    json_data = json.dumps({'embeddings': embeddings.tolist(), 'scores': scores.tolist()})
     logging.info("Time spent handling the request: %f" % (time.time() - start))
 
     return json_data
@@ -115,7 +115,7 @@ def embed():
 def sim():
     start = time.time()
     logging.info('Distance requested')
-    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    embeddings, _, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
 
     result = pairwise_distances(embeddings, metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
 
@@ -129,7 +129,7 @@ def sim():
 def cluster():
     start = time.time()
     logging.info('Clusters requested')
-    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    embeddings, _, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
 
     labels, meta, best_idx = get_cluster_ids(embeddings=np.array(embeddings))
     json_data = json.dumps({'cluster_labels': labels, 'meta_data': meta, 'best_idx': best_idx})
@@ -142,7 +142,7 @@ def cluster():
 def norm():
     start = time.time()
     logging.info('Norms requested')
-    embeddings, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
+    embeddings, _, _ = get_or_calc_embeddings(request.data.decode("utf-8"))
 
     _, norms = normalize(embeddings, norm='l2', axis=1, copy=False, return_norm=True)
 
@@ -213,17 +213,19 @@ def get_cluster_ids(embeddings):
 
 def get_embeddings(sequences, sentence_processor, tree_mode):
     logging.info('get embeddings ...')
+    if len(sequences) == 0:
+        return np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
     ##################################################
     # Tensorflow part
     ##################################################
     batch = [preprocessing.build_sequence_tree_from_parse(parsed_data).SerializeToString() for parsed_data in
              parse_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode)] #list(seq_tree_iterator(sequences, nlp, sentence_processor, data_maps, tree_mode))
     fdict = embedder.build_feed_dict(batch)
-    _tree_embeddings, = sess.run(tree_embeddings, feed_dict=fdict)
+    _tree_embeddings, _embedding_scores = sess.run([tree_embeddings, embedding_scores], feed_dict=fdict)
     ##################################################
     # END Tensorflow part
     ##################################################
-    return np.array(_tree_embeddings)
+    return _tree_embeddings, _embedding_scores
 
 
 def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, tree_mode):
@@ -281,6 +283,7 @@ if __name__ == '__main__':
             embedding_init = embed_w.assign(embedding_placeholder)
             embedder = model_fold.SequenceTreeEmbedding(embed_w)
             tree_embeddings = embedder.tree_embeddings
+            embedding_scores = embedder.scores
 
             # Add ops to save and restore all the variables.
             saver = tf.train.Saver()

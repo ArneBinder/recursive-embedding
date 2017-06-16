@@ -71,9 +71,9 @@ def main():
         print('extract word embeddings from spaCy...')
         vecs, mapping = get_word_embeddings(nlp.vocab)
         # for processing parser output
-        data_maps = {constants.WORD_EMBEDDING: mapping}
+        data_maps = {constants.TOKEN_EMBEDDING: mapping}
         # data vectors
-        data_vecs = {constants.WORD_EMBEDDING: vecs}
+        data_vecs = {constants.TOKEN_EMBEDDING: vecs}
 
         net = Net(data_vecs, 55, dim, max_slice_size, max_forest_count, data_maps)
 

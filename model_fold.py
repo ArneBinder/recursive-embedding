@@ -156,25 +156,36 @@ class SimilaritySequenceTreeTupleModel(object):
 
 class SequenceTreeEmbedding(object):
 
-    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED):
+    def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED, scoring_scope=DEFAULT_SCOPE_SCORING):
+        # This layer maps a sequence tree embedding to an 'integrity' score
+        with tf.variable_scope(scoring_scope) as scoring_sc:
+            scoring_fc = td.FC(1, name=scoring_sc)
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
-            model = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> sequence_tree_block(embeddings, sc)
+            embedder = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> sequence_tree_block(embeddings, sc)
+
+        model = embedder >> td.AllOf(td.Identity(), scoring_fc)
+
         self._compiler = td.Compiler.create(model)
-        self._tree_embeddings = self._compiler.output_tensors
+        self._tree_embeddings, self._scores = self._compiler.output_tensors
+        #self._tree_embeddings, = self._compiler.output_tensors
 
     @property
     def tree_embeddings(self):
         return self._tree_embeddings
+
+    @property
+    def scores(self):
+        return self._scores
 
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)
 
 
 class SequenceTreeEmbeddingSequence(object):
-    """ A Fold model for training sequence tree embeddings using NCE.
+    """ A Fold model for training sequence tree embeddings using negative sampling.
         The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object 
-        containing a sequence of sequence trees (see SequenceNode) and an index of the correct tree.
+        containing a sequence of sequence trees (see SequenceNode) assuming the first is the correct one.
         It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum 
         entropy loss with regard to the correct tree.
     """
