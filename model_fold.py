@@ -157,9 +157,12 @@ class SimilaritySequenceTreeTupleModel(object):
 class SequenceTreeEmbedding(object):
 
     def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED, scoring_scope=DEFAULT_SCOPE_SCORING):
+        def squz(x):
+            return tf.squeeze(x, [1])
+
         # This layer maps a sequence tree embedding to an 'integrity' score
         with tf.variable_scope(scoring_scope) as scoring_sc:
-            scoring_fc = td.FC(1, name=scoring_sc)
+            scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(squz)
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
             embedder = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> sequence_tree_block(embeddings, sc)
@@ -191,13 +194,11 @@ class SequenceTreeEmbeddingSequence(object):
     """
 
     def __init__(self, embeddings, aggregator_ordered_scope=DEFAULT_SCOPE_AGGR_ORDERED, scoring_scope=DEFAULT_SCOPE_SCORING):
-
-        # This layer maps a sequence tree embedding to an 'integrity' score
-        with tf.variable_scope(scoring_scope) as scoring_sc:
-            scoring_fc = td.FC(1, name=scoring_sc)
-
         def squz(x):
             return tf.squeeze(x, [1])
+        # This layer maps a sequence tree embedding to an 'integrity' score
+        with tf.variable_scope(scoring_scope) as scoring_sc:
+            scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(squz)
 
         first = td.Composition()
         with first.scope():
@@ -229,7 +230,7 @@ class SequenceTreeEmbeddingSequence(object):
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
             tree_logits = td.Map(sequence_tree_block(embeddings, sc)
-                                 >> scoring_fc >> td.Function(squz) >> td.Function(tf.exp))
+                                 >> scoring_fc >> td.Function(tf.exp))
 
         #softmax_correct = td.AllOf(td.GetItem('trees') >> tree_logits, td.GetItem('idx_correct')) >> norm
         softmax_correct = td.GetItem('trees') >> tree_logits >> norm_first
@@ -237,7 +238,7 @@ class SequenceTreeEmbeddingSequence(object):
         self._compiler = td.Compiler.create(softmax_correct)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
-        self._softmax_correct,  = self._compiler.output_tensors
+        self._softmax_correct, = self._compiler.output_tensors
 
         self._loss = tf.reduce_mean(-tf.log(self._softmax_correct))
 
