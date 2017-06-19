@@ -18,6 +18,7 @@ import json
 import shutil
 import logging
 import sys
+from tensorflow.contrib.tensorboard.plugins import projector
 
 
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
@@ -346,6 +347,18 @@ def main(unused_argv):
             #saver_embeddings = tf.train.Saver(var_list=[embed_w])
 
             saver = tf.train.Saver()
+
+            config = projector.ProjectorConfig()
+            # You can add multiple embeddings. Here we add only one.
+            embedding = config.embeddings.add()
+            embedding.tensor_name = embed_w.name
+            # Link this tensor to its metadata file (e.g. labels).
+            embedding.metadata_path = os.path.join(FLAGS.logdir, 'type.tsv')
+
+            # The next line writes a projector_config.pbtxt in the LOG_DIR. TensorBoard will
+            # read this file during startup.
+            projector.visualize_embeddings(train_writer, config)
+
             with tf.Session() as sess:
                 if checkpoint and not FLAGS.force_reload_embeddings:
                     input_checkpoint = checkpoint.model_checkpoint_path
