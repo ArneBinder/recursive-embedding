@@ -224,7 +224,7 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
             seq_tree_seq = {'trees': [seq_tree_]}
             for _ in range(sample_count):
                 seq_tree_new_ = seq_tree_.copy()
-                new_head = np.random.choice(seq_data)
+                new_head = seq_data[np.random.choice(depth1_collected)]
                 seq_tree_new_['head'] = new_head
                 seq_tree_seq['trees'].append(seq_tree_new_)
 

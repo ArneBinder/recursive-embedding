@@ -149,7 +149,7 @@ class Tester(unittest.TestCase):
     def test_iterator_sequence_trees_cbot(self):
         pp = pprint.PrettyPrinter(indent=2)
 
-        train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles100_maxdepth10'
+        train_path = '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles100_offset0'
         sample_count = 5
         max_depth = 3
 
