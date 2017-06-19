@@ -24,26 +24,25 @@ import model_fold
 import preprocessing
 import visualize as vis
 
-tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
-                       'directory containing the model')
-tf.flags.DEFINE_string('data_mapping',
-                       '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8/WIKIPEDIA_articles10000_offset0',
-                       # 'data/corpora/sick/process_sentence3/SICK.mapping', #'data/nlp/spacy/dict.mapping',
-                       'Path to the "<data_mapping>.type" file (for visualization) and optional the ".vec" file, '
-                       'see flag: load_embeddings')
-tf.flags.DEFINE_boolean('load_embeddings', False,
-                        'Load embeddings from numpy array located at "<data_mapping>.vec"')
+tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log', #/model.ckpt-122800',
+                       'Directory containing the model and a checkpoint file or the direct path to a '
+                       'model (without extension).')
+tf.flags.DEFINE_string('external_dict_file',
+                       #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8/WIKIPEDIA_articles10000_offset0',
+                       None,
+                       'If not None, load embeddings from numpy array located at "<external_dict_file>.vec" and type '
+                       'string mappings from "<external_dict_file>.type" file (instead of "<model_dir>/[model].type").')
+#tf.flags.DEFINE_boolean('load_embeddings', False,
+#                        'Load embeddings from numpy array located at "<dict_file>.vec"')
 tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
-tf.flags.DEFINE_string('tree_mode',
+tf.flags.DEFINE_string('default_tree_mode',
                        None,
-                       # 'aggregate',
-                       #  'sequence',
                        'How to structure the tree. '
                        + '"sequence" -> parents point to next token, '
                        + '"aggregate" -> parents point to an added, artificial token (TERMINATOR) '
                          'in the end of the token sequence,'
-                       + 'None -> use parsed dependency tree')
+                       + 'None or "tree" -> use parsed dependency tree')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -108,7 +107,7 @@ def get_or_calc_sequence_data(params):
         params['data_sequences'] = np.array(params['data_sequences'])
     elif 'sequences' in params:
         sequences = params['sequences']
-        tree_mode = FLAGS.tree_mode
+        tree_mode = FLAGS.default_tree_mode
         if 'tree_mode' in params:
             tree_mode = params['tree_mode']
             assert tree_mode in [None, 'sequence', 'aggregate', 'tree'], 'unknown tree_mode=' + tree_mode
@@ -272,13 +271,21 @@ if __name__ == '__main__':
 
     # We retrieve our checkpoint fullpath
     checkpoint = tf.train.get_checkpoint_state(FLAGS.model_dir)
-    input_checkpoint = checkpoint.model_checkpoint_path
+    if checkpoint:
+        # use latest checkpoint in model_dir
+        input_checkpoint = checkpoint.model_checkpoint_path
+    else:
+        input_checkpoint = FLAGS.model_dir
 
-    if FLAGS.load_embeddings:
-        logging.info('load new embeddings from: '+FLAGS.data_mapping+'.vec ...')
-        embeddings_np = np.load(FLAGS.data_mapping+'.vec')
+    if FLAGS.external_dict_file:
+        logging.info('read types ...')
+        types = corpus.read_types(FLAGS.external_dict_file)
+        logging.info('load new embeddings from: '+FLAGS.external_dict_file+'.vec ...')
+        embeddings_np = np.load(FLAGS.external_dict_file+'.vec')
         lex_size = embeddings_np.shape[0]
     else:
+        logging.info('read types ...')
+        types = corpus.read_types(input_checkpoint)
         reader = tf.train.NewCheckpointReader(input_checkpoint)
         logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
         saved_shapes = reader.get_variable_to_shape_map()
@@ -289,8 +296,6 @@ if __name__ == '__main__':
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
-    logging.info('read types ...')
-    types = corpus.read_types(FLAGS.data_mapping)
     logging.info('dict size: ' + str(len(types)))
     data_maps = corpus.mapping_from_list(types)
 
@@ -314,7 +319,7 @@ if __name__ == '__main__':
             logging.info('restore model from: ' + input_checkpoint + '...')
             saver.restore(sess, input_checkpoint)
 
-            if FLAGS.load_embeddings:
+            if FLAGS.external_dict_file:
                 print('init embeddings with external vectors ...')
                 sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
 
