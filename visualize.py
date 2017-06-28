@@ -65,7 +65,7 @@ def visualize(filename, sequence_graph, types):
         if i + p < 0 or i + p >= len(parents):
             parents[i] = 0
 
-    graph = pydot.Dot(graph_type='digraph', rankdir='LR')
+    graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
     if len(data) > 0:
         nodes = []
         for i, d in enumerate(data):
