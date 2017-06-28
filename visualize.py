@@ -1,14 +1,17 @@
 import copy
 import os
+import re
 
 import pydot
 import matplotlib.pyplot as plt
 import constants
 from PIL import Image
+import svgutils.transform as sg
+
 
 import preprocessing
 
-TEMP_FN = 'temp_forest.png'
+TEMP_FN = 'temp_forest.svg'
 
 if os.path.isfile(TEMP_FN):
     os.remove(TEMP_FN)
@@ -87,23 +90,24 @@ def visualize(filename, sequence_graph, types):
                                       dir='back'))
 
     # print(graph.to_string())
-    graph.write_png(filename)
+    graph.write_svg(filename)
 
 
 def visualize_seq_node_list(seq_tree_list, types, file_name=TEMP_FN):
     for i, seq_tree in enumerate(seq_tree_list):
         current_data, current_parents = preprocessing.sequence_node_to_arrays(seq_tree)
         visualize(file_name + '.' + str(i), (current_data, current_parents), types)
-    concat_visualizations(file_name, len(seq_tree_list))
+    concat_visualizations_svg(file_name, len(seq_tree_list))
 
 
 def visualize_list(sequence_graph_list, types, file_name=TEMP_FN):
     for i, seq_graph in enumerate(sequence_graph_list):
         current_data, current_parents = seq_graph
         visualize(file_name + '.' + str(i), (current_data, current_parents), types)
-    concat_visualizations(file_name, len(sequence_graph_list))
+    concat_visualizations_svg(file_name, len(sequence_graph_list))
 
 
+# deprecated
 def concat_visualizations(file_name, count):
     file_names = [file_name + '.' + str(i) for i in range(count)]
     images = map(Image.open, file_names)
@@ -120,6 +124,33 @@ def concat_visualizations(file_name, count):
         y_offset += im.size[1]
 
     new_im.save(file_name)
+    for fn in file_names:
+        os.remove(fn)
+
+
+def concat_visualizations_svg(file_name, count):
+    file_names = [file_name + '.' + str(i) for i in range(count)]
+    # plots = [fig.getroot() for fig in map(sg.fromfile, file_names)]
+    images = map(sg.fromfile, file_names)
+    widths, heights = zip(*(i.get_size() for i in images))
+
+    rx = re.compile(r"[-+]?\d*\.\d+|\d+", re.VERBOSE)
+    widths = [float(rx.search(w).group()) for w in widths]
+    heights = [float(rx.search(h).group()) for h in heights]
+
+    total_height = 0
+    plots = []
+    for i, image in enumerate(images):
+        plot = image.getroot()
+        plot.moveto(0, total_height)
+        plots.append(plot)
+        total_height += heights[i]
+    max_width = max(widths)
+
+    fig = sg.SVGFigure(max_width, total_height)
+    fig.append(plots)
+    fig.save(file_name)
+
     for fn in file_names:
         os.remove(fn)
 
