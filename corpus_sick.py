@@ -31,7 +31,7 @@ tf.flags.DEFINE_string(
     'sentence_processor', 'process_sentence3',
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_string(
-    'tree_mode',
+    'concat_mode',
     None,
     #'aggregate',
     #'sequence',
@@ -54,34 +54,34 @@ def sick_raw_reader(filename):
 
 
 # build similarity_tree_tuple objects
-def sick_reader(filename, sentence_processor, parser, mapping, tree_mode=None):
+def sick_reader(filename, sentence_processor, parser, mapping, concat_mode=None):
     for i, t in enumerate(sick_raw_reader(filename)):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
         preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, mapping,
-                                                   sim_tree_tuple.first, tree_mode)
+                                                   sim_tree_tuple.first, concat_mode)
         preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, mapping,
-                                                   sim_tree_tuple.second, tree_mode)
+                                                   sim_tree_tuple.second, concat_mode)
         sim_tree_tuple.similarity = (score - 1.) / 4.
         yield sim_tree_tuple
 
 
 # build sequence_node_sequence objects
-#def sick_reader2(filename, sentence_processor, parser, data_maps, tree_mode=None):
+#def sick_reader2(filename, sentence_processor, parser, data_maps, concat_mode=None):
 #    for i, t in enumerate(sick_raw_reader(filename)):
 #        _, sen1, sen2, score = t
 #        sequence_node_sequence = sequence_node_sequence_pb2.SequenceNodeSequence()
 #        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps,
-#                                                   sequence_node_sequence.nodes.add(), tree_mode)
+#                                                   sequence_node_sequence.nodes.add(), concat_mode)
 #        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps,
-#                                                   sequence_node_sequence.nodes.add(), tree_mode)
+#                                                   sequence_node_sequence.nodes.add(), concat_mode)
 #        sequence_node_sequence.score = (score - 1.) / 4.
 #        yield sequence_node_sequence
 
 
-def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple=-1, tree_mode=None):
+def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple=-1, concat_mode=None):
     record_output = tf.python_io.TFRecordWriter(out_filename)
-    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, tree_mode)):
+    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, concat_mode)):
         if 0 < max_tuple == i:
             break
         record_output.write(t.SerializeToString())
@@ -104,8 +104,8 @@ if __name__ == '__main__':
         os.makedirs(out_dir)
 
     out_path = os.path.join(out_dir, FLAGS.corpus_data_output_fn)
-    if FLAGS.tree_mode is not None:
-        out_path = out_path + '_' + FLAGS.tree_mode
+    if FLAGS.concat_mode is not None:
+        out_path = out_path + '_' + FLAGS.concat_mode
 
     print('parse train data ...')
     convert_sick(FLAGS.corpus_data_input_train,
@@ -114,7 +114,7 @@ if __name__ == '__main__':
                  nlp,
                  mapping,
                  FLAGS.corpus_size,
-                 FLAGS.tree_mode)
+                 FLAGS.concat_mode)
 
     print('parse test data ...')
     convert_sick(FLAGS.corpus_data_input_test,
@@ -123,7 +123,7 @@ if __name__ == '__main__':
                  nlp,
                  mapping,
                  FLAGS.corpus_size,
-                 FLAGS.tree_mode)
+                 FLAGS.concat_mode)
 
     print('len(mapping): ' + str(len(mapping)))
 

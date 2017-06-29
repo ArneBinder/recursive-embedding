@@ -51,14 +51,12 @@ tf.flags.DEFINE_string(
     'sentence_processor', 'process_sentence8',  # 'process_sentence8',#'process_sentence3',
     'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string(
-    'tree_mode',
+    'concat_mode',
     None,
-    # 'aggregate',
-    # 'sequence',
-    'How to structure the tree. '
-    + '"sequence" -> parents point to next token, '
-    + '"aggregate" -> parents point to an added, artificial token (TERMINATOR) in the end of the token sequence,'
-    + 'None -> use parsed dependency tree')
+    'How to concat the trees returned by one parser call (e.g. trees in one document). '
+    + 'None or "sequence" -> roots point to next root, '
+    + '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) '
+      'in the end of the token sequence')
 
 FLAGS = tf.flags.FLAGS
 
@@ -87,7 +85,7 @@ def articles_from_csv_reader(filename, max_articles=100, skip=0):
 
 @tools.fn_timer
 def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_processor, parser,  # mapping, vecs,
-                      max_articles=10000, max_depth=10, batch_size=100, article_offset=0, tree_mode=None):
+                      max_articles=10000, max_depth=10, batch_size=100, article_offset=0, concat_mode=None):
     parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
     out_base_name = ntpath.basename(out_filename)
     if not os.path.isfile(out_filename + '.data') \
@@ -107,7 +105,7 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             corpus.create_or_read_dict(out_filename, vocab=parser.vocab, dont_read=True)
 
         # parse
-        parse_articles(out_filename, in_filename, parser, sentence_processor, max_articles, batch_size, tree_mode,
+        parse_articles(out_filename, in_filename, parser, sentence_processor, max_articles, batch_size, concat_mode,
                        article_offset)
         # merge batches
         preprocessing.merge_numpy_batch_files(out_base_name + '.parent', parent_dir)
@@ -188,7 +186,7 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
     return parser
 
 
-def parse_articles(out_filename, in_filename, parser, sentence_processor, max_articles, batch_size, tree_mode,
+def parse_articles(out_filename, in_filename, parser, sentence_processor, max_articles, batch_size, concat_mode,
                    article_offset):
     types = corpus.read_types(out_filename)
     mapping = corpus.mapping_from_list(types)
@@ -209,7 +207,7 @@ def parse_articles(out_filename, in_filename, parser, sentence_processor, max_ar
                 },
                 # max_depth=max_depth,
                 batch_size=batch_size,
-                tree_mode=tree_mode,
+                concat_mode=concat_mode,
                 calc_depths=True,
                 # child_idx_offset=child_idx_offset
             )
@@ -228,8 +226,8 @@ if __name__ == '__main__':
         os.makedirs(out_dir)
 
     out_path = os.path.join(out_dir, FLAGS.corpus_data_output_fn)
-    if FLAGS.tree_mode is not None:
-        out_path = out_path + '_' + FLAGS.tree_mode
+    if FLAGS.concat_mode is not None:
+        out_path = out_path + '_' + FLAGS.concat_mode
 
     #out_path = out_path + '_maxdepth' + str(FLAGS.max_depth)
     out_path = out_path + '_articles' + str(FLAGS.max_articles)
@@ -246,6 +244,6 @@ if __name__ == '__main__':
                             max_articles=FLAGS.max_articles,
                             max_depth=FLAGS.max_depth,
                             batch_size=FLAGS.article_batch_size,
-                            tree_mode=FLAGS.tree_mode,
+                            concat_mode=FLAGS.concat_mode,
                             article_offset=FLAGS.article_offset
                             )

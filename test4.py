@@ -95,7 +95,7 @@ class Tester(unittest.TestCase):
         mapping = corpus.mapping_from_list(types)
         sentence = 'London is a big city in the United Kingdom. I like this.'
         res = preprocessing.read_data_2(preprocessing.string_reader, preprocessing.process_sentence2, nlp, mapping,
-                                  args={'content': sentence})  # , tree_mode='sequence')
+                                  args={'content': sentence})  # , concat_mode='sequence')
         print(res)
 
     @unittest.skip("skip")

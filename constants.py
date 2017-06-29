@@ -16,7 +16,8 @@ vocab_manual = {TOKEN_EMBEDDING: u'WORD', EDGE_EMBEDDING: u'EDGE', UNKNOWN_EMBED
 #                AGGREGATOR_EMBEDDING: u'AGGREGATOR', ENTITY_EMBEDDING: u'ENTITY',
 #                LEMMA_EMBEDDING: u'LEMMA', POS_EMBEDDING: u'POS'}
 
-tree_modes = [None, 'sequence', 'aggregate', 'tree']
+concat_modes = [None, 'sequence', 'aggregate']
+
 
 #DEPRECATED
 

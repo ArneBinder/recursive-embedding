@@ -68,14 +68,14 @@ def label_vector(post, label_mapping):
     return v
 
 
-def request_embeddings(sequences, sentence_processor='process_sentence7', tree_mode='tree', url='http://127.0.0.1:5000/api/embed'):
+def request_embeddings(sequences, sentence_processor='process_sentence7', concat_mode='sequence', url='http://127.0.0.1:5000/api/embed'):
     logging.info('request embeddings ...')
     http_obj = httplib2.Http()
     resp, content = http_obj.request(
         uri=url,
         method='POST',
         headers={'Content-Type': 'application/json; charset=UTF-8'},
-        body=json.dumps({'sequences': sequences, 'sentence_processor':sentence_processor, 'tree_mode':tree_mode}),
+        body=json.dumps({'sequences': sequences, 'sentence_processor':sentence_processor, 'concat_mode':concat_mode}),
     )
     logging.info('response embeddings:')
     logging.info(pformat(resp))

@@ -36,7 +36,24 @@ def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
             result_data.extend(a_data)
             result_parents.extend(a_parents)
 
-    return result_data, result_parents, root_offset
+    return result_data, result_parents, [root_offset]
+
+
+# embeddings for:
+# word
+# but don't link token!
+def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None):
+    sen_data = list()
+    sen_parents = list()
+    root_offsets = range(sentence.end - sentence.start)
+    for i in range(sentence.start, sentence.end):
+        token = parsed_data[i]
+        # add word embedding
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        # set as root
+        sen_parents.append(0)
+
+    return sen_data, sen_parents, root_offsets
 
 
 # embeddings for:
@@ -53,7 +70,7 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(parent_offset)
 
-    return sen_data, sen_parents, root_offset
+    return sen_data, sen_parents, [root_offset]
 
 
 # embeddings for:
@@ -74,7 +91,7 @@ def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-1)
 
-    return sen_data, sen_parents, root_offset
+    return sen_data, sen_parents, [root_offset]
 
 
 # embeddings for:
@@ -100,7 +117,7 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
         sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
 
-    return sen_data, sen_parents, root_offset
+    return sen_data, sen_parents, [root_offset]
 
 
 # embeddings for:
@@ -283,6 +300,29 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
     return merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a)
 
 
+# embeddings for:
+# word, edge
+# but don't link token subtrees!
+def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None):
+    sen_data = list()
+    sen_parents = list()
+    root_offsets = []
+    for i in range(sentence.start, sentence.end):
+
+        # get current token
+        token = parsed_data[i]
+        # add word embedding
+        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_parents.append(0)
+        # add root
+        root_offsets.append(2*(i-sentence.start))
+        # add edge type embedding
+        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
+        sen_parents.append(-1)
+
+    return sen_data, sen_parents, root_offsets
+
+
 def dummy_str_reader():
     yield u'I like RTRC!'
 
@@ -305,7 +345,7 @@ def get_root(parents, idx):
 
 
 # deprecated
-def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, tree_mode=None, expand_dict=True, calc_depths_child_indices=False, child_idx_offset=0):
+def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, concat_mode=None, expand_dict=True, calc_depths_child_indices=False, child_idx_offset=0):
 
     # ids of the dictionaries to query the data point referenced by seq_data
     # at the moment there is just one: WORD_EMBEDDING
@@ -351,15 +391,15 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
             prev_root = current_root
             sen_count += 1
         # overwrite structure, if a special mode is set
-        if tree_mode is not None:
-            if tree_mode not in constants.tree_modes:
-                raise NameError('unknown tree_mode: ' + tree_mode)
-            elif tree_mode == 'sequence':
+        if concat_mode is not None:
+            if concat_mode not in constants.concat_modes:
+                raise NameError('unknown concat_mode: ' + concat_mode)
+            elif concat_mode == 'sequence':
                 for idx in range(start_idx, len(seq_data)-1):
                     seq_parents[idx] = 1
                 if len(seq_data) > start_idx:
                     seq_parents[-1] = 0
-            elif tree_mode == 'aggregate':
+            elif concat_mode == 'aggregate':
                 TERMINATOR_id = tools.getOrAdd(data_maps, constants.AGGREGATOR_EMBEDDING, unknown_default)
                 for idx in range(start_idx, len(seq_data)):
                     seq_parents[idx] = len(seq_data) - idx
@@ -389,7 +429,7 @@ def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_dept
     return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
 
 
-def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, tree_mode=None, expand_dict=True, calc_depths=False):
+def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode=None, expand_dict=True, calc_depths=False):
 
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
@@ -407,7 +447,8 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
     logging.debug('start read_data ...')
     sen_count = 0
     for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
-        prev_root = None
+        #prev_root = None
+        temp_roots = []
         start_idx = len(seq_data)
         for sentence in parsed_data.sents:
             processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
@@ -415,32 +456,32 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
             if processed_sen is None:
                 continue
 
-            sen_data, sen_parents, root_offset = processed_sen
+            sen_data, sen_parents, root_offsets = processed_sen
 
-            current_root = len(seq_data) + root_offset
+            sen_roots = [offset + len(seq_data) for offset in root_offsets]
 
             seq_parents += sen_parents
             seq_data += sen_data
+            temp_roots += sen_roots
 
-            if prev_root is not None:
-                seq_parents[prev_root] = current_root - prev_root
-            prev_root = current_root
             sen_count += 1
-        # overwrite structure, if a special mode is set
-        if tree_mode is not None:
-            if tree_mode not in constants.tree_modes:
-                raise NameError('unknown tree_mode: ' + tree_mode)
-            elif tree_mode == 'sequence':
-                for idx in range(start_idx, len(seq_data)-1):
-                    seq_parents[idx] = 1
-                if len(seq_data) > start_idx:
-                    seq_parents[-1] = 0
-            elif tree_mode == 'aggregate':
-                aggregator_id = tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], unknown_default)
-                for idx in range(start_idx, len(seq_data)):
-                    seq_parents[idx] = len(seq_data) - idx
-                seq_data.append(aggregator_id)
-                seq_parents.append(0)
+
+        if not concat_mode or concat_mode == 'sequence':
+            # connect roots consecutively
+            prev_root = temp_roots[0]
+            for temp_root in temp_roots[1:]:
+                seq_parents[prev_root] = temp_root - prev_root
+                prev_root = temp_root
+        elif concat_mode == 'aggregate':
+            # connect roots to artificial AGGREGATOR node
+            aggregator_id = tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING],
+                                           unknown_default)
+            for temp_root in temp_roots:
+                seq_parents[temp_root] = len(seq_data) - temp_root
+            seq_data.append(aggregator_id)
+            seq_parents.append(0)
+        else:
+            raise NameError('unknown concat_mode: ' + concat_mode)
 
         if calc_depths:
             # get current parents
@@ -685,9 +726,9 @@ def build_sequence_tree_with_candidates(seq_data, parents, children, root, inser
     return seq_tree
 
 
-def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, tree_mode=None, expand_dict=True):
+def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, concat_mode=None, expand_dict=True):
     seq_data, seq_parents, _ = read_data(identity_reader, sentence_processor, parser, data_maps,
-                                            args={'content': str_}, tree_mode=tree_mode, expand_dict=expand_dict)
+                                            args={'content': str_}, concat_mode=concat_mode, expand_dict=expand_dict)
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
 
