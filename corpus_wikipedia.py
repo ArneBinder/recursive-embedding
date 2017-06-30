@@ -42,7 +42,7 @@ tf.flags.DEFINE_integer(
     'max_depth', 10,
     'The maximal depth of the sequence trees.')
 tf.flags.DEFINE_integer(
-    'count_threshold', 3,
+    'count_threshold', 2,
     'Change data types which occur less then count_threshold times to UNKNOWN')
 # tf.flags.DEFINE_integer(
 #    'sample_count', 14,
@@ -122,9 +122,9 @@ def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_pr
             or not os.path.isfile(out_filename + '.lex_size'):
         vecs, types = corpus.create_or_read_dict(out_filename, parser.vocab)
         # sort and filter vecs/mappings by counts
-        converter, vecs, types, counts, new_idx_unknown = preprocessing.sort_and_cut_and_fill_dict(seq_data, vecs,
-                                                                                                   types,
-                                                                                                   count_threshold=FLAGS.count_threshold)
+        converter, vecs, types, counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(seq_data, vecs,
+                                                                                            types,
+                                                                                            count_threshold=FLAGS.count_threshold)
         # write out vecs, mapping and tsv containing strings
         corpus.write_dict(out_filename, vecs=vecs, types=types, counts=counts)
         logging.debug('dump converter to: ' + out_filename + '.converter ...')

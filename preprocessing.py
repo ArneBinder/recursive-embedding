@@ -892,61 +892,6 @@ def merge_numpy_batch_files(batch_file_name, parent_dir, expected_count=None, ov
     return concatenated
 
 
-def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
-    logging.info('sort, cut and fill embeddings ...')
-    new_max_size = len(types)
-    logging.info('initial vecs shape: ' + str(vecs.shape))
-    logging.info('initial types size: ' + str(len(types)))
-    # count types
-    logging.debug('calculate counts ...')
-    counts = np.zeros(shape=new_max_size, dtype=np.int32)
-    for d in seq_data:
-        counts[d] += 1
-
-    logging.debug('argsort ...')
-    sorted_indices = np.argsort(counts)
-
-    vecs_mean = np.mean(vecs, axis=0)
-    new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
-    new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
-    new_types = [None] * new_max_size
-    converter = -np.ones(shape=new_max_size, dtype=np.int32)
-
-    logging.debug('process reversed(sorted_indices) ...')
-    new_idx = 0
-    new_idx_unknown = -1
-    for old_idx in reversed(sorted_indices):
-        # keep unknown and save new unknown index
-        if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
-            logging.debug('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
-            new_idx_unknown = new_idx
-        # keep pre-initialized vecs (count==0), but skip other vecs with count < threshold
-        elif 0 < counts[old_idx] < count_threshold:
-            continue
-        if old_idx < vecs.shape[0]:
-            new_vecs[new_idx] = vecs[old_idx]
-
-        else:
-            # init missing vecs with mean
-            new_vecs[new_idx] = vecs_mean
-
-        new_types[new_idx] = types[old_idx]
-        new_counts[new_idx] = counts[old_idx]
-        converter[old_idx] = new_idx
-        new_idx += 1
-
-    assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
-
-    logging.info('new lex_size: '+str(new_idx))
-
-    # cut arrays
-    new_vecs = new_vecs[:new_idx, :]
-    new_counts = new_counts[:new_idx]
-    new_types = new_types[:new_idx]
-
-    return converter, new_vecs, new_types, new_counts, new_idx_unknown
-
-
 def sequence_node_to_arrays(seq_tree):
     current_data = []
     current_parents = []
