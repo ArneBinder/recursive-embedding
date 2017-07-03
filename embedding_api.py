@@ -53,6 +53,9 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        '\n"aggregate" -> roots point to an added, artificial token (AGGREGATOR) '
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
+tf.flags.DEFINE_boolean('merge_nlp_embeddings',
+                        True,
+                        'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -293,6 +296,10 @@ if __name__ == '__main__':
     else:
         input_checkpoint = FLAGS.model_dir
 
+    logging.info('load spacy ...')
+    nlp = spacy.load('en')
+    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+
     if FLAGS.external_dict_file:
         logging.info('read types ...')
         types = corpus.read_types(FLAGS.external_dict_file)
@@ -303,14 +310,21 @@ if __name__ == '__main__':
         logging.info('read types ...')
         types = corpus.read_types(input_checkpoint)
         reader = tf.train.NewCheckpointReader(input_checkpoint)
-        logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
-        saved_shapes = reader.get_variable_to_shape_map()
-        embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
-        lex_size = embed_shape[0]
+        if FLAGS.merge_nlp_embeddings:
+            logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
+            embeddings_np = reader.get_tensor(model_fold.VAR_NAME_EMBEDDING)
+        else:
+            logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
+            saved_shapes = reader.get_variable_to_shape_map()
+            embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
+            lex_size = embed_shape[0]
 
-    logging.info('load spacy ...')
-    nlp = spacy.load('en')
-    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+    if FLAGS.merge_nlp_embeddings:
+        logging.info('load nlp embeddings from ...')
+        nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
+        logging.info('merge nlp embeddings into loaded embeddings ...')
+        embeddings_np, types = corpus.merge_dicts(embeddings_np, types, nlp_vecs, nlp_types, add=True, remove=False)
+        lex_size = embeddings_np.shape[0]
 
     logging.info('dict size: ' + str(len(types)))
     data_maps = corpus.mapping_from_list(types)
@@ -318,24 +332,28 @@ if __name__ == '__main__':
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
-                                  trainable=True, name='embeddings')
+                                  trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
             embedder = model_fold.SequenceTreeEmbedding(embed_w)
             tree_embeddings = embedder.tree_embeddings
             embedding_scores = embedder.scores
 
-            # Add ops to save and restore all the variables.
-            saver = tf.train.Saver()
+            if FLAGS.external_dict_file or FLAGS.merge_nlp_embeddings:
+                vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+                #var_embed = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)[0]
+                vars_without_embed = [v for v in vars_all if v != embed_w]
+                # Add ops to save and restore all the variables.
+                saver = tf.train.Saver(var_list=vars_without_embed)
+            else:
+                saver = tf.train.Saver()
 
-            # Later, launch the model, use the saver to restore variables from disk, and
-            # do some work with the model.
             sess = tf.Session()
             # Restore variables from disk.
             logging.info('restore model from: ' + input_checkpoint + '...')
             saver.restore(sess, input_checkpoint)
 
-            if FLAGS.external_dict_file:
+            if FLAGS.external_dict_file or FLAGS.merge_nlp_embeddings:
                 print('init embeddings with external vectors ...')
                 sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
 
