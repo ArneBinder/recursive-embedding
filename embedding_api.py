@@ -10,7 +10,7 @@ import numpy as np
 import spacy
 import tensorflow as tf
 import tensorflow_fold as td
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from sklearn import metrics
 from sklearn.cluster import AgglomerativeClustering
@@ -69,6 +69,29 @@ PROTO_CLASS = 'SequenceNode'
 ##################################################
 app = Flask(__name__, static_url_path='')
 cors = CORS(app)
+
+
+class InvalidUsage(Exception):
+    status_code = 400
+
+    def __init__(self, message, status_code=None, payload=None):
+        Exception.__init__(self)
+        self.message = message
+        if status_code is not None:
+            self.status_code = status_code
+        self.payload = payload
+
+    def to_dict(self):
+        rv = dict(self.payload or ())
+        rv['message'] = self.message
+        return rv
+
+
+@app.errorhandler(InvalidUsage)
+def handle_invalid_usage(error):
+    response = jsonify(error.to_dict())
+    response.status_code = error.status_code
+    return response
 
 
 def form_data_to_dict(form_data):
@@ -165,74 +188,88 @@ def get_or_calc_embeddings(params):
 
 @app.route("/api/embed", methods=['POST'])
 def embed():
-    start = time.time()
-    logging.info('Embeddings requested')
-    params = get_params(request.data.decode("utf-8"))
-    get_or_calc_embeddings(params)
+    try:
+        start = time.time()
+        logging.info('Embeddings requested')
+        params = get_params(request.data.decode("utf-8"))
+        get_or_calc_embeddings(params)
 
-    json_data = json.dumps(filter_result(make_serializable(params)))
-    logging.info("Time spent handling the request: %f" % (time.time() - start))
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message, status_code=400)
 
     return json_data
 
 
 @app.route("/api/distance", methods=['POST'])
 def sim():
-    start = time.time()
-    logging.info('Distance requested')
-    params = get_params(request.data.decode("utf-8"))
-    get_or_calc_embeddings(params)
+    try:
+        start = time.time()
+        logging.info('Distance requested')
+        params = get_params(request.data.decode("utf-8"))
+        get_or_calc_embeddings(params)
 
-    result = pairwise_distances(params['embeddings'], metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
-    params['distances'] = result.tolist()
-    json_data = json.dumps(filter_result(make_serializable(params)))
-    logging.info("Time spent handling the request: %f" % (time.time() - start))
+        result = pairwise_distances(params['embeddings'], metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
+        params['distances'] = result.tolist()
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message, status_code=400)
 
     return json_data
 
 
 @app.route("/api/cluster", methods=['POST'])
 def cluster():
-    start = time.time()
-    logging.info('Clusters requested')
-    params = get_params(request.data.decode("utf-8"))
-    get_or_calc_embeddings(params)
+    try:
+        start = time.time()
+        logging.info('Clusters requested')
+        params = get_params(request.data.decode("utf-8"))
+        get_or_calc_embeddings(params)
 
-    labels, meta, best_idx = get_cluster_ids(embeddings=np.array(params['embeddings']))
-    params['cluster_labels'] = labels
-    params['meta_data'] = meta
-    params['best_idx'] = best_idx
-    json_data = json.dumps(filter_result(make_serializable(params)))
-    logging.info("Time spent handling the request: %f" % (time.time() - start))
-
+        labels, meta, best_idx = get_cluster_ids(embeddings=np.array(params['embeddings']))
+        params['cluster_labels'] = labels
+        params['meta_data'] = meta
+        params['best_idx'] = best_idx
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message, status_code=400)
     return json_data
 
 
 @app.route("/api/norm", methods=['POST'])
 def norm():
-    start = time.time()
-    logging.info('Norms requested')
-    params = get_params(request.data.decode("utf-8"))
-    get_or_calc_embeddings(params)
+    try:
+        start = time.time()
+        logging.info('Norms requested')
+        params = get_params(request.data.decode("utf-8"))
+        get_or_calc_embeddings(params)
 
-    _, norms = normalize(params['embeddings'], norm='l2', axis=1, copy=False, return_norm=True)
+        _, norms = normalize(params['embeddings'], norm='l2', axis=1, copy=False, return_norm=True)
 
-    params['norms'] = norms.tolist()
-    json_data = json.dumps(filter_result(make_serializable(params)))
-    logging.info("Time spent handling the request: %f" % (time.time() - start))
+        params['norms'] = norms.tolist()
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message, status_code=400)
 
     return json_data
 
 
 @app.route("/api/visualize", methods=['POST'])
 def visualize():
-    start = time.time()
-    logging.info('Visualizations requested')
-    params = get_params(request.data.decode("utf-8"))
-    get_or_calc_sequence_data(params)
+    try:
+        start = time.time()
+        logging.info('Visualizations requested')
+        params = get_params(request.data.decode("utf-8"))
+        get_or_calc_sequence_data(params)
 
-    vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
-    logging.info("Time spent handling the request: %f" % (time.time() - start))
+        vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message, status_code=400)
     return send_file(vis.TEMP_FN)
 
 
@@ -341,9 +378,7 @@ if __name__ == '__main__':
 
             if FLAGS.external_dict_file or FLAGS.merge_nlp_embeddings:
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                #var_embed = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)[0]
                 vars_without_embed = [v for v in vars_all if v != embed_w]
-                # Add ops to save and restore all the variables.
                 saver = tf.train.Saver(var_list=vars_without_embed)
             else:
                 saver = tf.train.Saver()
