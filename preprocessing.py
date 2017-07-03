@@ -39,26 +39,64 @@ def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
     return result_data, result_parents, [root_offset]
 
 
+def concat_roots(parents, root_offsets, root_parents=None, concat_mode='tree'):
+
+    if not concat_mode:
+        return parents, root_offsets
+    elif concat_mode == 'aggregate':
+        for i in range(len(root_offsets)):
+            parents[root_offsets[i]] = len(parents) - root_offsets[i] - 1
+        return parents, [len(parents) - 1]
+    elif concat_mode == 'tree':
+        assert root_parents and len(root_parents) == len(root_offsets), \
+            'length of root_parents does not match length of root_offsets='+str(len(root_offsets))
+        new_roots = []
+        for i in range(len(root_parents)):
+            if root_parents[i] != 0:
+                parents[root_offsets[i]] = root_offsets[i + root_parents[i]] - root_offsets[i]
+            else:
+                new_roots.append(root_offsets[i])
+
+        return parents, new_roots
+    elif concat_mode == 'sequence':
+        for i in range(len(root_offsets) - 1):
+            parents[root_offsets[i]] = root_offsets[i+1] - root_offsets[i]
+        return parents, [len(parents) - 1]
+
+    else:
+        raise NameError('unknown concat_mode: ' + concat_mode)
+
+
 # embeddings for:
 # word
-# but don't link token!
-def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None):
-    sen_data = list()
-    sen_parents = list()
-    root_offsets = range(sentence.end - sentence.start)
+def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode='tree'):
+    sen_data = []
+    sen_parents = []
+    root_offsets = []
+    root_parents = []
     for i in range(sentence.start, sentence.end):
         token = parsed_data[i]
         # add word embedding
         sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+
+        parent_offset = token.head.i - i
+        root_parents.append(parent_offset)
+        # save root offset
+        root_offsets.append(len(sen_parents))
         # set as root
         sen_parents.append(0)
+
+    if concat_mode == 'aggregate':
+        sen_parents.append(0)
+        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
 
 
 # embeddings for:
 # word
-def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start)
@@ -75,7 +113,7 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None):
 
 # embeddings for:
 # word, edge
-def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start) * 2
@@ -96,7 +134,7 @@ def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None):
 
 # embeddings for:
 # word, word embedding, edge, edge embedding
-def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     root_offset = (sentence.root.i - sentence.start) * 4
@@ -122,7 +160,7 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None):
 
 # embeddings for:
 # words, edges, entity type (if !=0)
-def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     sen_a = list()
@@ -156,7 +194,7 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None):
 
 # embeddings for:
 # words, word type, edges, edge type, entity type (if !=0), entity type type
-def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     sen_a = list()
@@ -200,7 +238,7 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None):
 # embeddings for:
 # words, edges, entity type (if !=0),
 # lemma (if different), pos-tag
-def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     sen_a = list()
@@ -244,7 +282,7 @@ def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None):
 # embeddings for:
 # words, word type, edges, edge type, entity type (if !=0), entity type type,
 # lemma (if different), lemma type, pos-tag, pos-tag type
-def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     sen_a = list()
@@ -303,7 +341,7 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None):
 # embeddings for:
 # word, edge
 # but don't link token subtrees!
-def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None):
+def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = list()
     sen_parents = list()
     root_offsets = []
@@ -344,92 +382,7 @@ def get_root(parents, idx):
     return i
 
 
-# deprecated
-def read_data_2(reader, sentence_processor, parser, data_maps, args={}, max_depth=10, batch_size=1000, concat_mode=None, expand_dict=True, calc_depths_child_indices=False, child_idx_offset=0):
-
-    # ids of the dictionaries to query the data point referenced by seq_data
-    # at the moment there is just one: WORD_EMBEDDING
-    #seq_types = list()
-    # ids (dictionary) of the data points in the dictionary specified by seq_types
-    seq_data = list()
-    # ids (dictionary) of relations to the heads (parents)
-    #seq_edges = list()
-    # ids (sequence) of the heads (parents)
-    seq_parents = list()
-    prev_root = None
-    idx_tuples = []
-
-    depth_list = []
-
-    #roots = list()
-
-    if expand_dict:
-        unknown_default = None
-    else:
-        unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-
-    logging.debug('start read_data ...')
-    sen_count = 0
-    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
-        prev_root = None
-        start_idx = len(seq_data)
-        for sentence in parsed_data.sents:
-            processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
-            # skip not processed sentences (see process_sentence)
-            if processed_sen is None:
-                continue
-
-            sen_data, sen_parents, root_offset = processed_sen
-
-            current_root = len(seq_data) + root_offset
-
-            seq_parents += sen_parents
-            seq_data += sen_data
-
-            if prev_root is not None:
-                seq_parents[prev_root] = current_root - prev_root
-            prev_root = current_root
-            sen_count += 1
-        # overwrite structure, if a special mode is set
-        if concat_mode is not None:
-            if concat_mode not in constants.concat_modes:
-                raise NameError('unknown concat_mode: ' + concat_mode)
-            elif concat_mode == 'sequence':
-                for idx in range(start_idx, len(seq_data)-1):
-                    seq_parents[idx] = 1
-                if len(seq_data) > start_idx:
-                    seq_parents[-1] = 0
-            elif concat_mode == 'aggregate':
-                TERMINATOR_id = tools.getOrAdd(data_maps, constants.AGGREGATOR_EMBEDDING, unknown_default)
-                for idx in range(start_idx, len(seq_data)):
-                    seq_parents[idx] = len(seq_data) - idx
-                seq_data.append(TERMINATOR_id)
-                seq_parents.append(0)
-
-        if calc_depths_child_indices:
-            # TODO: check this!
-            # get current parents
-            current_seq_parents = np.array(seq_parents[start_idx:])
-
-            # calc children and roots
-            #logging.info('calc children and roots ...')
-            children, roots = children_and_roots(current_seq_parents)
-            # calc depth for every position
-            depth = calc_seq_depth(children, roots, current_seq_parents)
-
-            depth_list.append(depth)
-
-            #logging.info('calc child indices ...')
-            for idx in children.keys():
-                for (child_offset, child_steps_to_root) in get_all_children_rec(idx, children, max_depth):
-                    idx_tuples.append((idx + start_idx + child_idx_offset, child_offset, child_steps_to_root))
-
-    logging.debug('sentences read: '+str(sen_count))
-
-    return np.array(seq_data), np.array(seq_parents), np.array(idx_tuples), np.concatenate(depth_list)
-
-
-def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode=None, expand_dict=True, calc_depths=False):
+def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode=None, inner_concat_mode=None, expand_dict=True, calc_depths=False):
 
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
@@ -451,7 +404,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
         temp_roots = []
         start_idx = len(seq_data)
         for sentence in parsed_data.sents:
-            processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default)
+            processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default, inner_concat_mode)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
                 continue
