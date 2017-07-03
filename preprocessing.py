@@ -58,6 +58,7 @@ def concat_roots(parents, root_offsets, root_parents=None, concat_mode='tree'):
                 new_roots.append(root_offsets[i])
 
         return parents, new_roots
+    # connect roots consecutively
     elif concat_mode == 'sequence':
         for i in range(len(root_offsets) - 1):
             parents[root_offsets[i]] = root_offsets[i+1] - root_offsets[i]
@@ -365,7 +366,7 @@ def get_root(parents, idx):
     return i
 
 
-def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode=None, inner_concat_mode='tree', expand_dict=True, calc_depths=False):
+def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode='sequence', inner_concat_mode='tree', expand_dict=True, calc_depths=False):
 
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
@@ -402,22 +403,29 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
 
             sen_count += 1
 
-        if not concat_mode or concat_mode == 'sequence':
-            # connect roots consecutively
-            prev_root = temp_roots[0]
-            for temp_root in temp_roots[1:]:
-                seq_parents[prev_root] = temp_root - prev_root
-                prev_root = temp_root
-        elif concat_mode == 'aggregate':
-            # connect roots to artificial AGGREGATOR node
-            aggregator_id = tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING],
-                                           unknown_default)
-            for temp_root in temp_roots:
-                seq_parents[temp_root] = len(seq_data) - temp_root
-            seq_data.append(aggregator_id)
+        # add aggregator node
+        if concat_mode == 'aggregate':
             seq_parents.append(0)
-        else:
-            raise NameError('unknown concat_mode: ' + concat_mode)
+            seq_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING],
+                                           unknown_default))
+        seq_parents, seq_roots = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
+
+        #if not concat_mode or concat_mode == 'sequence':
+        #    # connect roots consecutively
+        #    prev_root = temp_roots[0]
+        #    for temp_root in temp_roots[1:]:
+        #        seq_parents[prev_root] = temp_root - prev_root
+        #        prev_root = temp_root
+        #elif concat_mode == 'aggregate':
+        #    # connect roots to artificial AGGREGATOR node
+        #    aggregator_id = tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING],
+        #                                   unknown_default)
+        #    for temp_root in temp_roots:
+        #        seq_parents[temp_root] = len(seq_data) - temp_root
+        #    seq_data.append(aggregator_id)
+        #    seq_parents.append(0)
+        #else:
+        #    raise NameError('unknown concat_mode: ' + concat_mode)
 
         if calc_depths:
             # get current parents

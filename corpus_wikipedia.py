@@ -52,11 +52,11 @@ tf.flags.DEFINE_string(
     'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string(
     'concat_mode',
-    None,
-    'How to concat the trees returned by one parser call (e.g. trees in one document). '
-    + 'None or "sequence" -> roots point to next root, '
-    + '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) '
-      'in the end of the token sequence')
+    'sequence',
+    'How to concatenate the trees returned by one parser call (e.g. trees in one document). '
+    + '"sequence" -> roots point to next root, '
+    + '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
+      'None -> do not concat at all')
 
 FLAGS = tf.flags.FLAGS
 
@@ -85,7 +85,7 @@ def articles_from_csv_reader(filename, max_articles=100, skip=0):
 
 @tools.fn_timer
 def convert_wikipedia(in_filename, out_filename, init_dict_filename, sentence_processor, parser,  # mapping, vecs,
-                      max_articles=10000, max_depth=10, batch_size=100, article_offset=0, concat_mode=None):
+                      max_articles=10000, max_depth=10, batch_size=100, article_offset=0, concat_mode='sequence'):
     parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
     out_base_name = ntpath.basename(out_filename)
     if not os.path.isfile(out_filename + '.data') \

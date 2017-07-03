@@ -38,11 +38,21 @@ tf.flags.DEFINE_string('external_dict_file',
 tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string('default_concat_mode',
-                       None,
+                       'sequence',
                        'How to concat the trees returned by one parser call (e.g. trees in one document). '
-                       + 'None or "sequence" -> roots point to next root, '
+                       + '"sequence" -> roots point to next root, '
                        + '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) '
-                         'in the end of the token sequence')
+                         'in the end of the token sequence'
+                         'None -> do not concatenate at all')
+
+tf.flags.DEFINE_string('default_inner_concat_mode',
+                       'tree',
+                       'How to concatenate the token (sub-)trees in process_sentence. '
+                       '\n"tree" -> use dependency tree structure, '
+                       '\n"sequence" -> roots point to next root, '
+                       '\n"aggregate" -> roots point to an added, artificial token (AGGREGATOR) '
+                       'in the end of the token sequence '
+                       '\nNone -> do not concatenate at all')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -108,17 +118,22 @@ def get_or_calc_sequence_data(params):
     elif 'sequences' in params:
         sequences = params['sequences']
         concat_mode = FLAGS.default_concat_mode
+        inner_concat_mode = FLAGS.default_inner_concat_mode
         if 'concat_mode' in params:
             concat_mode = params['concat_mode']
             assert concat_mode in constants.concat_modes, 'unknown concat_mode=' + concat_mode
             logging.info('use concat_mode=' + concat_mode)
+        if 'inner_concat_mode' in params:
+            inner_concat_mode = params['inner_concat_mode']
+            assert inner_concat_mode in constants.concat_modes, 'unknown inner_concat_mode=' + inner_concat_mode
+            logging.info('use inner_concat_mode=' + concat_mode)
 
         sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
         if 'sentence_processor' in params:
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=' + sentence_processor.__name__)
 
-        params['data_sequences'] = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode))
+        params['data_sequences'] = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
 
     else:
         raise ValueError('no sequences or data_sequences found in request')
@@ -255,10 +270,11 @@ def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, concat_m
         yield seq_tree.SerializeToString()
 
 
-def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode):
+def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode, inner_concat_mode):
     for s in sequences:
         seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
                                                            data_maps, args={'content': s}, concat_mode=concat_mode,
+                                                           inner_concat_mode=inner_concat_mode,
                                                            expand_dict=False)
         yield np.array([seq_data, seq_parents])
 
