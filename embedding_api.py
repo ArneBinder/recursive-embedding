@@ -197,7 +197,7 @@ def embed():
         json_data = json.dumps(filter_result(make_serializable(params)))
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message, status_code=400)
+        raise InvalidUsage(e.message)
 
     return json_data
 
@@ -215,7 +215,7 @@ def sim():
         json_data = json.dumps(filter_result(make_serializable(params)))
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message, status_code=400)
+        raise InvalidUsage(e.message)
 
     return json_data
 
@@ -235,7 +235,7 @@ def cluster():
         json_data = json.dumps(filter_result(make_serializable(params)))
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message, status_code=400)
+        raise InvalidUsage(e.message)
     return json_data
 
 
@@ -253,7 +253,7 @@ def norm():
         json_data = json.dumps(filter_result(make_serializable(params)))
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message, status_code=400)
+        raise InvalidUsage(e.message)
 
     return json_data
 
@@ -269,7 +269,7 @@ def visualize():
         vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message, status_code=400)
+        raise InvalidUsage(e.message)
     return send_file(vis.TEMP_FN)
 
 
