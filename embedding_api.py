@@ -25,14 +25,17 @@ import model_fold
 import preprocessing
 import visualize as vis
 
-tf.flags.DEFINE_string('model_dir', '/home/arne/ML_local/tf/log', #/model.ckpt-122800',
+tf.flags.DEFINE_string('model_dir',
+                       '/home/arne/ML_local/tf/log', #/model.ckpt-122800',
+                       #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension).')
-tf.flags.DEFINE_string('external_dict_file',
-                       #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8/WIKIPEDIA_articles10000_offset0',
+tf.flags.DEFINE_string('external_embeddings',
+                       #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8_/WIKIPEDIA_articles10000_offset0',
                        None,
-                       'If not None, load embeddings from numpy array located at "<external_dict_file>.vec" and type '
-                       'string mappings from "<external_dict_file>.type" file (instead of "<model_dir>/[model].type").')
+                       'If not None, load embeddings from numpy array located at "<external_embeddings>.vec" and type '
+                       'string mappings from "<external_embeddings>.type" file and merge them into the embeddings '
+                       'from the loaded model ("<model_dir>/[model].type").')
 #tf.flags.DEFINE_boolean('load_embeddings', False,
 #                        'Load embeddings from numpy array located at "<dict_file>.vec"')
 tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
@@ -54,8 +57,15 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
 tf.flags.DEFINE_boolean('merge_nlp_embeddings',
-                        True,
+                        #True,
+                        False,
                         'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
+tf.flags.DEFINE_string('save_final_model_path',
+                        None,
+                        #'/home/arne/ML_local/tf/log/final_model',
+                        'If not None, save the final model (after integration of external and/or nlp '
+                        'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
+                        'further usages.')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -337,33 +347,32 @@ if __name__ == '__main__':
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
-    if FLAGS.external_dict_file:
-        logging.info('read types ...')
-        types = corpus.read_types(FLAGS.external_dict_file)
-        logging.info('load new embeddings from: '+FLAGS.external_dict_file+'.vec ...')
-        embeddings_np = np.load(FLAGS.external_dict_file+'.vec')
-        lex_size = embeddings_np.shape[0]
+    logging.info('read types ...')
+    types = corpus.read_types(input_checkpoint)
+    reader = tf.train.NewCheckpointReader(input_checkpoint)
+    if not FLAGS.merge_nlp_embeddings and not FLAGS.external_embeddings:
+        logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
+        saved_shapes = reader.get_variable_to_shape_map()
+        embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
+        lex_size = embed_shape[0]
     else:
-        logging.info('read types ...')
-        types = corpus.read_types(input_checkpoint)
-        reader = tf.train.NewCheckpointReader(input_checkpoint)
+        logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
+        embeddings_np = reader.get_tensor(model_fold.VAR_NAME_EMBEDDING)
+        if FLAGS.external_embeddings:
+            logging.info('read external types: '+FLAGS.external_embeddings+'.type ...')
+            external_types = corpus.read_types(FLAGS.external_embeddings)
+            logging.info('load external embeddings from: '+FLAGS.external_embeddings+'.vec ...')
+            external_vecs = np.load(FLAGS.external_embeddings+'.vec')
+            embeddings_np, types = corpus.merge_dicts(embeddings_np, types, external_vecs, external_types, add=True, remove=False)
         if FLAGS.merge_nlp_embeddings:
-            logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
-            embeddings_np = reader.get_tensor(model_fold.VAR_NAME_EMBEDDING)
-        else:
-            logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
-            saved_shapes = reader.get_variable_to_shape_map()
-            embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
-            lex_size = embed_shape[0]
-
-    if FLAGS.merge_nlp_embeddings:
-        logging.info('load nlp embeddings from ...')
-        nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
-        logging.info('merge nlp embeddings into loaded embeddings ...')
-        embeddings_np, types = corpus.merge_dicts(embeddings_np, types, nlp_vecs, nlp_types, add=True, remove=False)
+            logging.info('extract nlp embeddings and types ...')
+            nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
+            logging.info('merge nlp embeddings into loaded embeddings ...')
+            embeddings_np, types = corpus.merge_dicts(embeddings_np, types, nlp_vecs, nlp_types, add=True, remove=False)
         lex_size = embeddings_np.shape[0]
 
     logging.info('dict size: ' + str(len(types)))
+    assert len(types) == lex_size, 'count of types does not match count of embedding vectors'
     data_maps = corpus.mapping_from_list(types)
 
     with tf.Graph().as_default():
@@ -376,21 +385,31 @@ if __name__ == '__main__':
             tree_embeddings = embedder.tree_embeddings
             embedding_scores = embedder.scores
 
-            if FLAGS.external_dict_file or FLAGS.merge_nlp_embeddings:
+            if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
                 vars_without_embed = [v for v in vars_all if v != embed_w]
                 saver = tf.train.Saver(var_list=vars_without_embed)
             else:
                 saver = tf.train.Saver()
 
+            if FLAGS.save_final_model_path:
+                #all_model_vars = reader.get_variable_to_shape_map().keys()
+                #saver_final = tf.train.Saver(var_list=all_model_vars)
+                saver_final = tf.train.Saver()
+
             sess = tf.Session()
             # Restore variables from disk.
             logging.info('restore model from: ' + input_checkpoint + '...')
             saver.restore(sess, input_checkpoint)
 
-            if FLAGS.external_dict_file or FLAGS.merge_nlp_embeddings:
-                print('init embeddings with external vectors ...')
+            if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
+                logging.info('init embeddings with external vectors ...')
                 sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
+
+            if FLAGS.save_final_model_path:
+                logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
+                saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
+                corpus.write_dict(FLAGS.save_final_model_path, types=types)
 
     logging.info('Starting the API')
     app.run()

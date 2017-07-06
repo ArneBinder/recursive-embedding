@@ -306,6 +306,7 @@ def main(unused_argv):
     # load corpus data
     print('load corpus data from: ' + FLAGS.train_data_path + '.data ...')
     seq_data = np.load(FLAGS.train_data_path + '.data')
+    logging.info('loaded ' + len(seq_data) + ' data points')
     print('load corpus parents from: ' + FLAGS.train_data_path + '.parent ...')
     seq_parents = np.load(FLAGS.train_data_path + '.parent')
     print('calc children ...')
