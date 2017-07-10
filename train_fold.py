@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 import os
 # import google3
+from scipy.stats.stats import pearsonr
 import six
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
@@ -213,8 +214,10 @@ def main(unused_argv):
                 emit_values(supervisor, sess, step,
                             {'loss_train': normed_loss(loss_v, FLAGS.batch_size)})
 
-                if step % 50 == 0:
+                if step % 5 == 0:
                     (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
+                    p_r = pearsonr(sim_gold_test, sim_cosine_test)
+                    print(p_r)
                     emit_values(supervisor, sess, step,
                             {'loss_test': normed_loss(loss_test, test_size)})
                     print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_v, FLAGS.batch_size), normed_loss(loss_test, test_size)))
