@@ -21,7 +21,7 @@ import sys
 from tensorflow.contrib.tensorboard.plugins import projector
 
 
-tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/log',  # '/home/arne/tmp/tf/log',
+tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/unsupervised/log',  # '/home/arne/tmp/tf/log',
                        'Directory in which to write event logs and model checkpoints.')
 tf.flags.DEFINE_string('train_data_path',
                        '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8/WIKIPEDIA_articles10000_offset0',

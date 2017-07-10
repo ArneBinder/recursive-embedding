@@ -6,6 +6,9 @@ import os
 import six
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
+import logging
+
+import corpus
 import model_fold
 import similarity_tree_tuple_pb2
 import tensorflow_fold as td
@@ -13,14 +16,18 @@ import numpy as np
 import math
 
 tf.flags.DEFINE_string(
-    'train_data_path', 'data/corpora/sick/process_sentence6/SICK.train',
+    'train_data_path',
+    #'data/corpora/sick/process_sentence6/SICK.train',
+    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
     'TF Record file containing the training dataset of sequence tuples.')
 tf.flags.DEFINE_string(
-    'test_data_path', 'data/corpora/sick/process_sentence6/SICK.test',
+    'test_data_path',
+    #'data/corpora/sick/process_sentence6/SICK.test',
+    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
     'TF Record file containing the test dataset of sequence tuples.')
-tf.flags.DEFINE_string(
-    'train_dict_path', 'data/nlp/spacy/dict.vecs',
-    'Numpy array which is used to initialize the embedding vectors.')
+#tf.flags.DEFINE_string(
+#    'train_dict_path', 'data/nlp/spacy/dict.vecs',
+#    'Numpy array which is used to initialize the embedding vectors.')
 tf.flags.DEFINE_integer(
     'batch_size', 250, 'How many samples to read per batch.')
     #'batch_size', 2, 'How many samples to read per batch.')
@@ -32,11 +39,11 @@ tf.flags.DEFINE_integer(
     'max_steps', 1000,
     'The maximum number of batches to run the trainer for.')
 tf.flags.DEFINE_integer(
-    'test_data_size', 10000,
+    'test_data_size', 1000,
     'The size of the test set.')
 
 # Replication flags:
-tf.flags.DEFINE_string('logdir', '/home/arne/tmp/tf/log',
+tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/supervised/log',
                        'Directory in which to write event logs.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
@@ -109,28 +116,42 @@ def main(unused_argv):
         test_data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
     # DEBUG
-    print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
-    embeddings_np = np.load(FLAGS.train_dict_path)
+    vecs, types = corpus.create_or_read_dict(train_data_fn)
+    lex_size = vecs.shape[0]
+    #embedding_dim = vecs.shape[1]
 
-    embedding_dim = embeddings_np.shape[1]
-    lex_size = 1300000
+    checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir)
+    if checkpoint_fn:
+        logging.info('read lex_size from model ...')
+        reader = tf.train.NewCheckpointReader(checkpoint_fn)
+        saved_shapes = reader.get_variable_to_shape_map()
+        embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
+        lex_size = embed_shape[0]
+
+    logging.info('lex_size = '+str(lex_size))
+
+    #print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
+    #embeddings_np = np.load(FLAGS.train_dict_path)
+
+    #embedding_dim = embeddings_np.shape[1]
+    #lex_size = 1300000
     #print('load mappings from: ' + data_fn + '.mapping ...')
     #mapping = pickle.load(open(data_fn + '.mapping', "rb"))
-    assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
+    #assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
 
-    embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
+    #embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
     #embeddings_padded = np.ones(shape=(1300000, 300)) #np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
 
-    print('embeddings_np.shape: '+str(embeddings_np.shape))
-    print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
+    #print('embeddings_np.shape: '+str(embeddings_np.shape))
+    #print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
 
     print('create tensorflow graph ...')
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, embedding_dim]),
-                                  trainable=True, name='embeddings')
+            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
+                                  trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
 
-            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, embedding_dim])
+            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
 
             # Build the graph.
@@ -162,10 +183,10 @@ def main(unused_argv):
                 save_summaries_secs=10,
                 save_model_secs=300)
             sess = supervisor.PrepareSession(FLAGS.master)
-            checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir)
+
             if checkpoint_fn is None:
                 print('init embeddings with external vectors...')
-                sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_padded})
+                sess.run(embedding_init, feed_dict={embedding_placeholder: vecs})
                 #sess.run(init_missing)
             #else:
                 #my_saver.restore(sess, checkpoint_fn)
