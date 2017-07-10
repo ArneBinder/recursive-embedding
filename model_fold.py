@@ -100,7 +100,7 @@ class SimilaritySequenceTreeTupleModel(object):
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
-        (self._tree_embeddings_1, self._tree_embeddings_2, gold_similarities) = self._compiler.output_tensors
+        (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities) = self._compiler.output_tensors
 
         self._cosine_similarities = tf.reduce_sum(self._tree_embeddings_1 * self._tree_embeddings_2, axis=1)
 
@@ -108,7 +108,7 @@ class SimilaritySequenceTreeTupleModel(object):
         #    logits=logits, labels=labels))
 
         # use MSE
-        self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - gold_similarities, 2))
+        self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - self._gold_similarities, 2))
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),
@@ -130,6 +130,10 @@ class SimilaritySequenceTreeTupleModel(object):
     @property
     def cosine_similarities(self):
         return self._cosine_similarities
+
+    @property
+    def gold_similarities(self):
+        return self._gold_similarities
 
     @property
     def loss(self):

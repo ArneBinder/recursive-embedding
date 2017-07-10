@@ -158,6 +158,8 @@ def main(unused_argv):
             #aggregator_ordered_scope_name = 'aggregator_ordered'
             embedder = model_fold.SimilaritySequenceTreeTupleModel(embed_w) #, aggregator_ordered_scope_name)
             loss = embedder.loss
+            sim_cosine = embedder.cosine_similarities
+            sim_gold = embedder.gold_similarities
             #accuracy = embedder.accuracy
             train_op = embedder.train_op
             global_step = embedder.global_step
@@ -212,7 +214,7 @@ def main(unused_argv):
                             {'loss_train': normed_loss(loss_v, FLAGS.batch_size)})
 
                 if step % 50 == 0:
-                    (loss_test,) = sess.run([loss], feed_dict=fdict_test)
+                    (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
                     emit_values(supervisor, sess, step,
                             {'loss_test': normed_loss(loss_test, test_size)})
                     print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_v, FLAGS.batch_size), normed_loss(loss_test, test_size)))
