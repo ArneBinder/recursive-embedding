@@ -57,8 +57,8 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
 tf.flags.DEFINE_boolean('merge_nlp_embeddings',
-                        #True,
-                        False,
+                        True,
+                        #False,
                         'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
 tf.flags.DEFINE_string('save_final_model_path',
                         None,
@@ -311,11 +311,13 @@ def get_cluster_ids(embeddings):
     return labels, meta, best_idx
 
 
-def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, concat_mode):
+#unused
+def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_concat_mode):
     # pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
-        seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps,
-                                                              concat_mode=concat_mode, expand_dict=False)
+        seq_tree = preprocessing.build_sequence_tree_from_str(str_=s, sentence_processor=sentence_processor,
+                                                              parser=parser, data_maps=data_maps,
+                                                              inner_concat_mode=inner_concat_mode, expand_dict=False)
         # pp.pprint(seq_tree)
         yield seq_tree.SerializeToString()
 

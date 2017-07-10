@@ -38,7 +38,8 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps):
         seq_tree_seq.idx_correct = idx_correct
         for s2 in s:
             new_tree = seq_tree_seq.trees.add()
-            preprocessing.build_sequence_tree_from_str(s2, sentence_processor, parser, data_maps, seq_tree=new_tree)
+            preprocessing.build_sequence_tree_from_str(str_=s2, sentence_processor=sentence_processor, parser=parser,
+                                                       data_maps=data_maps, seq_tree=new_tree)
         #pp.pprint(seq_tree_seq)
         yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence', seq_tree_seq.SerializeToString())
 

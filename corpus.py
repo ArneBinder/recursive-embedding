@@ -6,11 +6,13 @@ import os
 import logging
 import numpy as np
 import spacy
+import ntpath
 
 import constants
 #import preprocessing
 #import tools
-
+import preprocessing
+import tools
 
 TSV_COLUMN_NAME_LABEL = 'label'
 TSV_COLUMN_NAME_ID = 'id_orig'
@@ -337,3 +339,150 @@ def make_parent_dir(fn):
     out_dir = os.path.abspath(os.path.join(fn, os.pardir))
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
+
+
+@tools.fn_timer
+def convert_texts(in_filename, out_filename, init_dict_filename, sentence_processor, parser, reader,  # mapping, vecs,
+                  max_articles=10000, max_depth=10, batch_size=100, article_offset=0, count_threshold=2,
+                  concat_mode='sequence', inner_concat_mode='tree'):
+    parent_dir = os.path.abspath(os.path.join(out_filename, os.pardir))
+    out_base_name = ntpath.basename(out_filename)
+    if not os.path.isfile(out_filename + '.data') \
+            or not os.path.isfile(out_filename + '.parent') \
+            or not os.path.isfile(out_filename + '.vec') \
+            or not os.path.isfile(out_filename + '.depth') \
+            or not os.path.isfile(out_filename + '.count'):
+        if not parser:
+            logging.info('load spacy ...')
+            parser = spacy.load('en')
+            parser.pipeline = [parser.tagger, parser.entity, parser.parser]
+        # get vecs and types and save it at out_filename
+        if init_dict_filename:
+            vecs, types = create_or_read_dict(init_dict_filename)
+            write_dict(out_filename, vecs=vecs, types=types)
+        else:
+            create_or_read_dict(out_filename, vocab=parser.vocab, dont_read=True)
+
+        # parse
+        parse_texts(out_filename=out_filename, in_filename=in_filename, reader=reader, parser=parser,
+                    sentence_processor=sentence_processor, max_articles=max_articles,
+                    batch_size=batch_size, concat_mode=concat_mode, inner_concat_mode=inner_concat_mode,
+                    article_offset=article_offset, add_reader_args={})
+        # merge batches
+        preprocessing.merge_numpy_batch_files(out_base_name + '.parent', parent_dir)
+        preprocessing.merge_numpy_batch_files(out_base_name + '.depth', parent_dir)
+        seq_data = preprocessing.merge_numpy_batch_files(out_base_name + '.data', parent_dir)
+    else:
+        logging.debug('load data from file: ' + out_filename + '.data ...')
+        seq_data = np.load(out_filename + '.data')
+
+    logging.info('data size: '+str(len(seq_data)))
+
+    if not os.path.isfile(out_filename + '.converter') \
+            or not os.path.isfile(out_filename + '.new_idx_unknown')\
+            or not os.path.isfile(out_filename + '.lex_size'):
+        if not parser:
+            logging.info('load spacy ...')
+            parser = spacy.load('en')
+            parser.pipeline = [parser.tagger, parser.entity, parser.parser]
+        vecs, types = create_or_read_dict(out_filename, parser.vocab)
+        # sort and filter vecs/mappings by counts
+        converter, vecs, types, counts, new_idx_unknown = sort_and_cut_and_fill_dict(seq_data, vecs, types,
+                                                                                     count_threshold=count_threshold)
+        # write out vecs, mapping and tsv containing strings
+        write_dict(out_filename, vecs=vecs, types=types, counts=counts)
+        logging.debug('dump converter to: ' + out_filename + '.converter ...')
+        converter.dump(out_filename + '.converter')
+        logging.debug('dump new_idx_unknown to: ' + out_filename + '.new_idx_unknown ...')
+        np.array(new_idx_unknown).dump(out_filename + '.new_idx_unknown')
+        logging.debug('dump lex_size to: ' + out_filename + '.lex_size ...')
+        np.array(len(types)).dump(out_filename + '.lex_size')
+
+    if os.path.isfile(out_filename + '.converter') and os.path.isfile(out_filename + '.new_idx_unknown'):
+        logging.debug('load converter from file: ' + out_filename + '.converter ...')
+        converter = np.load(out_filename + '.converter')
+        logging.debug('load new_idx_unknown from file: ' + out_filename + '.new_idx_unknown ...')
+        new_idx_unknown = np.load(out_filename + '.new_idx_unknown')
+        logging.debug('load lex_size from file: ' + out_filename + '.lex_size ...')
+        lex_size = np.load(out_filename + '.lex_size')
+        logging.debug('lex_size=' + str(lex_size))
+        logging.info('convert data ...')
+        count_unknown = 0
+        for i, d in enumerate(seq_data):
+            new_idx = converter[d]
+            if 0 <= new_idx < lex_size:
+                seq_data[i] = new_idx
+            # set to UNKNOWN
+            else:
+                seq_data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
+                count_unknown += 1
+        logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
+
+        logging.debug('dump data to: ' + out_filename + '.data ...')
+        seq_data.dump(out_filename + '.data')
+        logging.debug('delete converter, new_idx_unknown and lex_size ...')
+        os.remove(out_filename + '.converter')
+        os.remove(out_filename + '.new_idx_unknown')
+        os.remove(out_filename + '.lex_size')
+
+    logging.debug('load depths from file: ' + out_filename + '.depth ...')
+    seq_depths = np.load(out_filename + '.depth')
+    preprocessing.calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths)
+
+    logging.debug('load parents from file: ' + out_filename + '.parent ...')
+    seq_parents = np.load(out_filename + '.parent')
+    logging.debug('collect roots ...')
+    roots = []
+    for i, parent in enumerate(seq_parents):
+        if parent == 0:
+            roots.append(i)
+    logging.debug('dump roots to: ' + out_filename + '.root ...')
+    np.array(roots, dtype=np.int32).dump(out_filename + '.root')
+
+    # preprocessing.rearrange_children_indices(out_filename, parent_dir, max_depth, max_articles, batch_size)
+    # preprocessing.concat_children_indices(out_filename, parent_dir, max_depth)
+
+    # logging.info('load and concatenate child indices batches ...')
+    # for current_depth in range(1, max_depth + 1):
+    #    if not os.path.isfile(out_filename + '.children.depth' + str(current_depth)):
+    #        preprocessing.merge_numpy_batch_files(out_base_name + '.children.depth' + str(current_depth), parent_dir)
+
+    # for re-usage
+    return parser
+
+
+def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, max_articles, batch_size, concat_mode,
+                inner_concat_mode, article_offset, add_reader_args={}):
+    types = read_types(out_filename)
+    mapping = mapping_from_list(types)
+    logging.info('parse articles ...')
+    for offset in range(0, max_articles, batch_size):
+        # all or none: otherwise the mapping lacks entries!
+        if not os.path.isfile(out_filename + '.data.batch' + str(offset)) \
+                or not os.path.isfile(out_filename + '.parent.batch' + str(offset)) \
+                or not os.path.isfile(out_filename + '.depth.batch' + str(offset)):
+            logging.info('parse articles for offset=' + str(offset) + ' ...')
+            current_reader_args = {
+                    'filename': in_filename,
+                    'max_articles': min(batch_size, max_articles),
+                    'skip': offset + article_offset
+                }
+            current_reader_args.update(add_reader_args)
+            current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
+                reader=reader,
+                sentence_processor=sentence_processor,
+                parser=parser,
+                data_maps=mapping,
+                args=current_reader_args,
+                # max_depth=max_depth,
+                batch_size=batch_size,
+                concat_mode=concat_mode,
+                inner_concat_mode=inner_concat_mode,
+                calc_depths=True,
+                # child_idx_offset=child_idx_offset
+            )
+            write_dict(out_filename, types=revert_mapping_to_list(mapping))
+            logging.info('dump data, parents and depths ...')
+            current_seq_data.dump(out_filename + '.data.batch' + str(offset))
+            current_seq_parents.dump(out_filename + '.parent.batch' + str(offset))
+            current_seq_depths.dump(out_filename + '.depth.batch' + str(offset))

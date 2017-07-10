@@ -31,14 +31,13 @@ tf.flags.DEFINE_string(
     'sentence_processor', 'process_sentence3',
     'How long to make the expression embedding vectors.')
 tf.flags.DEFINE_string(
-    'concat_mode',
-    None,
-    #'aggregate',
-    #'sequence',
-    'How to structure the tree. '
-     + '"sequence" -> parents point to next token, '
-     + '"aggregate" -> parents point to an added, artificial token (TERMINATOR) in the end of the token sequence,'
-     + 'None -> use parsed dependency tree')
+    'inner_concat_mode',
+    'tree',
+    'How to concatenate the trees returned for one token. '
+    '"tree" -> use dependency parse tree'
+    '"sequence" -> roots point to next root, '
+    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
+    'None -> do not concat at all')
 
 FLAGS = tf.flags.FLAGS
 
@@ -54,14 +53,16 @@ def sick_raw_reader(filename):
 
 
 # build similarity_tree_tuple objects
-def sick_reader(filename, sentence_processor, parser, mapping, concat_mode=None):
+def sick_reader(filename, sentence_processor, parser, mapping, concat_mode, inner_concat_mode):
     for i, t in enumerate(sick_raw_reader(filename)):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, mapping,
-                                                   sim_tree_tuple.first, concat_mode)
-        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, mapping,
-                                                   sim_tree_tuple.second, concat_mode)
+        preprocessing.build_sequence_tree_from_str(str_=sen1 +'.', sentence_processor=sentence_processor, parser=parser,
+                                                   data_maps=mapping, concat_mode=concat_mode,
+                                                   inner_concat_mode=inner_concat_mode, seq_tree=sim_tree_tuple.first)
+        preprocessing.build_sequence_tree_from_str(str_=sen2 +'.', sentence_processor=sentence_processor, parser=parser,
+                                                   data_maps=mapping, concat_mode=concat_mode,
+                                                   inner_concat_mode=inner_concat_mode, seq_tree=sim_tree_tuple.second)
         sim_tree_tuple.similarity = (score - 1.) / 4.
         yield sim_tree_tuple
 
@@ -79,9 +80,9 @@ def sick_reader(filename, sentence_processor, parser, mapping, concat_mode=None)
 #        yield sequence_node_sequence
 
 
-def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple=-1, concat_mode=None):
+def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple, inner_concat_mode):
     record_output = tf.python_io.TFRecordWriter(out_filename)
-    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, concat_mode)):
+    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, inner_concat_mode)):
         if 0 < max_tuple == i:
             break
         record_output.write(t.SerializeToString())
@@ -104,8 +105,8 @@ if __name__ == '__main__':
         os.makedirs(out_dir)
 
     out_path = os.path.join(out_dir, FLAGS.corpus_data_output_fn)
-    if FLAGS.concat_mode is not None:
-        out_path = out_path + '_' + FLAGS.concat_mode
+    if FLAGS.inner_concat_mode is not None:
+        out_path = out_path + '_' + FLAGS.inner_concat_mode
 
     print('parse train data ...')
     convert_sick(FLAGS.corpus_data_input_train,
@@ -114,7 +115,7 @@ if __name__ == '__main__':
                  nlp,
                  mapping,
                  FLAGS.corpus_size,
-                 FLAGS.concat_mode)
+                 FLAGS.inner_concat_mode)
 
     print('parse test data ...')
     convert_sick(FLAGS.corpus_data_input_test,
@@ -123,7 +124,7 @@ if __name__ == '__main__':
                  nlp,
                  mapping,
                  FLAGS.corpus_size,
-                 FLAGS.concat_mode)
+                 FLAGS.inner_concat_mode)
 
     print('len(mapping): ' + str(len(mapping)))
 

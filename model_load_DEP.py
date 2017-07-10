@@ -45,7 +45,7 @@ def load_graph(frozen_graph_filename):
 def parse_iterator(sequences, parser, sentence_processor, data_maps):
     pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
-        seq_tree = preprocessing.build_sequence_tree_from_str(s, sentence_processor, parser, data_maps)
+        seq_tree = preprocessing.build_sequence_tree_from_str(str_=s, sentence_processor=sentence_processor, parser=parser, data_maps=data_maps)
         pp.pprint(seq_tree)
         yield seq_tree.SerializeToString()
 

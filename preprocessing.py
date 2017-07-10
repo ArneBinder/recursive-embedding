@@ -366,7 +366,8 @@ def get_root(parents, idx):
     return i
 
 
-def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode='sequence', inner_concat_mode='tree', expand_dict=True, calc_depths=False):
+def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode='sequence',
+              inner_concat_mode='tree', expand_dict=True, calc_depths=False):
 
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
@@ -670,9 +671,11 @@ def build_sequence_tree_with_candidates(seq_data, parents, children, root, inser
     return seq_tree
 
 
-def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, concat_mode=None, expand_dict=True):
+def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, concat_mode=None,
+                                 inner_concat_mode=None, expand_dict=True):
     seq_data, seq_parents, _ = read_data(identity_reader, sentence_processor, parser, data_maps,
-                                            args={'content': str_}, concat_mode=concat_mode, expand_dict=expand_dict)
+                                         args={'content': str_}, concat_mode=concat_mode,
+                                         inner_concat_mode=inner_concat_mode, expand_dict=expand_dict)
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
 
