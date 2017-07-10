@@ -169,7 +169,7 @@ def get_or_calc_sequence_data(params):
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=' + sentence_processor.__name__)
 
-        params['data_sequences'] = list(parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
+        params['data_sequences'] = list(corpus.parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
 
     else:
         raise ValueError('no sequences or data_sequences found in request')
@@ -320,15 +320,6 @@ def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_co
                                                               inner_concat_mode=inner_concat_mode, expand_dict=False)
         # pp.pprint(seq_tree)
         yield seq_tree.SerializeToString()
-
-
-def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode, inner_concat_mode):
-    for s in sequences:
-        seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
-                                                           data_maps, args={'content': s}, concat_mode=concat_mode,
-                                                           inner_concat_mode=inner_concat_mode,
-                                                           expand_dict=False)
-        yield np.array([seq_data, seq_parents])
 
 
 if __name__ == '__main__':

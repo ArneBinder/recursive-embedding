@@ -70,7 +70,7 @@ def concat_roots(parents, root_offsets, root_parents=None, concat_mode='tree'):
 
 # embeddings for:
 # word
-def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode='tree'):
+def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=constants.default_inner_concat_mode):
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -366,8 +366,8 @@ def get_root(parents, idx):
     return i
 
 
-def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size=1000, concat_mode='sequence',
-              inner_concat_mode='tree', expand_dict=True, calc_depths=False):
+def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000, concat_mode=constants.default_concat_mode,
+              inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True, calc_depths=False):
 
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
@@ -384,7 +384,7 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
 
     logging.debug('start read_data ...')
     sen_count = 0
-    for parsed_data in parser.pipe(reader(**args), n_threads=4, batch_size=batch_size):
+    for parsed_data in parser.pipe(reader(**reader_args), n_threads=4, batch_size=batch_size):
         #prev_root = None
         temp_roots = []
         start_idx = len(seq_data)
@@ -411,23 +411,6 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
                                            unknown_default))
         seq_parents, seq_roots = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
 
-        #if not concat_mode or concat_mode == 'sequence':
-        #    # connect roots consecutively
-        #    prev_root = temp_roots[0]
-        #    for temp_root in temp_roots[1:]:
-        #        seq_parents[prev_root] = temp_root - prev_root
-        #        prev_root = temp_root
-        #elif concat_mode == 'aggregate':
-        #    # connect roots to artificial AGGREGATOR node
-        #    aggregator_id = tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING],
-        #                                   unknown_default)
-        #    for temp_root in temp_roots:
-        #        seq_parents[temp_root] = len(seq_data) - temp_root
-        #    seq_data.append(aggregator_id)
-        #    seq_parents.append(0)
-        #else:
-        #    raise NameError('unknown concat_mode: ' + concat_mode)
-
         if calc_depths:
             # get current parents
             current_seq_parents = np.array(seq_parents[start_idx:])
@@ -442,9 +425,8 @@ def read_data(reader, sentence_processor, parser, data_maps, args={}, batch_size
     logging.debug('sentences read: '+str(sen_count))
     data = np.array(seq_data)
     parents = np.array(seq_parents)
-    #root = prev_root
 
-    return data, parents, np.concatenate(depth_list) #, root #, np.array(seq_edges)#, dep_map
+    return data, parents, np.concatenate(depth_list)
 
 
 def calc_depths_and_child_indices(x):#(out_path, offset, max_depth)):
@@ -474,6 +456,7 @@ def calc_seq_depth(children, roots, seq_parents):
     for root in roots:
         calc_depth(children, seq_parents, depth, root)
     return depth
+
 
 def addMissingEmbeddings(seq_data, embeddings):
     # get current count of embeddings
@@ -671,10 +654,10 @@ def build_sequence_tree_with_candidates(seq_data, parents, children, root, inser
     return seq_tree
 
 
-def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, seq_tree=None, concat_mode=None,
-                                 inner_concat_mode=None, expand_dict=True):
+def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, concat_mode=constants.default_concat_mode,
+                                 inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True, seq_tree=None):
     seq_data, seq_parents, _ = read_data(identity_reader, sentence_processor, parser, data_maps,
-                                         args={'content': str_}, concat_mode=concat_mode,
+                                         reader_args={'content': str_}, concat_mode=concat_mode,
                                          inner_concat_mode=inner_concat_mode, expand_dict=expand_dict)
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)

@@ -341,6 +341,21 @@ def make_parent_dir(fn):
         os.makedirs(out_dir)
 
 
+def convert_data(seq_data, converter, lex_size, new_idx_unknown):
+    logging.info('convert data ...')
+    count_unknown = 0
+    for i, d in enumerate(seq_data):
+        new_idx = converter[d]
+        if 0 <= new_idx < lex_size:
+            seq_data[i] = new_idx
+        # set to UNKNOWN
+        else:
+            seq_data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
+            count_unknown += 1
+    logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
+    return seq_data
+
+
 @tools.fn_timer
 def convert_texts(in_filename, out_filename, init_dict_filename, sentence_processor, parser, reader,  # mapping, vecs,
                   max_articles=10000, max_depth=10, batch_size=100, article_offset=0, count_threshold=2,
@@ -406,18 +421,7 @@ def convert_texts(in_filename, out_filename, init_dict_filename, sentence_proces
         logging.debug('load lex_size from file: ' + out_filename + '.lex_size ...')
         lex_size = np.load(out_filename + '.lex_size')
         logging.debug('lex_size=' + str(lex_size))
-        logging.info('convert data ...')
-        count_unknown = 0
-        for i, d in enumerate(seq_data):
-            new_idx = converter[d]
-            if 0 <= new_idx < lex_size:
-                seq_data[i] = new_idx
-            # set to UNKNOWN
-            else:
-                seq_data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
-                count_unknown += 1
-        logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
-
+        seq_data = convert_data(seq_data, converter, lex_size, new_idx_unknown)
         logging.debug('dump data to: ' + out_filename + '.data ...')
         seq_data.dump(out_filename + '.data')
         logging.debug('delete converter, new_idx_unknown and lex_size ...')
@@ -473,7 +477,7 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
                 sentence_processor=sentence_processor,
                 parser=parser,
                 data_maps=mapping,
-                args=current_reader_args,
+                reader_args=current_reader_args,
                 # max_depth=max_depth,
                 batch_size=batch_size,
                 concat_mode=concat_mode,
@@ -486,3 +490,29 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
             current_seq_data.dump(out_filename + '.data.batch' + str(offset))
             current_seq_parents.dump(out_filename + '.parent.batch' + str(offset))
             current_seq_depths.dump(out_filename + '.depth.batch' + str(offset))
+
+
+def parse_texts_scored(filename, reader, reader_scores, sentence_processor, parser, mapping, inner_concat_mode):
+    logging.info('convert texts scored ...')
+    logging.debug('len(mapping)=' + str(len(mapping)))
+    data, parents, _ = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
+                                               parser=parser, reader_args={'filename': filename}, data_maps=mapping,
+                                               batch_size=10000, concat_mode='sequence',
+                                               inner_concat_mode=inner_concat_mode, expand_dict=True, calc_depths=False)
+    logging.debug('len(mapping)=' + str(len(mapping)) + '(after parsing)')
+    roots = [idx for idx, parent in enumerate(parents) if parent == 0]
+    logging.debug('len(roots)=' + str(len(roots)))
+    scores = np.fromiter(reader_scores(filename), np.float) #list(reader_scores(filename))
+    logging.debug('len(scores)=' + str(len(scores)))
+    assert 2 * len(scores) == len(roots), 'len(roots) != 2 * len(scores)'
+
+    return data, parents, scores, roots
+
+
+def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode, inner_concat_mode):
+    for s in sequences:
+        seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
+                                                           data_maps, reader_args={'content': s}, concat_mode=concat_mode,
+                                                           inner_concat_mode=inner_concat_mode,
+                                                           expand_dict=False)
+        yield np.array([seq_data, seq_parents])

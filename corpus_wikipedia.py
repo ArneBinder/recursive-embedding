@@ -8,6 +8,7 @@ from sys import maxsize
 
 import tensorflow as tf
 
+import constants
 import corpus
 import preprocessing
 
@@ -48,14 +49,16 @@ tf.flags.DEFINE_string(
     'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string(
     'concat_mode',
-    'sequence',
+    #'sequence',
+    constants.default_concat_mode,
     'How to concatenate the trees returned by one parser call (e.g. trees in one document). '
     + '"sequence" -> roots point to next root, '
     + '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
       'None -> do not concat at all')
 tf.flags.DEFINE_string(
     'inner_concat_mode',
-    'tree',
+    #'tree',
+    constants.default_inner_concat_mode,
     'How to concatenate the trees returned for one token. '
     '"tree" -> use dependency parse tree'
     '"sequence" -> roots point to next root, '

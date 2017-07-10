@@ -18,7 +18,7 @@ vecs, types = corpus.get_dict_from_vocab(nlp.vocab)
 def read_sentence2(sentence, vis = False):
 
     mapping = corpus.mapping_from_list(types)
-    seq_data, seq_parents = preprocessing.read_data(preprocessing.string_reader, preprocessing.process_sentence5, nlp, mapping, args={'content': sentence})
+    seq_data, seq_parents = preprocessing.read_data(preprocessing.string_reader, preprocessing.process_sentence5, nlp, mapping, reader_args={'content': sentence})
     #print('root: ' + str(root))
 
     #data_maps_reverse = corpus.revert_mapping(data_maps2)

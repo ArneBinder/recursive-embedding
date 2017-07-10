@@ -81,7 +81,7 @@ def main():
     seq_data, seq_types, seq_parents, seq_edges = \
         read_data(articles_from_csv_reader, nlp, data_maps, max_forest_count=max_forest_count,
                   max_sen_length=max_slice_size,
-                  args={'max_articles': max_article_count, 'filename': corpus_file_name})
+                  reader_args={'max_articles': max_article_count, 'filename': corpus_file_name})
 
     print('data length (token):', len(seq_data))
 

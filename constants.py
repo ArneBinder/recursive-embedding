@@ -18,6 +18,8 @@ vocab_manual = {TOKEN_EMBEDDING: u'WORD', EDGE_EMBEDDING: u'EDGE', UNKNOWN_EMBED
 
 concat_modes = [None, 'sequence', 'aggregate', 'tree']
 
+default_concat_mode = 'sequence'
+default_inner_concat_mode = 'tree'
 
 #DEPRECATED
 
