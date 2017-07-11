@@ -10,6 +10,7 @@ import constants
 DEFAULT_SCOPE_AGGR_ORDERED = 'aggregator_ordered'
 DEFAULT_SCOPE_SCORING = 'scoring'
 DIMENSION_EMBEDDINGS = 300
+DIMENSION_SIM_MEASURE = 50
 VAR_NAME_EMBEDDING = 'embeddings'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 
@@ -104,11 +105,32 @@ class SimilaritySequenceTreeTupleModel(object):
 
         self._cosine_similarities = tf.reduce_sum(self._tree_embeddings_1 * self._tree_embeddings_2, axis=1)
 
+        def sim_layer(e1, e2):
+            embeddings_dif = tf.abs(e1 - e2)
+            embeddings_product = e1 * e2
+            W_d = tf.Variable(tf.random_normal([DIMENSION_EMBEDDINGS, DIMENSION_SIM_MEASURE]))
+            W_p = tf.Variable(tf.random_normal([DIMENSION_EMBEDDINGS, DIMENSION_SIM_MEASURE]))
+            b_h = tf.Variable(tf.random_normal([DIMENSION_SIM_MEASURE]))
+
+            h_s = tf.nn.sigmoid(tf.add(tf.matmul(embeddings_dif, W_d) + tf.matmul(embeddings_product, W_p), b_h))
+
+            W_x = tf.Variable(tf.random_normal([DIMENSION_SIM_MEASURE, 1]))
+            b_x = tf.Variable(tf.random_normal(shape=()))
+
+            s = tf.squeeze(tf.nn.sigmoid(tf.add(tf.matmul(h_s, W_x), b_x)), axis=[1])
+            #s = tf.matmul(h_s, W_x)
+            return s
+
+        self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2)
+
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
 
         # use MSE
-        self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - self._gold_similarities, 2))
+        self._mse = tf.pow(self._sim - self._gold_similarities, 2)
+        #self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - self._gold_similarities, 2))
+        #self._loss = tf.reduce_sum(self._mse)
+        self._loss = tf.reduce_sum(tf.abs(self._sim - self._gold_similarities))
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),
@@ -138,6 +160,14 @@ class SimilaritySequenceTreeTupleModel(object):
     @property
     def loss(self):
         return self._loss
+
+    @property
+    def mse(self):
+        return self._mse
+
+    @property
+    def sim(self):
+        return self._sim
 
     # @property
     # def accuracy(self):

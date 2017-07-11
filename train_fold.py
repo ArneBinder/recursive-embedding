@@ -174,6 +174,9 @@ def main(unused_argv):
             loss = embedder.loss
             sim_cosine = embedder.cosine_similarities
             sim_gold = embedder.gold_similarities
+            sim = embedder.sim
+            mse = embedder.mse
+
             #accuracy = embedder.accuracy
             train_op = embedder.train_op
             global_step = embedder.global_step
@@ -220,28 +223,32 @@ def main(unused_argv):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = embedder.build_feed_dict(batch)
 
-                _, step, loss_train, sim_cosine_train, sim_gold_train = sess.run(
-                    [train_op, global_step, loss, sim_cosine, sim_gold],
+                _, step, loss_train, sim_cosine_train, sim_gold_train, sim_p, loss_mse = sess.run(
+                    [train_op, global_step, loss, sim_cosine, sim_gold, sim, mse],
                     feed_dict=fdict)
                 p_r = pearsonr(sim_gold_train, sim_cosine_train)
 
                 emit_values(supervisor, sess, step,
-                            {'train_mse': normed_loss(loss_train, FLAGS.batch_size),
+                            {'train_mse': loss_train / len(batch),
                              'train_pearson_r': p_r[0],
                              'train_pearson_r_p': p_r[1]
                              })
+                #print(sim_gold_train.tolist())
+                #print(sim_p.tolist())
+                #print(loss_mse.tolist())
+                #print(np.abs(sim_gold_train - sim_p).tolist())
 
                 if step % 50 == 0:
                     (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_cosine_test)
                     emit_values(supervisor, sess, step,
-                            {'test_mse': normed_loss(loss_test, len(batch_test)),
+                            {'test_mse': loss_test / len(batch_test),
                              'test_pearson_r': p_r_test[0],
                              'test_pearson_r_p': p_r_test[1]})
-                    print('step=%d: loss=%f pearson_r=%f loss_test=%f pearson_r_test=%f' % (step, normed_loss(loss_train, FLAGS.batch_size), p_r[0], normed_loss(loss_test, len(batch_test)), p_r_test[0]))
+                    print('step=%d: loss=%f pearson_r=%f loss_test=%f pearson_r_test=%f' % (step, loss_train / len(batch), p_r[0], loss_test / len(batch_test), p_r_test[0]))
                     #print(p_r)
                 else:
-                    print('step=%d: loss=%f pearson_r=%f' % (step, normed_loss(loss_train, FLAGS.batch_size), p_r[0]))
+                    print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.sum(sim_p).astype(float) / len(batch), np.sum(sim_gold_train).astype(float) / len(batch)))
 
             supervisor.saver.save(sess, checkpoint_path(step))
 
