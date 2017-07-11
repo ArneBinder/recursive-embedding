@@ -127,10 +127,10 @@ class SimilaritySequenceTreeTupleModel(object):
         #    logits=logits, labels=labels))
 
         # use MSE
-        self._mse = tf.pow(self._sim - self._gold_similarities, 2)
+        self._mse = tf.pow(self._cosine_similarities - self._gold_similarities, 2)
         #self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - self._gold_similarities, 2))
         #self._loss = tf.reduce_sum(self._mse)
-        self._loss = tf.reduce_sum(tf.abs(self._sim - self._gold_similarities))
+        self._loss = tf.reduce_sum(self._mse)
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),

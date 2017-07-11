@@ -25,11 +25,11 @@ tf.flags.DEFINE_string(
     #'data/corpora/sick/process_sentence6/SICK.train',
     '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
     'TF Record file containing the training dataset of sequence tuples.')
-tf.flags.DEFINE_string(
-    'test_data_path',
-    #'data/corpora/sick/process_sentence6/SICK.test',
-    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
-    'TF Record file containing the test dataset of sequence tuples.')
+#tf.flags.DEFINE_string(
+#    'test_data_path',
+#    #'data/corpora/sick/process_sentence6/SICK.test',
+#    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
+#    'TF Record file containing the test dataset of sequence tuples.')
 #tf.flags.DEFINE_string(
 #    'train_dict_path', 'data/nlp/spacy/dict.vecs',
 #    'Numpy array which is used to initialize the embedding vectors.')
