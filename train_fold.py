@@ -233,15 +233,15 @@ def main(unused_argv):
 
                 if step % 50 == 0:
                     (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
-                    p_r = pearsonr(sim_gold_test, sim_cosine_test)
+                    p_r_test = pearsonr(sim_gold_test, sim_cosine_test)
                     emit_values(supervisor, sess, step,
                             {'test_mse': normed_loss(loss_test, len(batch_test)),
-                             'test_pearson_r': p_r[0],
-                             'test_pearson_r_p': p_r[1]})
-                    print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_train, FLAGS.batch_size), normed_loss(loss_test, len(batch_test))))
-                    print(p_r)
+                             'test_pearson_r': p_r_test[0],
+                             'test_pearson_r_p': p_r_test[1]})
+                    print('step=%d: loss=%f pearson_r=%f loss_test=%f pearson_r_test=%f' % (step, normed_loss(loss_train, FLAGS.batch_size), p_r[0], normed_loss(loss_test, len(batch_test)), p_r_test[0]))
+                    #print(p_r)
                 else:
-                    print('step=%d: loss=%f' % (step, normed_loss(loss_train, FLAGS.batch_size)))
+                    print('step=%d: loss=%f pearson_r=%f' % (step, normed_loss(loss_train, FLAGS.batch_size), p_r[0]))
 
             supervisor.saver.save(sess, checkpoint_path(step))
 
