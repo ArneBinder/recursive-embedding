@@ -1,6 +1,9 @@
 #from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import fnmatch
+import ntpath
 import os
 # import google3
 from scipy.stats.stats import pearsonr
@@ -8,6 +11,7 @@ import six
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import logging
+import sys
 
 import corpus
 import model_fold
@@ -82,10 +86,14 @@ td.proto_tools.map_proto_source_tree_path('', source_root())
 td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 
-def iterate_over_tf_record_protos(table_path, message_type):
+def iterate_over_tf_record_protos(table_paths, message_type):
+    count = 0
     while True:
-        for v in tf.python_io.tf_record_iterator(table_path):
-            yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
+        logging.debug('start epoche: ' + str(count))
+        for table_path in table_paths:
+            for v in tf.python_io.tf_record_iterator(table_path):
+                yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
+        count += 1
 
 
 def emit_values(supervisor, session, step, values):
@@ -106,18 +114,21 @@ def checkpoint_path(step):
 
 
 def main(unused_argv):
-    train_data_fn = FLAGS.train_data_path
-    print('use training data: '+train_data_fn)
-    train_iterator = iterate_over_tf_record_protos(
-        train_data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+    logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
+    parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
+    train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
+    train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
+    logging.info('found ' + str(len(train_fnames)) + ' train data files')
 
-    test_data_fn = FLAGS.test_data_path
-    print('use test data: '+test_data_fn)
+    train_iterator = iterate_over_tf_record_protos(
+        train_fnames[:-1], similarity_tree_tuple_pb2.SimilarityTreeTuple)
+
     test_iterator = iterate_over_tf_record_protos(
-        test_data_fn, similarity_tree_tuple_pb2.SimilarityTreeTuple)
+        [train_fnames[-1]], similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
     # DEBUG
-    vecs, types = corpus.create_or_read_dict(train_data_fn)
+    vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
     lex_size = vecs.shape[0]
     #embedding_dim = vecs.shape[1]
 
@@ -214,13 +225,15 @@ def main(unused_argv):
                 emit_values(supervisor, sess, step,
                             {'loss_train': normed_loss(loss_v, FLAGS.batch_size)})
 
-                if step % 5 == 0:
+                if step % 50 == 0:
                     (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
                     p_r = pearsonr(sim_gold_test, sim_cosine_test)
-                    print(p_r)
                     emit_values(supervisor, sess, step,
-                            {'loss_test': normed_loss(loss_test, test_size)})
+                            {'loss_test': normed_loss(loss_test, test_size),
+                             'pearson_r': p_r[0],
+                             'pearson_r_p': p_r[1]})
                     print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_v, FLAGS.batch_size), normed_loss(loss_test, test_size)))
+                    print(p_r)
                 else:
                     print('step=%d: loss=%f' % (step, normed_loss(loss_v, FLAGS.batch_size)))
 
