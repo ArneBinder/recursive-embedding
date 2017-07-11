@@ -86,7 +86,7 @@ td.proto_tools.map_proto_source_tree_path('', source_root())
 td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 
-def iterate_over_tf_record_protos(table_paths, message_type):
+def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=True):
     count = 0
     while True:
         logging.debug('start epoche: ' + str(count))
@@ -94,6 +94,8 @@ def iterate_over_tf_record_protos(table_paths, message_type):
             for v in tf.python_io.tf_record_iterator(table_path):
                 yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
         count += 1
+        if not multiple_epochs:
+            break
 
 
 def emit_values(supervisor, session, step, values):
@@ -125,7 +127,7 @@ def main(unused_argv):
         train_fnames[:-1], similarity_tree_tuple_pb2.SimilarityTreeTuple)
 
     test_iterator = iterate_over_tf_record_protos(
-        [train_fnames[-1]], similarity_tree_tuple_pb2.SimilarityTreeTuple)
+        [train_fnames[-1]], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
     # DEBUG
     vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
@@ -206,8 +208,8 @@ def main(unused_argv):
                 #my_saver.restore(sess, checkpoint_fn)
 
             # prepare test set
-            test_size = FLAGS.test_data_size
-            batch_test = [next(test_iterator) for _ in xrange(test_size)]
+            #test_size = FLAGS.test_data_size
+            batch_test = list(test_iterator) #[next(test_iterator) for _ in xrange(test_size)]
             fdict_test = embedder.build_feed_dict(batch_test)
             step = 0
             # Run the trainer.
@@ -218,24 +220,28 @@ def main(unused_argv):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = embedder.build_feed_dict(batch)
 
-                _, step, loss_v = sess.run(
-                    [train_op, global_step, loss],
+                _, step, loss_train, sim_cosine_train, sim_gold_train = sess.run(
+                    [train_op, global_step, loss, sim_cosine, sim_gold],
                     feed_dict=fdict)
+                p_r = pearsonr(sim_gold_train, sim_cosine_train)
 
                 emit_values(supervisor, sess, step,
-                            {'loss_train': normed_loss(loss_v, FLAGS.batch_size)})
+                            {'train_mse': normed_loss(loss_train, FLAGS.batch_size),
+                             'train_pearson_r': p_r[0],
+                             'train_pearson_r_p': p_r[1]
+                             })
 
                 if step % 50 == 0:
                     (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
                     p_r = pearsonr(sim_gold_test, sim_cosine_test)
                     emit_values(supervisor, sess, step,
-                            {'loss_test': normed_loss(loss_test, test_size),
-                             'pearson_r': p_r[0],
-                             'pearson_r_p': p_r[1]})
-                    print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_v, FLAGS.batch_size), normed_loss(loss_test, test_size)))
+                            {'test_mse': normed_loss(loss_test, len(batch_test)),
+                             'test_pearson_r': p_r[0],
+                             'test_pearson_r_p': p_r[1]})
+                    print('step=%d: loss=%f loss_test=%f' % (step, normed_loss(loss_train, FLAGS.batch_size), normed_loss(loss_test, len(batch_test))))
                     print(p_r)
                 else:
-                    print('step=%d: loss=%f' % (step, normed_loss(loss_v, FLAGS.batch_size)))
+                    print('step=%d: loss=%f' % (step, normed_loss(loss_train, FLAGS.batch_size)))
 
             supervisor.saver.save(sess, checkpoint_path(step))
 
