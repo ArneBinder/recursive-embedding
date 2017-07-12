@@ -23,7 +23,7 @@ import math
 tf.flags.DEFINE_string(
     'train_data_path',
     #'data/corpora/sick/process_sentence6/SICK.train',
-    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
+    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
     'TF Record file containing the training dataset of sequence tuples.')
 #tf.flags.DEFINE_string(
 #    'test_data_path',
@@ -46,6 +46,10 @@ tf.flags.DEFINE_integer(
 tf.flags.DEFINE_integer(
     'test_data_size', 1000,
     'The size of the test set.')
+tf.flags.DEFINE_string('run_description',
+                       None,
+                       #'untrainableembeddings_cosinesim_modelturned',
+                       'label extension for the name of the run when visualizing with tensorboard')
 
 # Replication flags:
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/supervised/log',
@@ -89,7 +93,8 @@ td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=True):
     count = 0
     while True:
-        logging.debug('start epoche: ' + str(count))
+        if multiple_epochs:
+            logging.debug('start epoche: ' + str(count))
         for table_path in table_paths:
             for v in tf.python_io.tf_record_iterator(table_path):
                 yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
@@ -98,13 +103,16 @@ def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=Tru
             break
 
 
-def emit_values(supervisor, session, step, values):
+def emit_values(supervisor, session, step, values, writer=None):
     summary = tf.Summary()
     for name, value in six.iteritems(values):
         summary_value = summary.value.add()
         summary_value.tag = name
         summary_value.simple_value = float(value)
-    supervisor.summary_computed(session, summary, global_step=step)
+    if writer:
+        writer.add_summary(summary, step)
+    else:
+        supervisor.summary_computed(session, summary, global_step=step)
 
 
 def normed_loss(batch_loss, batch_size):
@@ -160,7 +168,7 @@ def main(unused_argv):
     #print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
 
     print('create tensorflow graph ...')
-    with tf.Graph().as_default():
+    with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
                                   trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
@@ -181,6 +189,12 @@ def main(unused_argv):
             train_op = embedder.train_op
             global_step = embedder.global_step
 
+            summary_path = os.path.join(FLAGS.logdir, '')
+            if FLAGS.run_description:
+                summary_path += FLAGS.run_description + '_'
+
+            test_writer = tf.summary.FileWriter(summary_path + 'test', graph)
+
             # collect important variables
             #aggr_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=aggregator_ordered_scope_name)
             #save_vars = aggr_vars + [embed_w, global_step]
@@ -200,7 +214,8 @@ def main(unused_argv):
                 logdir=FLAGS.logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
-                save_model_secs=300)
+                save_model_secs=300,
+                summary_writer=tf.summary.FileWriter(summary_path + 'train', graph))
             sess = supervisor.PrepareSession(FLAGS.master)
 
             if checkpoint_fn is None:
@@ -229,9 +244,9 @@ def main(unused_argv):
                 p_r = pearsonr(sim_gold_train, sim_cosine_train)
 
                 emit_values(supervisor, sess, step,
-                            {'train_mse': loss_train / len(batch),
-                             'train_pearson_r': p_r[0],
-                             'train_pearson_r_p': p_r[1]
+                            {'mse': loss_train / len(batch),
+                             'pearson_r': p_r[0],
+                             'pearson_r_p': p_r[1]
                              })
                 #print(sim_gold_train.tolist())
                 #print(sim_p.tolist())
@@ -242,9 +257,10 @@ def main(unused_argv):
                     (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_cosine_test)
                     emit_values(supervisor, sess, step,
-                            {'test_mse': loss_test / len(batch_test),
-                             'test_pearson_r': p_r_test[0],
-                             'test_pearson_r_p': p_r_test[1]})
+                            {'mse': loss_test / len(batch_test),
+                             'pearson_r': p_r_test[0],
+                             'pearson_r_p': p_r_test[1]},
+                                writer=test_writer)
                     print('step=%d: loss=%f pearson_r=%f loss_test=%f pearson_r_test=%f' % (step, loss_train / len(batch), p_r[0], loss_test / len(batch_test), p_r_test[0]))
                     #print(p_r)
                 else:
