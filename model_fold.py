@@ -26,6 +26,67 @@ def SeqToTuple(T, N):
             .set_output_type(td.TupleType(*([T] * N))))
 
 
+def fc_linear(num_units):
+    c = td.Composition(name='fc')
+    with c.scope():
+        def fc(x):
+            return tf.contrib.layers.linear(x, num_units)
+
+        linear = td.Function(fc).reads(c.input)
+        c.output.reads(linear)
+    return c
+
+
+def split(num_or_size_splits):
+    c = td.Composition(name='split')
+    with c.scope():
+        def split(x):
+            return tf.split(value=x, num_or_size_splits=num_or_size_splits, axis=1)
+
+        spl = td.Function(split).reads(c.input)
+        c.output.reads(spl)
+    return c
+
+
+def treeLSTM(num_units, name='treelstm', forget_bias=1.0, activation=tf.tanh):
+    comp = td.Composition(name=name)
+    with comp.scope():
+        x = comp.input[0]
+        c_k = td.Map(td.GetItem(0)).reads(comp.input[1])
+        h_k = td.Map(td.GetItem(1)).reads(comp.input[1])
+        h_k_sum = td.Reduce(td.Function(tf.add)).reads(h_k)
+        xh_concat = td.Concat().reads(x, h_k_sum)
+
+        xh_linear = fc_linear(3 * num_units).reads(xh_concat)
+        iou = split(3).reads(xh_linear)
+        i_sigm = td.Function(tf.sigmoid).reads(iou[0])
+        o_sigm = td.Function(tf.sigmoid).reads(iou[1])
+        u_sigm = td.Function(tf.sigmoid).reads(iou[2])
+
+        c_new1 = td.Function(tf.multiply).reads(i_sigm, u_sigm)
+
+        x_bc = td.Broadcast().reads(x)
+        xh_k_concat = (td.Zip() >> td.Map(td.Concat())).reads(x_bc, h_k)
+
+        def add_forget_bias(x):
+            return tf.add(x, forget_bias)
+
+        fc_f = fc_linear(num_units)
+        f_k = td.Map(fc_f >> td.Function(add_forget_bias) >> td.Function(tf.sigmoid)).reads(xh_k_concat)
+
+        fc_k = td.Zip().reads(f_k, c_k)
+        fc_k_mul = td.Map(td.Function(tf.multiply)).reads(fc_k)
+        c_new2 = td.Reduce(td.Function(tf.add)).reads(fc_k_mul)  # (c_jk_mul)
+
+        c_new = td.Function(tf.add).reads(c_new1, c_new2)
+
+        c_new_activ = td.Function(activation).reads(c_new)
+        h_new = td.Function(tf.multiply).reads(o_sigm, c_new_activ)
+
+        comp.output.reads(c_new, h_new)
+    return comp
+
+
 def sequence_tree_block(embeddings, scope):
     """Calculates an embedding over a (recursive) SequenceNode.
 

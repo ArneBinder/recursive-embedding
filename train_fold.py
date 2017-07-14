@@ -48,7 +48,7 @@ tf.flags.DEFINE_integer(
     'The size of the test set.')
 tf.flags.DEFINE_string('run_description',
                        None,
-                       #'untrainableembeddings_cosinesim_modelturned',
+                       #'dataPs2_embeddingsUntrainable_simCosine_modelDefault',
                        'label extension for the name of the run when visualizing with tensorboard')
 
 # Replication flags:
@@ -171,7 +171,7 @@ def main(unused_argv):
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
-                                  trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
+                                  trainable=False, name=model_fold.VAR_NAME_EMBEDDING)
 
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
@@ -248,6 +248,8 @@ def main(unused_argv):
                              'pearson_r': p_r[0],
                              'pearson_r_p': p_r[1]
                              })
+                #print(np.average(sim_cosine_train))
+
                 #print(sim_gold_train.tolist())
                 #print(sim_p.tolist())
                 #print(loss_mse.tolist())
@@ -264,7 +266,7 @@ def main(unused_argv):
                     print('step=%d: loss=%f pearson_r=%f loss_test=%f pearson_r_test=%f' % (step, loss_train / len(batch), p_r[0], loss_test / len(batch_test), p_r_test[0]))
                     #print(p_r)
                 else:
-                    print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.sum(sim_p).astype(float) / len(batch), np.sum(sim_gold_train).astype(float) / len(batch)))
+                    print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.sum(sim_cosine_train).astype(float) / len(batch), np.sum(sim_gold_train).astype(float) / len(batch)))
 
             supervisor.saver.save(sess, checkpoint_path(step))
 
