@@ -26,29 +26,31 @@ def SeqToTuple(T, N):
             .set_output_type(td.TupleType(*([T] * N))))
 
 
-def fc_linear(num_units):
-    c = td.Composition(name='fc')
-    with c.scope():
-        def fc(x):
-            return tf.contrib.layers.linear(x, num_units)
-
-        linear = td.Function(fc).reads(c.input)
-        c.output.reads(linear)
-    return c
-
-
-def split(num_or_size_splits):
-    c = td.Composition(name='split')
-    with c.scope():
-        def split(x):
-            return tf.split(value=x, num_or_size_splits=num_or_size_splits, axis=1)
-
-        spl = td.Function(split).reads(c.input)
-        c.output.reads(spl)
-    return c
+#def fc_linear(num_units, scope):
+#    c = td.Composition(name='fc')
+#    with c.scope():
+#        def fc(x):
+#            return tf.contrib.layers.linear(x, num_units)
+#
+#        #linear = td.Function(td.ScopedLayer(fc, name_or_scope=scope)).reads(c.input)
+#        linear = td.Function(td.ScopedLayer(td.FC(num_units, activation=None), name_or_scope=scope)).reads(c.input)
+#        #linear = td.Function(td.FC(num_units, activation=None)).reads(c.input)
+#        c.output.reads(linear)
+#    return c
 
 
-def treeLSTM(num_units, name='treelstm', forget_bias=1.0, activation=tf.tanh):
+#def split(num_or_size_splits):
+#    c = td.Composition(name='split')
+#    with c.scope():
+#        def split(x):
+#            return tf.split(value=x, num_or_size_splits=num_or_size_splits, axis=1)
+#
+#        spl = td.Function(split).reads(c.input)
+#        c.output.reads(spl)
+#    return c
+
+
+def treeLSTM(num_units, scope, name='treelstm', forget_bias=1.0, activation=tf.tanh):
     comp = td.Composition(name=name)
     with comp.scope():
         x = comp.input[0]
@@ -57,8 +59,14 @@ def treeLSTM(num_units, name='treelstm', forget_bias=1.0, activation=tf.tanh):
         h_k_sum = td.Reduce(td.Function(tf.add)).reads(h_k)
         xh_concat = td.Concat().reads(x, h_k_sum)
 
-        xh_linear = fc_linear(3 * num_units).reads(xh_concat)
-        iou = split(3).reads(xh_linear)
+        #xh_linear = fc_linear(3 * num_units, scope).reads(xh_concat)
+        xh_linear = td.Function(td.FC(3 * num_units, activation=None)).reads(xh_concat)
+
+        # iou = split(3).reads(xh_linear)
+        def split_3(v):
+            return tf.split(value=v, num_or_size_splits=3, axis=1)
+
+        iou = td.Function(split_3).reads(xh_linear)
         i_sigm = td.Function(tf.sigmoid).reads(iou[0])
         o_sigm = td.Function(tf.sigmoid).reads(iou[1])
         u_sigm = td.Function(tf.sigmoid).reads(iou[2])
@@ -71,7 +79,8 @@ def treeLSTM(num_units, name='treelstm', forget_bias=1.0, activation=tf.tanh):
         def add_forget_bias(x):
             return tf.add(x, forget_bias)
 
-        fc_f = fc_linear(num_units)
+        #fc_f = fc_linear(num_units, scope)
+        fc_f = td.Function(td.FC(num_units, activation=None))
         f_k = td.Map(fc_f >> td.Function(add_forget_bias) >> td.Function(tf.sigmoid)).reads(xh_k_concat)
 
         fc_k = td.Zip().reads(f_k, c_k)
@@ -88,6 +97,29 @@ def treeLSTM(num_units, name='treelstm', forget_bias=1.0, activation=tf.tanh):
 
 
 def sequence_tree_block(embeddings, scope):
+    state_size = DIMENSION_EMBEDDINGS
+    zero_state = td.Zeros((state_size, state_size))
+    embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
+    treelstm = treeLSTM(DIMENSION_EMBEDDINGS, scope=scope)
+
+    # get the head embedding from id
+    def embed(x):
+        return tf.gather(embeddings, x)
+
+    # normalize (batched version -> dim=1)
+    def norm(x):
+        return tf.nn.l2_normalize(x, dim=1)
+
+    head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
+    children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree()),
+                                                     none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
+    cases = td.AllOf(head, children) >> treelstm
+    embed_tree.resolve_to(cases)
+
+    return cases >> td.GetItem(0) >> td.Function(norm)  #>> td.Function(dprint)
+
+
+def sequence_tree_block_DEP(embeddings, scope):
     """Calculates an embedding over a (recursive) SequenceNode.
 
     Args:
@@ -96,7 +128,11 @@ def sequence_tree_block(embeddings, scope):
     """
     #state_size = embeddings.shape.as_list()[1]
     state_size = DIMENSION_EMBEDDINGS
-    expr_decl = td.ForwardDeclaration(td.PyObjectType(), state_size)
+    zero_state = td.Zeros(state_size)
+    #zero_state = td.Zeros((state_size, state_size))
+    embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
+    #treelstm = treeLSTM(DIMENSION_EMBEDDINGS, scope=scope)
+
     grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), name_or_scope=scope)
 
     # an aggregation function which takes the order of the inputs into account
@@ -127,21 +163,49 @@ def sequence_tree_block(embeddings, scope):
         # otherwise (head does not exist): process children only
         return 2
 
-    cases = td.OneOf(lambda x: case(x),
-                     {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
-                                    ('children', td.Map(expr_decl()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
-                         >> td.Function(aggregator_order_aware),
-                      1: td.GetItem('head')
-                         >> td.Optional(td.Scalar(dtype='int32')
-                         >> td.Function(embed)),
-                      2: td.GetItem('children')
-                         >> td.Map(expr_decl())
-                         >> td.Reduce(td.Function(aggregator_order_unaware)),
-                      })
+    # naive version
+    #cases = td.OneOf(lambda x: case(x),
+    #                 {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
+    #                                ('children', td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
+    #                     >> td.Function(aggregator_order_aware),
+    #                  1: td.GetItem('head')
+    #                     >> td.Optional(td.Scalar(dtype='int32')
+    #                     >> td.Function(embed)),
+    #                  2: td.GetItem('children')
+    #                     >> td.Map(embed_tree())
+    #                     >> td.Reduce(td.Function(aggregator_order_unaware)),
+    #                  })
 
-    expr_decl.resolve_to(cases)
 
-    return cases >> td.Function(norm) #>> td.Function(dprint)
+    # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
+    head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
+    children = td.GetItem('children') >> td.Optional(some_case=(td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware))),
+                                                     none_case=zero_state)
+    cases = td.AllOf(head, children) >> td.Function(aggregator_order_aware)
+
+    #children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree()),
+    #                                                 none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
+    #cases = td.AllOf(head, children) >> treelstm
+
+    #cases = td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
+    #                   ('children', td.Zeros(td.SequenceType(zero_state.output_type)))]) \
+    #        >> treelstm
+    #head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
+    #children_zero = td.Zeros(td.SequenceType(zero_state_dummy.output_type))
+    #children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree),
+    #                                                 none_case=td.Zeros(td.SequenceType(zero_state_dummy.output_type)))
+    #children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree),
+    #                                                 none_case=td.Zeros(td.SequenceType(zero_state_dummy.output_type)))
+    #cases = td.AllOf(head, children) >> treelstm
+
+
+    #cases = td.AllOf(zero_state, td.Zeros(td.SequenceType(zero_state.output_type))) >> treelstm
+    #cases = td.AllOf(td.GetItem['head'] >> td.Function(embed), []) >> treelstm
+    #cases = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.AllOf(td.Function(embed), zero_state)
+
+    embed_tree.resolve_to(cases)
+
+    return cases >> td.Function(norm)  #>> td.Function(dprint)
 
 
 class SimilaritySequenceTreeTupleModel(object):
@@ -155,15 +219,16 @@ class SimilaritySequenceTreeTupleModel(object):
         with tf.variable_scope(aggregator_ordered_scope) as sc:
             # The AllOf block will run each of its children on the same input.
             model = td.AllOf(td.GetItem('first')
-                             >> sequence_tree_block(embeddings, sc),
+                             >> sequence_tree_block(embeddings, sc),# >> td.GetItem(0),
                              td.GetItem('second')
-                             >> sequence_tree_block(embeddings, sc),
+                             >> sequence_tree_block(embeddings, sc),# >> td.GetItem(0),
                              similarity)
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
         (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities) = self._compiler.output_tensors
-
+        #(self._tree_embeddings_1, self._gold_similarities) = self._compiler.output_tensors
+        #self._tree_embeddings_2 = self._tree_embeddings_1
         self._cosine_similarities = tf.reduce_sum(self._tree_embeddings_1 * self._tree_embeddings_2, axis=1)
 
         def sim_layer(e1, e2):
@@ -182,7 +247,7 @@ class SimilaritySequenceTreeTupleModel(object):
             #s = tf.matmul(h_s, W_x)
             return s
 
-        self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2)
+        #self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2)
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
@@ -192,6 +257,8 @@ class SimilaritySequenceTreeTupleModel(object):
         #self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - self._gold_similarities, 2))
         #self._loss = tf.reduce_sum(self._mse)
         self._loss = tf.reduce_sum(self._mse)
+
+        self._sim = self._loss
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),

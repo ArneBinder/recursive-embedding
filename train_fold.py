@@ -248,7 +248,8 @@ def main(unused_argv):
                              'pearson_r': p_r[0],
                              'pearson_r_p': p_r[1]
                              })
-                #print(np.average(sim_cosine_train))
+
+                print(np.average(sim_cosine_train))
 
                 #print(sim_gold_train.tolist())
                 #print(sim_p.tolist())
