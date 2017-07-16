@@ -143,7 +143,8 @@ def sequence_tree_block(embeddings, xh_linear, fc_f):
     cases = td.AllOf(head, children) >> treelstm
     embed_tree.resolve_to(cases)
 
-    return cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
+    #return cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
+    return cases >> td.GetItem(1) >> td.Function(norm) #cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
 
 
 def sequence_tree_block_DEP(embeddings, scope):
@@ -251,8 +252,8 @@ class SimilaritySequenceTreeTupleModel(object):
             #s = tf.matmul(h_s, W_x)
             return s
 
-        self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
-        #self._sim = self._cosine_similarities
+        #self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
+        self._sim = self._cosine_similarities
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
