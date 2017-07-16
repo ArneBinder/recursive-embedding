@@ -34,7 +34,7 @@ tf.flags.DEFINE_string(
 #    'train_dict_path', 'data/nlp/spacy/dict.vecs',
 #    'Numpy array which is used to initialize the embedding vectors.')
 tf.flags.DEFINE_integer(
-    'batch_size', 25, 'How many samples to read per batch.')
+    'batch_size', 250, 'How many samples to read per batch.')
     #'batch_size', 2, 'How many samples to read per batch.')
 #tf.flags.DEFINE_integer( # use size of embeddings loaded from numpy array
 #    'embedding_length', 300,
@@ -238,10 +238,10 @@ def main(unused_argv):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = embedder.build_feed_dict(batch)
 
-                _, step, loss_train, sim_cosine_train, sim_gold_train, sim_p, loss_mse = sess.run(
+                _, step, loss_train, sim_cosine_train, sim_gold_train, sim_train, mse_train = sess.run(
                     [train_op, global_step, loss, sim_cosine, sim_gold, sim, mse],
                     feed_dict=fdict)
-                p_r = pearsonr(sim_gold_train, sim_p)
+                p_r = pearsonr(sim_gold_train, sim_train)
 
                 emit_values(supervisor, sess, step,
                             {'mse': loss_train / len(batch),
@@ -249,16 +249,16 @@ def main(unused_argv):
                              'pearson_r_p': p_r[1]
                              })
 
-                #print(np.average(sim_p))
+                #print(np.average(sim_train))
 
                 #print(sim_gold_train.tolist())
-                #print(sim_p.tolist())
-                #print(loss_mse.tolist())
-                #print(np.abs(sim_gold_train - sim_p).tolist())
+                #print(sim_train.tolist())
+                #print(mse_train.tolist())
+                #print(np.abs(sim_gold_train - sim_train).tolist())
 
                 if step % 50 == 0:
-                    (loss_test, sim_cosine_test, sim_gold_test) = sess.run([loss, sim_cosine, sim_gold], feed_dict=fdict_test)
-                    p_r_test = pearsonr(sim_gold_test, sim_cosine_test)
+                    (loss_test, sim_test, sim_gold_test) = sess.run([loss, sim, sim_gold], feed_dict=fdict_test)
+                    p_r_test = pearsonr(sim_gold_test, sim_test)
                     emit_values(supervisor, sess, step,
                             {'mse': loss_test / len(batch_test),
                              'pearson_r': p_r_test[0],
@@ -267,7 +267,7 @@ def main(unused_argv):
                     print('step=%d: loss=%f pearson_r=%f loss_test=%f pearson_r_test=%f' % (step, loss_train / len(batch), p_r[0], loss_test / len(batch_test), p_r_test[0]))
                     #print(p_r)
                 else:
-                    print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.average(sim_p), np.average(sim_gold_train)))
+                    print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.average(sim_train), np.average(sim_gold_train)))
 
             supervisor.saver.save(sess, checkpoint_path(step))
 

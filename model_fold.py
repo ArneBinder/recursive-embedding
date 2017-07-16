@@ -64,7 +64,7 @@ def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu):
     return result
 
 
-def treeLSTM(num_units, xh_linear_layer, fc_f_layer, name='treelstm', forget_bias=1.0, activation=tf.tanh):
+def treeLSTM(xh_linear_layer, fc_f_layer, name='treelstm', forget_bias=1.0, activation=tf.tanh):
     comp = td.Composition(name=name)
     with comp.scope():
         x = comp.input[0]
@@ -119,7 +119,7 @@ def sequence_tree_block(embeddings, xh_linear, fc_f):
     state_size = DIMENSION_EMBEDDINGS
     zero_state = td.Zeros((state_size, state_size))
     embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
-    treelstm = treeLSTM(DIMENSION_EMBEDDINGS, xh_linear, fc_f)
+    treelstm = treeLSTM(xh_linear, fc_f)
 
     # get the head embedding from id
     def embed(x):
@@ -195,32 +195,11 @@ def sequence_tree_block_DEP(embeddings, scope):
     #                     >> td.Reduce(td.Function(aggregator_order_unaware)),
     #                  })
 
-
     # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
     head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
     children = td.GetItem('children') >> td.Optional(some_case=(td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware))),
                                                      none_case=zero_state)
     cases = td.AllOf(head, children) >> td.Function(aggregator_order_aware)
-
-    #children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree()),
-    #                                                 none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
-    #cases = td.AllOf(head, children) >> treelstm
-
-    #cases = td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
-    #                   ('children', td.Zeros(td.SequenceType(zero_state.output_type)))]) \
-    #        >> treelstm
-    #head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
-    #children_zero = td.Zeros(td.SequenceType(zero_state_dummy.output_type))
-    #children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree),
-    #                                                 none_case=td.Zeros(td.SequenceType(zero_state_dummy.output_type)))
-    #children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree),
-    #                                                 none_case=td.Zeros(td.SequenceType(zero_state_dummy.output_type)))
-    #cases = td.AllOf(head, children) >> treelstm
-
-
-    #cases = td.AllOf(zero_state, td.Zeros(td.SequenceType(zero_state.output_type))) >> treelstm
-    #cases = td.AllOf(td.GetItem['head'] >> td.Function(embed), []) >> treelstm
-    #cases = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.AllOf(td.Function(embed), zero_state)
 
     embed_tree.resolve_to(cases)
 
@@ -240,9 +219,9 @@ class SimilaritySequenceTreeTupleModel(object):
             fc_f = fc_scoped(num_units=DIMENSION_EMBEDDINGS, scope=sc, name='FC_f_linear_%d' % DIMENSION_EMBEDDINGS, activation_fn=None)
             # The AllOf block will run each of its children on the same input.
             model = td.AllOf(td.GetItem('first')
-                             >> sequence_tree_block(embeddings, xh_linear, fc_f),
+                             >> sequence_tree_block(embeddings, xh_linear, fc_f), #sequence_tree_block_DEP(embeddings, sc), #
                              td.GetItem('second')
-                             >> sequence_tree_block(embeddings, xh_linear, fc_f),
+                             >> sequence_tree_block(embeddings, xh_linear, fc_f), #sequence_tree_block_DEP(embeddings, sc), #
                              similarity)
         self._compiler = td.Compiler.create(model)
 
