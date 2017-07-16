@@ -144,7 +144,7 @@ def sequence_tree_block(embeddings, xh_linear, fc_f):
     embed_tree.resolve_to(cases)
 
     #return cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
-    return cases >> td.GetItem(1) >> td.Function(norm) #cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
+    return cases >> td.Concat() #td.GetItem(1) #>> td.Function(norm) #cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
 
 
 def sequence_tree_block_DEP(embeddings, scope):
@@ -208,7 +208,7 @@ def sequence_tree_block_DEP(embeddings, scope):
 
     embed_tree.resolve_to(cases)
 
-    return cases >> td.Function(norm)  #>> td.Function(dprint)
+    return cases #>> td.Function(norm)  #>> td.Function(dprint)
 
 
 class SimilaritySequenceTreeTupleModel(object):
@@ -234,7 +234,8 @@ class SimilaritySequenceTreeTupleModel(object):
         (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities) = self._compiler.output_tensors
         #(self._tree_embeddings_1, self._gold_similarities) = self._compiler.output_tensors
         #self._tree_embeddings_2 = self._tree_embeddings_1
-        self._cosine_similarities = tf.reduce_sum(self._tree_embeddings_1 * self._tree_embeddings_2, axis=1)
+        # TODO: is normalization necessary?
+        self._cosine_similarities = tf.reduce_sum(tf.nn.l2_normalize(self._tree_embeddings_1, dim=1) * tf.nn.l2_normalize(self._tree_embeddings_1, dim=1), axis=1)
 
         def sim_layer(e1, e2, e_size):
             embeddings_dif = tf.abs(e1 - e2)
