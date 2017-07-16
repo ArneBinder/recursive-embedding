@@ -119,6 +119,73 @@ class TreeEmbedding(object):
         return cases >> td.Concat()
 
 
+class TreeEmbedding_naive(object):
+    def __init__(self, state_size, embeddings, name_or_scope=None):
+
+        self._state_size = state_size
+        self._embeddings = embeddings
+
+        self._name_or_scope = name_or_scope
+        if not self._name_or_scope:
+            self._name_or_scope = 'TreeEmbedding_naive_%d' % self._state_size
+        with tf.variable_scope(self._name_or_scope) as scope:
+            self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), name_or_scope=scope)
+
+            # an aggregation function which takes the order of the inputs into account
+
+    def __call__(self):
+        zero_state = td.Zeros(self._state_size)
+        # zero_state = td.Zeros((state_size, state_size))
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
+        # an aggregation function which takes the order of the inputs into account
+        def aggregator_order_aware(head, children):
+            # inputs=head, state=children
+            r, h2 = self._grucell(head, children)
+            return r
+
+        # an aggregation function which doesn't take the order of the inputs into account
+        def aggregator_order_unaware(x, y):
+            return tf.add(x, y)
+
+        # get the head embedding from id
+        def embed(x):
+            return tf.gather(self._embeddings, x)
+
+        # naive version
+        # def case(seq_tree):
+        #    # children and head exist: process and aggregate
+        #    if len(seq_tree['children']) > 0 and 'head' in seq_tree:
+        #        return 0
+        #    # children do not exist (but maybe a head): process (optional) head only
+        #    if len(seq_tree['children']) == 0:
+        #        return 1
+        #    # otherwise (head does not exist): process children only
+        #    return 2
+        #
+        # cases = td.OneOf(lambda x: case(x),
+        #                 {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
+        #                                ('children', td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
+        #                     >> td.Function(aggregator_order_aware),
+        #                  1: td.GetItem('head')
+        #                     >> td.Optional(td.Scalar(dtype='int32')
+        #                     >> td.Function(embed)),
+        #                  2: td.GetItem('children')
+        #                     >> td.Map(embed_tree())
+        #                     >> td.Reduce(td.Function(aggregator_order_unaware)),
+        #                  })
+
+        # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
+        head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
+        children = td.GetItem('children') >> td.Optional(
+            some_case=(td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware))),
+            none_case=zero_state)
+        cases = td.AllOf(head, children) >> td.Function(aggregator_order_aware)
+
+        embed_tree.resolve_to(cases)
+
+        return cases
+
+
 def sequence_tree_block(embeddings, xh_linear, fc_f):
     """Calculates an embedding over a (recursive) SequenceNode.
 
