@@ -27,13 +27,14 @@ def SeqToTuple(T, N):
 
 
 #def fc_linear(num_units, scope):
-#    c = td.Composition(name='fc')
+#    c = td.Composition(name='fc_linear')
 #    with c.scope():
-#        def fc(x):
-#            return tf.contrib.layers.linear(x, num_units)
+#        def fc_linear(x, scope):
+#            return tf.contrib.layers.fully_connected(x, num_units, activation_fn=None, scope=scope)
 #
 #        #linear = td.Function(td.ScopedLayer(fc, name_or_scope=scope)).reads(c.input)
-#        linear = td.Function(td.ScopedLayer(td.FC(num_units, activation=None), name_or_scope=scope)).reads(c.input)
+#        linear = td.Function(td.ScopedLayer(fc_linear, name_or_scope=scope)).reads(c.input)
+#        #linear = td.Function(td.ScopedLayer(td.FC(num_units, activation=None), name_or_scope=scope)).reads(c.input)
 #        #linear = td.Function(td.FC(num_units, activation=None)).reads(c.input)
 #        c.output.reads(linear)
 #    return c
@@ -49,8 +50,21 @@ def SeqToTuple(T, N):
 #        c.output.reads(spl)
 #    return c
 
+def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu):
+    def fc_(inputs, scope):
+        return tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope)
+    if not name:
+        name = 'FC_scoped_%d' % num_units
 
-def treeLSTM(num_units, scope, name='treelstm', forget_bias=1.0, activation=tf.tanh):
+    with tf.variable_scope(scope):
+        with tf.variable_scope(name) as sc:
+            result = td.ScopedLayer(fc_, name_or_scope=sc)
+            #print(sc.name)
+
+    return result
+
+
+def treeLSTM(num_units, xh_linear_layer, fc_f_layer, name='treelstm', forget_bias=1.0, activation=tf.tanh):
     comp = td.Composition(name=name)
     with comp.scope():
         x = comp.input[0]
@@ -60,7 +74,10 @@ def treeLSTM(num_units, scope, name='treelstm', forget_bias=1.0, activation=tf.t
         xh_concat = td.Concat().reads(x, h_k_sum)
 
         #xh_linear = fc_linear(3 * num_units, scope).reads(xh_concat)
-        xh_linear = td.Function(td.FC(3 * num_units, activation=None)).reads(xh_concat)
+        #xh_linear = fc_scoped(num_units=3 * num_units, scope=scope, name='FC_xh_linear_%d' % (3 * num_units), activation_fn=None).reads(xh_concat)
+        #xh_linear = td.Function(td.FC(3 * num_units, activation=None)).reads(xh_concat)
+
+        xh_linear = td.Function(xh_linear_layer).reads(xh_concat)
 
         # iou = split(3).reads(xh_linear)
         def split_3(v):
@@ -80,8 +97,10 @@ def treeLSTM(num_units, scope, name='treelstm', forget_bias=1.0, activation=tf.t
             return tf.add(x, forget_bias)
 
         #fc_f = fc_linear(num_units, scope)
-        fc_f = td.Function(td.FC(num_units, activation=None))
-        f_k = td.Map(fc_f >> td.Function(add_forget_bias) >> td.Function(tf.sigmoid)).reads(xh_k_concat)
+        #fc_f = td.Function(td.FC(num_units, activation=None))
+        #fc_f = fc_scoped(num_units=num_units, scope=scope, name='FC_f_linear_%d' % num_units, activation_fn=None)
+        f_k = td.Map(td.Function(fc_f_layer) >> td.Function(add_forget_bias) >> td.Function(tf.sigmoid)).reads(xh_k_concat)
+        #f_k = td.Map(td.Function(add_forget_bias) >> td.Function(tf.sigmoid)).reads(x_bc)
 
         fc_k = td.Zip().reads(f_k, c_k)
         fc_k_mul = td.Map(td.Function(tf.multiply)).reads(fc_k)
@@ -96,11 +115,11 @@ def treeLSTM(num_units, scope, name='treelstm', forget_bias=1.0, activation=tf.t
     return comp
 
 
-def sequence_tree_block(embeddings, scope):
+def sequence_tree_block(embeddings, xh_linear, fc_f):
     state_size = DIMENSION_EMBEDDINGS
     zero_state = td.Zeros((state_size, state_size))
     embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
-    treelstm = treeLSTM(DIMENSION_EMBEDDINGS, scope=scope)
+    treelstm = treeLSTM(DIMENSION_EMBEDDINGS, xh_linear, fc_f)
 
     # get the head embedding from id
     def embed(x):
@@ -116,7 +135,7 @@ def sequence_tree_block(embeddings, scope):
     cases = td.AllOf(head, children) >> treelstm
     embed_tree.resolve_to(cases)
 
-    return cases >> td.GetItem(0) >> td.Function(norm)  #>> td.Function(dprint)
+    return cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
 
 
 def sequence_tree_block_DEP(embeddings, scope):
@@ -217,11 +236,13 @@ class SimilaritySequenceTreeTupleModel(object):
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
         with tf.variable_scope(aggregator_ordered_scope) as sc:
+            xh_linear = fc_scoped(num_units=3 * DIMENSION_EMBEDDINGS, scope=sc, name='FC_xh_linear_%d' % (3 * DIMENSION_EMBEDDINGS), activation_fn=None)
+            fc_f = fc_scoped(num_units=DIMENSION_EMBEDDINGS, scope=sc, name='FC_f_linear_%d' % DIMENSION_EMBEDDINGS, activation_fn=None)
             # The AllOf block will run each of its children on the same input.
             model = td.AllOf(td.GetItem('first')
-                             >> sequence_tree_block(embeddings, sc),# >> td.GetItem(0),
+                             >> sequence_tree_block(embeddings, xh_linear, fc_f),
                              td.GetItem('second')
-                             >> sequence_tree_block(embeddings, sc),# >> td.GetItem(0),
+                             >> sequence_tree_block(embeddings, xh_linear, fc_f),
                              similarity)
         self._compiler = td.Compiler.create(model)
 
@@ -231,11 +252,11 @@ class SimilaritySequenceTreeTupleModel(object):
         #self._tree_embeddings_2 = self._tree_embeddings_1
         self._cosine_similarities = tf.reduce_sum(self._tree_embeddings_1 * self._tree_embeddings_2, axis=1)
 
-        def sim_layer(e1, e2):
+        def sim_layer(e1, e2, e_size):
             embeddings_dif = tf.abs(e1 - e2)
             embeddings_product = e1 * e2
-            W_d = tf.Variable(tf.random_normal([DIMENSION_EMBEDDINGS, DIMENSION_SIM_MEASURE]))
-            W_p = tf.Variable(tf.random_normal([DIMENSION_EMBEDDINGS, DIMENSION_SIM_MEASURE]))
+            W_d = tf.Variable(tf.random_normal([e_size, DIMENSION_SIM_MEASURE]))
+            W_p = tf.Variable(tf.random_normal([e_size, DIMENSION_SIM_MEASURE]))
             b_h = tf.Variable(tf.random_normal([DIMENSION_SIM_MEASURE]))
 
             h_s = tf.nn.sigmoid(tf.add(tf.matmul(embeddings_dif, W_d) + tf.matmul(embeddings_product, W_p), b_h))
@@ -247,18 +268,20 @@ class SimilaritySequenceTreeTupleModel(object):
             #s = tf.matmul(h_s, W_x)
             return s
 
-        #self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2)
+        self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
+        #self._sim = self._cosine_similarities
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
 
         # use MSE
-        self._mse = tf.pow(self._cosine_similarities - self._gold_similarities, 2)
+        #self._mse = tf.pow(self._cosine_similarities - self._gold_similarities, 2)
+        self._mse = tf.pow(self._sim - self._gold_similarities, 2)
         #self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - self._gold_similarities, 2))
         #self._loss = tf.reduce_sum(self._mse)
         self._loss = tf.reduce_sum(self._mse)
 
-        self._sim = self._loss
+        #self._sim = self._loss
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),

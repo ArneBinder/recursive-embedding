@@ -34,7 +34,7 @@ tf.flags.DEFINE_string(
 #    'train_dict_path', 'data/nlp/spacy/dict.vecs',
 #    'Numpy array which is used to initialize the embedding vectors.')
 tf.flags.DEFINE_integer(
-    'batch_size', 250, 'How many samples to read per batch.')
+    'batch_size', 25, 'How many samples to read per batch.')
     #'batch_size', 2, 'How many samples to read per batch.')
 #tf.flags.DEFINE_integer( # use size of embeddings loaded from numpy array
 #    'embedding_length', 300,
@@ -241,7 +241,7 @@ def main(unused_argv):
                 _, step, loss_train, sim_cosine_train, sim_gold_train, sim_p, loss_mse = sess.run(
                     [train_op, global_step, loss, sim_cosine, sim_gold, sim, mse],
                     feed_dict=fdict)
-                p_r = pearsonr(sim_gold_train, sim_cosine_train)
+                p_r = pearsonr(sim_gold_train, sim_p)
 
                 emit_values(supervisor, sess, step,
                             {'mse': loss_train / len(batch),
@@ -249,7 +249,7 @@ def main(unused_argv):
                              'pearson_r_p': p_r[1]
                              })
 
-                print(np.average(sim_cosine_train))
+                #print(np.average(sim_p))
 
                 #print(sim_gold_train.tolist())
                 #print(sim_p.tolist())
@@ -267,7 +267,7 @@ def main(unused_argv):
                     print('step=%d: loss=%f pearson_r=%f loss_test=%f pearson_r_test=%f' % (step, loss_train / len(batch), p_r[0], loss_test / len(batch_test), p_r_test[0]))
                     #print(p_r)
                 else:
-                    print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.sum(sim_cosine_train).astype(float) / len(batch), np.sum(sim_gold_train).astype(float) / len(batch)))
+                    print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.average(sim_p), np.average(sim_gold_train)))
 
             supervisor.saver.save(sess, checkpoint_path(step))
 
