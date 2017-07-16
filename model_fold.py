@@ -115,7 +115,19 @@ def treeLSTM(xh_linear_layer, fc_f_layer, name='treelstm', forget_bias=1.0, acti
     return comp
 
 
+# normalize (batched version -> dim=1)
+def norm(x):
+    return tf.nn.l2_normalize(x, dim=1)
+
+
 def sequence_tree_block(embeddings, xh_linear, fc_f):
+    """Calculates an embedding over a (recursive) SequenceNode.
+
+    Args:
+      embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
+      xh_linear:
+      fc_f:
+    """
     state_size = DIMENSION_EMBEDDINGS
     zero_state = td.Zeros((state_size, state_size))
     embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
@@ -124,10 +136,6 @@ def sequence_tree_block(embeddings, xh_linear, fc_f):
     # get the head embedding from id
     def embed(x):
         return tf.gather(embeddings, x)
-
-    # normalize (batched version -> dim=1)
-    def norm(x):
-        return tf.nn.l2_normalize(x, dim=1)
 
     head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
     children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree()),
@@ -168,21 +176,17 @@ def sequence_tree_block_DEP(embeddings, scope):
     def embed(x):
         return tf.gather(embeddings, x)
 
-    # normalize (batched version -> dim=1)
-    def norm(x):
-        return tf.nn.l2_normalize(x, dim=1)
-
-    def case(seq_tree):
-        # children and head exist: process and aggregate
-        if len(seq_tree['children']) > 0 and 'head' in seq_tree:
-            return 0
-        # children do not exist (but maybe a head): process (optional) head only
-        if len(seq_tree['children']) == 0:
-            return 1
-        # otherwise (head does not exist): process children only
-        return 2
-
     # naive version
+    #def case(seq_tree):
+    #    # children and head exist: process and aggregate
+    #    if len(seq_tree['children']) > 0 and 'head' in seq_tree:
+    #        return 0
+    #    # children do not exist (but maybe a head): process (optional) head only
+    #    if len(seq_tree['children']) == 0:
+    #        return 1
+    #    # otherwise (head does not exist): process children only
+    #    return 2
+    #
     #cases = td.OneOf(lambda x: case(x),
     #                 {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed)),
     #                                ('children', td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
