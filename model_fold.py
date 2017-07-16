@@ -120,6 +120,39 @@ def norm(x):
     return tf.nn.l2_normalize(x, dim=1)
 
 
+class TreeEmbedding(object):
+    def __init__(self, state_size, embeddings, name_or_scope=None):
+
+        self._state_size = state_size
+        self._embeddings = embeddings
+
+        self._name_or_scope = name_or_scope
+        if not self._name_or_scope:
+            self._name_or_scope = 'TreeEmbedding_%d' % self._state_size
+        with tf.variable_scope(self._name_or_scope) as scope:
+            self._xh_linear = fc_scoped(num_units=3 * self._state_size, scope=scope,
+                                        name='FC_xh_linear_%d' % (3 * self._state_size), activation_fn=None)
+            self._fc_f = fc_scoped(num_units=self._state_size, scope=scope,
+                                   name='FC_f_linear_%d' % self._state_size, activation_fn=None)
+
+    def __call__(self):
+        zero_state = td.Zeros((self._state_size, self._state_size))
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
+        treelstm = treeLSTM(self._xh_linear, self._fc_f)
+
+        # get the head embedding from id
+        def embed(x):
+            return tf.gather(self._embeddings, x)
+
+        head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed)
+        children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree()),
+                                                         none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
+        cases = td.AllOf(head, children) >> treelstm
+        embed_tree.resolve_to(cases)
+
+        return cases >> td.Concat()
+
+
 def sequence_tree_block(embeddings, xh_linear, fc_f):
     """Calculates an embedding over a (recursive) SequenceNode.
 
@@ -219,29 +252,30 @@ class SimilaritySequenceTreeTupleModel(object):
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        with tf.variable_scope(aggregator_ordered_scope) as sc:
-            xh_linear = fc_scoped(num_units=3 * DIMENSION_EMBEDDINGS, scope=sc, name='FC_xh_linear_%d' % (3 * DIMENSION_EMBEDDINGS), activation_fn=None)
-            fc_f = fc_scoped(num_units=DIMENSION_EMBEDDINGS, scope=sc, name='FC_f_linear_%d' % DIMENSION_EMBEDDINGS, activation_fn=None)
-            # The AllOf block will run each of its children on the same input.
-            model = td.AllOf(td.GetItem('first')
-                             >> sequence_tree_block(embeddings, xh_linear, fc_f), #sequence_tree_block_DEP(embeddings, sc), #
-                             td.GetItem('second')
-                             >> sequence_tree_block(embeddings, xh_linear, fc_f), #sequence_tree_block_DEP(embeddings, sc), #
-                             similarity)
+        #with tf.variable_scope(aggregator_ordered_scope) as sc:
+            #xh_linear = fc_scoped(num_units=3 * DIMENSION_EMBEDDINGS, scope=sc, name='FC_xh_linear_%d' % (3 * DIMENSION_EMBEDDINGS), activation_fn=None)
+            #fc_f = fc_scoped(num_units=DIMENSION_EMBEDDINGS, scope=sc, name='FC_f_linear_%d' % DIMENSION_EMBEDDINGS, activation_fn=None)
+        tree_embed = TreeEmbedding(DIMENSION_EMBEDDINGS, embeddings)
+        model = td.AllOf(td.GetItem('first') >> tree_embed(),
+                         td.GetItem('first') >> tree_embed(),
+                         similarity)
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
         (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities) = self._compiler.output_tensors
-        #(self._tree_embeddings_1, self._gold_similarities) = self._compiler.output_tensors
-        #self._tree_embeddings_2 = self._tree_embeddings_1
-        # TODO: is normalization necessary?
-        self._cosine_similarities = tf.reduce_sum(tf.nn.l2_normalize(self._tree_embeddings_1, dim=1) * tf.nn.l2_normalize(self._tree_embeddings_2, dim=1), axis=1)
 
-        def sim_layer(e1, e2, e_size):
+        # TODO: is normalization necessary?
+        def sim_cosine(e1, e2, normalize=True):
+            if normalize:
+                e1 = tf.nn.l2_normalize(e1, dim=1)
+                e2 = tf.nn.l2_normalize(e2, dim=1)
+            return tf.reduce_sum(e1 * e2, axis=1)
+
+        def sim_layer(e1, e2, state_size):
             embeddings_dif = tf.abs(e1 - e2)
             embeddings_product = e1 * e2
-            W_d = tf.Variable(tf.random_normal([e_size, DIMENSION_SIM_MEASURE]))
-            W_p = tf.Variable(tf.random_normal([e_size, DIMENSION_SIM_MEASURE]))
+            W_d = tf.Variable(tf.random_normal([state_size, DIMENSION_SIM_MEASURE]))
+            W_p = tf.Variable(tf.random_normal([state_size, DIMENSION_SIM_MEASURE]))
             b_h = tf.Variable(tf.random_normal([DIMENSION_SIM_MEASURE]))
 
             h_s = tf.nn.sigmoid(tf.add(tf.matmul(embeddings_dif, W_d) + tf.matmul(embeddings_product, W_p), b_h))
@@ -250,10 +284,17 @@ class SimilaritySequenceTreeTupleModel(object):
             b_x = tf.Variable(tf.random_normal(shape=()))
 
             s = tf.squeeze(tf.nn.sigmoid(tf.add(tf.matmul(h_s, W_x), b_x)), axis=[1])
-            #s = tf.matmul(h_s, W_x)
+            # s = tf.matmul(h_s, W_x)
             return s
 
-        self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
+        #self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
+        self._sim = sim_cosine(self._tree_embeddings_1, self._tree_embeddings_2)
+        #(self._tree_embeddings_1, self._gold_similarities) = self._compiler.output_tensors
+        #self._tree_embeddings_2 = self._tree_embeddings_1
+
+        #self._cosine_similarities = tf.reduce_sum(tf.nn.l2_normalize(self._tree_embeddings_1, dim=1) * tf.nn.l2_normalize(self._tree_embeddings_2, dim=1), axis=1)
+
+        #self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
         #self._sim = self._cosine_similarities
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
@@ -261,7 +302,7 @@ class SimilaritySequenceTreeTupleModel(object):
 
         # use MSE
         #self._mse = tf.pow(self._cosine_similarities - self._gold_similarities, 2)
-        self._mse = tf.pow(self._sim - self._gold_similarities, 2)
+        self._mse = tf.pow(self.sim - self._gold_similarities, 2)
         #self._loss = tf.reduce_sum(tf.pow(self._cosine_similarities - self._gold_similarities, 2))
         #self._loss = tf.reduce_sum(self._mse)
         self._loss = tf.reduce_sum(self._mse)
@@ -285,9 +326,9 @@ class SimilaritySequenceTreeTupleModel(object):
     def tree_embeddings_2(self):
         return self._tree_embeddings_2
 
-    @property
-    def cosine_similarities(self):
-        return self._cosine_similarities
+    #@property
+    #def cosine_similarities(self):
+    #    return self._cosine_similarities
 
     @property
     def gold_similarities(self):

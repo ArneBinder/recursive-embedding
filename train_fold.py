@@ -180,7 +180,7 @@ def main(unused_argv):
             #aggregator_ordered_scope_name = 'aggregator_ordered'
             embedder = model_fold.SimilaritySequenceTreeTupleModel(embed_w) #, aggregator_ordered_scope_name)
             loss = embedder.loss
-            sim_cosine = embedder.cosine_similarities
+            #sim_cosine = embedder.cosine_similarities
             sim_gold = embedder.gold_similarities
             sim = embedder.sim
             mse = embedder.mse
@@ -251,8 +251,8 @@ def main(unused_argv):
                 batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
                 fdict = embedder.build_feed_dict(batch)
 
-                _, step, loss_train, sim_cosine_train, sim_gold_train, sim_train, mse_train = sess.run(
-                    [train_op, global_step, loss, sim_cosine, sim_gold, sim, mse],
+                _, step, loss_train, sim_gold_train, sim_train, mse_train = sess.run(
+                    [train_op, global_step, loss, sim_gold, sim, mse],
                     feed_dict=fdict)
                 p_r = pearsonr(sim_gold_train, sim_train)
 
