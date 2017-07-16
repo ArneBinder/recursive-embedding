@@ -186,6 +186,7 @@ class TreeEmbedding_naive(object):
         return cases
 
 
+# deprecated
 def sequence_tree_block(embeddings, xh_linear, fc_f):
     """Calculates an embedding over a (recursive) SequenceNode.
 
@@ -213,6 +214,7 @@ def sequence_tree_block(embeddings, xh_linear, fc_f):
     return cases >> td.Concat() #td.GetItem(1) #>> td.Function(norm) #cases >> td.AllOf(td.GetItem(0), td.GetItem(1)) >> td.Concat() # >> td.Function(norm)  #>> td.Function(dprint)
 
 
+# deprecated
 def sequence_tree_block_DEP(embeddings, scope):
     """Calculates an embedding over a (recursive) SequenceNode.
 
