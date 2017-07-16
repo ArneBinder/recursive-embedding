@@ -253,8 +253,8 @@ class SimilaritySequenceTreeTupleModel(object):
             #s = tf.matmul(h_s, W_x)
             return s
 
-        #self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
-        self._sim = self._cosine_similarities
+        self._sim = sim_layer(self._tree_embeddings_1, self._tree_embeddings_2, DIMENSION_EMBEDDINGS * 2)
+        #self._sim = self._cosine_similarities
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))

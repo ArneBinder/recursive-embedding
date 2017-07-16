@@ -269,7 +269,7 @@ def main(unused_argv):
                 #print(mse_train.tolist())
                 #print(np.abs(sim_gold_train - sim_train).tolist())
 
-                print('step=%d: loss=%f  pearson_r=%f  sim_p_avg=%f  sim_gold_avg=%f' % (step, loss_train / len(batch), p_r[0], np.average(sim_train), np.average(sim_gold_train)))
+                print('step=%d: loss=%f  pearson_r=%f  sim_avg=%f  sim_var=%f  sim_avg_gold=%f  sim_var_gold=%f' % (step, loss_train / len(batch), p_r[0], np.average(sim_train), np.var(sim_train), np.average(sim_gold_train), np.var(sim_gold_train)))
 
             supervisor.saver.save(sess, checkpoint_path(step))
 
