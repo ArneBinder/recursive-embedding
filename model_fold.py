@@ -382,6 +382,10 @@ class SimilaritySequenceTreeTupleModel(object):
     def aggregator_ordered_scope(self):
         return self._aggregator_ordered_scope
 
+    @property
+    def compiler(self):
+        return self._compiler
+
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)
 

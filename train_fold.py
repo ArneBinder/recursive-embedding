@@ -36,6 +36,9 @@ tf.flags.DEFINE_string(
 tf.flags.DEFINE_integer(
     'batch_size', 250, 'How many samples to read per batch.')
     #'batch_size', 2, 'How many samples to read per batch.')
+tf.flags.DEFINE_integer('epochs',
+                        100,
+                        'The number of epochs.')
 #tf.flags.DEFINE_integer( # use size of embeddings loaded from numpy array
 #    'embedding_length', 300,
 #    'How long to make the embedding vectors.')
@@ -132,7 +135,7 @@ def main(unused_argv):
     logging.info('found ' + str(len(train_fnames)) + ' train data files')
 
     train_iterator = iterate_over_tf_record_protos(
-        train_fnames[:-1], similarity_tree_tuple_pb2.SimilarityTreeTuple)
+        train_fnames[:-1], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
     test_iterator = iterate_over_tf_record_protos(
         [train_fnames[-1]], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
@@ -184,6 +187,7 @@ def main(unused_argv):
             sim_gold = embedder.gold_similarities
             sim = embedder.sim
             mse = embedder.mse
+            compiler = embedder.compiler
 
             #accuracy = embedder.accuracy
             train_op = embedder.train_op
@@ -230,48 +234,48 @@ def main(unused_argv):
             batch_test = list(test_iterator) #[next(test_iterator) for _ in xrange(test_size)]
             fdict_test = embedder.build_feed_dict(batch_test)
             step = 0
-            # Run the trainer.
-            for _ in xrange(FLAGS.max_steps):
-                if supervisor.should_stop():
-                    #supervisor.saver.save(sess, checkpoint_path(step))
-                    break
 
-                if step % 50 == 0:
-                    (loss_test, sim_test, sim_gold_test) = sess.run([loss, sim, sim_gold], feed_dict=fdict_test)
+            with compiler.multiprocessing_pool():
+                print('training the model')
+                train_set = compiler.build_loom_inputs(list(train_iterator))
+                # dev_feed_dict = compiler.build_feed_dict(dev_trees)
+                # dev_hits_best = 0.0
+                for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
+
+                    # test
+                    loss_test, sim_test, sim_gold_test = sess.run([loss, sim, sim_gold], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_test)
+                    loss_test_normed = loss_test / len(batch_test)
                     emit_values(supervisor, sess, step,
-                                {'mse': loss_test / len(batch_test),
+                                {'mse': loss_test_normed,  # to stay comparable with previous runs
+                                 'loss': loss_test_normed,
                                  'pearson_r': p_r_test[0],
                                  'pearson_r_p': p_r_test[1]},
                                 writer=test_writer)
-                    print('step=%d: loss_test=%f pearson_r_test=%f' % (
-                    step, loss_test / len(batch_test), p_r_test[0]))
-                    # print(p_r)
+                    print('epoch=%d step=%d: loss_test=%f pearson_r_test=%f' % (
+                        epoch, step, loss_test / len(batch_test), p_r_test[0]))
 
-                batch = [next(train_iterator) for _ in xrange(FLAGS.batch_size)]
-                fdict = embedder.build_feed_dict(batch)
+                    # train
+                    #train_loss = 0.0
+                    batch_step = 0
+                    for batch in td.group_by_batches(shuffled, FLAGS.batch_size):
+                        train_feed_dict = {compiler.loom_input_tensor: batch}
+                        _, step, batch_loss, sim_train, sim_gold_train = sess.run([train_op, global_step, loss, sim, sim_gold], train_feed_dict)
+                        #train_loss += batch_loss
+                        loss_train_normed = batch_loss / len(batch)
+                        p_r_train = pearsonr(sim_gold_train, sim_train)
 
-                _, step, loss_train, sim_gold_train, sim_train, mse_train = sess.run(
-                    [train_op, global_step, loss, sim_gold, sim, mse],
-                    feed_dict=fdict)
-                p_r = pearsonr(sim_gold_train, sim_train)
+                        emit_values(supervisor, sess, step,
+                                    {'mse': loss_train_normed,  # to stay comparable with previous runs
+                                     'loss': loss_train_normed,
+                                     'pearson_r': p_r_train[0],
+                                     'pearson_r_p': p_r_train[1]
+                                     })
+                        batch_step += 1
 
-                emit_values(supervisor, sess, step,
-                            {'mse': loss_train / len(batch),
-                             'pearson_r': p_r[0],
-                             'pearson_r_p': p_r[1]
-                             })
-
-                #print(np.average(sim_train))
-
-                #print(sim_gold_train.tolist())
-                #print(sim_train.tolist())
-                #print(mse_train.tolist())
-                #print(np.abs(sim_gold_train - sim_train).tolist())
-
-                print('step=%d: loss=%f  pearson_r=%f  sim_avg=%f  sim_var=%f  sim_avg_gold=%f  sim_var_gold=%f' % (step, loss_train / len(batch), p_r[0], np.average(sim_train), np.var(sim_train), np.average(sim_gold_train), np.var(sim_gold_train)))
-
-            supervisor.saver.save(sess, checkpoint_path(step))
+                        print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f' % (
+                            epoch, step, batch_loss / FLAGS.batch_size, p_r_train[0]))
+                    supervisor.saver.save(sess, checkpoint_path(step))
 
 if __name__ == '__main__':
-  tf.app.run()
+    tf.app.run()
