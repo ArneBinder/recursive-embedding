@@ -26,7 +26,8 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
-                       '/home/arne/ML_local/tf/log', #/model.ckpt-122800',
+                       #'/home/arne/ML_local/tf/log', #/model.ckpt-122800',
+                       '/home/arne/ML_local/tf/unsupervised/log',
                        #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension).')

@@ -342,9 +342,9 @@ def main(unused_argv):
 
             # collect important variables
             scoring_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_SCORING)
-            aggr_ordered_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                                  scope=model_fold.DEFAULT_SCOPE_AGGR_ORDERED)
-            saver_small = tf.train.Saver(var_list=scoring_vars + aggr_ordered_vars + [global_step])
+            tree_embedder_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+                                                  scope=model_fold.DEFAULT_SCOPE_TREE_EMBEDDER)
+            saver_small = tf.train.Saver(var_list=scoring_vars + tree_embedder_vars + [global_step])
             #saver_embeddings = tf.train.Saver(var_list=[embed_w])
 
             saver = tf.train.Saver()

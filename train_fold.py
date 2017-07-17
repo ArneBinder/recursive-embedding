@@ -200,8 +200,8 @@ def main(unused_argv):
             test_writer = tf.summary.FileWriter(summary_path + 'test', graph)
 
             # collect important variables
-            #aggr_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=aggregator_ordered_scope_name)
-            #save_vars = aggr_vars + [embed_w, global_step]
+            #tree_embedder_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_TREE_EMBEDDER)
+            #save_vars = tree_embedder_vars + [embed_w, global_step]
             #my_saver = tf.train.Saver(save_vars)
 
             #missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
@@ -273,8 +273,9 @@ def main(unused_argv):
                                      })
                         batch_step += 1
 
-                        print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f' % (
-                            epoch, step, batch_loss / FLAGS.batch_size, p_r_train[0]))
+                        print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
+                            epoch, step, batch_loss / FLAGS.batch_size, p_r_train[0], np.average(sim_train),
+                            np.average(sim_gold_train)))
                     supervisor.saver.save(sess, checkpoint_path(step))
 
 if __name__ == '__main__':
