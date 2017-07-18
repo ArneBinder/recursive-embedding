@@ -23,7 +23,8 @@ import math
 tf.flags.DEFINE_string(
     'train_data_path',
     #'data/corpora/sick/process_sentence6/SICK.train',
-    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
+    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+    #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
     'TF Record file containing the training dataset of sequence tuples.')
 #tf.flags.DEFINE_string(
 #    'test_data_path',
@@ -37,7 +38,7 @@ tf.flags.DEFINE_integer(
     'batch_size', 250, 'How many samples to read per batch.')
     #'batch_size', 2, 'How many samples to read per batch.')
 tf.flags.DEFINE_integer('epochs',
-                        100,
+                        1000,
                         'The number of epochs.')
 #tf.flags.DEFINE_integer( # use size of embeddings loaded from numpy array
 #    'embedding_length', 300,
@@ -250,7 +251,8 @@ def main(unused_argv):
                                 {'mse': loss_test_normed,  # to stay comparable with previous runs
                                  'loss': loss_test_normed,
                                  'pearson_r': p_r_test[0],
-                                 'pearson_r_p': p_r_test[1]},
+                                 'pearson_r_p': p_r_test[1],
+                                 'sim_avg': np.average(sim_test)},
                                 writer=test_writer)
                     print('epoch=%d step=%d: loss_test=%f pearson_r_test=%f' % (
                         epoch, step, loss_test / len(batch_test), p_r_test[0]))
@@ -269,7 +271,8 @@ def main(unused_argv):
                                     {'mse': loss_train_normed,  # to stay comparable with previous runs
                                      'loss': loss_train_normed,
                                      'pearson_r': p_r_train[0],
-                                     'pearson_r_p': p_r_train[1]
+                                     'pearson_r_p': p_r_train[1],
+                                     'sim_avg': np.average(sim_train)
                                      })
                         batch_step += 1
 
