@@ -246,16 +246,16 @@ def main(unused_argv):
                     # test
                     loss_test, sim_test, sim_gold_test = sess.run([loss, sim, sim_gold], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_test)
-                    loss_test_normed = loss_test / len(batch_test)
+                    #loss_test_normed = loss_test
                     emit_values(supervisor, sess, step,
-                                {'mse': loss_test_normed,  # to stay comparable with previous runs
-                                 'loss': loss_test_normed,
+                                {'mse': loss_test,  # to stay comparable with previous runs
+                                 'loss': loss_test,
                                  'pearson_r': p_r_test[0],
                                  'pearson_r_p': p_r_test[1],
                                  'sim_avg': np.average(sim_test)},
                                 writer=test_writer)
                     print('epoch=%d step=%d: loss_test=%f pearson_r_test=%f' % (
-                        epoch, step, loss_test / len(batch_test), p_r_test[0]))
+                        epoch, step, loss_test, p_r_test[0]))
 
                     # train
                     #train_loss = 0.0
@@ -264,20 +264,21 @@ def main(unused_argv):
                         train_feed_dict = {compiler.loom_input_tensor: batch}
                         _, step, batch_loss, sim_train, sim_gold_train = sess.run([train_op, global_step, loss, sim, sim_gold], train_feed_dict)
                         #train_loss += batch_loss
-                        loss_train_normed = batch_loss / len(batch)
+                        #loss_batch_normed = batch_loss
                         p_r_train = pearsonr(sim_gold_train, sim_train)
 
                         emit_values(supervisor, sess, step,
-                                    {'mse': loss_train_normed,  # to stay comparable with previous runs
-                                     'loss': loss_train_normed,
+                                    {'mse': batch_loss,  # to stay comparable with previous runs
+                                     'loss': batch_loss,
                                      'pearson_r': p_r_train[0],
                                      'pearson_r_p': p_r_train[1],
                                      'sim_avg': np.average(sim_train)
                                      })
                         batch_step += 1
+                        #print(sim_train.tolist())
 
                         print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
-                            epoch, step, batch_loss / FLAGS.batch_size, p_r_train[0], np.average(sim_train),
+                            epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                             np.average(sim_gold_train)))
                     supervisor.saver.save(sess, checkpoint_path(step))
 
