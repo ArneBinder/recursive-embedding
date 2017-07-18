@@ -377,6 +377,10 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
     # init as list containing an empty dummy array with dtype=int16 to allow numpy concatenation even if empty
     depth_list = [np.ndarray(shape=(0,), dtype=np.int16)]
 
+    assert concat_mode in constants.concat_modes, 'unknown concat_mode="'+concat_mode +'". Please use one of: '+ ', '.join([str(s) for s in constants.concat_modes])
+    assert inner_concat_mode in constants.concat_modes, 'unknown inner_concat_mode="' + inner_concat_mode + '". Please use one of: ' + ', '.join(
+        [str(s) for s in constants.concat_modes])
+
     if expand_dict:
         unknown_default = None
     else:

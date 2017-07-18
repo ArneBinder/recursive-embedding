@@ -38,9 +38,20 @@ tf.flags.DEFINE_string(
     'process_sentence3',
     'Which data types (features) are used to build the data sequence.')
 tf.flags.DEFINE_string(
+    'concat_mode',
+    'sequence',
+    #'aggregate',
+    #constants.default_inner_concat_mode,
+    'How to concatenate the trees returned for one sentence. '
+    '"tree" -> use dependency parse tree'
+    '"sequence" -> roots point to next root, '
+    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
+    '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
+tf.flags.DEFINE_string(
     'inner_concat_mode',
-    # 'tree',
-    constants.default_inner_concat_mode,
+    'tree',
+    #None,
+    #constants.default_inner_concat_mode,
     'How to concatenate the trees returned for one token. '
     '"tree" -> use dependency parse tree'
     '"sequence" -> roots point to next root, '
@@ -143,8 +154,12 @@ if __name__ == '__main__':
         os.makedirs(out_dir)
 
     out_path = os.path.join(out_dir, FLAGS.corpus_data_output_fn)
+
+    assert FLAGS.concat_mode is not None and FLAGS.concat_mode != 'tree', \
+        "concat_mode=None or concat_mode='tree' is NOT ALLOWED for similarity scored tuples! Use 'sequence' or 'aggregate'"
+    out_path = out_path + '_CM' + FLAGS.concat_mode
     if FLAGS.inner_concat_mode is not None:
-        out_path = out_path + '_' + FLAGS.inner_concat_mode
+        out_path = out_path + '_ICM' + FLAGS.inner_concat_mode
 
     data_train, parents_train, scores_train, _ = corpus.parse_texts_scored(filename=FLAGS.corpus_data_input_train,
                                                                            reader=sick_sentence_reader,
@@ -152,6 +167,7 @@ if __name__ == '__main__':
                                                                            sentence_processor=sentence_processor,
                                                                            parser=nlp,
                                                                            mapping=mapping,
+                                                                           concat_mode=FLAGS.concat_mode,
                                                                            inner_concat_mode=FLAGS.inner_concat_mode)
 
     data_test, parents_test, scores_test, _ = corpus.parse_texts_scored(filename=FLAGS.corpus_data_input_test,
@@ -160,6 +176,7 @@ if __name__ == '__main__':
                                                                         sentence_processor=sentence_processor,
                                                                         parser=nlp,
                                                                         mapping=mapping,
+                                                                        concat_mode=FLAGS.concat_mode,
                                                                         inner_concat_mode=FLAGS.inner_concat_mode)
 
     data = np.concatenate((data_train, data_test))

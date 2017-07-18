@@ -492,19 +492,19 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
             current_seq_depths.dump(out_filename + '.depth.batch' + str(offset))
 
 
-def parse_texts_scored(filename, reader, reader_scores, sentence_processor, parser, mapping, inner_concat_mode):
+def parse_texts_scored(filename, reader, reader_scores, sentence_processor, parser, mapping, concat_mode, inner_concat_mode):
     logging.info('convert texts scored ...')
     logging.debug('len(mapping)=' + str(len(mapping)))
     data, parents, _ = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
                                                parser=parser, reader_args={'filename': filename}, data_maps=mapping,
-                                               batch_size=10000, concat_mode='sequence',
+                                               batch_size=10000, concat_mode=concat_mode,
                                                inner_concat_mode=inner_concat_mode, expand_dict=True, calc_depths=False)
     logging.debug('len(mapping)=' + str(len(mapping)) + '(after parsing)')
     roots = [idx for idx, parent in enumerate(parents) if parent == 0]
     logging.debug('len(roots)=' + str(len(roots)))
     scores = np.fromiter(reader_scores(filename), np.float) #list(reader_scores(filename))
     logging.debug('len(scores)=' + str(len(scores)))
-    assert 2 * len(scores) == len(roots), 'len(roots) != 2 * len(scores)'
+    assert 2 * len(scores) == len(roots), 'len(roots):'+str(len(roots))+' != 2 * len(scores):'+str(2 * len(scores))
 
     return data, parents, scores, roots
 
