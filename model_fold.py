@@ -339,7 +339,7 @@ class TreeEmbedding_AVG_children_2levels(object):
         return self._state_size * 2
 
 
-def sim_cosine(e1, e2):
+def sim_cosine(e1, e2, input_state_size=DIMENSION_EMBEDDINGS):
     return tf.reduce_sum(e1 * e2, axis=1)
 
 
@@ -368,11 +368,11 @@ def sim_layer(e1, e2, input_state_size=DIMENSION_EMBEDDINGS, hidden_size=DIMENSI
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, embeddings, tree_embedder_scope=DEFAULT_SCOPE_TREE_EMBEDDER):
+    def __init__(self, embeddings, tree_embedder=TreeEmbedding_TreeLSTM, normalize=True, sim_measure=sim_layer, tree_embedder_scope=DEFAULT_SCOPE_TREE_EMBEDDER):
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        tree_embed = TreeEmbedding_TreeLSTM(embeddings, name_or_scope=tree_embedder_scope)
+        tree_embed = tree_embedder(embeddings, name_or_scope=tree_embedder_scope)
         self._output_size = tree_embed.output_size
         model = td.AllOf(td.GetItem('first') >> tree_embed(),
                          td.GetItem('second') >> tree_embed(),
@@ -384,12 +384,12 @@ class SimilaritySequenceTreeTupleModel(object):
 
         # TODO: is normalization necessary?
         # normalize embeddings
-        if True:
+        if normalize:
             self._tree_embeddings_1 = tf.nn.l2_normalize(self._tree_embeddings_1, dim=1)
             self._tree_embeddings_2 = tf.nn.l2_normalize(self._tree_embeddings_2, dim=1)
 
-        self._sim = sim_layer(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2,
-                              input_state_size=self._output_size, hidden_size=DIMENSION_SIM_MEASURE)
+        self._sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2,
+                              input_state_size=self._output_size)
         #self._sim = sim_cosine(self._tree_embeddings_1, self._tree_embeddings_2)
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(

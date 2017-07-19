@@ -20,11 +20,16 @@ import tensorflow_fold as td
 import numpy as np
 import math
 
+
+flags = {'train_data_path': [tf.flags.DEFINE_string,
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                             'TF Record file containing the training dataset of sequence tuples.']}
+
 tf.flags.DEFINE_string(
     'train_data_path',
     #'data/corpora/sick/process_sentence6/SICK.train',
-    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
-    #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+    #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
+    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
     'TF Record file containing the training dataset of sequence tuples.')
 #tf.flags.DEFINE_string(
 #    'test_data_path',
@@ -57,10 +62,38 @@ tf.flags.DEFINE_string('run_description',
 tf.flags.DEFINE_integer(
     'test_file_index', -1,
     'Which file of the train data files should be used as test data.')
+tf.flags.DEFINE_boolean(
+    'embeddings_trainable',
+    True,
+    'Iff enabled, fine tune the embeddings.'
+)
+tf.flags.DEFINE_boolean(
+    'normalize',
+    True,
+    'Iff enabled, normalize sequence embeddings before application of sim_measure.'
+)
+tf.flags.DEFINE_string('sim_measure',
+                       #'sim_layer',
+                       'sim_cosine',
+                       'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
+                       '"sim_cosine" -> cosine'
+                       '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]')
+tf.flags.DEFINE_string('tree_embedder',
+                       #'TreeEmbedding_TreeLSTM',
+                       'TreeEmbedding_AVG_children',
+                       'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
+                       'Currently implemented:'
+                       '"TreeEmbedding_TreeLSTM" -> '
+                       '"TreeEmbedding_HTU" -> '
+                       '"TreeEmbedding_HTU_simplified" -> '
+                       '"TreeEmbedding_AVG_children" -> '
+                       '"TreeEmbedding_AVG_children_2levels" -> '
+                       )
 
 # Replication flags:
 tf.flags.DEFINE_string('logdir',
-                       '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
+                       #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
+                       '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simCosine_modelAvgchildren_normalizeTrue_batchsize250',
                        'Directory in which to write event logs.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
@@ -182,24 +215,26 @@ def main(unused_argv):
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
-                                  trainable=False, name=model_fold.VAR_NAME_EMBEDDING)
+                                  trainable=FLAGS.embeddings_trainable, name=model_fold.VAR_NAME_EMBEDDING)
 
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
 
             # Build the graph.
             #aggregator_ordered_scope_name = 'aggregator_ordered'
-            embedder = model_fold.SimilaritySequenceTreeTupleModel(embed_w) #, aggregator_ordered_scope_name)
-            loss = embedder.loss
-            #sim_cosine = embedder.cosine_similarities
-            sim_gold = embedder.gold_similarities
-            sim = embedder.sim
-            mse = embedder.mse
-            compiler = embedder.compiler
+            sim_measure = getattr(model_fold, FLAGS.sim_measure)
+            tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
+            model = model_fold.SimilaritySequenceTreeTupleModel(embed_w, tree_embedder=tree_embedder, normalize=FLAGS.normalize, sim_measure=sim_measure) #, aggregator_ordered_scope_name)
+            loss = model.loss
+            #sim_cosine = model.cosine_similarities
+            sim_gold = model.gold_similarities
+            sim = model.sim
+            mse = model.mse
+            compiler = model.compiler
 
-            #accuracy = embedder.accuracy
-            train_op = embedder.train_op
-            global_step = embedder.global_step
+            #accuracy = model.accuracy
+            train_op = model.train_op
+            global_step = model.global_step
 
             summary_path = os.path.join(FLAGS.logdir, '')
             if FLAGS.run_description:
@@ -215,10 +250,10 @@ def main(unused_argv):
             #missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
             #init_missing = tf.variables_initializer(missing_vars)
 
-            #embeddings_1 = embedder.tree_embeddings_1
-            #embeddings_2 = embedder.tree_embeddings_2
+            #embeddings_1 = model.tree_embeddings_1
+            #embeddings_2 = model.tree_embeddings_2
 
-            #cosine_similarities = embedder.cosine_similarities
+            #cosine_similarities = model.cosine_similarities
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
@@ -242,7 +277,7 @@ def main(unused_argv):
             # prepare test set
             #test_size = FLAGS.test_data_size
             batch_test = list(test_iterator) #[next(test_iterator) for _ in xrange(test_size)]
-            fdict_test = embedder.build_feed_dict(batch_test)
+            fdict_test = model.build_feed_dict(batch_test)
             #step = 0
 
             with compiler.multiprocessing_pool():
