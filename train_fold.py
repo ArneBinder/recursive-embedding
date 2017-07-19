@@ -23,7 +23,9 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
                              'TF Record file containing the training dataset of sequence tuples.',
                              'ps2CMaggregate'],
          'batch_size': [tf.flags.DEFINE_integer,
@@ -49,8 +51,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           # 'TreeEmbedding_TreeLSTM',
-                           'TreeEmbedding_AVG_children',
+                           'TreeEmbedding_AVG_children_2levels',
+                           #'TreeEmbedding_AVG_children',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TreeLSTM" -> '
@@ -58,6 +60,10 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_HTU_simplified" -> '
                            '"TreeEmbedding_AVG_children" -> '
                            '"TreeEmbedding_AVG_children_2levels" -> '],
+         'apply_embedding_fc': [tf.flags.DEFINE_boolean,
+                         False,
+                         #True,
+                         'Apply a fully connected layer before composition'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -132,7 +138,6 @@ def checkpoint_path(logdir, step):
 
 
 def main(unused_argv):
-    print(FLAGS.batch_size)
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
@@ -210,7 +215,8 @@ def main(unused_argv):
             tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
             model = model_fold.SimilaritySequenceTreeTupleModel(embed_w, tree_embedder=tree_embedder,
                                                                 normalize=FLAGS.normalize,
-                                                                sim_measure=sim_measure)  # , aggregator_ordered_scope_name)
+                                                                sim_measure=sim_measure,
+                                                                apply_embedding_fc=FLAGS.apply_embedding_fc)  # , aggregator_ordered_scope_name)
             loss = model.loss
             # sim_cosine = model.cosine_similarities
             sim_gold = model.gold_similarities
@@ -304,6 +310,7 @@ def main(unused_argv):
                     # train
                     # train_loss = 0.0
                     batch_step = 0
+                    show = True
                     for batch in td.group_by_batches(shuffled, FLAGS.batch_size):
                         train_feed_dict = {compiler.loom_input_tensor: batch}
                         _, step, batch_loss, sim_train, sim_gold_train = sess.run(
@@ -321,10 +328,11 @@ def main(unused_argv):
                                      })
                         batch_step += 1
                         # print(sim_train.tolist())
-
-                        print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
-                            epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
-                            np.average(sim_gold_train)))
+                        if show:
+                            print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
+                                epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
+                                np.average(sim_gold_train)))
+                            show = False
                     supervisor.saver.save(sess, checkpoint_path(logdir, step))
             test_result_csv.close()
 
