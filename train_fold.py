@@ -23,7 +23,8 @@ import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             'TF Record file containing the training dataset of sequence tuples.'],
+                             'TF Record file containing the training dataset of sequence tuples.',
+                             'ps2CMaggregate'],
          'batch_size': [tf.flags.DEFINE_integer,
                         '250',
                         'How many samples to read per batch.'],
@@ -58,8 +59,9 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
-                    '/home/arne/ML_local/tf/supervised/log/x',
-                    'Directory in which to write event logs.']
+                    '/home/arne/ML_local/tf/supervised/log',
+                    'Directory in which to write event logs.',
+                    None]
          }
 
 for flag in flags:
@@ -119,8 +121,8 @@ def normed_loss(batch_loss, batch_size):
     return math.sqrt(batch_loss / batch_size)
 
 
-def checkpoint_path(step):
-    return os.path.join(FLAGS.logdir, 'model.ckpt-' + str(step))
+def checkpoint_path(logdir, step):
+    return os.path.join(logdir, 'model.ckpt-' + str(step))
 
 
 def main(unused_argv):
@@ -146,7 +148,23 @@ def main(unused_argv):
     lex_size = vecs.shape[0]
     # embedding_dim = vecs.shape[1]
 
-    checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir)
+    run_desc = []
+    for flag in sorted(flags.keys()):
+        flags[flag] = flags[flag][1:]
+        new_value = getattr(FLAGS, flag)
+        flags[flag][0] = new_value
+
+        # collect run description
+        if len(flags[flag]) < 3:
+            run_desc.append(flag.replace('_', '').lower() + str(new_value).replace('_', '').upper())
+        # if a short version is set, use it. if it is set to None, add this flag not to the run_descriptions
+        elif flags[flag][2]:
+            run_desc.append(flag.replace('_', '').lower() + str(flags[flag][2]).replace('_', '').upper())
+
+    flags['run_description'] = ['_'.join(run_desc), 'short string description of the current run']
+
+    logdir = os.path.join(FLAGS.logdir, flags['run_description'][0])
+    checkpoint_fn = tf.train.latest_checkpoint(logdir)
     if checkpoint_fn:
         logging.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
@@ -198,7 +216,7 @@ def main(unused_argv):
             train_op = model.train_op
             global_step = model.global_step
 
-            summary_path = os.path.join(FLAGS.logdir, '')
+            summary_path = os.path.join(logdir, '')
             # if FLAGS.run_description:
             #    summary_path += FLAGS.run_description + '_'
 
@@ -220,7 +238,7 @@ def main(unused_argv):
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
                 # saver=None,# my_saver,
-                logdir=FLAGS.logdir,
+                logdir=logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
                 save_model_secs=300,
@@ -232,11 +250,7 @@ def main(unused_argv):
                 sess.run(embedding_init, feed_dict={embedding_placeholder: vecs})
                 # sess.run(init_missing)
                 step = 0
-                for flag in flags:
-                    flags[flag] = flags[flag][1:]
-                    new_value = getattr(FLAGS, flag)
-                    flags[flag][0] = new_value
-                with open(os.path.join(FLAGS.logdir, 'flags.json'), 'w') as outfile:
+                with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
                     json.dump(flags, outfile, indent=2, sort_keys=True)
             else:
                 step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
@@ -293,7 +307,7 @@ def main(unused_argv):
                         print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
                             epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                             np.average(sim_gold_train)))
-                    supervisor.saver.save(sess, checkpoint_path(step))
+                    supervisor.saver.save(sess, checkpoint_path(logdir, step))
 
 
 if __name__ == '__main__':
