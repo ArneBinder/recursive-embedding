@@ -503,23 +503,30 @@ class SimilaritySequenceTreeTupleModel(object):
 
 class SequenceTreeEmbedding(object):
 
-    def __init__(self, embeddings, tree_embedder_scope=DEFAULT_SCOPE_TREE_EMBEDDER, scoring_scope=DEFAULT_SCOPE_SCORING):
+    def __init__(self, embeddings, tree_embedder=TreeEmbedding_TreeLSTM, scoring_enabled=True, tree_embedder_scope=DEFAULT_SCOPE_TREE_EMBEDDER, scoring_scope=DEFAULT_SCOPE_SCORING):
         def squz(x):
             return tf.squeeze(x, [1])
 
-        # This layer maps a sequence tree embedding to an 'integrity' score
-        with tf.variable_scope(scoring_scope) as scoring_sc:
-            scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(squz)
+        self._scoring_enabled = scoring_enabled
 
-        tree_embed = TreeEmbedding_HTU(embeddings, name_or_scope=tree_embedder_scope)
+        tree_embed = tree_embedder(embeddings, name_or_scope=tree_embedder_scope)
 
         #with tf.variable_scope(aggregator_ordered_scope) as sc:
         #    embedder = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> sequence_tree_block(embeddings, sc)
 
-        model = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> tree_embed() >> td.AllOf(td.Identity(), scoring_fc)
+        if scoring_enabled:
+            # This layer maps a sequence tree embedding to an 'integrity' score
+            with tf.variable_scope(scoring_scope) as scoring_sc:
+                scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(squz)
+            model = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> tree_embed() >> td.AllOf(td.Identity(), scoring_fc)
 
-        self._compiler = td.Compiler.create(model)
-        self._tree_embeddings, self._scores = self._compiler.output_tensors
+            self._compiler = td.Compiler.create(model)
+            self._tree_embeddings, self._scores = self._compiler.output_tensors
+        else:
+            model = td.SerializedMessageToTree(
+                'recursive_dependency_embedding.SequenceNode') >> tree_embed()
+            self._compiler = td.Compiler.create(model)
+            self._tree_embeddings, = self._compiler.output_tensors
 
     @property
     def tree_embeddings(self):
@@ -528,6 +535,10 @@ class SequenceTreeEmbedding(object):
     @property
     def scores(self):
         return self._scores
+
+    @property
+    def scoring_enabled(self):
+        return self._scoring_enabled
 
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)

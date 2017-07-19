@@ -27,7 +27,8 @@ import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
                        #'/home/arne/ML_local/tf/log', #/model.ckpt-122800',
-                       '/home/arne/ML_local/tf/unsupervised/log',
+                       #'/home/arne/ML_local/tf/supervised/log',
+                       '/home/arne/ML_local/tf/supervised/log/applyembeddingfcFALSE_batchsize50_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPS3CMAGGREGATE_treeembedderTREEEMBEDDINGAVGCHILDREN',
                        #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension).')
@@ -67,6 +68,16 @@ tf.flags.DEFINE_string('save_final_model_path',
                         'If not None, save the final model (after integration of external and/or nlp '
                         'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
                         'further usages.')
+tf.flags.DEFINE_string('tree_embedder',
+                           'TreeEmbedding_AVG_children',
+                           #'TreeEmbedding_AVG_children',
+                           'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
+                           'Currently implemented:'
+                           '"TreeEmbedding_TreeLSTM" -> '
+                           '"TreeEmbedding_HTU" -> '
+                           '"TreeEmbedding_HTU_simplified" -> '
+                           '"TreeEmbedding_AVG_children" -> '
+                           '"TreeEmbedding_AVG_children_2levels" -> ')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -187,7 +198,11 @@ def get_or_calc_embeddings(params):
                  data_sequences]
         if len(batch) > 0:
             fdict = embedder.build_feed_dict(batch)
-            embeddings, scores = sess.run([tree_embeddings, embedding_scores], feed_dict=fdict)
+            if embedder.scoring_enabled:
+                embeddings, scores = sess.run([tree_embeddings, embedding_scores], feed_dict=fdict)
+            else:
+                embeddings = sess.run(tree_embeddings, feed_dict=fdict)
+                scores = np.zeros(shape=(embeddings.shape[0],), dtype=np.float32)
         else:
             embeddings = np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
             scores = np.zeros(shape=(0,), dtype=np.float32)
@@ -366,7 +381,7 @@ if __name__ == '__main__':
         lex_size = embeddings_np.shape[0]
 
     logging.info('dict size: ' + str(len(types)))
-    assert len(types) == lex_size, 'count of types does not match count of embedding vectors'
+    assert len(types) == lex_size, 'count of types (' +str(len(types)) + ') does not match count of embedding vectors (' + str(lex_size) + ')'
     data_maps = corpus.mapping_from_list(types)
 
     with tf.Graph().as_default():
@@ -375,9 +390,13 @@ if __name__ == '__main__':
                                   trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
-            embedder = model_fold.SequenceTreeEmbedding(embed_w)
+            tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
+            embedder = model_fold.SequenceTreeEmbedding(embed_w, tree_embedder=tree_embedder, scoring_enabled=False)
             tree_embeddings = embedder.tree_embeddings
-            embedding_scores = embedder.scores
+            if embedder.scoring_enabled:
+                embedding_scores = embedder.scores
+            else:
+                embedding_scores = None
 
             if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
