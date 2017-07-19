@@ -2,6 +2,7 @@
 from __future__ import division
 from __future__ import print_function
 
+import csv
 import fnmatch
 import json
 import ntpath
@@ -26,11 +27,12 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              'TF Record file containing the training dataset of sequence tuples.',
                              'ps2CMaggregate'],
          'batch_size': [tf.flags.DEFINE_integer,
-                        250,
+                        50,
                         'How many samples to read per batch.'],
          'epochs': [tf.flags.DEFINE_integer,
                     1000,
-                    'The number of epochs.'],
+                    'The number of epochs.',
+                    None],
          'test_file_index': [tf.flags.DEFINE_integer,
                              -1,
                              'Which file of the train data files should be used as test data.'],
@@ -41,8 +43,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                        True,
                        'Iff enabled, normalize sequence embeddings before application of sim_measure.'],
          'sim_measure': [tf.flags.DEFINE_string,
-                         'sim_layer',
-                         # 'sim_cosine',
+                         #'sim_layer',
+                         'sim_cosine',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
@@ -105,7 +107,7 @@ def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=Tru
             break
 
 
-def emit_values(supervisor, session, step, values, writer=None):
+def emit_values(supervisor, session, step, values, writer=None, csv_writer=None, csv_file=None):
     summary = tf.Summary()
     for name, value in six.iteritems(values):
         summary_value = summary.value.add()
@@ -115,6 +117,10 @@ def emit_values(supervisor, session, step, values, writer=None):
         writer.add_summary(summary, step)
     else:
         supervisor.summary_computed(session, summary, global_step=step)
+    if csv_writer:
+        values['step'] = step
+        csv_writer.writerow({k: values[k] for k in values if k in csv_writer.fieldnames})
+        csv_file.flush()
 
 
 def normed_loss(batch_loss, batch_size):
@@ -250,10 +256,20 @@ def main(unused_argv):
                 sess.run(embedding_init, feed_dict={embedding_placeholder: vecs})
                 # sess.run(init_missing)
                 step = 0
+                # write flags for current run
                 with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
                     json.dump(flags, outfile, indent=2, sort_keys=True)
+                # create test result writer
+                test_result_csv = open(os.path.join(test_writer.get_logdir(), 'results.csv'), 'w')
+                fieldnames = ['step', 'loss', 'pearson_r']
+                test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
+                test_result_writer.writeheader()
             else:
                 step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
+                # create test result writer
+                test_result_csv = open(os.path.join(test_writer.get_logdir(), 'results.csv'), 'a')
+                fieldnames = ['step', 'loss', 'pearson_r']
+                test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
                 # my_saver.restore(sess, checkpoint_fn)
 
             # prepare test set
@@ -279,7 +295,9 @@ def main(unused_argv):
                                  'pearson_r': p_r_test[0],
                                  'pearson_r_p': p_r_test[1],
                                  'sim_avg': np.average(sim_test)},
-                                writer=test_writer)
+                                writer=test_writer,
+                                csv_writer=test_result_writer,
+                                csv_file=test_result_csv)
                     print('epoch=%d step=%d: loss_test=%f pearson_r_test=%f' % (
                         epoch, step, loss_test, p_r_test[0]))
 
@@ -308,7 +326,7 @@ def main(unused_argv):
                             epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                             np.average(sim_gold_train)))
                     supervisor.saver.save(sess, checkpoint_path(logdir, step))
-
+            test_result_csv.close()
 
 if __name__ == '__main__':
     tf.app.run()
