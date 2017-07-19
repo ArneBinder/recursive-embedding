@@ -23,7 +23,7 @@ import math
 tf.flags.DEFINE_string(
     'train_data_path',
     #'data/corpora/sick/process_sentence6/SICK.train',
-    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
     #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
     'TF Record file containing the training dataset of sequence tuples.')
 #tf.flags.DEFINE_string(
@@ -227,14 +227,16 @@ def main(unused_argv):
                 print('init embeddings with external vectors...')
                 sess.run(embedding_init, feed_dict={embedding_placeholder: vecs})
                 #sess.run(init_missing)
-            #else:
+                step = 0
+            else:
+                step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
                 #my_saver.restore(sess, checkpoint_fn)
 
             # prepare test set
             #test_size = FLAGS.test_data_size
             batch_test = list(test_iterator) #[next(test_iterator) for _ in xrange(test_size)]
             fdict_test = embedder.build_feed_dict(batch_test)
-            step = 0
+            #step = 0
 
             with compiler.multiprocessing_pool():
                 print('training the model')

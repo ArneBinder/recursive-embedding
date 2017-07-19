@@ -372,7 +372,7 @@ class SimilaritySequenceTreeTupleModel(object):
 
         similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        tree_embed = TreeEmbedding_AVG_children(embeddings, name_or_scope=tree_embedder_scope)
+        tree_embed = TreeEmbedding_TreeLSTM(embeddings, name_or_scope=tree_embedder_scope)
         self._output_size = tree_embed.output_size
         model = td.AllOf(td.GetItem('first') >> tree_embed(),
                          td.GetItem('second') >> tree_embed(),
