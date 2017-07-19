@@ -1,8 +1,9 @@
-#from __future__ import absolute_import
+# from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
 import fnmatch
+import json
 import ntpath
 import os
 # import google3
@@ -20,81 +21,51 @@ import tensorflow_fold as td
 import numpy as np
 import math
 
-
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             'TF Record file containing the training dataset of sequence tuples.']}
+                             'TF Record file containing the training dataset of sequence tuples.'],
+         'batch_size': [tf.flags.DEFINE_integer,
+                        '250',
+                        'How many samples to read per batch.'],
+         'epochs': [tf.flags.DEFINE_integer,
+                    1000,
+                    'The number of epochs.'],
+         'test_file_index': [tf.flags.DEFINE_integer,
+                             -1,
+                             'Which file of the train data files should be used as test data.'],
+         'embeddings_trainable': [tf.flags.DEFINE_boolean,
+                                  True,
+                                  'Iff enabled, fine tune the embeddings.'],
+         'normalize': [tf.flags.DEFINE_boolean,
+                       True,
+                       'Iff enabled, normalize sequence embeddings before application of sim_measure.'],
+         'sim_measure': [tf.flags.DEFINE_string,
+                         'sim_layer',
+                         # 'sim_cosine',
+                         'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
+                         '"sim_cosine" -> cosine'
+                         '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
+         'tree_embedder': [tf.flags.DEFINE_string,
+                           # 'TreeEmbedding_TreeLSTM',
+                           'TreeEmbedding_AVG_children',
+                           'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
+                           'Currently implemented:'
+                           '"TreeEmbedding_TreeLSTM" -> '
+                           '"TreeEmbedding_HTU" -> '
+                           '"TreeEmbedding_HTU_simplified" -> '
+                           '"TreeEmbedding_AVG_children" -> '
+                           '"TreeEmbedding_AVG_children_2levels" -> '],
+         'logdir': [tf.flags.DEFINE_string,
+                    # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
+                    #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
+                    '/home/arne/ML_local/tf/supervised/log/x',
+                    'Directory in which to write event logs.']
+         }
 
-tf.flags.DEFINE_string(
-    'train_data_path',
-    #'data/corpora/sick/process_sentence6/SICK.train',
-    #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
-    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-    'TF Record file containing the training dataset of sequence tuples.')
-#tf.flags.DEFINE_string(
-#    'test_data_path',
-#    #'data/corpora/sick/process_sentence6/SICK.test',
-#    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
-#    'TF Record file containing the test dataset of sequence tuples.')
-#tf.flags.DEFINE_string(
-#    'train_dict_path', 'data/nlp/spacy/dict.vecs',
-#    'Numpy array which is used to initialize the embedding vectors.')
-tf.flags.DEFINE_integer(
-    'batch_size', 250, 'How many samples to read per batch.')
-    #'batch_size', 2, 'How many samples to read per batch.')
-tf.flags.DEFINE_integer('epochs',
-                        1000,
-                        'The number of epochs.')
-#tf.flags.DEFINE_integer( # use size of embeddings loaded from numpy array
-#    'embedding_length', 300,
-#    'How long to make the embedding vectors.')
-tf.flags.DEFINE_integer(
-    #'max_steps', 1000000,
-    'max_steps', 1000,
-    'The maximum number of batches to run the trainer for.')
-tf.flags.DEFINE_integer(
-    'test_data_size', 1000,
-    'The size of the test set.')
-tf.flags.DEFINE_string('run_description',
-                       None,
-                       #'dataPs2_embeddingsUntrainable_simCosine_modelDefault',
-                       'label extension for the name of the run when visualizing with tensorboard')
-tf.flags.DEFINE_integer(
-    'test_file_index', -1,
-    'Which file of the train data files should be used as test data.')
-tf.flags.DEFINE_boolean(
-    'embeddings_trainable',
-    True,
-    'Iff enabled, fine tune the embeddings.'
-)
-tf.flags.DEFINE_boolean(
-    'normalize',
-    True,
-    'Iff enabled, normalize sequence embeddings before application of sim_measure.'
-)
-tf.flags.DEFINE_string('sim_measure',
-                       #'sim_layer',
-                       'sim_cosine',
-                       'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
-                       '"sim_cosine" -> cosine'
-                       '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]')
-tf.flags.DEFINE_string('tree_embedder',
-                       #'TreeEmbedding_TreeLSTM',
-                       'TreeEmbedding_AVG_children',
-                       'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
-                       'Currently implemented:'
-                       '"TreeEmbedding_TreeLSTM" -> '
-                       '"TreeEmbedding_HTU" -> '
-                       '"TreeEmbedding_HTU_simplified" -> '
-                       '"TreeEmbedding_AVG_children" -> '
-                       '"TreeEmbedding_AVG_children_2levels" -> '
-                       )
+for flag in flags:
+    v = flags[flag]
+    v[0](flag, v[1], v[2])
 
-# Replication flags:
-tf.flags.DEFINE_string('logdir',
-                       #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
-                       '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simCosine_modelAvgchildren_normalizeTrue_batchsize250',
-                       'Directory in which to write event logs.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
 tf.flags.DEFINE_integer('task', 0,
@@ -106,25 +77,13 @@ FLAGS = tf.flags.FLAGS
 
 # Find the root of the bazel repository.
 def source_root():
-  root = __file__
-  #print('root1: ' + str(root))
-  #for _ in xrange(5):
-  for _ in xrange(1):
-    root = os.path.dirname(root)
-  #print('root: '+str(root))
-  return root
+    root = __file__
+    for _ in xrange(1):
+        root = os.path.dirname(root)
+    return root
 
-
-#CALCULATOR_SOURCE_ROOT = source_root()
-#CALCULATOR_PROTO_FILE = ('tensorflow_fold/loom/'
-#                         'calculator_example/calculator.proto')
-#CALCULATOR_PROTO_FILE = ('calculator_new.proto')
-#CALCULATOR_EXPRESSION_PROTO = ('tensorflow_fold.loom.'
-#                               'calculator_example.CalculatorExpression')
-#CALCULATOR_EXPRESSION_PROTO = ('my_example.CalculatorExpression')
 
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-
 
 # Make sure serialized_message_to_tree can find the calculator example proto:
 td.proto_tools.map_proto_source_tree_path('', source_root())
@@ -161,10 +120,11 @@ def normed_loss(batch_loss, batch_size):
 
 
 def checkpoint_path(step):
-    return os.path.join(FLAGS.logdir, 'model.ckpt-'+str(step))
+    return os.path.join(FLAGS.logdir, 'model.ckpt-' + str(step))
 
 
 def main(unused_argv):
+    print(FLAGS.batch_size)
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
@@ -184,7 +144,7 @@ def main(unused_argv):
     # DEBUG
     vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
     lex_size = vecs.shape[0]
-    #embedding_dim = vecs.shape[1]
+    # embedding_dim = vecs.shape[1]
 
     checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir)
     if checkpoint_fn:
@@ -194,22 +154,22 @@ def main(unused_argv):
         embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
         lex_size = embed_shape[0]
 
-    logging.info('lex_size = '+str(lex_size))
+    logging.info('lex_size = ' + str(lex_size))
 
-    #print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
-    #embeddings_np = np.load(FLAGS.train_dict_path)
+    # print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
+    # embeddings_np = np.load(FLAGS.train_dict_path)
 
-    #embedding_dim = embeddings_np.shape[1]
-    #lex_size = 1300000
-    #print('load mappings from: ' + data_fn + '.mapping ...')
-    #mapping = pickle.load(open(data_fn + '.mapping', "rb"))
-    #assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
+    # embedding_dim = embeddings_np.shape[1]
+    # lex_size = 1300000
+    # print('load mappings from: ' + data_fn + '.mapping ...')
+    # mapping = pickle.load(open(data_fn + '.mapping', "rb"))
+    # assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
 
-    #embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
-    #embeddings_padded = np.ones(shape=(1300000, 300)) #np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
+    # embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
+    # embeddings_padded = np.ones(shape=(1300000, 300)) #np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
 
-    #print('embeddings_np.shape: '+str(embeddings_np.shape))
-    #print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
+    # print('embeddings_np.shape: '+str(embeddings_np.shape))
+    # print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
 
     print('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
@@ -221,43 +181,45 @@ def main(unused_argv):
             embedding_init = embed_w.assign(embedding_placeholder)
 
             # Build the graph.
-            #aggregator_ordered_scope_name = 'aggregator_ordered'
+            # aggregator_ordered_scope_name = 'aggregator_ordered'
             sim_measure = getattr(model_fold, FLAGS.sim_measure)
             tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
-            model = model_fold.SimilaritySequenceTreeTupleModel(embed_w, tree_embedder=tree_embedder, normalize=FLAGS.normalize, sim_measure=sim_measure) #, aggregator_ordered_scope_name)
+            model = model_fold.SimilaritySequenceTreeTupleModel(embed_w, tree_embedder=tree_embedder,
+                                                                normalize=FLAGS.normalize,
+                                                                sim_measure=sim_measure)  # , aggregator_ordered_scope_name)
             loss = model.loss
-            #sim_cosine = model.cosine_similarities
+            # sim_cosine = model.cosine_similarities
             sim_gold = model.gold_similarities
             sim = model.sim
             mse = model.mse
             compiler = model.compiler
 
-            #accuracy = model.accuracy
+            # accuracy = model.accuracy
             train_op = model.train_op
             global_step = model.global_step
 
             summary_path = os.path.join(FLAGS.logdir, '')
-            if FLAGS.run_description:
-                summary_path += FLAGS.run_description + '_'
+            # if FLAGS.run_description:
+            #    summary_path += FLAGS.run_description + '_'
 
             test_writer = tf.summary.FileWriter(summary_path + 'test', graph)
 
             # collect important variables
-            #tree_embedder_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_TREE_EMBEDDER)
-            #save_vars = tree_embedder_vars + [embed_w, global_step]
-            #my_saver = tf.train.Saver(save_vars)
+            # tree_embedder_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_TREE_EMBEDDER)
+            # save_vars = tree_embedder_vars + [embed_w, global_step]
+            # my_saver = tf.train.Saver(save_vars)
 
-            #missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
-            #init_missing = tf.variables_initializer(missing_vars)
+            # missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
+            # init_missing = tf.variables_initializer(missing_vars)
 
-            #embeddings_1 = model.tree_embeddings_1
-            #embeddings_2 = model.tree_embeddings_2
+            # embeddings_1 = model.tree_embeddings_1
+            # embeddings_2 = model.tree_embeddings_2
 
-            #cosine_similarities = model.cosine_similarities
+            # cosine_similarities = model.cosine_similarities
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
-                #saver=None,# my_saver,
+                # saver=None,# my_saver,
                 logdir=FLAGS.logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
@@ -268,17 +230,23 @@ def main(unused_argv):
             if checkpoint_fn is None:
                 print('init embeddings with external vectors...')
                 sess.run(embedding_init, feed_dict={embedding_placeholder: vecs})
-                #sess.run(init_missing)
+                # sess.run(init_missing)
                 step = 0
+                for flag in flags:
+                    flags[flag] = flags[flag][1:]
+                    new_value = getattr(FLAGS, flag)
+                    flags[flag][0] = new_value
+                with open(os.path.join(FLAGS.logdir, 'flags.json'), 'w') as outfile:
+                    json.dump(flags, outfile, indent=2, sort_keys=True)
             else:
                 step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
-                #my_saver.restore(sess, checkpoint_fn)
+                # my_saver.restore(sess, checkpoint_fn)
 
             # prepare test set
-            #test_size = FLAGS.test_data_size
-            batch_test = list(test_iterator) #[next(test_iterator) for _ in xrange(test_size)]
+            # test_size = FLAGS.test_data_size
+            batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
             fdict_test = model.build_feed_dict(batch_test)
-            #step = 0
+            # step = 0
 
             with compiler.multiprocessing_pool():
                 print('training the model')
@@ -290,7 +258,7 @@ def main(unused_argv):
                     # test
                     loss_test, sim_test, sim_gold_test = sess.run([loss, sim, sim_gold], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_test)
-                    #loss_test_normed = loss_test
+                    # loss_test_normed = loss_test
                     emit_values(supervisor, sess, step,
                                 {'mse': loss_test,  # to stay comparable with previous runs
                                  'loss': loss_test,
@@ -302,13 +270,14 @@ def main(unused_argv):
                         epoch, step, loss_test, p_r_test[0]))
 
                     # train
-                    #train_loss = 0.0
+                    # train_loss = 0.0
                     batch_step = 0
                     for batch in td.group_by_batches(shuffled, FLAGS.batch_size):
                         train_feed_dict = {compiler.loom_input_tensor: batch}
-                        _, step, batch_loss, sim_train, sim_gold_train = sess.run([train_op, global_step, loss, sim, sim_gold], train_feed_dict)
-                        #train_loss += batch_loss
-                        #loss_batch_normed = batch_loss
+                        _, step, batch_loss, sim_train, sim_gold_train = sess.run(
+                            [train_op, global_step, loss, sim, sim_gold], train_feed_dict)
+                        # train_loss += batch_loss
+                        # loss_batch_normed = batch_loss
                         p_r_train = pearsonr(sim_gold_train, sim_train)
 
                         emit_values(supervisor, sess, step,
@@ -319,12 +288,13 @@ def main(unused_argv):
                                      'sim_avg': np.average(sim_train)
                                      })
                         batch_step += 1
-                        #print(sim_train.tolist())
+                        # print(sim_train.tolist())
 
                         print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
                             epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                             np.average(sim_gold_train)))
                     supervisor.saver.save(sess, checkpoint_path(step))
+
 
 if __name__ == '__main__':
     tf.app.run()
