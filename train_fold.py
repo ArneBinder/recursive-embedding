@@ -54,9 +54,13 @@ tf.flags.DEFINE_string('run_description',
                        None,
                        #'dataPs2_embeddingsUntrainable_simCosine_modelDefault',
                        'label extension for the name of the run when visualizing with tensorboard')
+tf.flags.DEFINE_integer(
+    'test_file_index', -1,
+    'Which file of the train data files should be used as test data.')
 
 # Replication flags:
-tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/supervised/log',
+tf.flags.DEFINE_string('logdir',
+                       '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                        'Directory in which to write event logs.')
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
@@ -134,12 +138,15 @@ def main(unused_argv):
     train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
     train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
     logging.info('found ' + str(len(train_fnames)) + ' train data files')
+    test_fname = train_fnames[FLAGS.test_file_index]
+    logging.info('use ' + test_fname + ' for testing')
+    del train_fnames[FLAGS.test_file_index]
 
     train_iterator = iterate_over_tf_record_protos(
-        train_fnames[:-1], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+        train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
     test_iterator = iterate_over_tf_record_protos(
-        [train_fnames[-1]], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+        [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
     # DEBUG
     vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
