@@ -23,7 +23,7 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentenc2/SICK_CMaggregate',
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
                              'TF Record file containing the training dataset of sequence tuples.'],
@@ -141,7 +141,10 @@ def main(unused_argv):
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
+    ### debug
     train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
+    #train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')[0:2]
+    ## debug end
     train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
     logging.info('found ' + str(len(train_fnames)) + ' train data files')
     test_fname = train_fnames[FLAGS.test_file_index]
@@ -287,13 +290,16 @@ def main(unused_argv):
             # test_size = FLAGS.test_data_size
             batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
             fdict_test = model.build_feed_dict(batch_test)
+            logging.info('test data size: ' + str(len(fdict_test)))
             # step = 0
 
             with compiler.multiprocessing_pool():
-                print('training the model')
-                train_set = compiler.build_loom_inputs(list(train_iterator))
+                data_train = list(train_iterator)
+                logging.info('train data size: ' + str(len(fdict_test)))
+                train_set = compiler.build_loom_inputs(data_train)
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 # dev_hits_best = 0.0
+                print('training the model')
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
 
                     # test

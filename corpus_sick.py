@@ -39,8 +39,8 @@ tf.flags.DEFINE_string(
     'Which data types (features) are used to build the data sequence.')
 tf.flags.DEFINE_string(
     'concat_mode',
-    'sequence',
-    #'aggregate',
+    #'sequence',
+    'aggregate',
     #constants.default_inner_concat_mode,
     'How to concatenate the trees returned for one sentence. '
     '"tree" -> use dependency parse tree'
@@ -49,8 +49,8 @@ tf.flags.DEFINE_string(
     '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
 tf.flags.DEFINE_string(
     'inner_concat_mode',
-    'tree',
-    #None,
+    #'tree',
+    None,
     #constants.default_inner_concat_mode,
     'How to concatenate the trees returned for one token. '
     '"tree" -> use dependency parse tree'
@@ -185,15 +185,16 @@ if __name__ == '__main__':
     types = corpus.revert_mapping_to_list(mapping)
     converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types, count_threshold=1)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
-    logging.debug('calc roots ...')
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')
     parents.dump(out_path + '.parent')
     scores.dump(out_path + '.score')
     corpus.write_dict(out_path, vecs=vecs, types=types)
     logging.info('the dataset contains ' + str(len(scores)) + ' scored text tuples')
-
+    logging.debug('calc roots ...')
     children, roots = preprocessing.children_and_roots(parents)
+    logging.debug('len(roots)='+str(len(roots)))
+
     for fold in range(FLAGS.fold_count):
         out_fn = out_path + '.train.'+str(fold)
         logging.info('write fold to: ' + out_fn + ' ...')
