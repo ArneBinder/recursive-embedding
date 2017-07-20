@@ -23,13 +23,12 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tree',
-                             'TF Record file containing the training dataset of sequence tuples.',
-                             'ps3CMaggregate'],
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
+                             'TF Record file containing the training dataset of sequence tuples.'],
          'batch_size': [tf.flags.DEFINE_integer,
-                        50,
+                        100,
                         'How many samples to read per batch.'],
          'epochs': [tf.flags.DEFINE_integer,
                     1000,
@@ -39,14 +38,15 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              -1,
                              'Which file of the train data files should be used as test data.'],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
-                                  True,
+                                  #True,
+                                  False,
                                   'Iff enabled, fine tune the embeddings.'],
          'normalize': [tf.flags.DEFINE_boolean,
                        True,
                        'Iff enabled, normalize sequence embeddings before application of sim_measure.'],
          'sim_measure': [tf.flags.DEFINE_string,
-                         #'sim_layer',
-                         'sim_cosine',
+                         'sim_layer',
+                         #'sim_cosine',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
@@ -61,8 +61,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_AVG_children" -> '
                            '"TreeEmbedding_AVG_children_2levels" -> '],
          'apply_embedding_fc': [tf.flags.DEFINE_boolean,
-                         False,
-                         #True,
+                         #False,
+                         True,
                          'Apply a fully connected layer before composition'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
@@ -113,7 +113,7 @@ def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=Tru
             break
 
 
-def emit_values(supervisor, session, step, values, writer=None, csv_writer=None, csv_file=None):
+def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
     summary = tf.Summary()
     for name, value in six.iteritems(values):
         summary_value = summary.value.add()
@@ -126,7 +126,7 @@ def emit_values(supervisor, session, step, values, writer=None, csv_writer=None,
     if csv_writer:
         values['step'] = step
         csv_writer.writerow({k: values[k] for k in values if k in csv_writer.fieldnames})
-        csv_file.flush()
+        #csv_file.flush()
 
 
 def normed_loss(batch_loss, batch_size):
@@ -167,7 +167,10 @@ def main(unused_argv):
 
         # collect run description
         if len(flags[flag]) < 3:
-            run_desc.append(flag.replace('_', '').lower() + str(new_value).replace('_', '').upper())
+            flag_name = flag.replace('_', '')
+            flag_value = str(new_value).replace('_', '')
+            flag_value = ''.join(flag_value.split(os.sep)[-2:])
+            run_desc.append(flag_name.lower() + flag_value.upper())
         # if a short version is set, use it. if it is set to None, add this flag not to the run_descriptions
         elif flags[flag][2]:
             run_desc.append(flag.replace('_', '').lower() + str(flags[flag][2]).replace('_', '').upper())
@@ -257,6 +260,12 @@ def main(unused_argv):
                 summary_writer=tf.summary.FileWriter(summary_path + 'train', graph))
             sess = supervisor.PrepareSession(FLAGS.master)
 
+            def csv_test_writer(mode='w'):
+                test_result_csv = open(os.path.join(test_writer.get_logdir(), 'results.csv'), mode, buffering=1)
+                fieldnames = ['step', 'loss', 'pearson_r', 'sim_avg']
+                test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
+                return test_result_writer
+
             if checkpoint_fn is None:
                 print('init embeddings with external vectors...')
                 sess.run(embedding_init, feed_dict={embedding_placeholder: vecs})
@@ -266,16 +275,12 @@ def main(unused_argv):
                 with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
                     json.dump(flags, outfile, indent=2, sort_keys=True)
                 # create test result writer
-                test_result_csv = open(os.path.join(test_writer.get_logdir(), 'results.csv'), 'w')
-                fieldnames = ['step', 'loss', 'pearson_r']
-                test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
+                test_result_writer = csv_test_writer()
                 test_result_writer.writeheader()
             else:
                 step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
                 # create test result writer
-                test_result_csv = open(os.path.join(test_writer.get_logdir(), 'results.csv'), 'a')
-                fieldnames = ['step', 'loss', 'pearson_r']
-                test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
+                test_result_writer = csv_test_writer(mode='a')
                 # my_saver.restore(sess, checkpoint_fn)
 
             # prepare test set
@@ -302,8 +307,7 @@ def main(unused_argv):
                                  'pearson_r_p': p_r_test[1],
                                  'sim_avg': np.average(sim_test)},
                                 writer=test_writer,
-                                csv_writer=test_result_writer,
-                                csv_file=test_result_csv)
+                                csv_writer=test_result_writer)
                     print('epoch=%d step=%d: loss_test=%f pearson_r_test=%f' % (
                         epoch, step, loss_test, p_r_test[0]))
 
@@ -328,13 +332,13 @@ def main(unused_argv):
                                      })
                         batch_step += 1
                         # print(sim_train.tolist())
-                        if show:
+                        if show or True:
                             print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
                                 epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                                 np.average(sim_gold_train)))
                             show = False
                     supervisor.saver.save(sess, checkpoint_path(logdir, step))
-            test_result_csv.close()
+            #test_result_csv.close()
 
 if __name__ == '__main__':
     tf.app.run()
