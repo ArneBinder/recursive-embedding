@@ -26,7 +26,7 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
-                       #'/home/arne/ML_local/tf/log', #/model.ckpt-122800',
+                       #'/home/arne/ML_local/tf/unsupervised/log', #/model.ckpt-122800',
                        #'/home/arne/ML_local/tf/supervised/log',
                        '/home/arne/ML_local/tf/supervised/log/applyembeddingfcFALSE_batchsize50_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPS3CMAGGREGATE_treeembedderTREEEMBEDDINGAVGCHILDREN',
                        #'/home/arne/ML_local/tf/log/final_model',
@@ -200,14 +200,15 @@ def get_or_calc_embeddings(params):
             fdict = embedder.build_feed_dict(batch)
             if embedder.scoring_enabled:
                 embeddings, scores = sess.run([tree_embeddings, embedding_scores], feed_dict=fdict)
+                params['scores'] = scores
             else:
                 embeddings = sess.run(tree_embeddings, feed_dict=fdict)
-                scores = np.zeros(shape=(embeddings.shape[0],), dtype=np.float32)
+                #scores = np.zeros(shape=(embeddings.shape[0],), dtype=np.float32)
         else:
             embeddings = np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
             scores = np.zeros(shape=(0,), dtype=np.float32)
+            params['scores'] = scores
         params['embeddings'] = embeddings
-        params['scores'] = scores
     else:
         raise ValueError('no embeddings or sequences found in request')
 
@@ -359,9 +360,15 @@ if __name__ == '__main__':
     logging.info('read types ...')
     types = corpus.read_types(input_checkpoint)
     reader = tf.train.NewCheckpointReader(input_checkpoint)
+    saved_shapes = reader.get_variable_to_shape_map()
+    scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
+    if len(scoring_var_names) > 0:
+        logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
+    else:
+        logging.info('no found scoring vars found. Disable scoring functionality.')
     if not FLAGS.merge_nlp_embeddings and not FLAGS.external_embeddings:
         logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
-        saved_shapes = reader.get_variable_to_shape_map()
+        #saved_shapes = reader.get_variable_to_shape_map()
         embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
         lex_size = embed_shape[0]
     else:
@@ -391,7 +398,8 @@ if __name__ == '__main__':
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
             tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
-            embedder = model_fold.SequenceTreeEmbedding(embed_w, tree_embedder=tree_embedder, scoring_enabled=False)
+            embedder = model_fold.SequenceTreeEmbedding(embed_w, tree_embedder=tree_embedder,
+                                                        scoring_enabled=False)#len(scoring_var_names) > 0)
             tree_embeddings = embedder.tree_embeddings
             if embedder.scoring_enabled:
                 embedding_scores = embedder.scores
@@ -401,7 +409,10 @@ if __name__ == '__main__':
             if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
                 vars_without_embed = [v for v in vars_all if v != embed_w]
-                saver = tf.train.Saver(var_list=vars_without_embed)
+                if len(vars_without_embed) > 0:
+                    saver = tf.train.Saver(var_list=vars_without_embed)
+                else:
+                    saver = None
             else:
                 saver = tf.train.Saver()
 
@@ -412,8 +423,9 @@ if __name__ == '__main__':
 
             sess = tf.Session()
             # Restore variables from disk.
-            logging.info('restore model from: ' + input_checkpoint + '...')
-            saver.restore(sess, input_checkpoint)
+            if saver:
+                logging.info('restore model from: ' + input_checkpoint + '...')
+                saver.restore(sess, input_checkpoint)
 
             if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
                 logging.info('init embeddings with external vectors ...')
