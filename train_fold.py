@@ -23,8 +23,8 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentenc2/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentenc2/SICK_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'batch_size': [tf.flags.DEFINE_integer,
@@ -51,7 +51,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_AVG_children',
+                           'TreeEmbedding_AVG_children_2levels',
                            #'TreeEmbedding_AVG_children',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
@@ -143,7 +143,7 @@ def main(unused_argv):
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     ### debug
     train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
-    #train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')[0:2]
+    #train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')[0:1]
     ## debug end
     train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
     logging.info('found ' + str(len(train_fnames)) + ' train data files')

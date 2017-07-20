@@ -50,6 +50,12 @@ def nth(n):
     return
 
 
+def nth_py(n):
+    def _nth(s):
+        return s[n]
+    return td.InputTransform(_nth)
+
+
 def treeLSTM(xh_linear_layer, fc_f_layer, name='treelstm', forget_bias=1.0, activation=tf.tanh):
     comp = td.Composition(name=name)
     with comp.scope():
@@ -370,8 +376,7 @@ class TreeEmbedding_AVG_children_2levels(object):
             else:
                 return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), td.Function(embed), name=name)
 
-        # TODO: fix this!
-        children = td.GetItem('children') >> td.Map(td.AllOf(head(name='head_level1'), td.GetItem('children') >> nth(0)
+        children = td.GetItem('children') >> td.Map(td.AllOf(head(name='head_level1'), td.GetItem('children') >> nth_py(0)
                                                              >> head(name='head_level2')) >> td.Concat()) \
                    >> td.Reduce(td.Function(aggregator_order_unaware))
 
