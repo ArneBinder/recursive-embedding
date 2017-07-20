@@ -27,7 +27,6 @@ import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
                        #'/home/arne/ML_local/tf/unsupervised/log', #/model.ckpt-122800',
-                       #'/home/arne/ML_local/tf/supervised/log',
                        '/home/arne/ML_local/tf/supervised/log/applyembeddingfcFALSE_batchsize50_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPS3CMAGGREGATE_treeembedderTREEEMBEDDINGAVGCHILDREN',
                        #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
@@ -59,12 +58,12 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
 tf.flags.DEFINE_boolean('merge_nlp_embeddings',
-                        True,
-                        #False,
+                        #True,
+                        False,
                         'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
 tf.flags.DEFINE_string('save_final_model_path',
                         None,
-                        #'/home/arne/ML_local/tf/log/final_model',
+                        #'/home/arne/ML_local/tf/temp/log/final_model',
                         'If not None, save the final model (after integration of external and/or nlp '
                         'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
                         'further usages.')
@@ -416,11 +415,6 @@ if __name__ == '__main__':
             else:
                 saver = tf.train.Saver()
 
-            if FLAGS.save_final_model_path:
-                #all_model_vars = reader.get_variable_to_shape_map().keys()
-                #saver_final = tf.train.Saver(var_list=all_model_vars)
-                saver_final = tf.train.Saver()
-
             sess = tf.Session()
             # Restore variables from disk.
             if saver:
@@ -433,6 +427,7 @@ if __name__ == '__main__':
 
             if FLAGS.save_final_model_path:
                 logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
+                saver_final = tf.train.Saver()
                 saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
                 corpus.write_dict(FLAGS.save_final_model_path, types=types)
 
