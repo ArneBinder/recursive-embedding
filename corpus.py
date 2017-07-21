@@ -169,7 +169,8 @@ def move_to_front(fn, idx):
 def get_dict_from_vocab(vocab):
     manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
     size = len(vocab) + len(constants.vocab_manual)
-    vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
+    #vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
+    vecs = np.random.standard_normal(size=(size, vocab.vectors_length)) * 0.1
     #types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
     #types = [types_unknown]
 
@@ -276,7 +277,8 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     sorted_indices = np.argsort(counts)
 
     vecs_mean = np.mean(vecs, axis=0)
-    new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
+    #new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
+    new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
     new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
     new_types = [None] * new_max_size
     converter = -np.ones(shape=new_max_size, dtype=np.int32)
