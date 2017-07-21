@@ -38,8 +38,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              -1,
                              'Which file of the train data files should be used as test data.'],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
+                                  False,
                                   #True,
-                                  True,
                                   'Iff enabled, fine tune the embeddings.'],
          'normalize': [tf.flags.DEFINE_boolean,
                        True,
@@ -49,9 +49,9 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          'sim_cosine',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
-                         '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
+                         '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_AVG_children',
+                           'TreeEmbedding_LSTM_children',
                            #'TreeEmbedding_AVG_children',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
@@ -59,10 +59,13 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_HTU" -> '
                            '"TreeEmbedding_HTU_simplified" -> '
                            '"TreeEmbedding_AVG_children" -> '
-                           '"TreeEmbedding_AVG_children_2levels" -> '],
+                           '"TreeEmbedding_AVG_children_2levels" -> '
+                           '"TreeEmbedding_LSTM_children" -> '        
+                           '"TreeEmbedding_LSTM_children_2levels" -> '],
+
          'apply_embedding_fc': [tf.flags.DEFINE_boolean,
-                         False,
-                         #True,
+                         #False,
+                         True,
                          'Apply a fully connected layer before composition'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
@@ -179,6 +182,7 @@ def main(unused_argv):
             run_desc.append(flag.replace('_', '').lower() + str(flags[flag][2]).replace('_', '').upper())
 
     flags['run_description'] = ['_'.join(run_desc), 'short string description of the current run']
+    logging.info('short run description: ' + flags['run_description'][0])
 
     logdir = os.path.join(FLAGS.logdir, flags['run_description'][0])
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
