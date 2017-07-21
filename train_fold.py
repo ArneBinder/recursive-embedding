@@ -23,8 +23,8 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'batch_size': [tf.flags.DEFINE_integer,
@@ -45,13 +45,13 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                        True,
                        'Iff enabled, normalize sequence embeddings before application of sim_measure.'],
          'sim_measure': [tf.flags.DEFINE_string,
-                         'sim_layer',
-                         #'sim_cosine',
+                         #'sim_layer',
+                         'sim_cosine',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_LSTM_children_2levels',
+                           'TreeEmbedding_LSTM_children',
                            #'TreeEmbedding_AVG_children',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
@@ -61,8 +61,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_AVG_children" -> '
                            '"TreeEmbedding_AVG_children_2levels" -> '],
          'apply_embedding_fc': [tf.flags.DEFINE_boolean,
-                         #False,
-                         True,
+                         False,
+                         #True,
                          'Apply a fully connected layer before composition'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
@@ -259,7 +259,7 @@ def main(unused_argv):
                 logdir=logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
-                save_model_secs=300,
+                save_model_secs=0,
                 summary_writer=tf.summary.FileWriter(summary_path + 'train', graph))
             sess = supervisor.PrepareSession(FLAGS.master)
 
