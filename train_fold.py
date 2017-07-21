@@ -39,7 +39,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              'Which file of the train data files should be used as test data.'],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
                                   #True,
-                                  False,
+                                  True,
                                   'Iff enabled, fine tune the embeddings.'],
          'normalize': [tf.flags.DEFINE_boolean,
                        True,
@@ -51,7 +51,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_LSTM_children',
+                           'TreeEmbedding_AVG_children',
                            #'TreeEmbedding_AVG_children',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
@@ -290,12 +290,12 @@ def main(unused_argv):
             # test_size = FLAGS.test_data_size
             batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
             fdict_test = model.build_feed_dict(batch_test)
-            logging.info('test data size: ' + str(len(fdict_test)))
+            logging.info('test data size: ' + str(len(batch_test)))
             # step = 0
 
             with compiler.multiprocessing_pool():
                 data_train = list(train_iterator)
-                logging.info('train data size: ' + str(len(fdict_test)))
+                logging.info('train data size: ' + str(len(data_train)))
                 train_set = compiler.build_loom_inputs(data_train)
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 # dev_hits_best = 0.0
