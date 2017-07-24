@@ -23,9 +23,10 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tree',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'batch_size': [tf.flags.DEFINE_integer,
                         100,
@@ -38,11 +39,12 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              -1,
                              'Which file of the train data files should be used as test data.'],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
-                                  False,
+                                  True,
                                   #True,
                                   'Iff enabled, fine tune the embeddings.'],
          'normalize': [tf.flags.DEFINE_boolean,
                        True,
+                       #False,
                        'Iff enabled, normalize sequence embeddings before application of sim_measure.'],
          'sim_measure': [tf.flags.DEFINE_string,
                          #'sim_layer',
@@ -51,8 +53,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_LSTM_children',
-                           #'TreeEmbedding_AVG_children',
+                           'TreeEmbedding_LSTM_children_2levels',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TreeLSTM" -> '
@@ -64,8 +65,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_LSTM_children_2levels" -> '],
 
          'apply_embedding_fc': [tf.flags.DEFINE_boolean,
-                         #False,
-                         True,
+                         False,
+                         #True,
                          'Apply a fully connected layer before composition'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
@@ -318,8 +319,8 @@ def main(unused_argv):
                                  'sim_avg': np.average(sim_test)},
                                 writer=test_writer,
                                 csv_writer=test_result_writer)
-                    print('epoch=%d step=%d: loss_test=%f pearson_r_test=%f' % (
-                        epoch, step, loss_test, p_r_test[0]))
+                    print('epoch=%d step=%d: loss_test =%f\tpearson_r_test =%f\tsim_avg=%f\tsim_gold_avg=%f\tTEST' % (
+                        epoch, step, loss_test, p_r_test[0], np.average(sim_test), np.average(sim_gold_test)))
 
                     # train
                     # train_loss = 0.0
@@ -342,8 +343,8 @@ def main(unused_argv):
                                      })
                         batch_step += 1
                         # print(sim_train.tolist())
-                        if show or True:
-                            print('epoch=%d step=%d: loss_train=%f pearson_r_train=%f sim_avg=%f sim_gold_avg=%f' % (
+                        if show:# or True:
+                            print('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f' % (
                                 epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                                 np.average(sim_gold_train)))
                             show = False
