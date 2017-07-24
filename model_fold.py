@@ -274,7 +274,7 @@ class TreeEmbedding_HTU(object):
                           1: td.GetItem('head')
                              >> td.Optional(td.Scalar(dtype='int32')
                              >> td.Function(embed))
-                             >> embedding_fc,
+                             >> self._embedding_fc,
                           2: td.GetItem('children')
                              >> td.Map(embed_tree())
                              >> td.Reduce(td.Function(aggregator_order_unaware)),
@@ -353,7 +353,6 @@ class TreeEmbedding_AVG_children_2levels(object):
             self._name_or_scope = 'TreeEmbedding_AVG_children_2levels_%d' % self._state_size
 
         with tf.variable_scope(self._name_or_scope) as scope:
-            #self._fc = fc_scoped(num_units=self._state_size, scope=scope, name='FC_headchild_%d' % self._state_size)
             if self._apply_embedding_fc:
                 self._embedding_fc = fc_scoped(num_units=self._state_size * 2, scope=scope,
                                                name='FC_embedding_%d' % self._state_size * 2)
@@ -453,10 +452,9 @@ class TreeEmbedding_LSTM_children_2levels(object):
 
         with tf.variable_scope(self._name_or_scope) as scope:
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self._state_size * 2), 'lstm_cell')
-            self._fc = fc_scoped(num_units=self._state_size, scope=scope, name='FC_headchild_%d' % self._state_size)
             if self._apply_embedding_fc:
-                self._embedding_fc = fc_scoped(num_units=self._state_size, scope=scope,
-                                               name='FC_embedding_%d' % self._state_size)
+                self._embedding_fc = fc_scoped(num_units=self._state_size * 2, scope=scope,
+                                               name='FC_embedding_%d' % self._state_size * 2)
             else:
                 self._embedding_fc = td.Identity()
 
@@ -472,19 +470,19 @@ class TreeEmbedding_LSTM_children_2levels(object):
 
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
         def head(name):
-            return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), td.Function(embed), self._embedding_fc, name=name)
+            return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), td.Function(embed), name=name)
 
         sequence = td.GetItem('children') >> td.Map(td.AllOf(head(name='head_level1'), td.GetItem('children')
                                                              >> td.InputTransform(lambda s: s[0])
                                                              >> head(name='head_level2'))
-                                                    >> td.Concat() >> self._fc)
+                                                    >> td.Concat() >> self._embedding_fc)
 
         model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat()
         return model
 
     @property
     def output_size(self):
-        return self._state_size * 2
+        return self._state_size * 4
 
 
 def sim_cosine(e1, e2, input_state_size=DIMENSION_EMBEDDINGS):
