@@ -5,7 +5,7 @@ from __future__ import print_function
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 
-#DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
+# DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
 DIMENSION_EMBEDDINGS = 300
 DIMENSION_SIM_MEASURE = 300
@@ -35,6 +35,7 @@ def SeqToTuple(T, N):
 def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu):
     def fc_(inputs, scope):
         return tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope)
+
     if not name:
         name = 'FC_scoped_%d' % num_units
 
@@ -50,6 +51,7 @@ def nth(n):
     with c.scope():
         def z(_):
             return n
+
         x = td.InputTransform(z)
         nth_ = td.Nth().reads(c.input, x)
         c.output.reads(nth_)
@@ -87,7 +89,8 @@ def treeLSTM(xh_linear_layer, fc_f_layer, name='treelstm', forget_bias=1.0, acti
         def add_forget_bias(x):
             return tf.add(x, forget_bias)
 
-        f_k = td.Map(td.Function(fc_f_layer) >> td.Function(add_forget_bias) >> td.Function(tf.sigmoid)).reads(xh_k_concat)
+        f_k = td.Map(td.Function(fc_f_layer) >> td.Function(add_forget_bias) >> td.Function(tf.sigmoid)).reads(
+            xh_k_concat)
 
         fc_k = td.Zip().reads(f_k, c_k)
         fc_k_mul = td.Map(td.Function(tf.multiply)).reads(fc_k)
@@ -108,25 +111,36 @@ def norm(x):
 
 
 class TreeEmbedding(object):
-    def __init__(self, embeddings, name, embedding_fc_size_multiple=None):#, apply_output_fc=False):
-        self._state_size = embeddings.get_shape().as_list()[1] #state_size
+    def __init__(self, embeddings, name, embedding_fc_size_multiple=None, embedding_fc_activation=tf.nn.tanh,
+                 output_fc_activation=tf.nn.sigmoid):  # , apply_output_fc=False):
+        self._state_size = embeddings.get_shape().as_list()[1]  # state_size
         self._embeddings = embeddings
         self._apply_embedding_fc = embedding_fc_size_multiple != 0
-        #self._apply_output_fc = apply_output_fc
-        self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name# + '_%d' % self._state_size
+        # self._apply_output_fc = apply_output_fc
+        self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._apply_embedding_fc:
-                self._embedding_fc = fc_scoped(num_units=embedding_fc_size_multiple * self.state_size, scope=scope,
-                                               name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (embedding_fc_size_multiple * self.state_size))
+                self._embedding_fc = fc_scoped(num_units=embedding_fc_size_multiple * self.state_size,
+                                               activation_fn=embedding_fc_activation, scope=scope,
+                                               name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (
+                                               embedding_fc_size_multiple * self.state_size))
             else:
                 self._embedding_fc = td.Identity()
-            #if self._apply_output_fc:
-            self._output_fc = fc_scoped(num_units=self.state_size, scope=scope,
-                                        name=VAR_PREFIX_FC_OUTPUT + '_%d' % self.state_size)
-            #else:
-            #    self._output_fc = td.Identity()
+            if output_fc_activation:
+                self._output_fc = fc_scoped(num_units=self.state_size, activation_fn=output_fc_activation, scope=scope,
+                                            name=VAR_PREFIX_FC_OUTPUT + '_%d' % self.state_size)
+            else:
+                self._output_fc = td.Identity()
+
+                # get the head embedding from id
+
+    def embed(self):
+        return td.Function(lambda x: tf.gather(self._embeddings, x))
+
+    def head(self, name='head_embed'):
+        return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
 
     @property
     def state_size(self):
@@ -156,6 +170,7 @@ class TreeEmbedding(object):
     def output_fc(self):
         return self._output_fc
 
+
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode.
 
@@ -163,10 +178,13 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
-    def __init__(self, embeddings, apply_embedding_fc=False):
 
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
         super(TreeEmbedding_TREE_LSTM, self).__init__(embeddings, name='TREE_LSTM',
-                                                      embedding_fc_size_multiple=(apply_embedding_fc * 1))
+                                                      embedding_fc_size_multiple=(
+                                                          1 * (embedding_fc_activation is not None)),
+                                                      embedding_fc_activation=embedding_fc_activation,
+                                                      output_fc_activation=output_fc_activation)
         with tf.variable_scope(self.scope) as scope:
             self._xh_linear = fc_scoped(num_units=3 * self.state_size, scope=scope,
                                         name='FC_xh_linear_%d' % (3 * self.state_size), activation_fn=None)
@@ -178,21 +196,12 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
         treelstm = treeLSTM(self._xh_linear, self._fc_f)
 
-        # get the head embedding from id
-        def embed(x):
-            return tf.gather(self._embeddings, x)
-
-        head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed) >> self.embedding_fc
         children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree()),
                                                          none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
-        cases = td.AllOf(head, children) >> treelstm
+        cases = td.AllOf(self.head(), children) >> treelstm
         embed_tree.resolve_to(cases)
 
         return cases >> td.Concat() >> self.output_fc
-
-    @property
-    def output_size(self):
-        return self.state_size #* 2
 
 
 class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
@@ -202,10 +211,13 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
         embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
-    def __init__(self, embeddings, apply_embedding_fc=False):
 
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
         super(TreeEmbedding_HTU_GRU_simplified, self).__init__(embeddings, name='HTU_GRU',
-                                                               embedding_fc_size_multiple=(apply_embedding_fc * 1))
+                                                               embedding_fc_size_multiple=(
+                                                                   1 * (embedding_fc_activation is not None)),
+                                                               embedding_fc_activation=embedding_fc_activation,
+                                                               output_fc_activation=output_fc_activation)
         with tf.variable_scope(self.scope):
             self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), 'gru_cell')
 
@@ -224,24 +236,16 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
         def aggregator_order_unaware(x, y):
             return tf.add(x, y)
 
-        # get the head embedding from id
-        def embed(x):
-            return tf.gather(self._embeddings, x)
-
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed) >> self.embedding_fc
         children = td.GetItem('children') >> td.Optional(
             some_case=(td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware))),
             none_case=zero_state)
-        cases = td.AllOf(head, children) >> td.Function(aggregator_order_aware)
+        cases = td.AllOf(self.head(), children) >> td.Function(aggregator_order_aware)
 
         embed_tree.resolve_to(cases)
+        model = cases >> self.output_fc
 
-        return cases >> self.output_fc
-
-    @property
-    def output_size(self):
-        return self.state_size
+        return model
 
 
 class TreeEmbedding_HTU_GRU(TreeEmbedding):
@@ -251,10 +255,14 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
         embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
-    def __init__(self, embeddings, apply_embedding_fc=False):
+
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
 
         super(TreeEmbedding_HTU_GRU, self).__init__(embeddings, name='HTU_GRU',
-                                                    embedding_fc_size_multiple=(apply_embedding_fc * 1))
+                                                    embedding_fc_size_multiple=(
+                                                        1 * (embedding_fc_activation is not None)),
+                                                    embedding_fc_activation=embedding_fc_activation,
+                                                    output_fc_activation=output_fc_activation)
         with tf.variable_scope(self.scope):
             self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self.state_size), 'gru_cell')
 
@@ -273,10 +281,6 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
         def aggregator_order_unaware(x, y):
             return tf.add(x, y)
 
-        # get the head embedding from id
-        def embed(x):
-            return tf.gather(self._embeddings, x)
-
         # naive version
         def case(seq_tree):
             # children and head exist: process and aggregate
@@ -288,26 +292,20 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
             # otherwise (head does not exist): process children only
             return 2
 
+        def children(name='children'):
+            return td.Pipe(td.GetItem('children'), td.Map(embed_tree()),
+                           td.Reduce(td.Function(aggregator_order_unaware)), name=name)
+
         cases = td.OneOf(lambda x: case(x),
-                         {0: td.Record([('head', td.Scalar(dtype='int32') >> td.Function(embed) >> self.embedding_fc),
-                                        ('children', td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware)))])
-                             >> td.Function(aggregator_order_aware),
-                          1: td.GetItem('head')
-                             >> td.Optional(td.Scalar(dtype='int32')
-                             >> td.Function(embed))
-                             >> self.embedding_fc,
-                          2: td.GetItem('children')
-                             >> td.Map(embed_tree())
-                             >> td.Reduce(td.Function(aggregator_order_unaware)),
+                         {0: td.AllOf(self.head(), children()) >> td.Function(aggregator_order_aware),
+                          1: self.head('head_only'),
+                          2: children('children_only'),
                           })
 
         embed_tree.resolve_to(cases)
 
-        return cases >> self.output_fc
-
-    @property
-    def output_size(self):
-        return self.state_size
+        model = cases >> self.output_fc
+        return model
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding):
@@ -318,30 +316,22 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding):
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
 
-    def __init__(self, embeddings, apply_embedding_fc=False):
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
         super(TreeEmbedding_FLAT_AVG, self).__init__(embeddings, name='FLAT_AVG',
-                                                     embedding_fc_size_multiple=(1 * apply_embedding_fc))
+                                                     embedding_fc_size_multiple=(
+                                                     1 * (embedding_fc_activation is not None)),
+                                                     embedding_fc_activation=embedding_fc_activation,
+                                                     output_fc_activation=output_fc_activation)
 
     def __call__(self):
-
         # an aggregation function which doesn't take the order of the inputs into account
         def aggregator_order_unaware(x, y):
             return tf.add(x, y)
 
-        # get the head embedding from id
-        def embed(x):
-            return tf.gather(self._embeddings, x)
+        sequence = td.GetItem('children') >> td.Map(self.head())
+        model = sequence >> td.Reduce(td.Function(aggregator_order_unaware)) >> self.output_fc
 
-        # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed) >> self.embedding_fc
-        sequence = td.GetItem('children') >> td.Map(head)
-        model = sequence >> td.Reduce(td.Function(aggregator_order_unaware))
-
-        return model >> self.output_fc
-
-    @property
-    def output_size(self):
-        return self.state_size
+        return model
 
 
 class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding):
@@ -352,35 +342,25 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding):
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
 
-    def __init__(self, embeddings, apply_embedding_fc=False):
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
         super(TreeEmbedding_FLAT_AVG_2levels, self).__init__(embeddings, name='FLAT_AVG_2levels',
-                                                             embedding_fc_size_multiple=(2 * apply_embedding_fc))
+                                                             embedding_fc_size_multiple=(
+                                                                 2 * (embedding_fc_activation is not None)),
+                                                             embedding_fc_activation=embedding_fc_activation,
+                                                             output_fc_activation=output_fc_activation)
 
     def __call__(self):
-
         # an aggregation function which doesn't take the order of the inputs into account
         def aggregator_order_unaware(x, y):
             return tf.add(x, y)
 
-        # get the head embedding from id
-        def embed(x):
-            return tf.gather(self._embeddings, x)
-
-        # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        def head(name):
-            return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), td.Function(embed), name=name)
-
-        sequence = td.GetItem('children') >> td.Map(td.AllOf(head(name='head_level1'), td.GetItem('children')
+        sequence = td.GetItem('children') >> td.Map(td.AllOf(self.head(name='head_level1'), td.GetItem('children')
                                                              >> td.InputTransform(lambda s: s[0])
-                                                             >> head(name='head_level2'))
+                                                             >> self.head(name='head_level2'))
                                                     >> td.Concat() >> self.embedding_fc)
 
-        model = sequence >> td.Reduce(td.Function(aggregator_order_unaware))
-        return model >> self.output_fc
-
-    @property
-    def output_size(self):
-        return self.state_size #* 2
+        model = sequence >> td.Reduce(td.Function(aggregator_order_unaware)) >> self.output_fc
+        return model
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding):
@@ -391,29 +371,22 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding):
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
 
-    def __init__(self, embeddings, apply_embedding_fc=False):
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(embeddings, name='FLAT_LSTM',
-                                                      embedding_fc_size_multiple=(apply_embedding_fc * 1))
+                                                      embedding_fc_size_multiple=(
+                                                          1 * (embedding_fc_activation is not None)),
+                                                      embedding_fc_activation=embedding_fc_activation,
+                                                      output_fc_activation=output_fc_activation)
 
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size), 'lstm_cell')
 
     def __call__(self):
-
-        # get the head embedding from id
-        def embed(x):
-            return tf.gather(self._embeddings, x)
-
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        head = td.GetItem('head') >> td.Scalar(dtype='int32') >> td.Function(embed) >> self.embedding_fc
-        sequence = td.GetItem('children') >> td.Map(head)
+        sequence = td.GetItem('children') >> td.Map(self.head())
         model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat()
 
         return model >> self.output_fc
-
-    @property
-    def output_size(self):
-        return self.state_size # * 2
 
 
 class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding):
@@ -424,94 +397,76 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding):
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
 
-    def __init__(self, embeddings, apply_embedding_fc=False):
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
         super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(embeddings, name='FLAT_LSTM_2levels',
-                                                              embedding_fc_size_multiple=(apply_embedding_fc * 2))
+                                                              embedding_fc_size_multiple=(
+                                                                  2 * (embedding_fc_activation is not None)),
+                                                              embedding_fc_activation=embedding_fc_activation,
+                                                              output_fc_activation=output_fc_activation)
 
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size * 2), 'lstm_cell')
 
     def __call__(self):
-
-        # get the head embedding from id
-        def embed(x):
-            return tf.gather(self._embeddings, x)
-
-        # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        def head(name):
-            return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), td.Function(embed), name=name)
-
-        sequence = td.GetItem('children') >> td.Map(td.AllOf(head(name='head_level1'), td.GetItem('children')
+        sequence = td.GetItem('children') >> td.Map(td.AllOf(self.head(name='head_level1'), td.GetItem('children')
                                                              >> td.InputTransform(lambda s: s[0])
-                                                             >> head(name='head_level2'))
+                                                             >> self.head(name='head_level2'))
                                                     >> td.Concat() >> self.embedding_fc)
 
-        model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat()
-        return model >> self.output_fc
-
-    @property
-    def output_size(self):
-        return self.state_size #* 4
+        model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat() >> self.output_fc
+        return model
 
 
-def sim_cosine(e1, e2, input_state_size=DIMENSION_EMBEDDINGS):
+def sim_cosine(e1, e2):
+    e1 = tf.nn.l2_normalize(e1, dim=1)
+    e2 = tf.nn.l2_normalize(e2, dim=1)
     return tf.reduce_sum(e1 * e2, axis=1)
 
 
-def sim_layer(e1, e2, input_state_size=DIMENSION_EMBEDDINGS, hidden_size=DIMENSION_SIM_MEASURE):
+def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
     with tf.variable_scope(VAR_PREFIX_SIM_MEASURE + '_layer'):
         embeddings_dif = tf.abs(e1 - e2)
         embeddings_product = e1 * e2
-        W_d = tf.Variable(tf.random_normal([input_state_size, hidden_size], stddev=0.1))
-        W_p = tf.Variable(tf.random_normal([input_state_size, hidden_size], stddev=0.1))
-        b_h = tf.Variable(tf.random_normal([hidden_size], stddev=0.1))
+        concat = tf.concat([embeddings_dif, embeddings_product], axis=1)
+        h_s = tf.contrib.layers.fully_connected(concat, hidden_size, activation_fn=tf.nn.sigmoid)
+        s = tf.contrib.layers.fully_connected(h_s, 1, activation_fn=tf.nn.sigmoid)
 
-        h_s = tf.nn.sigmoid(tf.matmul(embeddings_dif, W_d) + tf.matmul(embeddings_product, W_p) + b_h)
-
-        W_x = tf.Variable(tf.random_normal([hidden_size, 1], stddev=0.1))
-        b_x = tf.Variable(tf.random_normal(shape=(), stddev=0.1))
-
-        #x = tf.matmul(h_s, W_x)
-        #z = tf.zeros(shape=(250, 1), dtype=b_x.dtype)
-        s = tf.squeeze(tf.nn.sigmoid(tf.matmul(h_s, W_x) + b_x), axis=[1])
-        #s = tf.squeeze(tf.nn.sigmoid(z + b_x), axis=[1])
-        #r = tf.Print(s, [tf.shape(s)])
+        # s = tf.squeeze(tf.nn.sigmoid(z + b_x), axis=[1])
+        # r = tf.Print(s, [tf.shape(s)])
         # s = tf.matmul(h_s, W_x)
-    return s
+    return tf.squeeze(s, axis=[1])
 
 
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, embeddings, tree_embedder=TreeEmbedding_TREE_LSTM, normalize=True, sim_measure=sim_layer,
-                 apply_embedding_fc=False):
+    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_layer,
+                 embeddings_trainable=True, embedding_fc_activation=None, output_fc_activation=None):
 
-        similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
+        embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
+                                 trainable=embeddings_trainable, name=VAR_NAME_EMBEDDING)
+        self._embedding_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
+        self._embedding_init = embeddings.assign(self._embedding_placeholder)
 
-        tree_embed = tree_embedder(embeddings, apply_embedding_fc=apply_embedding_fc)
+        gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
+
+        tree_embed = tree_embedder(embeddings, embedding_fc_activation, output_fc_activation)
         model = td.AllOf(td.GetItem('first') >> tree_embed(),
                          td.GetItem('second') >> tree_embed(),
-                         similarity)
+                         gold_similarity)
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
         (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities) = self._compiler.output_tensors
 
-        # TODO: is normalization necessary?
-        # normalize embeddings
-        if normalize:
-            self._tree_embeddings_1 = tf.nn.l2_normalize(self._tree_embeddings_1, dim=1)
-            self._tree_embeddings_2 = tf.nn.l2_normalize(self._tree_embeddings_2, dim=1)
-
-        self._sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2,
-                                input_state_size=tree_embed.output_size)
+        self._sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
 
         # use MSE
         self._mse = tf.pow(self._sim - self._gold_similarities, 2)
-        #self._mse = tf.square(self._sim - self._gold_similarities)
+        # self._mse = tf.square(self._sim - self._gold_similarities)
         self._loss = tf.reduce_mean(self._mse)
 
         # self._accuracy = tf.reduce_mean(
@@ -531,8 +486,8 @@ class SimilaritySequenceTreeTupleModel(object):
     def tree_embeddings_2(self):
         return self._tree_embeddings_2
 
-    #@property
-    #def cosine_similarities(self):
+    # @property
+    # def cosine_similarities(self):
     #    return self._cosine_similarities
 
     @property
@@ -564,6 +519,14 @@ class SimilaritySequenceTreeTupleModel(object):
         return self._global_step
 
     @property
+    def embedding_init(self):
+        return self._embedding_init
+
+    @property
+    def embedding_placeholder(self):
+        return self._embedding_placeholder
+
+    @property
     def compiler(self):
         return self._compiler
 
@@ -572,8 +535,8 @@ class SimilaritySequenceTreeTupleModel(object):
 
 
 class SequenceTreeEmbedding(object):
-
-    def __init__(self, embeddings, tree_embedder=TreeEmbedding_TREE_LSTM, apply_embedding_fc=False, scoring_enabled=True,
+    def __init__(self, embeddings, tree_embedder=TreeEmbedding_TREE_LSTM, apply_embedding_fc=False,
+                 scoring_enabled=True,
                  scoring_scope=DEFAULT_SCOPE_SCORING):
         def squz(x):
             return tf.squeeze(x, [1])
@@ -586,7 +549,8 @@ class SequenceTreeEmbedding(object):
             # This layer maps a sequence tree embedding to an 'integrity' score
             with tf.variable_scope(scoring_scope) as scoring_sc:
                 scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(squz)
-            model = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> tree_embed() >> td.AllOf(td.Identity(), scoring_fc)
+            model = td.SerializedMessageToTree(
+                'recursive_dependency_embedding.SequenceNode') >> tree_embed() >> td.AllOf(td.Identity(), scoring_fc)
 
             self._compiler = td.Compiler.create(model)
             self._tree_embeddings, self._scores = self._compiler.output_tensors
@@ -623,6 +587,7 @@ class SequenceTreeEmbeddingSequence(object):
     def __init__(self, embeddings, scoring_scope=DEFAULT_SCOPE_SCORING):
         def squz(x):
             return tf.squeeze(x, [1])
+
         # This layer maps a sequence tree embedding to an 'integrity' score
         with tf.variable_scope(scoring_scope) as scoring_sc:
             scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(squz)
@@ -631,6 +596,7 @@ class SequenceTreeEmbeddingSequence(object):
         with first.scope():
             def z(a):
                 return 0
+
             x = td.InputTransform(z)
             nth_ = td.Nth().reads(first.input, x)
             first.output.reads(nth_)
@@ -648,8 +614,8 @@ class SequenceTreeEmbeddingSequence(object):
         ## takes a sequence of scalars and an index as input
         ## and returns the n-th scalar normalized by the sum
         ## of all the scalars
-        #norm = td.Composition()
-        #with norm.scope():
+        # norm = td.Composition()
+        # with norm.scope():
         #    sum_ = td.Reduce(td.Function(tf.add)).reads(norm.input[0])
         #    nth_ = td.Nth().reads(norm.input[0], norm.input[1])
         #    normed_nth = td.Function(tf.div).reads(nth_, sum_)
@@ -657,12 +623,12 @@ class SequenceTreeEmbeddingSequence(object):
 
         tree_embed = TreeEmbedding_HTU_GRU(embeddings)
 
-        #with tf.variable_scope(aggregator_ordered_scope) as sc:
+        # with tf.variable_scope(aggregator_ordered_scope) as sc:
         #    tree_logits = td.Map(sequence_tree_block(embeddings, sc)
         #                         >> scoring_fc >> td.Function(tf.exp))
         tree_logits = td.Map(tree_embed() >> scoring_fc >> td.Function(tf.exp))
 
-        #softmax_correct = td.AllOf(td.GetItem('trees') >> tree_logits, td.GetItem('idx_correct')) >> norm
+        # softmax_correct = td.AllOf(td.GetItem('trees') >> tree_logits, td.GetItem('idx_correct')) >> norm
         softmax_correct = td.GetItem('trees') >> tree_logits >> norm_first
 
         self._compiler = td.Compiler.create(softmax_correct)
@@ -748,7 +714,7 @@ def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
             return 5
         if 'children_candidate' not in seq_tree and len(seq_tree['children']) > 0 and 'head' not in seq_tree:
             return 6
-        #if len(seq_tree['children_candidates']) == 0 and len(seq_tree['children']) == 0 and 'head' not in seq_tree:
+        # if len(seq_tree['children_candidates']) == 0 and len(seq_tree['children']) == 0 and 'head' not in seq_tree:
         #    return 7
         if len(seq_tree['candidates']) > 0:
             return 8
@@ -760,15 +726,15 @@ def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
                       3: td.GetItem('children_candidate') >> expr_decl(),
                       4: td.GetItem('head')
                          >> td.Optional(td.Scalar(dtype='int32')
-                         >> td.Function(embed))
+                                        >> td.Function(embed))
                          >> td.Broadcast(),
                       5: td.GetItem('head')
                          >> td.Optional(td.Scalar(dtype='int32')
-                         >> td.Function(embed))
+                                        >> td.Function(embed))
                          >> td.Broadcast(),
                       6: td.GetItem('children')
                          >> td.Map(expr_decl()),
-                         #>> td.Reduce(td.Function(aggregator_order_unaware)),
+                      # >> td.Reduce(td.Function(aggregator_order_unaware)),
                       8: td.GetItem('candidates')
                          >> td.Map(expr_decl()),
                       })
@@ -797,7 +763,7 @@ def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
 
     expr_decl.resolve_to(cases)
 
-    return cases >> td.Map(td.Function(norm)) #>> td.Function(dprint)
+    return cases >> td.Map(td.Function(norm))  # >> td.Function(dprint)
 
 
 class SequenceTreeEmbeddingWithCandidates(object):
@@ -809,7 +775,6 @@ class SequenceTreeEmbeddingWithCandidates(object):
     """
 
     def __init__(self, embeddings, scoring_scope=DEFAULT_SCOPE_SCORING):
-
         # This layer maps a sequence tree embedding to an 'integrity' score
         with tf.variable_scope(scoring_scope) as scoring_sc:
             scoring_fc = td.FC(1, name=scoring_sc)
@@ -821,6 +786,7 @@ class SequenceTreeEmbeddingWithCandidates(object):
         with first.scope():
             def z(a):
                 return 0
+
             x = td.InputTransform(z)
             nth_ = td.Nth().reads(first.input, x)
             first.output.reads(nth_)

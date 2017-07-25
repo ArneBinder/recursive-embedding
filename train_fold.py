@@ -42,18 +42,14 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   True,
                                   #True,
                                   'Iff enabled, fine tune the embeddings.'],
-         'normalize': [tf.flags.DEFINE_boolean,
-                       True,
-                       #False,
-                       'Iff enabled, normalize sequence embeddings before application of sim_measure.'],
          'sim_measure': [tf.flags.DEFINE_string,
-                         #'sim_layer',
-                         'sim_cosine',
+                         'sim_layer',
+                         #'sim_cosine',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_LSTM',
+                           'TreeEmbedding_FLAT_AVG',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -63,11 +59,12 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_FLAT_AVG_2levels" -> '
                            '"TreeEmbedding_FLAT_LSTM" -> '        
                            '"TreeEmbedding_FLAT_LSTM_2levels" -> '],
-
-         'apply_embedding_fc': [tf.flags.DEFINE_boolean,
-                         #False,
-                         True,
-                         'Apply a fully connected layer before composition'],
+         'embedding_fc_activation': [tf.flags.DEFINE_string,
+                                'tanh',
+                                'If not None, apply a fully connected layer with this activation function before composition'],
+         'output_fc_activation': [tf.flags.DEFINE_string,
+                                'sigmoid',
+                                'If not None, apply a fully connected layer with this activation function after composition'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -199,26 +196,31 @@ def main(unused_argv):
     print('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
-                                  trainable=FLAGS.embeddings_trainable, name=model_fold.VAR_NAME_EMBEDDING)
-
-            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
-            embedding_init = embed_w.assign(embedding_placeholder)
-
             # Build the graph.
-            # aggregator_ordered_scope_name = 'aggregator_ordered'
             sim_measure = getattr(model_fold, FLAGS.sim_measure)
             tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
-            model = model_fold.SimilaritySequenceTreeTupleModel(embed_w, tree_embedder=tree_embedder,
-                                                                normalize=FLAGS.normalize,
+            embedding_fc_activation = FLAGS.embedding_fc_activation
+            if embedding_fc_activation:
+                embedding_fc_activation = getattr(tf.nn, embedding_fc_activation)
+            output_fc_activation = FLAGS.output_fc_activation
+            if output_fc_activation:
+                output_fc_activation = getattr(tf.nn, output_fc_activation)
+            model = model_fold.SimilaritySequenceTreeTupleModel(lex_size, tree_embedder=tree_embedder,
+                                                                #normalize=FLAGS.normalize,
                                                                 sim_measure=sim_measure,
-                                                                apply_embedding_fc=FLAGS.apply_embedding_fc)  # , aggregator_ordered_scope_name)
+                                                                embeddings_trainable=FLAGS.embeddings_trainable,
+                                                                embedding_fc_activation=embedding_fc_activation,
+                                                                output_fc_activation=output_fc_activation)  # , aggregator_ordered_scope_name)
             loss = model.loss
             # sim_cosine = model.cosine_similarities
             sim_gold = model.gold_similarities
             sim = model.sim
-            #mse = model.mse
+            # mse = model.mse
             compiler = model.compiler
+            # debug
+            embeddings_1 = model.tree_embeddings_1
+            embeddings_2 = model.tree_embeddings_2
+            #
 
             # accuracy = model.accuracy
             train_op = model.train_op
@@ -258,7 +260,7 @@ def main(unused_argv):
 
             if checkpoint_fn is None:
                 print('init embeddings with external vectors...')
-                sess.run(embedding_init, feed_dict={embedding_placeholder: vecs})
+                sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
                 # sess.run(init_missing)
                 step = 0
                 # write flags for current run
@@ -290,7 +292,7 @@ def main(unused_argv):
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
 
                     # test
-                    loss_test, sim_test, sim_gold_test = sess.run([loss, sim, sim_gold], feed_dict=fdict_test)
+                    loss_test, sim_test, sim_gold_test, es1, es2 = sess.run([loss, sim, sim_gold, embeddings_1, embeddings_2], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_test)
                     # loss_test_normed = loss_test
                     emit_values(supervisor, sess, step,
@@ -303,6 +305,12 @@ def main(unused_argv):
                                 csv_writer=test_result_writer)
                     print('epoch=%d step=%d: loss_test =%f\tpearson_r_test =%f\tsim_avg=%f\tsim_gold_avg=%f\tTEST' % (
                         epoch, step, loss_test, p_r_test[0], np.average(sim_test), np.average(sim_gold_test)))
+
+                    #print(es1[0].tolist())
+                    #print(es2[0].tolist())
+                    #cos_ = pairwise_distances([es1[0], es2[0]], metric='cosine')
+                    #print(cos_)
+                    #print(sim_test[0])
 
                     # train
                     # train_loss = 0.0

@@ -230,7 +230,7 @@ def embed():
 
 
 @app.route("/api/distance", methods=['POST'])
-def sim():
+def distance():
     try:
         start = time.time()
         logging.info('Distance requested')
