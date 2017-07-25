@@ -32,7 +32,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                         100,
                         'How many samples to read per batch.'],
          'epochs': [tf.flags.DEFINE_integer,
-                    1000,
+                    10000,
                     'The number of epochs.',
                     None],
          'test_file_index': [tf.flags.DEFINE_integer,
@@ -53,16 +53,16 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_LSTM_children_2levels',
+                           'TreeEmbedding_FLAT_LSTM',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
-                           '"TreeEmbedding_TreeLSTM" -> '
-                           '"TreeEmbedding_HTU" -> '
-                           '"TreeEmbedding_HTU_simplified" -> '
-                           '"TreeEmbedding_AVG_children" -> '
-                           '"TreeEmbedding_AVG_children_2levels" -> '
-                           '"TreeEmbedding_LSTM_children" -> '        
-                           '"TreeEmbedding_LSTM_children_2levels" -> '],
+                           '"TreeEmbedding_TREE_LSTM" -> '
+                           '"TreeEmbedding_HTU_GRU" -> '
+                           '"TreeEmbedding_HTU_GRU_simplified" -> '
+                           '"TreeEmbedding_FLAT_AVG" -> '
+                           '"TreeEmbedding_FLAT_AVG_2levels" -> '
+                           '"TreeEmbedding_FLAT_LSTM" -> '        
+                           '"TreeEmbedding_FLAT_LSTM_2levels" -> '],
 
          'apply_embedding_fc': [tf.flags.DEFINE_boolean,
                          #False,

@@ -27,7 +27,7 @@ import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
                        #'/home/arne/ML_local/tf/unsupervised/log', #/model.ckpt-122800',
-                       '/home/arne/ML_local/tf/supervised/log/applyembeddingfcFALSE_batchsize50_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPS3CMAGGREGATE_treeembedderTREEEMBEDDINGAVGCHILDREN',
+                       '/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
                        #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension).')
@@ -67,16 +67,17 @@ tf.flags.DEFINE_string('save_final_model_path',
                         'If not None, save the final model (after integration of external and/or nlp '
                         'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
                         'further usages.')
-tf.flags.DEFINE_string('tree_embedder',
-                           'TreeEmbedding_AVG_children',
-                           #'TreeEmbedding_AVG_children',
-                           'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
-                           'Currently implemented:'
-                           '"TreeEmbedding_TreeLSTM" -> '
-                           '"TreeEmbedding_HTU" -> '
-                           '"TreeEmbedding_HTU_simplified" -> '
-                           '"TreeEmbedding_AVG_children" -> '
-                           '"TreeEmbedding_AVG_children_2levels" -> ')
+#tf.flags.DEFINE_string('tree_embedder',
+#                           'TreeEmbedding_FLAT_LSTM_2levels',
+#                           'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
+#                           'Currently implemented:'
+#                           '"TreeEmbedding_TREE_LSTM" -> '
+#                           '"TreeEmbedding_HTU_GRU" -> '
+#                           '"TreeEmbedding_HTU_GRU_simplified" -> '
+#                           '"TreeEmbedding_FLAT_AVG" -> '
+#                           '"TreeEmbedding_FLAT_AVG_2levels" -> '
+#                           '"TreeEmbedding_FLAT_LSTM" -> '
+#                           '"TreeEmbedding_FLAT_LSTM_2levels" -> ')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -338,6 +339,10 @@ def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_co
         yield seq_tree.SerializeToString()
 
 
+def all_subclasses(cls):
+    return cls.__subclasses__() + [g for s in cls.__subclasses__() for g in all_subclasses(s)]
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -360,11 +365,36 @@ if __name__ == '__main__':
     types = corpus.read_types(input_checkpoint)
     reader = tf.train.NewCheckpointReader(input_checkpoint)
     saved_shapes = reader.get_variable_to_shape_map()
+
+    #available_embedder = ['TreeEmbedding_TREE_LSTM',
+    #                      'TreeEmbedding_HTU_GRU',
+    #                      'TreeEmbedding_HTU_GRU_simplified',
+    #                      'TreeEmbedding_FLAT_AVG',
+    #                      'TreeEmbedding_FLAT_AVG_2levels',
+    #                      'TreeEmbedding_FLAT_LSTM',
+    #                      'TreeEmbedding_FLAT_LSTM_2levels']
+
+    available_embedder = [cls.__name__ for cls in all_subclasses(model_fold.TreeEmbedding)]
+
+    tree_embedder_names = [en for en in available_embedder if len([vn for vn in saved_shapes if vn.startswith(en + '/')]) > 0]
+    assert len(tree_embedder_names) <= 1, 'found vars for multiple tree embedders: ' + ', '.join(tree_embedder_names)
+    if len(tree_embedder_names) == 0:
+        logging.info('No tree embedder vars found in model. Use "TreeEmbedding_FLAT_AVG".')
+        tree_embedder_names = ['TreeEmbedding_FLAT_AVG']
+    else:
+        logging.info('Tree embedder vars found in model. Use "' + tree_embedder_names[0] + '".')
+    tree_embedder = getattr(model_fold, tree_embedder_names[0])
+
+    fc_embedding_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
+                                                                         + '/' + model_fold.VAR_PREFIX_FC_EMBEDDING)]
+    if len(fc_embedding_var_names):
+        logging.info('found embedding_fc vars: ' + ', '.join(fc_embedding_var_names) + '. Apply fully connected layer to embeddings before composition.')
+
     scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
     if len(scoring_var_names) > 0:
         logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
     else:
-        logging.info('no found scoring vars found. Disable scoring functionality.')
+        logging.info('no scoring vars found. Disable scoring functionality.')
     if not FLAGS.merge_nlp_embeddings and not FLAGS.external_embeddings:
         logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
         #saved_shapes = reader.get_variable_to_shape_map()
@@ -396,9 +426,10 @@ if __name__ == '__main__':
                                   trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
-            tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
+
             embedder = model_fold.SequenceTreeEmbedding(embed_w, tree_embedder=tree_embedder,
-                                                        scoring_enabled=False)#len(scoring_var_names) > 0)
+                                                        apply_embedding_fc=len(fc_embedding_var_names) > 0,
+                                                        scoring_enabled=len(scoring_var_names) > 0)
             tree_embeddings = embedder.tree_embeddings
             if embedder.scoring_enabled:
                 embedding_scores = embedder.scores
