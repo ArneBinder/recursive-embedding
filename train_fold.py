@@ -294,7 +294,7 @@ def main(unused_argv):
                     p_r_test = pearsonr(sim_gold_test, sim_test)
                     # loss_test_normed = loss_test
                     emit_values(supervisor, sess, step,
-                                {'mse': loss_test,  # to stay comparable with previous runs
+                                {#'mse': loss_test,  # to stay comparable with previous runs
                                  'loss': loss_test,
                                  'pearson_r': p_r_test[0],
                                  'pearson_r_p': p_r_test[1],
@@ -317,7 +317,7 @@ def main(unused_argv):
                         p_r_train = pearsonr(sim_gold_train, sim_train)
 
                         emit_values(supervisor, sess, step,
-                                    {'mse': batch_loss,  # to stay comparable with previous runs
+                                    {#'mse': batch_loss,  # to stay comparable with previous runs
                                      'loss': batch_loss,
                                      'pearson_r': p_r_train[0],
                                      'pearson_r_p': p_r_train[1],

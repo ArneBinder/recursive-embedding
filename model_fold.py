@@ -12,6 +12,7 @@ DIMENSION_SIM_MEASURE = 300
 VAR_NAME_EMBEDDING = 'embeddings'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 VAR_PREFIX_FC_EMBEDDING = 'FC_embedding'
+VAR_PREFIX_FC_OUTPUT = 'FC_output'
 VAR_PREFIX_TREE_EMBEDDING = 'TreeEmbedding'
 VAR_PREFIX_SIM_MEASURE = 'sim_measure'
 
@@ -107,10 +108,11 @@ def norm(x):
 
 
 class TreeEmbedding(object):
-    def __init__(self, embeddings, name, embedding_fc_size_multiple=None):
+    def __init__(self, embeddings, name, embedding_fc_size_multiple=None):#, apply_output_fc=False):
         self._state_size = embeddings.get_shape().as_list()[1] #state_size
         self._embeddings = embeddings
         self._apply_embedding_fc = embedding_fc_size_multiple != 0
+        #self._apply_output_fc = apply_output_fc
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name# + '_%d' % self._state_size
 
         with tf.variable_scope(self.name) as scope:
@@ -120,6 +122,11 @@ class TreeEmbedding(object):
                                                name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (embedding_fc_size_multiple * self.state_size))
             else:
                 self._embedding_fc = td.Identity()
+            #if self._apply_output_fc:
+            self._output_fc = fc_scoped(num_units=self.state_size, scope=scope,
+                                        name=VAR_PREFIX_FC_OUTPUT + '_%d' % self.state_size)
+            #else:
+            #    self._output_fc = td.Identity()
 
     @property
     def state_size(self):
@@ -145,6 +152,9 @@ class TreeEmbedding(object):
     def embedding_fc(self):
         return self._embedding_fc
 
+    @property
+    def output_fc(self):
+        return self._output_fc
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode.
@@ -178,11 +188,11 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         cases = td.AllOf(head, children) >> treelstm
         embed_tree.resolve_to(cases)
 
-        return cases >> td.Concat()
+        return cases >> td.Concat() >> self.output_fc
 
     @property
     def output_size(self):
-        return self.state_size * 2
+        return self.state_size #* 2
 
 
 class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
@@ -227,7 +237,7 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
 
         embed_tree.resolve_to(cases)
 
-        return cases
+        return cases >> self.output_fc
 
     @property
     def output_size(self):
@@ -293,7 +303,7 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
 
         embed_tree.resolve_to(cases)
 
-        return cases
+        return cases >> self.output_fc
 
     @property
     def output_size(self):
@@ -327,7 +337,7 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding):
         sequence = td.GetItem('children') >> td.Map(head)
         model = sequence >> td.Reduce(td.Function(aggregator_order_unaware))
 
-        return model
+        return model >> self.output_fc
 
     @property
     def output_size(self):
@@ -366,11 +376,11 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding):
                                                     >> td.Concat() >> self.embedding_fc)
 
         model = sequence >> td.Reduce(td.Function(aggregator_order_unaware))
-        return model
+        return model >> self.output_fc
 
     @property
     def output_size(self):
-        return self.state_size * 2
+        return self.state_size #* 2
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding):
@@ -399,11 +409,11 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding):
         sequence = td.GetItem('children') >> td.Map(head)
         model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat()
 
-        return model
+        return model >> self.output_fc
 
     @property
     def output_size(self):
-        return self.state_size * 2
+        return self.state_size # * 2
 
 
 class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding):
@@ -437,11 +447,11 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding):
                                                     >> td.Concat() >> self.embedding_fc)
 
         model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat()
-        return model
+        return model >> self.output_fc
 
     @property
     def output_size(self):
-        return self.state_size * 4
+        return self.state_size #* 4
 
 
 def sim_cosine(e1, e2, input_state_size=DIMENSION_EMBEDDINGS):
