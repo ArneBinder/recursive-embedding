@@ -5,9 +5,7 @@ from __future__ import print_function
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 
-import constants
-
-DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
+#DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
 DIMENSION_EMBEDDINGS = 300
 DIMENSION_SIM_MEASURE = 300
@@ -159,23 +157,11 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
 
         super(TreeEmbedding_TREE_LSTM, self).__init__(embeddings, name='TREE_LSTM',
                                                       embedding_fc_size_multiple=(apply_embedding_fc * 1))
-        #self._state_size = embeddings.get_shape().as_list()[1] #state_size
-        #self._embeddings = embeddings
-        #self._apply_embedding_fc = apply_embedding_fc
-
-        #self._name_or_scope = name_or_scope
-        #if not self._name_or_scope:
-        #self._name_or_scope = VAR_PREFIX_TREE_EMBEDDING + '_TREE_LSTM_%d' % self._state_size
         with tf.variable_scope(self.scope) as scope:
             self._xh_linear = fc_scoped(num_units=3 * self.state_size, scope=scope,
                                         name='FC_xh_linear_%d' % (3 * self.state_size), activation_fn=None)
             self._fc_f = fc_scoped(num_units=self._state_size, scope=scope,
                                    name='FC_f_linear_%d' % self.state_size, activation_fn=None)
-            #if self._apply_embedding_fc:
-            #    self._embedding_fc = fc_scoped(num_units=self.state_size, scope=scope,
-            #                                   name=VAR_PREFIX_FC_EMBEDDING + '_%d' % self.state_size)
-            #else:
-            #    self._embedding_fc = td.Identity()
 
     def __call__(self):
         zero_state = td.Zeros((self.state_size, self.state_size))
@@ -210,20 +196,8 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
 
         super(TreeEmbedding_HTU_GRU_simplified, self).__init__(embeddings, name='HTU_GRU',
                                                                embedding_fc_size_multiple=(apply_embedding_fc * 1))
-        #self._state_size = embeddings.get_shape().as_list()[1] #state_size
-        #self._embeddings = embeddings
-        #self._apply_embedding_fc = apply_embedding_fc
-
-        #self._name_or_scope = name_or_scope
-        #if not self._name_or_scope:
-        #self._name_or_scope = VAR_PREFIX_TREE_EMBEDDING + '_HTU_GRU_simplified_%d' % self._state_size
-        with tf.variable_scope(self.scope) as scope:
-            self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), name_or_scope=scope)
-            #if self._apply_embedding_fc:
-            #    self._embedding_fc = fc_scoped(num_units=self._state_size, scope=scope,
-            #                                   name=VAR_PREFIX_FC_EMBEDDING + '_%d' % self._state_size)
-            #else:
-            #    self._embedding_fc = td.Identity()
+        with tf.variable_scope(self.scope):
+            self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), 'gru_cell')
 
     def __call__(self):
         zero_state = td.Zeros(self._state_size)
@@ -271,20 +245,8 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
 
         super(TreeEmbedding_HTU_GRU, self).__init__(embeddings, name='HTU_GRU',
                                                     embedding_fc_size_multiple=(apply_embedding_fc * 1))
-        #self._state_size = embeddings.get_shape().as_list()[1] #state_size
-        #self._embeddings = embeddings
-        #self._apply_embedding_fc = apply_embedding_fc
-
-        #self._name_or_scope = name_or_scope
-        #if not self._name_or_scope:
-        #self._name_or_scope = VAR_PREFIX_TREE_EMBEDDING + '_HTU_GRU_%d' % self._state_size
-        with tf.variable_scope(self.scope) as scope:
-            self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self.state_size), name_or_scope=scope)
-            #if self._apply_embedding_fc:
-            #    self._embedding_fc = fc_scoped(num_units=self._state_size, scope=scope,
-            #                                   name=VAR_PREFIX_FC_EMBEDDING + '_%d' % self._state_size)
-            #else:
-            #    self._embedding_fc = td.Identity()
+        with tf.variable_scope(self.scope):
+            self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self.state_size), 'gru_cell')
 
     def __call__(self):
         zero_state = td.Zeros(self.state_size)
@@ -349,20 +311,6 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding):
     def __init__(self, embeddings, apply_embedding_fc=False):
         super(TreeEmbedding_FLAT_AVG, self).__init__(embeddings, name='FLAT_AVG',
                                                      embedding_fc_size_multiple=(1 * apply_embedding_fc))
-        #self._state_size = embeddings.get_shape().as_list()[1]  # state_size
-        #self._embeddings = embeddings
-        #self._apply_embedding_fc = apply_embedding_fc
-
-        #self._name_or_scope = name_or_scope
-        #if not self._name_or_scope:
-        #self._name_or_scope = VAR_PREFIX_TREE_EMBEDDING + '_FLAT_AVG_%d' % self._state_size
-
-        #with tf.variable_scope(self.scope) as scope:
-        #    if self._apply_embedding_fc:
-        #        self._embedding_fc = fc_scoped(num_units=self._state_size, scope=scope,
-        #                                       name=VAR_PREFIX_FC_EMBEDDING + '_%d' % self._state_size)
-        #    else:
-        #        self._embedding_fc = td.Identity()
 
     def __call__(self):
 
@@ -397,14 +345,6 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding):
     def __init__(self, embeddings, apply_embedding_fc=False):
         super(TreeEmbedding_FLAT_AVG_2levels, self).__init__(embeddings, name='FLAT_AVG_2levels',
                                                              embedding_fc_size_multiple=(2 * apply_embedding_fc))
-        #self._name_or_scope = VAR_PREFIX_TREE_EMBEDDING + '_FLAT_AVG_2levels_%d' % self._state_size
-
-        #with tf.variable_scope(self.name) as scope:
-        #    if self._apply_embedding_fc:
-        #        self._embedding_fc = fc_scoped(num_units=self._state_size * 2, scope=scope,
-        #                                       name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (self._state_size * 2))
-        #    else:
-        #        self._embedding_fc = td.Identity()
 
     def __call__(self):
 
@@ -444,21 +384,9 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding):
     def __init__(self, embeddings, apply_embedding_fc=False):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(embeddings, name='FLAT_LSTM',
                                                       embedding_fc_size_multiple=(apply_embedding_fc * 1))
-        #self._state_size = embeddings.get_shape().as_list()[1]  # state_size
-        #self._embeddings = embeddings
-        #self._apply_embedding_fc = apply_embedding_fc
-
-        #self._name_or_scope = name_or_scope
-        #if not self._name_or_scope:
-        #self._name_or_scope = VAR_PREFIX_TREE_EMBEDDING + '_FLAT_LSTM_%d' % self._state_size
 
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size), 'lstm_cell')
-            #if self._apply_embedding_fc:
-            #    self._embedding_fc = fc_scoped(num_units=self._state_size, scope=scope,
-            #                                   name=VAR_PREFIX_FC_EMBEDDING + '_%d' % self._state_size)
-            #else:
-            #    self._embedding_fc = td.Identity()
 
     def __call__(self):
 
@@ -489,22 +417,9 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding):
     def __init__(self, embeddings, apply_embedding_fc=False):
         super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(embeddings, name='FLAT_LSTM_2levels',
                                                               embedding_fc_size_multiple=(apply_embedding_fc * 2))
-        #self._state_size = embeddings.get_shape().as_list()[1]  # state_size
-        #self._embeddings = embeddings
-        #self._apply_embedding_fc = apply_embedding_fc
 
-        #self._name_or_scope = name_or_scope
-        #if not self._name_or_scope:
-        #self._name_or_scope = VAR_PREFIX_TREE_EMBEDDING + '_FLAT_LSTM_2levels_%d' % self._state_size
-
-        #TODO: check scope usage!
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size * 2), 'lstm_cell')
-            #if self._apply_embedding_fc:
-            #    self._embedding_fc = fc_scoped(num_units=self._state_size * 2, scope=scope,
-            #                                   name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (self._state_size * 2))
-            #else:
-            #    self._embedding_fc = td.Identity()
 
     def __call__(self):
 
@@ -580,7 +495,6 @@ class SimilaritySequenceTreeTupleModel(object):
 
         self._sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2,
                                 input_state_size=tree_embed.output_size)
-        #self._sim = sim_cosine(self._tree_embeddings_1, self._tree_embeddings_2)
 
         # self._loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(
         #    logits=logits, labels=labels))
@@ -657,10 +571,6 @@ class SequenceTreeEmbedding(object):
         self._scoring_enabled = scoring_enabled
 
         tree_embed = tree_embedder(embeddings, apply_embedding_fc=apply_embedding_fc)
-        #tree_embed = tree_embedder(embeddings, name_or_scope=tree_embedder_scope)
-
-        #with tf.variable_scope(aggregator_ordered_scope) as sc:
-        #    embedder = td.SerializedMessageToTree('recursive_dependency_embedding.SequenceNode') >> sequence_tree_block(embeddings, sc)
 
         if scoring_enabled:
             # This layer maps a sequence tree embedding to an 'integrity' score

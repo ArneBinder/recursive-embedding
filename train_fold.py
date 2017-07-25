@@ -196,21 +196,6 @@ def main(unused_argv):
 
     logging.info('lex_size = ' + str(lex_size))
 
-    # print('load embeddings from: '+FLAGS.train_dict_path + ' ...')
-    # embeddings_np = np.load(FLAGS.train_dict_path)
-
-    # embedding_dim = embeddings_np.shape[1]
-    # lex_size = 1300000
-    # print('load mappings from: ' + data_fn + '.mapping ...')
-    # mapping = pickle.load(open(data_fn + '.mapping', "rb"))
-    # assert lex_size >= embeddings_np.shape[0], 'len(embeddings) > lex_size. Can not cut the lexicon!'
-
-    # embeddings_padded = np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
-    # embeddings_padded = np.ones(shape=(1300000, 300)) #np.lib.pad(embeddings_np, ((0, lex_size - embeddings_np.shape[0]), (0, 0)), 'mean')
-
-    # print('embeddings_np.shape: '+str(embeddings_np.shape))
-    # print('embeddings_padded.shape: ' + str(embeddings_padded.shape))
-
     print('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
@@ -232,7 +217,7 @@ def main(unused_argv):
             # sim_cosine = model.cosine_similarities
             sim_gold = model.gold_similarities
             sim = model.sim
-            mse = model.mse
+            #mse = model.mse
             compiler = model.compiler
 
             # accuracy = model.accuracy
@@ -240,9 +225,6 @@ def main(unused_argv):
             global_step = model.global_step
 
             summary_path = os.path.join(logdir, '')
-            # if FLAGS.run_description:
-            #    summary_path += FLAGS.run_description + '_'
-
             test_writer = tf.summary.FileWriter(summary_path + 'test', graph)
 
             # collect important variables
