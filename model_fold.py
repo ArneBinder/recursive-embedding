@@ -430,10 +430,6 @@ def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
         concat = tf.concat([embeddings_dif, embeddings_product], axis=1)
         h_s = tf.contrib.layers.fully_connected(concat, hidden_size, activation_fn=tf.nn.sigmoid)
         s = tf.contrib.layers.fully_connected(h_s, 1, activation_fn=tf.nn.sigmoid)
-
-        # s = tf.squeeze(tf.nn.sigmoid(z + b_x), axis=[1])
-        # r = tf.Print(s, [tf.shape(s)])
-        # s = tf.matmul(h_s, W_x)
     return tf.squeeze(s, axis=[1])
 
 
