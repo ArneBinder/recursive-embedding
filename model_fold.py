@@ -423,6 +423,12 @@ def sim_cosine(e1, e2):
     return tf.reduce_sum(e1 * e2, axis=1)
 
 
+def sim_manhattan(e1, e2):
+    abs_ = tf.abs(e1 - e2)
+    sum_ = tf.reduce_sum(abs_, axis=1)
+    return tf.exp(-sum_)
+
+
 def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
     with tf.variable_scope(VAR_PREFIX_SIM_MEASURE + '_layer'):
         embeddings_dif = tf.abs(e1 - e2)

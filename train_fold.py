@@ -43,13 +43,13 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   #True,
                                   'Iff enabled, fine tune the embeddings.'],
          'sim_measure': [tf.flags.DEFINE_string,
-                         #'sim_layer',
                          'sim_cosine',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
-                         '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'],
+                         '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
+                         '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_AVG',
+                           'TreeEmbedding_FLAT_LSTM',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -60,13 +60,12 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_FLAT_LSTM" -> '        
                            '"TreeEmbedding_FLAT_LSTM_2levels" -> '],
          'embedding_fc_activation': [tf.flags.DEFINE_string,
-                                     #None,
-                                     'tanh',
+                                     None,
+                                     #'tanh',
                                      'If not None, apply a fully connected layer with this activation function before composition'],
          'output_fc_activation': [tf.flags.DEFINE_string,
-                                  #None,
-                                  #'sigmoid',
-                                  'tanh',
+                                  None,
+                                  #'tanh',
                                   'If not None, apply a fully connected layer with this activation function after composition'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
