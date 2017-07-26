@@ -384,9 +384,9 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding):
     def __call__(self):
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
         sequence = td.GetItem('children') >> td.Map(self.head())
-        model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat()
+        model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.GetItem(0) >> self.output_fc  #>> td.Concat() >> self.output_fc
 
-        return model >> self.output_fc
+        return model
 
 
 class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding):
@@ -413,7 +413,7 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding):
                                                              >> self.head(name='head_level2'))
                                                     >> td.Concat() >> self.embedding_fc)
 
-        model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.Concat() >> self.output_fc
+        model = sequence >> td.RNN(self._lstm_cell) >> td.GetItem(1) >> td.GetItem(0) >> self.output_fc # >> td.Concat() >> self.output_fc
         return model
 
 
