@@ -432,7 +432,7 @@ def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_layer,
+    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
                  embeddings_trainable=True, embedding_fc_activation=None, output_fc_activation=None):
         embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
                                  trainable=embeddings_trainable, name=VAR_NAME_EMBEDDING)
@@ -468,7 +468,8 @@ class SimilaritySequenceTreeTupleModel(object):
         #            dtype=tf.float32))
 
         self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
-        optr = tf.train.GradientDescentOptimizer(0.01)
+        #optr = tf.train.GradientDescentOptimizer(0.01)
+        optr = optimizer(learning_rate=learning_rate)
         self._train_op = optr.minimize(self._loss, global_step=self._global_step)
 
     @property

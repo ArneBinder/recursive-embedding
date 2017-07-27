@@ -68,6 +68,13 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   None,
                                   #'tanh',
                                   'If not None, apply a fully connected layer with this activation function after composition'],
+         'learning_rate': [tf.flags.DEFINE_float,
+                                  0.001,
+                                  # 'tanh',
+                                  'leraning rate'],
+         'optimizer': [tf.flags.DEFINE_string,
+                                  'AdadeltaOptimizer',
+                                  'optimizer'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -208,8 +215,13 @@ def main(unused_argv):
             output_fc_activation = FLAGS.output_fc_activation
             if output_fc_activation:
                 output_fc_activation = getattr(tf.nn, output_fc_activation)
+            optimizer = FLAGS.optimizer
+            if FLAGS.optimizer:
+                optimizer = getattr(tf.train, optimizer)
             model = model_fold.SimilaritySequenceTreeTupleModel(lex_size, tree_embedder=tree_embedder,
                                                                 #normalize=FLAGS.normalize,
+                                                                learning_rate=FLAGS.learning_rate,
+                                                                optimizer=optimizer,
                                                                 sim_measure=sim_measure,
                                                                 embeddings_trainable=FLAGS.embeddings_trainable,
                                                                 embedding_fc_activation=embedding_fc_activation,
