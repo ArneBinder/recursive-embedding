@@ -2,6 +2,7 @@ import csv
 import os
 import pprint
 import logging
+import random
 import sys
 
 import spacy
@@ -16,20 +17,13 @@ import similarity_tree_tuple_pb2  # , sequence_node_sequence_pb2
 tf.flags.DEFINE_string(
     'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/PPDB/ppdb-2.0-s-phrasal_1000000',
     'The path to the SICK train data file.')
-#tf.flags.DEFINE_string(
-#    'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
-#    'The path to the SICK test data file.')
 tf.flags.DEFINE_string(
     'corpus_data_output_dir',
-    # 'data/corpora/sick',
     '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'corpus_data_output_fn', 'PPDB',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
-# tf.flags.DEFINE_string(
-#    'dict_filename', 'data/nlp/spacy/dict',
-#    'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_integer(
     'corpus_size', -1,
     'How many samples to write. Use a negative dummy value to set no limit.')
@@ -60,20 +54,16 @@ tf.flags.DEFINE_string(
 tf.flags.DEFINE_integer(
     'fold_count', 10,
     'How many folds to write.')
+tf.flags.DEFINE_integer(
+    'sample_count', 14,
+    'How many negative samples to add.')
+tf.flags.DEFINE_integer(
+    'count_threshold', 5,
+    'The minimum of token occurrences to keep the token in the dictionary.')
 
 FLAGS = tf.flags.FLAGS
 
 pp = pprint.PrettyPrinter(indent=4)
-
-
-# deprecated
-#def sick_raw_reader_DEP(filename):
-#    with open(filename, 'rb') as csvfile:
-#        reader = csv.DictReader(csvfile, delimiter='\t')  # , fieldnames=['pair_ID', 'sentence_A', 'sentence_B',
-#        # 'relatedness_score', 'entailment_judgment'])
-#        for row in reader:
-#            yield (int(row['pair_ID']), row['sentence_A'].decode('utf-8'), row['sentence_B'].decode('utf-8'),
-#                   float(row['relatedness_score']))
 
 
 def ppdb_sentence_reader(filename):
@@ -82,66 +72,12 @@ def ppdb_sentence_reader(filename):
             cols = line.split(' ||| ')
             yield cols[1].decode('utf-8')
             yield cols[2].decode('utf-8')
-        #reader = csv.DictReader(csvfile, fieldnames=['LHS', 'PHRASE', 'PARAPHRASE', 'FEATURES', 'ALIGNMENT', 'ENTAILMENT'], delimiter=' ||| ')  # , fieldnames=['pair_ID', 'sentence_A', 'sentence_B',
-        ## 'relatedness_score', 'entailment_judgment'])
-        #for row in reader:
-        #    # yield (int(row['pair_ID']), row['sentence_A'].decode('utf-8'), row['sentence_B'].decode('utf-8'),
-        #    #       float(row['relatedness_score']))
-        #    yield row['PHRASE'].decode('utf-8')
-        #    yield row['PARAPHRASE'].decode('utf-8')
 
 
 def ppdb_score_reader(filename):
     num_lines = sum(1 for line in open(filename))
     for _ in range(num_lines):
         yield 1.0
-    #with open(filename, 'rb') as csvfile:
-    #    reader = csv.DictReader(csvfile, delimiter='\t')  # , fieldnames=['pair_ID', 'sentence_A', 'sentence_B',
-    #    # 'relatedness_score', 'entailment_judgment'])
-    #    for row in reader:
-    #        yield float(row['relatedness_score'])
-
-
-# deprecated
-# build similarity_tree_tuple objects
-#def sick_reader(filename, sentence_processor, parser, mapping, concat_mode, inner_concat_mode):
-#    for i, t in enumerate(sick_raw_reader_DEP(filename)):
-#        _, sen1, sen2, score = t
-#        sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-#        preprocessing.build_sequence_tree_from_str(str_=sen1 + '.', sentence_processor=sentence_processor,
-#                                                   parser=parser,
-#                                                   data_maps=mapping, concat_mode=concat_mode,
-#                                                   inner_concat_mode=inner_concat_mode, seq_tree=sim_tree_tuple.first)
-#        preprocessing.build_sequence_tree_from_str(str_=sen2 + '.', sentence_processor=sentence_processor,
-#                                                   parser=parser,
-#                                                   data_maps=mapping, concat_mode=concat_mode,
-#                                                   inner_concat_mode=inner_concat_mode, seq_tree=sim_tree_tuple.second)
-#        sim_tree_tuple.similarity = (score - 1.) / 4.
-#        yield sim_tree_tuple
-
-
-# build sequence_node_sequence objects
-# def sick_reader2(filename, sentence_processor, parser, data_maps, concat_mode=None):
-#    for i, t in enumerate(sick_raw_reader(filename)):
-#        _, sen1, sen2, score = t
-#        sequence_node_sequence = sequence_node_sequence_pb2.SequenceNodeSequence()
-#        preprocessing.build_sequence_tree_from_str(sen1+'.', sentence_processor, parser, data_maps,
-#                                                   sequence_node_sequence.nodes.add(), concat_mode)
-#        preprocessing.build_sequence_tree_from_str(sen2+'.', sentence_processor, parser, data_maps,
-#                                                   sequence_node_sequence.nodes.add(), concat_mode)
-#        sequence_node_sequence.score = (score - 1.) / 4.
-#        yield sequence_node_sequence
-
-
-# deprecated
-#def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping, max_tuple, inner_concat_mode):
-#    record_output = tf.python_io.TFRecordWriter(out_filename)
-#    for i, t in enumerate(sick_reader(in_filename, sentence_processor, parser, mapping, constants.default_concat_mode,
-#                                      inner_concat_mode)):
-#        if 0 < max_tuple == i:
-#            break
-#        record_output.write(t.SerializeToString())
-#    record_output.close()
 
 
 if __name__ == '__main__':
@@ -182,7 +118,8 @@ if __name__ == '__main__':
     parents = parents_train #np.concatenate((parents_train, parents_test))
     scores = scores_train #np.concatenate((scores_train, scores_test))
     types = corpus.revert_mapping_to_list(mapping)
-    converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types, count_threshold=1)
+    converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types,
+                                                                                            count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')
@@ -199,11 +136,19 @@ if __name__ == '__main__':
         logging.info('write fold to: ' + out_fn + ' ...')
         with tf.python_io.TFRecordWriter(out_fn) as record_output:
             size = len(roots) / FLAGS.fold_count
-            #offset = (fold * len(roots)) / FLAGS.fold_count
             for idx in range(fold * size, (fold + 1) * size, 2):
                 sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
                 t1 = preprocessing.build_sequence_tree(data, children, roots[idx], sim_tree_tuple.first)
                 t2 = preprocessing.build_sequence_tree(data, children, roots[idx+1], sim_tree_tuple.second)
-                sim_tree_tuple.similarity = (scores[idx / 2] - 1.) / 4.
+                sim_tree_tuple.similarity = scores[idx / 2] #(scores[idx / 2] - 1.) / 4.
                 record_output.write(sim_tree_tuple.SerializeToString())
+                for idx_s in range(FLAGS.sample_count):
+                    # sample just from second column
+                    sample_idx = random.randint(0, len(roots) / 2 - 1)
+
+                    sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
+                    t1 = preprocessing.build_sequence_tree(data, children, roots[idx], sim_tree_tuple.first)
+                    t2 = preprocessing.build_sequence_tree(data, children, roots[sample_idx * 2 + 1], sim_tree_tuple.second)
+                    sim_tree_tuple.similarity = 0.0 # scores[idx / 2]  # (scores[idx / 2] - 1.) / 4.
+                    record_output.write(sim_tree_tuple.SerializeToString())
 
