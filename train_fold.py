@@ -49,7 +49,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_LSTM',
+                           'TreeEmbedding_FLAT_LSTM50',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -57,7 +57,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_HTU_GRU_simplified" -> '
                            '"TreeEmbedding_FLAT_AVG" -> '
                            '"TreeEmbedding_FLAT_AVG_2levels" -> '
-                           '"TreeEmbedding_FLAT_LSTM" -> '        
+                           '"TreeEmbedding_FLAT_LSTM" -> '     
+                           '"TreeEmbedding_FLAT_LSTM50" -> ' 
                            '"TreeEmbedding_FLAT_LSTM_2levels" -> '],
          'embedding_fc_activation': [tf.flags.DEFINE_string,
                                      None,
@@ -294,7 +295,7 @@ def main(unused_argv):
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
 
                     # test
-                    loss_test, sim_test, sim_gold_test, es1, es2 = sess.run([loss, sim, sim_gold, embeddings_1, embeddings_2], feed_dict=fdict_test)
+                    loss_test, sim_test, sim_gold_test, es1, es2, mse_comp_test = sess.run([loss, sim, sim_gold, embeddings_1, embeddings_2, model.mse_compare], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_test)
                     # loss_test_normed = loss_test
                     emit_values(supervisor, sess, step,
@@ -302,7 +303,8 @@ def main(unused_argv):
                                  'loss': loss_test,
                                  'pearson_r': p_r_test[0],
                                  'pearson_r_p': p_r_test[1],
-                                 'sim_avg': np.average(sim_test)},
+                                 'sim_avg': np.average(sim_test),
+                                 'mse_compare': np.average(mse_comp_test)},
                                 writer=test_writer,
                                 csv_writer=test_result_writer)
                     print('epoch=%d step=%d: loss_test =%f\tpearson_r_test =%f\tsim_avg=%f\tsim_gold_avg=%f\tTEST' % (
