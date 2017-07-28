@@ -145,6 +145,8 @@ def checkpoint_path(logdir, step):
 
 
 def csv_test_writer(logdir, mode='w'):
+    if not os.path.isdir(logdir):
+        os.makedirs(logdir)
     test_result_csv = open(os.path.join(logdir, 'results.csv'), mode, buffering=1)
     fieldnames = ['step', 'loss', 'pearson_r', 'sim_avg']
     test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
@@ -269,7 +271,7 @@ def main(unused_argv):
             test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
             sess = supervisor.PrepareSession(FLAGS.master)
 
-            if old_checkpoint_fn:
+            if old_checkpoint_fn is not None:
                 logging.info('restore from old_checkpoint (except embeddings and step): ' + old_checkpoint_fn + ' ...')
                 embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)
                 restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
@@ -277,7 +279,7 @@ def main(unused_argv):
                 restore_saver = tf.train.Saver(restore_vars)
                 restore_saver.restore(sess, old_checkpoint_fn)
 
-            if vecs:
+            if vecs is not None:
                 logging.info('init embeddings with external vectors...')
                 sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
 
