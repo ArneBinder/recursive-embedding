@@ -25,16 +25,17 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
-                        #None,
-                             '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingfcactivationNONE_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_outputfcactivationNONE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3NS1PPDBCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM50',
-                             'Set this to fine tune a pre-trained model.'],
+                        None,
+                        # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingfcactivationNONE_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_outputfcactivationNONE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3NS1PPDBCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM50',
+                        'Set this to fine tune a pre-trained model. The old_logdir has to contain a types file with the filename "model.types"',
+                        None],
          'batch_size': [tf.flags.DEFINE_integer,
                         100,
                         'How many samples to read per batch.'],
@@ -47,7 +48,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              'Which file of the train data files should be used as test data.'],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
                                   True,
-                                  #True,
+                                  # True,
                                   'Iff enabled, fine tune the embeddings.'],
          'sim_measure': [tf.flags.DEFINE_string,
                          'sim_cosine',
@@ -64,27 +65,27 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_HTU_GRU_simplified" -> '
                            '"TreeEmbedding_FLAT_AVG" -> '
                            '"TreeEmbedding_FLAT_AVG_2levels" -> '
-                           '"TreeEmbedding_FLAT_LSTM" -> '     
-                           '"TreeEmbedding_FLAT_LSTM50" -> ' 
+                           '"TreeEmbedding_FLAT_LSTM" -> '
+                           '"TreeEmbedding_FLAT_LSTM50" -> '
                            '"TreeEmbedding_FLAT_LSTM_2levels" -> '],
          'embedding_fc_activation': [tf.flags.DEFINE_string,
                                      None,
-                                     #'tanh',
+                                     # 'tanh',
                                      'If not None, apply a fully connected layer with this activation function before composition'],
          'output_fc_activation': [tf.flags.DEFINE_string,
                                   None,
-                                  #'tanh',
+                                  # 'tanh',
                                   'If not None, apply a fully connected layer with this activation function after composition'],
          'learning_rate': [tf.flags.DEFINE_float,
-                                  0.001,
-                                  # 'tanh',
-                                  'learning rate'],
+                           0.001,
+                           # 'tanh',
+                           'learning rate'],
          'optimizer': [tf.flags.DEFINE_string,
-                                  'AdadeltaOptimizer',
-                                  'optimizer'],
+                       'AdadeltaOptimizer',
+                       'optimizer'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
-                    #'/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
+                    # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
                     '/home/arne/ML_local/tf/supervised/log',
                     'Directory in which to write event logs.',
                     None]
@@ -94,27 +95,19 @@ for flag in flags:
     v = flags[flag]
     v[0](flag, v[1], v[2])
 
+# flags which are not logged in logdir/flags.json
 tf.flags.DEFINE_string('master', '',
                        'Tensorflow master to use.')
 tf.flags.DEFINE_integer('task', 0,
                         'Task ID of the replica running the training.')
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
+
 FLAGS = tf.flags.FLAGS
-
-
-# Find the root of the bazel repository.
-def source_root():
-    root = __file__
-    for _ in xrange(1):
-        root = os.path.dirname(root)
-    return root
-
-
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-
-# Make sure serialized_message_to_tree can find the calculator example proto:
-td.proto_tools.map_proto_source_tree_path('', source_root())
+s_root = os.path.dirname(__file__)
+# Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
+td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
 td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 
@@ -144,15 +137,17 @@ def emit_values(supervisor, session, step, values, writer=None, csv_writer=None)
     if csv_writer:
         values['step'] = step
         csv_writer.writerow({k: values[k] for k in values if k in csv_writer.fieldnames})
-        #csv_file.flush()
-
-
-def normed_loss(batch_loss, batch_size):
-    return math.sqrt(batch_loss / batch_size)
 
 
 def checkpoint_path(logdir, step):
     return os.path.join(logdir, 'model.ckpt-' + str(step))
+
+
+def csv_test_writer(logdir, mode='w'):
+    test_result_csv = open(os.path.join(logdir, 'results.csv'), mode, buffering=1)
+    fieldnames = ['step', 'loss', 'pearson_r', 'sim_avg']
+    test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
+    return test_result_writer
 
 
 def main(unused_argv):
@@ -173,8 +168,8 @@ def main(unused_argv):
         [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
     # DEBUG
-    #vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
-    #lex_size = vecs.shape[0]
+    # vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
+    # lex_size = vecs.shape[0]
     # embedding_dim = vecs.shape[1]
 
     run_desc = []
@@ -188,8 +183,7 @@ def main(unused_argv):
             flag_name = flag.replace('_', '')
             flag_value = str(new_value).replace('_', '')
             flag_value = ''.join(flag_value.split(os.sep)[-2:])
-            if len(flag_value) < 50:
-                run_desc.append(flag_name.lower() + flag_value.upper())
+            run_desc.append(flag_name.lower() + flag_value.upper())
         # if a short version is set, use it. if it is set to None, add this flag not to the run_descriptions
         elif flags[flag][2]:
             run_desc.append(flag.replace('_', '').lower() + str(flags[flag][2]).replace('_', '').upper())
@@ -201,14 +195,17 @@ def main(unused_argv):
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
-    reader = None
     old_checkpoint_fn = None
+    vecs = None
     if checkpoint_fn:
         logging.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
         embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
         lex_size = embed_shape[0]
+        step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
+        # create test result writer
+        test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
     else:
         vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
         if FLAGS.old_logdir:
@@ -216,175 +213,140 @@ def main(unused_argv):
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
             vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_EMBEDDING)
             types_old = corpus.read_types(os.path.join(FLAGS.old_logdir, 'model'))
-            vecs, types = corpus.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False, remove=False)
+            vecs, types = corpus.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
+                                             remove=False)
+            # save types file in log dir
             corpus.write_dict(os.path.join(logdir, 'model'), types=types)
         else:
             # save types file in log dir
             shutil.copyfile(FLAGS.train_data_path + '.type', os.path.join(logdir, 'model.type'))
         lex_size = vecs.shape[0]
+        step = 0
+        # write flags for current run
+        with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
+            json.dump(flags, outfile, indent=2, sort_keys=True)
+        # create test result writer
+        test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
+        test_result_writer.writeheader()
 
-    logging.info('lex_size = ' + str(lex_size))
+    logging.info('lex_size: ' + str(lex_size))
 
-    print('create tensorflow graph ...')
+    embedding_fc_activation = FLAGS.embedding_fc_activation
+    if embedding_fc_activation:
+        embedding_fc_activation = getattr(tf.nn, embedding_fc_activation)
+    output_fc_activation = FLAGS.output_fc_activation
+    if output_fc_activation:
+        output_fc_activation = getattr(tf.nn, output_fc_activation)
+    optimizer = FLAGS.optimizer
+    if FLAGS.optimizer:
+        optimizer = getattr(tf.train, optimizer)
+
+    sim_measure = getattr(model_fold, FLAGS.sim_measure)
+    tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
+
+    logging.info('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             # Build the graph.
-            sim_measure = getattr(model_fold, FLAGS.sim_measure)
-            tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
-            embedding_fc_activation = FLAGS.embedding_fc_activation
-            if embedding_fc_activation:
-                embedding_fc_activation = getattr(tf.nn, embedding_fc_activation)
-            output_fc_activation = FLAGS.output_fc_activation
-            if output_fc_activation:
-                output_fc_activation = getattr(tf.nn, output_fc_activation)
-            optimizer = FLAGS.optimizer
-            if FLAGS.optimizer:
-                optimizer = getattr(tf.train, optimizer)
-            model = model_fold.SimilaritySequenceTreeTupleModel(lex_size, tree_embedder=tree_embedder,
-                                                                #normalize=FLAGS.normalize,
+            model = model_fold.SimilaritySequenceTreeTupleModel(lex_size=lex_size,
+                                                                tree_embedder=tree_embedder,
                                                                 learning_rate=FLAGS.learning_rate,
                                                                 optimizer=optimizer,
                                                                 sim_measure=sim_measure,
                                                                 embeddings_trainable=FLAGS.embeddings_trainable,
                                                                 embedding_fc_activation=embedding_fc_activation,
-                                                                output_fc_activation=output_fc_activation)  # , aggregator_ordered_scope_name)
-            loss = model.loss
-            # sim_cosine = model.cosine_similarities
-            sim_gold = model.gold_similarities
-            sim = model.sim
-            # mse = model.mse
-            compiler = model.compiler
-            # debug
-            embeddings_1 = model.tree_embeddings_1
-            embeddings_2 = model.tree_embeddings_2
-            #
-
-            # accuracy = model.accuracy
-            train_op = model.train_op
-            global_step = model.global_step
-
-            summary_path = os.path.join(logdir, '')
-            test_writer = tf.summary.FileWriter(summary_path + 'test', graph)
-            embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)
-            restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in [global_step] + embedding_vars]
-            restore_saver = tf.train.Saver(restore_vars)
-
-            # collect important variables
-            # tree_embedder_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_TREE_EMBEDDER)
-            # save_vars = tree_embedder_vars + [embed_w, global_step]
-            # my_saver = tf.train.Saver(save_vars)
-
-            # missing_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in save_vars]
-            # init_missing = tf.variables_initializer(missing_vars)
-
-            # embeddings_1 = model.tree_embeddings_1
-            # embeddings_2 = model.tree_embeddings_2
-
-            # cosine_similarities = model.cosine_similarities
+                                                                output_fc_activation=output_fc_activation)
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
-                saver=None,# my_saver,
+                # saver=None,# my_saver,
                 logdir=logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
-                save_model_secs=0,
-                summary_writer=tf.summary.FileWriter(summary_path + 'train', graph))
+                save_model_secs=300,
+                summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph))
+            test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
             sess = supervisor.PrepareSession(FLAGS.master)
 
             if old_checkpoint_fn:
-                print('restore from old_checkpoint: '+ old_checkpoint_fn + ' ...')
+                logging.info('restore from old_checkpoint (except embeddings and step): ' + old_checkpoint_fn + ' ...')
+                embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)
+                restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
+                                item not in [model.global_step] + embedding_vars]
+                restore_saver = tf.train.Saver(restore_vars)
                 restore_saver.restore(sess, old_checkpoint_fn)
 
-            def csv_test_writer(mode='w'):
-                test_result_csv = open(os.path.join(test_writer.get_logdir(), 'results.csv'), mode, buffering=1)
-                fieldnames = ['step', 'loss', 'pearson_r', 'sim_avg']
-                test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
-                return test_result_writer
-
-            if reader is None:
-                print('init embeddings with external vectors...')
+            if vecs:
+                logging.info('init embeddings with external vectors...')
                 sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
-                # sess.run(init_missing)
-                step = 0
-                # write flags for current run
-                with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
-                    json.dump(flags, outfile, indent=2, sort_keys=True)
-                # create test result writer
-                test_result_writer = csv_test_writer()
-                test_result_writer.writeheader()
-            else:
-                step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
-                # create test result writer
-                test_result_writer = csv_test_writer(mode='a')
-                # my_saver.restore(sess, checkpoint_fn)
 
             # prepare test set
-            # test_size = FLAGS.test_data_size
             batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
             fdict_test = model.build_feed_dict(batch_test)
             logging.info('test data size: ' + str(len(batch_test)))
-            # step = 0
 
-            with compiler.multiprocessing_pool():
+            with model.compiler.multiprocessing_pool():
                 data_train = list(train_iterator)
                 logging.info('train data size: ' + str(len(data_train)))
-                train_set = compiler.build_loom_inputs(data_train)
+                train_set = model.compiler.build_loom_inputs(data_train)
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 # dev_hits_best = 0.0
-                print('training the model')
+                logging.info('training the model')
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
 
                     # test
-                    loss_test, sim_test, sim_gold_test, es1, es2, mse_comp_test = sess.run([loss, sim, sim_gold, embeddings_1, embeddings_2, model.mse_compare], feed_dict=fdict_test)
+                    loss_test, sim_test, sim_gold_test, mse_comp_test = sess.run(
+                        [model.loss, model.sim, model.gold_similarities, model.mse_compare], feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_test)
                     # loss_test_normed = loss_test
                     emit_values(supervisor, sess, step,
-                                {#'mse': loss_test,  # to stay comparable with previous runs
-                                 'loss': loss_test,
-                                 'pearson_r': p_r_test[0],
-                                 'pearson_r_p': p_r_test[1],
-                                 'sim_avg': np.average(sim_test),
-                                 'mse_compare': np.average(mse_comp_test)},
+                                {  # 'mse': loss_test,  # to stay comparable with previous runs
+                                    'loss': loss_test,
+                                    'pearson_r': p_r_test[0],
+                                    'pearson_r_p': p_r_test[1],
+                                    'sim_avg': np.average(sim_test),
+                                    'mse_compare': np.average(mse_comp_test)},
                                 writer=test_writer,
                                 csv_writer=test_result_writer)
                     print('epoch=%d step=%d: loss_test =%f\tpearson_r_test =%f\tsim_avg=%f\tsim_gold_avg=%f\tTEST' % (
                         epoch, step, loss_test, p_r_test[0], np.average(sim_test), np.average(sim_gold_test)))
 
-                    #print(es1[0].tolist())
-                    #print(es2[0].tolist())
-                    #cos_ = pairwise_distances([es1[0], es2[0]], metric='cosine')
-                    #print(cos_)
-                    #print(sim_test[0])
+                    # print(es1[0].tolist())
+                    # print(es2[0].tolist())
+                    # cos_ = pairwise_distances([es1[0], es2[0]], metric='cosine')
+                    # print(cos_)
+                    # print(sim_test[0])
 
                     # train
                     # train_loss = 0.0
                     batch_step = 0
                     show = True
                     for batch in td.group_by_batches(shuffled, FLAGS.batch_size):
-                        train_feed_dict = {compiler.loom_input_tensor: batch}
+                        train_feed_dict = {model.compiler.loom_input_tensor: batch}
                         _, step, batch_loss, sim_train, sim_gold_train = sess.run(
-                            [train_op, global_step, loss, sim, sim_gold], train_feed_dict)
+                            [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities],
+                            train_feed_dict)
                         # train_loss += batch_loss
                         # loss_batch_normed = batch_loss
                         p_r_train = pearsonr(sim_gold_train, sim_train)
 
                         emit_values(supervisor, sess, step,
-                                    {#'mse': batch_loss,  # to stay comparable with previous runs
-                                     'loss': batch_loss,
-                                     'pearson_r': p_r_train[0],
-                                     'pearson_r_p': p_r_train[1],
-                                     'sim_avg': np.average(sim_train)
-                                     })
+                                    {  # 'mse': batch_loss,  # to stay comparable with previous runs
+                                        'loss': batch_loss,
+                                        'pearson_r': p_r_train[0],
+                                        'pearson_r_p': p_r_train[1],
+                                        'sim_avg': np.average(sim_train)
+                                    })
                         batch_step += 1
                         # print(sim_train.tolist())
-                        if show: # or True:
+                        if show:  # or True:
                             print('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f' % (
                                 epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                                 np.average(sim_gold_train)))
                             show = False
-                    #supervisor.saver.save(sess, checkpoint_path(logdir, step))
-            #test_result_csv.close()
+                    supervisor.saver.save(sess, checkpoint_path(logdir, step))
+                    # test_result_csv.close()
+
 
 if __name__ == '__main__':
     tf.app.run()
