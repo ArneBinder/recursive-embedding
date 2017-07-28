@@ -45,7 +45,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                     None],
          'test_file_index': [tf.flags.DEFINE_integer,
                              -1,
-                             'Which file of the train data files should be used as test data.'],
+                             'Which file of the train data files should be used as test data.',
+                             None],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
                                   True,
                                   # True,
@@ -174,7 +175,9 @@ def main(unused_argv):
 
     run_desc = []
     for flag in sorted(flags.keys()):
+        # throw the type away
         flags[flag] = flags[flag][1:]
+        # get real flag value
         new_value = getattr(FLAGS, flag)
         flags[flag][0] = new_value
 
@@ -203,7 +206,6 @@ def main(unused_argv):
         saved_shapes = reader.get_variable_to_shape_map()
         embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
         lex_size = embed_shape[0]
-        step = reader.get_tensor(model_fold.VAR_NAME_GLOBAL_STEP)
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
     else:
@@ -221,7 +223,6 @@ def main(unused_argv):
             # save types file in log dir
             shutil.copyfile(FLAGS.train_data_path + '.type', os.path.join(logdir, 'model.type'))
         lex_size = vecs.shape[0]
-        step = 0
         # write flags for current run
         with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
             json.dump(flags, outfile, indent=2, sort_keys=True)
@@ -295,10 +296,10 @@ def main(unused_argv):
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
 
                     # test
-                    loss_test, sim_test, sim_gold_test, mse_comp_test = sess.run(
-                        [model.loss, model.sim, model.gold_similarities, model.mse_compare], feed_dict=fdict_test)
+                    step, loss_test, sim_test, sim_gold_test, mse_comp_test = sess.run(
+                        [model.global_step, model.loss, model.sim, model.gold_similarities, model.mse_compare],
+                        feed_dict=fdict_test)
                     p_r_test = pearsonr(sim_gold_test, sim_test)
-                    # loss_test_normed = loss_test
                     emit_values(supervisor, sess, step,
                                 {  # 'mse': loss_test,  # to stay comparable with previous runs
                                     'loss': loss_test,
@@ -318,7 +319,6 @@ def main(unused_argv):
                     # print(sim_test[0])
 
                     # train
-                    # train_loss = 0.0
                     batch_step = 0
                     show = True
                     for batch in td.group_by_batches(shuffled, FLAGS.batch_size):
@@ -327,7 +327,6 @@ def main(unused_argv):
                             [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities],
                             train_feed_dict)
                         # train_loss += batch_loss
-                        # loss_batch_normed = batch_loss
                         p_r_train = pearsonr(sim_gold_train, sim_train)
 
                         emit_values(supervisor, sess, step,
@@ -338,7 +337,6 @@ def main(unused_argv):
                                         'sim_avg': np.average(sim_train)
                                     })
                         batch_step += 1
-                        # print(sim_train.tolist())
                         if show:  # or True:
                             print('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f' % (
                                 epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
