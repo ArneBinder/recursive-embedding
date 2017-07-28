@@ -93,6 +93,27 @@ def visualize(filename, sequence_graph, types):
     graph.write_svg(filename)
 
 
+def get_text(sequence_graph, types):
+
+    data, parents = sequence_graph
+    # copy, because we modify parent
+    parents = copy.copy(parents)
+    for i, p in enumerate(parents):
+        if i + p < 0 or i + p >= len(parents):
+            parents[i] = 0
+
+    result = []
+
+    if len(data) > 0:
+        for i, d in enumerate(data):
+            if d < len(types):
+                l = types[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
+            else:
+                l = types[constants.UNKNOWN_EMBEDDING]
+            result.append(l)
+
+    return result
+
 def visualize_seq_node_list(seq_tree_list, types, file_name=TEMP_FN):
     for i, seq_tree in enumerate(seq_tree_list):
         current_data, current_parents = preprocessing.sequence_node_to_arrays(seq_tree)
