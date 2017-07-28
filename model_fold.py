@@ -472,7 +472,13 @@ class SimilaritySequenceTreeTupleModel(object):
         self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
         #optr = tf.train.GradientDescentOptimizer(0.01)
         optr = optimizer(learning_rate=learning_rate)
-        self._train_op = optr.minimize(self._loss, global_step=self._global_step)
+        # self._train_op = optr.minimize(self._loss, global_step=self._global_step)
+
+        # gradient clipping
+        gradients, variables = zip(*optr.compute_gradients(self._loss))
+        gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
+        self._train_op = optr.apply_gradients(grads_and_vars=zip(gradients, variables),
+                                              global_step=self._global_step)
 
     @property
     def tree_embeddings_1(self):
