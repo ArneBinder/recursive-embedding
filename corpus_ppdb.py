@@ -56,7 +56,7 @@ tf.flags.DEFINE_integer(
     'fold_count', 100,
     'How many folds to write.')
 tf.flags.DEFINE_integer(
-    'sample_count', 14,
+    'sample_count', 1,
     'How many negative samples to add.')
 tf.flags.DEFINE_integer(
     'count_threshold', 5,

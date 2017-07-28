@@ -434,14 +434,14 @@ class SimilaritySequenceTreeTupleModel(object):
 
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
                  embeddings_trainable=True, embedding_fc_activation=None, output_fc_activation=None):
-        embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
+        self._embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
                                  trainable=embeddings_trainable, name=VAR_NAME_EMBEDDING)
         self._embedding_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
-        self._embedding_init = embeddings.assign(self._embedding_placeholder)
+        self._embedding_init = self._embeddings.assign(self._embedding_placeholder)
 
         gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        tree_embed = tree_embedder(embeddings, embedding_fc_activation, output_fc_activation)
+        tree_embed = tree_embedder(self._embeddings, embedding_fc_activation, output_fc_activation)
         model = td.AllOf(td.GetItem('first') >> tree_embed(),
                          td.GetItem('second') >> tree_embed(),
                          gold_similarity)
@@ -517,6 +517,10 @@ class SimilaritySequenceTreeTupleModel(object):
     @property
     def global_step(self):
         return self._global_step
+
+    @property
+    def embedding_var(self):
+        return self._embeddings
 
     @property
     def embedding_init(self):

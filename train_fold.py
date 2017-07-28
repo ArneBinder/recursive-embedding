@@ -8,6 +8,8 @@ import json
 import ntpath
 import os
 # import google3
+import shutil
+
 from scipy.stats.stats import pearsonr
 import six
 from six.moves import xrange  # pylint: disable=redefined-builtin
@@ -23,16 +25,21 @@ import numpy as np
 import math
 
 flags = {'train_data_path': [tf.flags.DEFINE_string,
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMaggregate',
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
                              'TF Record file containing the training dataset of sequence tuples.'],
+         'old_logdir': [tf.flags.DEFINE_string,
+                        #None,
+                             '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingfcactivationNONE_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_outputfcactivationNONE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3NS1PPDBCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM50',
+                             'Set this to fine tune a pre-trained model.'],
          'batch_size': [tf.flags.DEFINE_integer,
                         100,
                         'How many samples to read per batch.'],
          'epochs': [tf.flags.DEFINE_integer,
-                    10000,
+                    1000000,
                     'The number of epochs.',
                     None],
          'test_file_index': [tf.flags.DEFINE_integer,
@@ -71,7 +78,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'learning_rate': [tf.flags.DEFINE_float,
                                   0.001,
                                   # 'tanh',
-                                  'leraning rate'],
+                                  'learning rate'],
          'optimizer': [tf.flags.DEFINE_string,
                                   'AdadeltaOptimizer',
                                   'optimizer'],
@@ -152,10 +159,7 @@ def main(unused_argv):
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
-    ### debug
     train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
-    #train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')[0:1]
-    ## debug end
     train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
     logging.info('found ' + str(len(train_fnames)) + ' train data files')
     test_fname = train_fnames[FLAGS.test_file_index]
@@ -169,8 +173,8 @@ def main(unused_argv):
         [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
     # DEBUG
-    vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
-    lex_size = vecs.shape[0]
+    #vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
+    #lex_size = vecs.shape[0]
     # embedding_dim = vecs.shape[1]
 
     run_desc = []
@@ -184,7 +188,8 @@ def main(unused_argv):
             flag_name = flag.replace('_', '')
             flag_value = str(new_value).replace('_', '')
             flag_value = ''.join(flag_value.split(os.sep)[-2:])
-            run_desc.append(flag_name.lower() + flag_value.upper())
+            if len(flag_value) < 50:
+                run_desc.append(flag_name.lower() + flag_value.upper())
         # if a short version is set, use it. if it is set to None, add this flag not to the run_descriptions
         elif flags[flag][2]:
             run_desc.append(flag.replace('_', '').lower() + str(flags[flag][2]).replace('_', '').upper())
@@ -193,13 +198,30 @@ def main(unused_argv):
     logging.info('short run description: ' + flags['run_description'][0])
 
     logdir = os.path.join(FLAGS.logdir, flags['run_description'][0])
+    if not os.path.isdir(logdir):
+        os.makedirs(logdir)
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
+    reader = None
+    old_checkpoint_fn = None
     if checkpoint_fn:
         logging.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
         embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
         lex_size = embed_shape[0]
+    else:
+        vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
+        if FLAGS.old_logdir:
+            old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.old_logdir)
+            reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
+            vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_EMBEDDING)
+            types_old = corpus.read_types(os.path.join(FLAGS.old_logdir, 'model'))
+            vecs, types = corpus.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False, remove=False)
+            corpus.write_dict(os.path.join(logdir, 'model'), types=types)
+        else:
+            # save types file in log dir
+            shutil.copyfile(FLAGS.train_data_path + '.type', os.path.join(logdir, 'model.type'))
+        lex_size = vecs.shape[0]
 
     logging.info('lex_size = ' + str(lex_size))
 
@@ -243,6 +265,9 @@ def main(unused_argv):
 
             summary_path = os.path.join(logdir, '')
             test_writer = tf.summary.FileWriter(summary_path + 'test', graph)
+            embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)
+            restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if item not in [global_step] + embedding_vars]
+            restore_saver = tf.train.Saver(restore_vars)
 
             # collect important variables
             # tree_embedder_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.DEFAULT_SCOPE_TREE_EMBEDDER)
@@ -259,7 +284,7 @@ def main(unused_argv):
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
-                # saver=None,# my_saver,
+                saver=None,# my_saver,
                 logdir=logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
@@ -267,13 +292,17 @@ def main(unused_argv):
                 summary_writer=tf.summary.FileWriter(summary_path + 'train', graph))
             sess = supervisor.PrepareSession(FLAGS.master)
 
+            if old_checkpoint_fn:
+                print('restore from old_checkpoint: '+ old_checkpoint_fn + ' ...')
+                restore_saver.restore(sess, old_checkpoint_fn)
+
             def csv_test_writer(mode='w'):
                 test_result_csv = open(os.path.join(test_writer.get_logdir(), 'results.csv'), mode, buffering=1)
                 fieldnames = ['step', 'loss', 'pearson_r', 'sim_avg']
                 test_result_writer = csv.DictWriter(test_result_csv, fieldnames=fieldnames, delimiter='\t')
                 return test_result_writer
 
-            if checkpoint_fn is None:
+            if reader is None:
                 print('init embeddings with external vectors...')
                 sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
                 # sess.run(init_missing)
@@ -349,12 +378,12 @@ def main(unused_argv):
                                      })
                         batch_step += 1
                         # print(sim_train.tolist())
-                        if show:# or True:
+                        if show: # or True:
                             print('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f' % (
                                 epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                                 np.average(sim_gold_train)))
                             show = False
-                    supervisor.saver.save(sess, checkpoint_path(logdir, step))
+                    #supervisor.saver.save(sess, checkpoint_path(logdir, step))
             #test_result_csv.close()
 
 if __name__ == '__main__':
