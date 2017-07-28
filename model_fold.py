@@ -325,7 +325,7 @@ class TreeEmbedding_FLAT(TreeEmbedding):
 
     def aggregate(self, name='aggregate'):
         # an aggregation function which doesn't take the order of the inputs into account
-        return td.Reduce(td.Function(lambda x, y: tf.add(x, y)), name=name)
+        return td.Mean(name)
 
     def __call__(self):
         model = self.sequence() >> self.aggregate() >> self.output_fc
