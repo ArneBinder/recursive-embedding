@@ -376,7 +376,7 @@ class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT):
         super(TreeEmbedding_FLAT_LSTM50, self).__init__(embeddings, 'LSTM50', embedding_fc_activation,
                                                          output_fc_activation)
         with tf.variable_scope(self.scope):
-            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=50), 'lstm_cell')
+            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=50, forget_bias=2.5), 'lstm_cell')
 
     def aggregate(self, name='aggregate'):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
