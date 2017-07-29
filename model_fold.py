@@ -201,6 +201,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         cases = td.AllOf(self.head(), children) >> treelstm
         embed_tree.resolve_to(cases)
 
+        # TODO: use only h state
         return cases >> td.Concat() >> self.output_fc
 
 
@@ -318,7 +319,7 @@ class TreeEmbedding_FLAT(TreeEmbedding):
                                                  output_fc_activation=output_fc_activation)
 
     def element(self, name='element'):
-        return self.head()
+        return td.Pipe(self.head(), self.embedding_fc, name=name)
 
     def sequence(self, name='sequence'):
         return td.Pipe(td.GetItem('children'), td.Map(self.element()), name=name)
@@ -351,7 +352,7 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT):
         return td.Pipe(td.AllOf(self.head(name='head_level1'),
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
                                     name='head_level2')),
-                       td.Concat(), name=name)
+                       td.Concat(), self.embedding_fc, name=name)
 
     @property
     def embedding_fc_size_multiple(self):
@@ -395,7 +396,7 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
         return td.Pipe(td.AllOf(self.head(name='head_level1'),
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
                                     name='head_level2')),
-                       td.Concat(), name=name)
+                       td.Concat(), self.embedding_fc, name=name)
 
     def aggregate(self, name='aggregate'):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
