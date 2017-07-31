@@ -25,7 +25,7 @@ tf.flags.DEFINE_string(
     '/media/arne/WIN/Users/Arne/ML/data/corpora/sick',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
-    'corpus_data_output_fn', 'SICK_tt',
+    'corpus_data_output_fn', 'SICK_tt_noDot',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
 # tf.flags.DEFINE_string(
 #    'dict_filename', 'data/nlp/spacy/dict',
@@ -78,19 +78,15 @@ def sick_raw_reader_DEP(filename):
 
 def sick_sentence_reader(filename):
     with open(filename, 'rb') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter='\t')  # , fieldnames=['pair_ID', 'sentence_A', 'sentence_B',
-        # 'relatedness_score', 'entailment_judgment'])
+        reader = csv.DictReader(csvfile, delimiter='\t')
         for row in reader:
-            # yield (int(row['pair_ID']), row['sentence_A'].decode('utf-8'), row['sentence_B'].decode('utf-8'),
-            #       float(row['relatedness_score']))
-            yield row['sentence_A'].decode('utf-8') + '.'
-            yield row['sentence_B'].decode('utf-8') + '.'
+            yield row['sentence_A'].decode('utf-8')
+            yield row['sentence_B'].decode('utf-8')
 
 
 def sick_score_reader(filename):
     with open(filename, 'rb') as csvfile:
-        reader = csv.DictReader(csvfile, delimiter='\t')  # , fieldnames=['pair_ID', 'sentence_A', 'sentence_B',
-        # 'relatedness_score', 'entailment_judgment'])
+        reader = csv.DictReader(csvfile, delimiter='\t')
         for row in reader:
             yield float(row['relatedness_score'])
 
@@ -101,11 +97,11 @@ def sick_reader(filename, sentence_processor, parser, mapping, concat_mode, inne
     for i, t in enumerate(sick_raw_reader_DEP(filename)):
         _, sen1, sen2, score = t
         sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-        preprocessing.build_sequence_tree_from_str(str_=sen1 + '.', sentence_processor=sentence_processor,
+        preprocessing.build_sequence_tree_from_str(str_=sen1, sentence_processor=sentence_processor,
                                                    parser=parser,
                                                    data_maps=mapping, concat_mode=concat_mode,
                                                    inner_concat_mode=inner_concat_mode, seq_tree=sim_tree_tuple.first)
-        preprocessing.build_sequence_tree_from_str(str_=sen2 + '.', sentence_processor=sentence_processor,
+        preprocessing.build_sequence_tree_from_str(str_=sen2, sentence_processor=sentence_processor,
                                                    parser=parser,
                                                    data_maps=mapping, concat_mode=concat_mode,
                                                    inner_concat_mode=inner_concat_mode, seq_tree=sim_tree_tuple.second)
