@@ -276,9 +276,11 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     logging.debug('argsort ...')
     sorted_indices = np.argsort(counts)
 
+    # take mean and variance from previous vectors
     vecs_mean = np.mean(vecs, axis=0)
-    #new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
-    new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
+    vecs_variance = np.var(vecs, axis=0)
+    new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
+    #new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
     new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
     new_types = [None] * new_max_size
     converter = -np.ones(shape=new_max_size, dtype=np.int32)
@@ -286,6 +288,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     logging.debug('process reversed(sorted_indices) ...')
     new_idx = 0
     new_idx_unknown = -1
+    new_count = 0
     for old_idx in reversed(sorted_indices):
         # keep unknown and save new unknown index
         if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
@@ -298,8 +301,10 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
             new_vecs[new_idx] = vecs[old_idx]
 
         else:
-            # init missing vecs with mean
-            new_vecs[new_idx] = vecs_mean
+            # init missing vecs with previous vecs distribution
+            new_vecs[new_idx] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
+            new_count += 1
+            #print(types[old_idx] + '\t'+str(counts[old_idx]))
 
         new_types[new_idx] = types[old_idx]
         new_counts[new_idx] = counts[old_idx]
@@ -309,6 +314,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
 
     logging.info('new lex_size: '+str(new_idx))
+    logging.debug('added ' + str(new_count) + ' new vecs to vocab')
 
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]

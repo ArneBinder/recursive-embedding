@@ -58,7 +58,7 @@ tf.flags.DEFINE_string(
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     'None -> do not concat at all')
 tf.flags.DEFINE_integer(
-    'fold_count', 10,
+    'fold_count', 100,
     'How many folds to write.')
 
 FLAGS = tf.flags.FLAGS
