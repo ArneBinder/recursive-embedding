@@ -25,7 +25,7 @@ tf.flags.DEFINE_string(
     '/media/arne/WIN/Users/Arne/ML/data/corpora/sick',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
-    'corpus_data_output_fn', 'SICK',
+    'corpus_data_output_fn', 'SICK_fc5',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
 # tf.flags.DEFINE_string(
 #    'dict_filename', 'data/nlp/spacy/dict',
@@ -58,7 +58,7 @@ tf.flags.DEFINE_string(
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     'None -> do not concat at all')
 tf.flags.DEFINE_integer(
-    'fold_count', 100,
+    'fold_count', 5,
     'How many folds to write.')
 
 FLAGS = tf.flags.FLAGS
@@ -137,6 +137,17 @@ def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping,
     record_output.close()
 
 
+def write_data(out_fn, start_idx, size, data, children, roots):
+    logging.info('write data to: ' + out_fn + ' ...')
+    with tf.python_io.TFRecordWriter(out_fn) as record_output:
+        for idx in range(start_idx, start_idx + size):
+            sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
+            preprocessing.build_sequence_tree(data, children, roots[idx * 2], sim_tree_tuple.first)
+            preprocessing.build_sequence_tree(data, children, roots[idx * 2 + 1], sim_tree_tuple.second)
+            sim_tree_tuple.similarity = (scores[idx] - 1.) / 4.
+            record_output.write(sim_tree_tuple.SerializeToString())
+
+
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('load spacy ...')
@@ -195,16 +206,10 @@ if __name__ == '__main__':
     children, roots = preprocessing.children_and_roots(parents)
     logging.debug('len(roots)='+str(len(roots)))
 
+    fold_size = len(roots) / FLAGS.fold_count
+    start_idx = 0
     for fold in range(FLAGS.fold_count):
         out_fn = out_path + '.train.'+str(fold)
-        logging.info('write fold to: ' + out_fn + ' ...')
-        with tf.python_io.TFRecordWriter(out_fn) as record_output:
-            size = len(roots) / FLAGS.fold_count
-            #offset = (fold * len(roots)) / FLAGS.fold_count
-            for idx in range(fold * size, (fold + 1) * size, 2):
-                sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-                t1 = preprocessing.build_sequence_tree(data, children, roots[idx], sim_tree_tuple.first)
-                t2 = preprocessing.build_sequence_tree(data, children, roots[idx+1], sim_tree_tuple.second)
-                sim_tree_tuple.similarity = (scores[idx / 2] - 1.) / 4.
-                record_output.write(sim_tree_tuple.SerializeToString())
+        write_data(out_fn, start_idx, fold_size, data, children, roots)
+
 
