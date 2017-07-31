@@ -25,7 +25,7 @@ tf.flags.DEFINE_string(
     '/media/arne/WIN/Users/Arne/ML/data/corpora/sick',
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
-    'corpus_data_output_fn', 'SICK_fc5',
+    'corpus_data_output_fn', 'SICK_tt',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
 # tf.flags.DEFINE_string(
 #    'dict_filename', 'data/nlp/spacy/dict',
@@ -206,10 +206,14 @@ if __name__ == '__main__':
     children, roots = preprocessing.children_and_roots(parents)
     logging.debug('len(roots)='+str(len(roots)))
 
-    fold_size = len(roots) / FLAGS.fold_count
-    start_idx = 0
-    for fold in range(FLAGS.fold_count):
-        out_fn = out_path + '.train.'+str(fold)
-        write_data(out_fn, start_idx, fold_size, data, children, roots)
+
+    write_data(out_path + '.train.0', 0, len(scores_train), data, children, roots)
+    write_data(out_path + '.train.1', len(scores_train), len(scores_test), data, children, roots)
+
+    #fold_size = len(roots) / FLAGS.fold_count
+    #start_idx = 0
+    #for fold in range(FLAGS.fold_count):
+    #    out_fn = out_path + '.train.'+str(fold)
+    #    write_data(out_fn, start_idx, fold_size, data, children, roots)
 
 
