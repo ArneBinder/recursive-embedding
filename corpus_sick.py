@@ -133,7 +133,7 @@ def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping,
     record_output.close()
 
 
-def write_data(out_fn, start_idx, size, data, children, roots):
+def write_data(out_fn, start_idx, size, data, children, roots, scores):
     logging.info('write data to: ' + out_fn + ' ...')
     with tf.python_io.TFRecordWriter(out_fn) as record_output:
         for idx in range(start_idx, start_idx + size):
@@ -202,9 +202,8 @@ if __name__ == '__main__':
     children, roots = preprocessing.children_and_roots(parents)
     logging.debug('len(roots)='+str(len(roots)))
 
-
-    write_data(out_path + '.train.0', 0, len(scores_train), data, children, roots)
-    write_data(out_path + '.train.1', len(scores_train), len(scores_test), data, children, roots)
+    write_data(out_path + '.train.0', 0, len(scores_train), data, children, roots, scores)
+    write_data(out_path + '.train.1', len(scores_train), len(scores_test), data, children, roots, scores)
 
     #fold_size = len(roots) / FLAGS.fold_count
     #start_idx = 0

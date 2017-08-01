@@ -4,7 +4,9 @@ import json
 import os
 import pprint
 import logging
+import random
 import sys
+from scipy import spatial
 
 import spacy
 import tensorflow as tf
@@ -58,9 +60,12 @@ tf.flags.DEFINE_string(
     '"sequence" -> roots point to next root, '
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     'None -> do not concat at all')
-# tf.flags.DEFINE_integer(
-#    'fold_count', 5,
-#    'How many folds to write.')
+tf.flags.DEFINE_integer(
+    'negative_samples', 1,
+    'Count of negative samples per added positive.')
+tf.flags.DEFINE_integer(
+    'fold_count', 5,
+    'How many folds to write.')
 
 FLAGS = tf.flags.FLAGS
 
@@ -84,14 +89,14 @@ def hasan_cluster_reader(filename):
             yield ast.literal_eval(row['clusters'].decode('utf-8'))
 
 
-def write_data(out_fn, start_idx, size, data, children, roots):
+def write_data(out_fn, start_idx, size, data, children, roots, sim_tuples):
     logging.info('write data to: ' + out_fn + ' ...')
     with tf.python_io.TFRecordWriter(out_fn) as record_output:
         for idx in range(start_idx, start_idx + size):
             sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-            preprocessing.build_sequence_tree(data, children, roots[idx * 2], sim_tree_tuple.first)
-            preprocessing.build_sequence_tree(data, children, roots[idx * 2 + 1], sim_tree_tuple.second)
-            sim_tree_tuple.similarity = (scores[idx] - 1.) / 4.
+            preprocessing.build_sequence_tree(data, children, roots[sim_tuples[idx][0]], sim_tree_tuple.first)
+            preprocessing.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], sim_tree_tuple.second)
+            sim_tree_tuple.similarity = sim_tuples[idx][2]
             record_output.write(sim_tree_tuple.SerializeToString())
 
 
@@ -119,7 +124,7 @@ if __name__ == '__main__':
     if FLAGS.inner_concat_mode is not None:
         out_path = out_path + '_ICM' + FLAGS.inner_concat_mode
 
-    data, parents, clusters, roots = corpus.parse_texts_clustered(filename=FLAGS.corpus_data_input_train,
+    data, parents, clusters, _ = corpus.parse_texts_clustered(filename=FLAGS.corpus_data_input_train,
                                                                   reader=hasan_sentence_reader,
                                                                   reader_clusters=hasan_cluster_reader,
                                                                   sentence_processor=sentence_processor,
@@ -139,6 +144,7 @@ if __name__ == '__main__':
         pickle.dump(clusters, cluster_file)
     # scores.dump(out_path + '.score')
     corpus.write_dict(out_path, vecs=vecs, types=types)
+    children, roots = preprocessing.children_and_roots(parents)
     logging.info('the dataset contains ' + str(len(clusters)) + ' clustered texts')
 
     clusters_by_id = {None: []}
@@ -151,10 +157,54 @@ if __name__ == '__main__':
                     clusters_by_id[c_id] = []
                 clusters_by_id[c_id].append(idx)
 
-    sim_tuple = []
+    # debug
+    for c_id in clusters_by_id:
+        print(str(c_id) + ': '+str(len(clusters_by_id[c_id])))
+    # debug end
 
+    def get_sim(cluster_ids1, cluster_ids2, all_cluster_ids):
+        e1 = np.array([float(c_id in cluster_ids1) for c_id in all_cluster_ids])
+        e2 = np.array([float(c_id in cluster_ids2) for c_id in all_cluster_ids])
+        # use cosine similarity
+        result = np.dot(e1, e2) / (np.linalg.norm(e1) * np.linalg.norm(e2))
+        return result
 
+    sim_tuples = []
+    sim_positive_count = 0
+    added_all = np.zeros(shape=(len(clusters), len(clusters)), dtype=bool)
+    for idx, c_ids in enumerate(clusters):
+        added = []
+        for c_id in c_ids:
+            # add all with at least one same cluster
+            for other_idx in clusters_by_id[c_id]:
+                if other_idx not in added:
+                    # calc similarity
+                    sim = get_sim(c_ids, clusters[other_idx], clusters_by_id.keys())
+                    # check, if the reverse was already added
+                    if not added_all[other_idx][idx]:
+                        sim_tuples.append((idx, other_idx, sim))
+                        added_all[idx][other_idx] = True
 
+                    added.append(other_idx)
+        sim_positive_count += len(added)
+        # add negative samples
+        not_added = np.array(list(set(range(len(clusters))).difference(added)))
+        # TODO: add (FLAGS.negative_samples * len(added)) neg samples? or just FLAGS.negative_samples?
+        neg_sample_ids = np.random.choice(not_added, FLAGS.negative_samples * len(added))
+        for neg_id in neg_sample_ids:
+            sim_tuples.append((idx, neg_id, 0.0))
+
+    logging.info('total sim_positive count: ' + str(sim_positive_count))
+    logging.info('total data size: ' + str(len(sim_tuples)))
+    logging.info('shuffle data ...')
+    random.shuffle(sim_tuples)
+
+    fold_size = len(sim_tuples) / FLAGS.fold_count
+    start_idx = 0
+    for fold in range(FLAGS.fold_count):
+        out_fn = out_path + '.train.'+str(fold)
+        write_data(out_fn, start_idx, fold_size, data, children, roots, sim_tuples)
+        start_idx += fold_size
 
     # logging.debug('calc roots ...')
     # children, roots = preprocessing.children_and_roots(parents)

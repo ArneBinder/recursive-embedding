@@ -360,7 +360,7 @@ def convert_data(seq_data, converter, lex_size, new_idx_unknown):
         else:
             seq_data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
             count_unknown += 1
-    logging.info('set ' + str(count_unknown) + ' data points to UNKNOWN')
+    logging.info('set ' + str(count_unknown) + ' of ' + str(len(seq_data)) + ' data points to UNKNOWN')
     return seq_data
 
 

@@ -51,7 +51,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   # True,
                                   'Iff enabled, fine tune the embeddings.'],
          'sim_measure': [tf.flags.DEFINE_string,
-                         'sim_cosine',
+                         'sim_manhattan',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
