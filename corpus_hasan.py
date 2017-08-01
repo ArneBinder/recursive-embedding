@@ -170,31 +170,36 @@ if __name__ == '__main__':
         return result
 
     sim_tuples = []
-    sim_positive_count = 0
-    added_all = np.zeros(shape=(len(clusters), len(clusters)), dtype=bool)
+    #sim_positive_count = 0
+    added_positive = np.zeros(shape=(len(clusters), len(clusters)), dtype=bool)
+    added_negative = np.zeros(shape=(len(clusters), len(clusters)), dtype=bool)
     for idx, c_ids in enumerate(clusters):
-        added = []
+        added = set()
         for c_id in c_ids:
             # add all with at least one same cluster
             for other_idx in clusters_by_id[c_id]:
                 if other_idx not in added:
                     # calc similarity
                     sim = get_sim(c_ids, clusters[other_idx], clusters_by_id.keys())
-                    # check, if the reverse was already added
-                    if not added_all[other_idx][idx]:
+                    # check, if itself or the reverse was already added
+                    if not added_positive[idx][other_idx] and not added_positive[other_idx][idx]:
                         sim_tuples.append((idx, other_idx, sim))
-                        added_all[idx][other_idx] = True
+                        added_positive[idx][other_idx] = True
 
-                    added.append(other_idx)
-        sim_positive_count += len(added)
+                    added.add(other_idx)
+        #sim_positive_count += len(added)
         # add negative samples
         not_added = np.array(list(set(range(len(clusters))).difference(added)))
-        # TODO: add (FLAGS.negative_samples * len(added)) neg samples? or just FLAGS.negative_samples?
-        neg_sample_ids = np.random.choice(not_added, FLAGS.negative_samples * len(added))
+        # TODO: add (FLAGS.negative_samples * np.sum(added_positive[idx])) neg samples? or just FLAGS.negative_samples?
+        neg_sample_ids = np.random.choice(not_added, FLAGS.negative_samples * np.sum(added_positive[idx]))
         for neg_id in neg_sample_ids:
-            sim_tuples.append((idx, neg_id, 0.0))
+            if not added_negative[idx][neg_id] and not added_negative[neg_id][idx]:
+                sim_tuples.append((idx, neg_id, 0.0))
+                added_negative[idx][neg_id] = True
 
-    logging.info('total sim_positive count: ' + str(sim_positive_count))
+    #sim_positive_count = np.sum(added_positive)
+    logging.info('total positive sample count: ' + str(np.sum(added_positive)))
+    logging.info('total negative sample count: ' + str(np.sum(added_negative)))
     logging.info('total data size: ' + str(len(sim_tuples)))
     logging.info('shuffle data ...')
     random.shuffle(sim_tuples)
