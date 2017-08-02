@@ -27,7 +27,7 @@ import math
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
                              '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
@@ -286,14 +286,16 @@ def main(unused_argv):
                 sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
 
             # prepare test set
+            logging.info('create test data set ...')
             batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
             fdict_test = model.build_feed_dict(batch_test)
             logging.info('test data size: ' + str(len(batch_test)))
 
             with model.compiler.multiprocessing_pool():
+                logging.info('create train data set ...')
                 data_train = list(train_iterator)
-                logging.info('train data size: ' + str(len(data_train)))
                 train_set = model.compiler.build_loom_inputs(data_train)
+                logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 # dev_hits_best = 0.0
                 logging.info('training the model')
