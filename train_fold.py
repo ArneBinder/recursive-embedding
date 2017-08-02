@@ -27,10 +27,10 @@ import math
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
                         None,
@@ -156,7 +156,10 @@ def csv_test_writer(logdir, mode='w'):
 
 
 def main(unused_argv):
-    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+    logging_format = '%(asctime)s %(message)s'
+    tf.logging._logger.propagate = False
+    tf.logging._logger.format = logging_format
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
     logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
@@ -196,7 +199,7 @@ def main(unused_argv):
             run_desc.append(flag.replace('_', '').lower() + str(flags[flag][2]).replace('_', '').upper())
 
     flags['run_description'] = ['_'.join(run_desc), 'short string description of the current run']
-    logging.info('short run description: ' + flags['run_description'][0])
+    logging.info('serialized run description: ' + flags['run_description'][0])
 
     logdir = os.path.join(FLAGS.logdir, flags['run_description'][0])
     if not os.path.isdir(logdir):
@@ -287,15 +290,15 @@ def main(unused_argv):
 
             # prepare test set
             logging.info('create test data set ...')
-            batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
-            fdict_test = model.build_feed_dict(batch_test)
-            logging.info('test data size: ' + str(len(batch_test)))
+            #batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
+            fdict_test = model.build_feed_dict(test_iterator)
+            #logging.info('test data size: ' + str(len(batch_test)))
 
             with model.compiler.multiprocessing_pool():
                 logging.info('create train data set ...')
-                data_train = list(train_iterator)
-                train_set = model.compiler.build_loom_inputs(data_train)
-                logging.info('train data size: ' + str(len(data_train)))
+                #data_train = list(train_iterator)
+                train_set = model.compiler.build_loom_inputs(train_iterator)
+                #logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 # dev_hits_best = 0.0
                 logging.info('training the model')
@@ -315,7 +318,7 @@ def main(unused_argv):
                                     'mse_compare': np.average(mse_comp_test)},
                                 writer=test_writer,
                                 csv_writer=test_result_writer)
-                    print('epoch=%d step=%d: loss_test =%f\tpearson_r_test =%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f\tTEST' % (
+                    logging.info('epoch=%d step=%d: loss_test =%f\tpearson_r_test =%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f\tTEST' % (
                         epoch, step, loss_test, p_r_test[0], np.average(sim_test), np.average(sim_gold_test), np.var(sim_gold_test)))
 
                     # print(es1[0].tolist())
@@ -344,7 +347,7 @@ def main(unused_argv):
                                     })
                         batch_step += 1
                         if show:  # or True:
-                            print('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f' % (
+                            logging.info('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f' % (
                                 epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                                 np.average(sim_gold_train), np.var(sim_gold_train)))
                             show = False
