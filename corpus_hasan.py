@@ -155,11 +155,10 @@ if __name__ == '__main__':
     # debug end
 
 
-    def get_sim(cluster_ids1, cluster_ids2):
-        # use Jaccard
+    def get_jaccard(cluster_ids1, cluster_ids2):
         ids1_set = set(cluster_ids1)
         ids2_set = set(cluster_ids2)
-        return len(ids1_set & ids2_set) / len(ids1_set | ids2_set)
+        return float(len(ids1_set & ids2_set)) / float(len(ids1_set | ids2_set))
 
 
     sim_tuples = []
@@ -173,7 +172,7 @@ if __name__ == '__main__':
             for other_idx in clusters_by_id[c_id]:
                 if other_idx not in added:
                     # calc similarity
-                    sim = get_sim(c_ids, clusters[other_idx])
+                    sim = get_jaccard(c_ids, clusters[other_idx])
                     # check, if itself or the reverse was already added
                     if not added_positive[idx][other_idx] and not added_positive[other_idx][idx]:
                         sim_tuples.append((idx, other_idx, sim))
