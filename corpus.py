@@ -1,24 +1,26 @@
-#import codecs
+# import codecs
 import csv
 import os
-#import pickle
+# import pickle
 
 import logging
 import numpy as np
 import spacy
 import ntpath
+import tensorflow as tf
 
 import constants
-#import preprocessing
-#import tools
+# import preprocessing
+# import tools
 import preprocessing
+import similarity_tree_tuple_pb2
 import tools
 
 TSV_COLUMN_NAME_LABEL = 'label'
 TSV_COLUMN_NAME_ID = 'id_orig'
 
 
-#def write_dict(out_path, mapping, vecs, vocab_nlp=None, vocab_manual=None):
+# def write_dict(out_path, mapping, vecs, vocab_nlp=None, vocab_manual=None):
 #    logging.info('dump embeddings to: ' + out_path + '.vec ...')
 #    vecs.dump(out_path + '.vec')
 #    logging.info('dump mappings to: ' + out_path + '.mapping ...')
@@ -34,22 +36,22 @@ def write_dict(out_path, vecs=None, types=None, counts=None):
         logging.debug('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
         vecs.dump(out_path + '.vec')
     if types is not None:
-        logging.debug('write types (len='+str(len(types))+') to: ' + out_path + '.types ...')
+        logging.debug('write types (len=' + str(len(types)) + ') to: ' + out_path + '.types ...')
         with open(out_path + '.type', 'wb') as f:
             writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for t in types:
                 writer.writerow([t.encode("utf-8")])
     if counts is not None:
-        logging.debug('dump counts (len='+str(len(counts))+') to: ' + out_path + '.count ...')
+        logging.debug('dump counts (len=' + str(len(counts)) + ') to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
 
 
 def create_or_read_dict(fn, vocab=None, dont_read=False):
-    if os.path.isfile(fn+'.vec') and os.path.isfile(fn+'.type'):
+    if os.path.isfile(fn + '.vec') and os.path.isfile(fn + '.type'):
         if dont_read:
             return
-        logging.debug('load vecs from file: '+fn + '.vec ...')
-        v = np.load(fn+'.vec')
+        logging.debug('load vecs from file: ' + fn + '.vec ...')
+        v = np.load(fn + '.vec')
         t = read_types(fn)
         logging.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
     else:
@@ -92,7 +94,7 @@ def mapping_from_list(l):
     m = {}
     for i, x in enumerate(l):
         if x in m:
-            logging.warn('already in dict: "'+x+'" at idx: '+str(m[x]))
+            logging.warn('already in dict: "' + x + '" at idx: ' + str(m[x]))
         m[x] = i
     return m
 
@@ -109,13 +111,13 @@ def tsv_to_ids_and_types(fn):
                 ids.append(int(row[TSV_COLUMN_NAME_ID]))
                 writer.writerow([row[TSV_COLUMN_NAME_LABEL]])
 
-    print('len(ids)='+str(len(ids)))
+    print('len(ids)=' + str(len(ids)))
     print('convert and dump ids...')
     ids_np = np.array(ids)
     ids_np.dump(fn + '.id')
 
 
-#debug
+# debug
 def move_to_front(fn, idx):
     ids = np.load(fn + '.id.bk')
     vecs = np.load(fn + '.vec.bk')
@@ -128,22 +130,22 @@ def move_to_front(fn, idx):
     print(len(types))
     print(len(data))
 
-    #converter = np.zeros(shape=len(ids), dtype=np.int32)
+    # converter = np.zeros(shape=len(ids), dtype=np.int32)
 
     new_ids = np.zeros(shape=ids.shape, dtype=ids.dtype)
     new_vecs = np.zeros(shape=vecs.shape, dtype=vecs.dtype)
     new_types = [None] * len(ids)
 
     for i in range(idx):
-        new_ids[i+1] = ids[i]
-        new_vecs[i+1] = vecs[i]
-        new_types[i+1] = types[i]
+        new_ids[i + 1] = ids[i]
+        new_vecs[i + 1] = vecs[i]
+        new_types[i + 1] = types[i]
 
     new_ids[0] = ids[idx]
     new_vecs[0] = vecs[idx]
     new_types[0] = types[idx]
 
-    for i in range(idx+1, len(ids)):
+    for i in range(idx + 1, len(ids)):
         new_ids[i] = ids[i]
         new_vecs[i] = vecs[i]
         new_types[i] = types[i]
@@ -169,20 +171,22 @@ def move_to_front(fn, idx):
 def get_dict_from_vocab(vocab):
     manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
     size = len(vocab) + len(constants.vocab_manual)
-    #vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
+    # vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
     vecs = np.random.standard_normal(size=(size, vocab.vectors_length)) * 0.1
-    #types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-    #types = [types_unknown]
+    # types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+    # types = [types_unknown]
 
     # add manual vocab at first
     # the vecs remain zeros
     types = constants.vocab_manual.values()
-    #i = 1
+    # i = 1
     i = len(constants.vocab_manual)
     for lexeme in vocab:
         # exclude entities which are in vocab_manual to avoid collisions
         if lexeme.orth_ in manual_vocab_reverted:
-            logging.warn('found token in parser vocab with orth_="'+lexeme.orth_+'", which was already added from manual vocab: "'+', '.join(manual_vocab_reverted)+'", skip!')
+            logging.warn(
+                'found token in parser vocab with orth_="' + lexeme.orth_ + '", which was already added from manual vocab: "' + ', '.join(
+                    manual_vocab_reverted) + '", skip!')
             continue
         vecs[i] = lexeme.vector
         types.append(lexeme.orth_)
@@ -217,7 +221,7 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
                                           ' does not equal length of types1 = ' + str(len(types1))
     assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = ' + vecs2.shape[0] + \
                                           ' does not equal length of types2 = ' + str(len(types2))
-    logging.info('size of dict1: '+str(len(types1)))
+    logging.info('size of dict1: ' + str(len(types1)))
     logging.info('size of dict2: ' + str(len(types2)))
     mapping2 = mapping_from_list(types2)
     logging.debug(len(mapping2))
@@ -280,7 +284,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     vecs_mean = np.mean(vecs, axis=0)
     vecs_variance = np.var(vecs, axis=0)
     new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
-    #new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
+    # new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
     new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
     new_types = [None] * new_max_size
     converter = -np.ones(shape=new_max_size, dtype=np.int32)
@@ -304,7 +308,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
             # init missing vecs with previous vecs distribution
             new_vecs[new_idx] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
             new_count += 1
-            #print(types[old_idx] + '\t'+str(counts[old_idx]))
+            # print(types[old_idx] + '\t'+str(counts[old_idx]))
 
         new_types[new_idx] = types[old_idx]
         new_counts[new_idx] = counts[old_idx]
@@ -313,7 +317,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
 
     assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
 
-    logging.info('new lex_size: '+str(new_idx))
+    logging.info('new lex_size: ' + str(new_idx))
     logging.debug('added ' + str(new_count) + ' new vecs to vocab')
 
     # cut arrays
@@ -328,17 +332,18 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
 def calc_ids_from_types(types, vocab=None):
     manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
     vocab_added = {}
-    ids = np.ndarray(shape=(len(types), ), dtype=np.int32)
+    ids = np.ndarray(shape=(len(types),), dtype=np.int32)
     if vocab is None:
         parser = spacy.load('en')
         vocab = parser.vocab
     for i, t in enumerate(types):
         if t in manual_vocab_reverted:
             ids[i] = manual_vocab_reverted[t]
-            logging.debug('add vocab manual id='+str(ids[i]) + ' for type='+t)
+            logging.debug('add vocab manual id=' + str(ids[i]) + ' for type=' + t)
         else:
             ids[i] = vocab[t].orth
-        assert ids[i] not in vocab_added, 'type='+t+' exists more then one time in types at pos=' + str(vocab_added[ids[i]]) + ' and at pos=' + str(i)
+        assert ids[i] not in vocab_added, 'type=' + t + ' exists more then one time in types at pos=' + str(
+            vocab_added[ids[i]]) + ' and at pos=' + str(i)
         vocab_added[ids[i]] = i
     return ids
 
@@ -399,10 +404,10 @@ def convert_texts(in_filename, out_filename, init_dict_filename, sentence_proces
         logging.debug('load data from file: ' + out_filename + '.data ...')
         seq_data = np.load(out_filename + '.data')
 
-    logging.info('data size: '+str(len(seq_data)))
+    logging.info('data size: ' + str(len(seq_data)))
 
     if not os.path.isfile(out_filename + '.converter') \
-            or not os.path.isfile(out_filename + '.new_idx_unknown')\
+            or not os.path.isfile(out_filename + '.new_idx_unknown') \
             or not os.path.isfile(out_filename + '.lex_size'):
         if not parser:
             logging.info('load spacy ...')
@@ -475,10 +480,10 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
                 or not os.path.isfile(out_filename + '.depth.batch' + str(offset)):
             logging.info('parse articles for offset=' + str(offset) + ' ...')
             current_reader_args = {
-                    'filename': in_filename,
-                    'max_articles': min(batch_size, max_articles),
-                    'skip': offset + article_offset
-                }
+                'filename': in_filename,
+                'max_articles': min(batch_size, max_articles),
+                'skip': offset + article_offset
+            }
             current_reader_args.update(add_reader_args)
             current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
                 reader=reader,
@@ -500,7 +505,8 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
             current_seq_depths.dump(out_filename + '.depth.batch' + str(offset))
 
 
-def parse_texts_scored(filename, reader, reader_scores, sentence_processor, parser, mapping, concat_mode, inner_concat_mode):
+def parse_texts_scored(filename, reader, reader_scores, sentence_processor, parser, mapping, concat_mode,
+                       inner_concat_mode):
     logging.info('convert texts scored ...')
     logging.debug('len(mapping)=' + str(len(mapping)))
     data, parents, _ = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
@@ -510,14 +516,16 @@ def parse_texts_scored(filename, reader, reader_scores, sentence_processor, pars
     logging.debug('len(mapping)=' + str(len(mapping)) + '(after parsing)')
     roots = [idx for idx, parent in enumerate(parents) if parent == 0]
     logging.debug('len(roots)=' + str(len(roots)))
-    scores = np.fromiter(reader_scores(filename), np.float) #list(reader_scores(filename))
+    scores = np.fromiter(reader_scores(filename), np.float)  # list(reader_scores(filename))
     logging.debug('len(scores)=' + str(len(scores)))
-    assert 2 * len(scores) == len(roots), 'len(roots):'+str(len(roots))+' != 2 * len(scores):'+str(2 * len(scores))
+    assert 2 * len(scores) == len(roots), 'len(roots):' + str(len(roots)) + ' != 2 * len(scores):' + str(
+        2 * len(scores))
 
     return data, parents, scores, roots
 
 
-def parse_texts_clustered(filename, reader, reader_clusters, sentence_processor, parser, mapping, concat_mode, inner_concat_mode):
+def parse_texts_clustered(filename, reader, reader_clusters, sentence_processor, parser, mapping, concat_mode,
+                          inner_concat_mode):
     logging.info('convert texts scored ...')
     logging.debug('len(mapping)=' + str(len(mapping)))
     data, parents, _ = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
@@ -527,9 +535,9 @@ def parse_texts_clustered(filename, reader, reader_clusters, sentence_processor,
     logging.debug('len(mapping)=' + str(len(mapping)) + '(after parsing)')
     roots = [idx for idx, parent in enumerate(parents) if parent == 0]
     logging.debug('len(roots)=' + str(len(roots)))
-    clusters = list(reader_clusters(filename)) #list(reader_scores(filename))
+    clusters = list(reader_clusters(filename))  # list(reader_scores(filename))
     logging.debug('len(clusters)=' + str(len(clusters)))
-    assert len(clusters) == len(roots), 'len(roots):'+str(len(roots))+' != len(clusters):'+str(len(clusters))
+    assert len(clusters) == len(roots), 'len(roots):' + str(len(roots)) + ' != len(clusters):' + str(len(clusters))
 
     return data, parents, clusters, roots
 
@@ -537,7 +545,31 @@ def parse_texts_clustered(filename, reader, reader_clusters, sentence_processor,
 def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode, inner_concat_mode):
     for s in sequences:
         seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
-                                                           data_maps, reader_args={'content': s}, concat_mode=concat_mode,
+                                                           data_maps, reader_args={'content': s},
+                                                           concat_mode=concat_mode,
                                                            inner_concat_mode=inner_concat_mode,
                                                            expand_dict=False)
         yield np.array([seq_data, seq_parents])
+
+
+def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
+    """
+    Write sim_tuple(s) to file.
+
+    :param out_fn the   file name to write the data into
+    :param sim_tuples   list of tuples (root_idx1, root_idx2, similarity), where root_idx1 and root_idx2 are indices to
+                        roots which thereby point to the sequence tree for the first / second sequence. Similarity is a
+                        float value in [0.0, 1.0].
+    :param data         the data sequence
+    :param children     preprocessed child information, see preprocessing.children_and_roots
+    :param roots        preprocessed root information (indices to roots in data), see preprocessing.children_and_roots
+    """
+
+    logging.info('write data to: ' + out_fn + ' ...')
+    with tf.python_io.TFRecordWriter(out_fn) as record_output:
+        for idx in range(len(sim_tuples)):
+            sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
+            preprocessing.build_sequence_tree(data, children, roots[sim_tuples[idx][0]], sim_tree_tuple.first)
+            preprocessing.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], sim_tree_tuple.second)
+            sim_tree_tuple.similarity = sim_tuples[idx][2]
+            record_output.write(sim_tree_tuple.SerializeToString())

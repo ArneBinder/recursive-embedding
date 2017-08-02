@@ -57,9 +57,9 @@ tf.flags.DEFINE_string(
     '"sequence" -> roots point to next root, '
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     'None -> do not concat at all')
-tf.flags.DEFINE_integer(
-    'fold_count', 5,
-    'How many folds to write.')
+#tf.flags.DEFINE_integer(
+#    'fold_count', 5,
+#    'How many folds to write.')
 
 FLAGS = tf.flags.FLAGS
 
@@ -133,6 +133,7 @@ def convert_sick(in_filename, out_filename, sentence_processor, parser, mapping,
     record_output.close()
 
 
+# deprecated, use corpus.write_sim_tuple_data
 def write_data(out_fn, start_idx, size, data, children, roots, scores):
     logging.info('write data to: ' + out_fn + ' ...')
     with tf.python_io.TFRecordWriter(out_fn) as record_output:
@@ -202,8 +203,13 @@ if __name__ == '__main__':
     children, roots = preprocessing.children_and_roots(parents)
     logging.debug('len(roots)='+str(len(roots)))
 
-    write_data(out_path + '.train.0', 0, len(scores_train), data, children, roots, scores)
-    write_data(out_path + '.train.1', len(scores_train), len(scores_test), data, children, roots, scores)
+    sim_tuples = [(i*2, i*2 + 1, (scores[i] - 1.) / 4.) for i in range(len(scores))]
+
+    corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:len(scores_train)], data, children, roots)
+    corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[len(scores_train):], data, children, roots)
+
+    #write_data(out_path + '.train.0', 0, len(scores_train), data, children, roots, scores)
+    #write_data(out_path + '.train.1', len(scores_train), len(scores_test), data, children, roots, scores)
 
     #fold_size = len(roots) / FLAGS.fold_count
     #start_idx = 0
