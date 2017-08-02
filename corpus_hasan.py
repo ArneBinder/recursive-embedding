@@ -70,7 +70,7 @@ tf.flags.DEFINE_integer(
     'count_threshold', 2,
     'The minimum of token occurrences to keep the token in the dictionary.')
 tf.flags.DEFINE_integer(
-    'max_token_count', 1800,
+    'max_token_count', 500,
     'The minimum of token occurrences to keep the token in the dictionary.')
 
 FLAGS = tf.flags.FLAGS
