@@ -27,10 +27,10 @@ import math
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
                         None,
@@ -305,6 +305,7 @@ def main(unused_argv):
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
 
                     # test
+                    print('test ...')
                     step, loss_test, sim_test, sim_gold_test, mse_comp_test = sess.run(
                         [model.global_step, model.loss, model.sim, model.gold_similarities, model.mse_compare],
                         feed_dict=fdict_test)
@@ -329,7 +330,6 @@ def main(unused_argv):
 
                     # train
                     batch_step = 0
-                    show = True
                     for batch in td.group_by_batches(shuffled, FLAGS.batch_size):
                         train_feed_dict = {model.compiler.loom_input_tensor: batch}
                         _, step, batch_loss, sim_train, sim_gold_train = sess.run(
@@ -346,7 +346,7 @@ def main(unused_argv):
                                         'sim_avg': np.average(sim_train)
                                     })
                         batch_step += 1
-                        if show:  # or True:
+                        if batch_step == 0:  # or True:
                             logging.info('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f' % (
                                 epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
                                 np.average(sim_gold_train), np.var(sim_gold_train)))

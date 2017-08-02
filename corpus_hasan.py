@@ -69,6 +69,9 @@ tf.flags.DEFINE_integer(
 tf.flags.DEFINE_integer(
     'count_threshold', 2,
     'The minimum of token occurrences to keep the token in the dictionary.')
+tf.flags.DEFINE_integer(
+    'max_token_count', 1800,
+    'The minimum of token occurrences to keep the token in the dictionary.')
 
 FLAGS = tf.flags.FLAGS
 
@@ -82,14 +85,17 @@ def hasan_sentence_reader(filename):
         reader = csv.DictReader(csvfile, fieldnames=FIELDNAMES, delimiter='\t')
         for row in reader:
             c = row['content'].decode('utf-8')
-            yield c
+            if len(c.split()) < FLAGS.max_token_count:
+                yield c
 
 
 def hasan_cluster_reader(filename):
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, fieldnames=FIELDNAMES, delimiter='\t')
         for row in reader:
-            yield ast.literal_eval(row['clusters'].decode('utf-8'))
+            c = row['content'].decode('utf-8')
+            if len(c.split()) < FLAGS.max_token_count:
+                yield ast.literal_eval(row['clusters'].decode('utf-8'))
 
 
 if __name__ == '__main__':
