@@ -26,8 +26,8 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
-                       #'/home/arne/ML_local/tf/unsupervised/log', #/model.ckpt-122800',
-                       '/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
+                       '/home/arne/ML_local/tf/unsupervised/log', #/model.ckpt-122800',
+                       #'/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
                        #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension).')
@@ -67,6 +67,12 @@ tf.flags.DEFINE_string('save_final_model_path',
                         'If not None, save the final model (after integration of external and/or nlp '
                         'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
                         'further usages.')
+tf.flags.DEFINE_string('sim_measure',
+                       'sim_cosine',
+                       'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
+                       '"sim_cosine" -> cosine'
+                       '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
+                       '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]')
 #tf.flags.DEFINE_string('tree_embedder',
 #                           'TreeEmbedding_FLAT_LSTM_2levels',
 #                           'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
@@ -198,12 +204,10 @@ def get_or_calc_embeddings(params):
                  data_sequences]
         if len(batch) > 0:
             fdict = embedder.build_feed_dict(batch)
+            embeddings = sess.run(embedder.tree_embeddings, feed_dict=fdict)
             if embedder.scoring_enabled:
-                embeddings, scores = sess.run([tree_embeddings, embedding_scores], feed_dict=fdict)
-                params['scores'] = scores
-            else:
-                embeddings = sess.run(tree_embeddings, feed_dict=fdict)
-                #scores = np.zeros(shape=(embeddings.shape[0],), dtype=np.float32)
+                fdict_scoring = embedder.build_scoring_feed_dict(embeddings)
+                params['scores'] = sess.run(embedder.scores, feed_dict=fdict_scoring)
         else:
             embeddings = np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
             scores = np.zeros(shape=(0,), dtype=np.float32)
@@ -239,6 +243,27 @@ def distance():
 
         result = pairwise_distances(params['embeddings'], metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
         params['distances'] = result.tolist()
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+
+    return json_data
+
+
+@app.route("/api/similarity", methods=['POST'])
+def sim():
+    try:
+        start = time.time()
+        logging.info('Similarity requested')
+        params = get_params(request.data.decode("utf-8"))
+        get_or_calc_embeddings(params)
+
+        count = len(params['embeddings'])
+        sims = sess.run(embedder.sim, feed_dict={embedder.e1_placeholder: np.repeat(params['embeddings'], count, axis=0),
+                                                 embedder.e2_placeholder: np.tile(params['embeddings'], (count, 1))})
+
+        params['similarities'] = sims.reshape((count, count)).tolist()
         json_data = json.dumps(filter_result(make_serializable(params)))
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
@@ -395,6 +420,9 @@ if __name__ == '__main__':
         logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
     else:
         logging.info('no scoring vars found. Disable scoring functionality.')
+
+    sim_measure = getattr(model_fold, FLAGS.sim_measure)
+
     if not FLAGS.merge_nlp_embeddings and not FLAGS.external_embeddings:
         logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
         #saved_shapes = reader.get_variable_to_shape_map()
@@ -422,23 +450,15 @@ if __name__ == '__main__':
 
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-            embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
-                                  trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
-            embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
-            embedding_init = embed_w.assign(embedding_placeholder)
 
-            embedder = model_fold.SequenceTreeEmbedding(embed_w, tree_embedder=tree_embedder,
+            embedder = model_fold.SequenceTreeEmbedding(lex_size, tree_embedder=tree_embedder,
+                                                        sim_measure=sim_measure,
                                                         apply_embedding_fc=len(fc_embedding_var_names) > 0,
                                                         scoring_enabled=len(scoring_var_names) > 0)
-            tree_embeddings = embedder.tree_embeddings
-            if embedder.scoring_enabled:
-                embedding_scores = embedder.scores
-            else:
-                embedding_scores = None
 
             if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                vars_without_embed = [v for v in vars_all if v != embed_w]
+                vars_without_embed = [v for v in vars_all if v != embedder.embeddings_var]
                 if len(vars_without_embed) > 0:
                     saver = tf.train.Saver(var_list=vars_without_embed)
                 else:
@@ -454,7 +474,7 @@ if __name__ == '__main__':
 
             if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
                 logging.info('init embeddings with external vectors ...')
-                sess.run(embedding_init, feed_dict={embedding_placeholder: embeddings_np})
+                sess.run(embedder.embeddings_init, feed_dict={embedder.embeddings_placeholder: embeddings_np})
 
             if FLAGS.save_final_model_path:
                 logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
