@@ -408,6 +408,30 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
         return 2
 
 
+class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT):
+    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
+        super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(embeddings, 'LSTM50_2levels', embedding_fc_activation,
+                                                         output_fc_activation)
+        with tf.variable_scope(self.scope):
+            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=50, forget_bias=2.5), 'lstm_cell')
+
+    def element(self, name='element'):
+        # use word embedding and first child embedding
+        return td.Pipe(td.AllOf(self.head(name='head_level1'),
+                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
+                                    name='head_level2')),
+                       td.Concat(), self.embedding_fc, name=name)
+
+    def aggregate(self, name='aggregate'):
+        # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
+        return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
+
+    @property
+    def embedding_fc_size_multiple(self):
+        # use word embedding and first child embedding
+        return 2
+
+
 def sim_cosine(e1, e2):
     e1 = tf.nn.l2_normalize(e1, dim=1)
     e2 = tf.nn.l2_normalize(e2, dim=1)
