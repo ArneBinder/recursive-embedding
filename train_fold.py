@@ -27,10 +27,10 @@ import math
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
-                              '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
                         None,
@@ -45,7 +45,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                     'The number of epochs.',
                     None],
          'test_file_index': [tf.flags.DEFINE_integer,
-                             0,
+                             1,
                              'Which file of the train data files should be used as test data.'],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
                                   True,
@@ -333,8 +333,7 @@ def main(unused_argv):
                         sim_all_gold = []
                         loss_all = 0.0
                         step = None
-                        batch_step = 0
-                        for batch in td.group_by_batches(data_set, FLAGS.batch_size, truncate=True):
+                        for batch in td.group_by_batches(data_set, FLAGS.batch_size):
                             train_feed_dict = {model.compiler.loom_input_tensor: batch}
                             if train:
                                 _, step, batch_loss, sim, sim_gold = sess.run(
@@ -342,29 +341,32 @@ def main(unused_argv):
                                     train_feed_dict)
                                 collect_values(step, batch_loss, sim, sim_gold, train=train)
                                 # vars for print out: take only last result
-                                sim_all = [sim]
-                                sim_all_gold = [sim_gold]
-                                loss_all = batch_loss * (batch_step + 1)
+                                #sim_all = [sim]
+                                #sim_all_gold = [sim_gold]
+                                # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
+                                #loss_all = batch_loss * len(batch)
                             else:
                                 step, batch_loss, sim, sim_gold = sess.run(
                                     [model.global_step, model.loss, model.sim, model.gold_similarities],
                                     train_feed_dict)
                                 # take average in test case
-                                sim_all.append(sim)
-                                sim_all_gold.append(sim_gold)
-                                loss_all += batch_loss
-                            batch_step += 1
-
-                        collect_values(step, loss_all / batch_step, np.concatenate(sim_all), np.concatenate(sim_all_gold),
+                            sim_all.append(sim)
+                            sim_all_gold.append(sim_gold)
+                            # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
+                            loss_all += batch_loss * len(batch)
+                        #print(np.concatenate(sim_all).tolist())
+                        #print(np.concatenate(sim_all_gold).tolist())
+                        sim_all_ = np.concatenate(sim_all)
+                        collect_values(step, loss_all / len(sim_all_), sim_all_, np.concatenate(sim_all_gold),
                                        train=train, print_out=True, emit=(not train))
                         return step
 
                     # test
-                    do_epoch(test_set, train=False)
+                    _ = do_epoch(test_set, train=False)
                     # train
-                    step_ = do_epoch(shuffled)
+                    step_train = do_epoch(shuffled)
 
-                    supervisor.saver.save(sess, checkpoint_path(logdir, step_))
+                    supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
                     # test_result_csv.close()
 
 
