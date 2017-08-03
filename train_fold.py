@@ -30,7 +30,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
+                              '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
                         None,
@@ -45,7 +45,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                     'The number of epochs.',
                     None],
          'test_file_index': [tf.flags.DEFINE_integer,
-                             1,
+                             0,
                              'Which file of the train data files should be used as test data.'],
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
                                   True,
@@ -58,7 +58,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_AVG',
+                           'TreeEmbedding_FLAT_LSTM50',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -115,15 +115,14 @@ td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 
 def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=True):
-    count = 0
     while True:
-        if multiple_epochs:
-            logging.debug('start epoche: ' + str(count))
+        count = 0
         for table_path in table_paths:
             for v in tf.python_io.tf_record_iterator(table_path):
                 yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
-        count += 1
+                count += 1
         if not multiple_epochs:
+            logging.info('records read: ' + str(count))
             break
 
 
@@ -276,6 +275,33 @@ def main(unused_argv):
             test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
             sess = supervisor.PrepareSession(FLAGS.master)
 
+            def collect_values(step, loss, sim, sim_gold, train, print_out=False, emit=True):
+                if train:
+                    suffix = 'train'
+                    writer = None
+                    csv_writer = None
+                else:
+                    suffix = 'test '
+                    writer = test_writer
+                    csv_writer = test_result_writer
+
+                p_r_train = pearsonr(sim, sim_gold)
+                if emit:
+                    emit_values(supervisor, sess, step,
+                                {'loss': loss,
+                                 'pearson_r': p_r_train[0],
+                                 'pearson_r_p': p_r_train[1],
+                                 'sim_avg': np.average(sim)
+                                 },
+                                writer=writer,
+                                csv_writer=csv_writer)
+                if print_out:
+                    logging.info(
+                        (
+                            'epoch=%d step=%d: loss_' + suffix + '=%f\tpearson_r_' + suffix + '=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
+                            epoch, step, loss, p_r_train[0], np.average(sim),
+                            np.average(sim_gold), np.var(sim_gold)))
+
             if old_checkpoint_fn is not None:
                 logging.info('restore from old_checkpoint (except embeddings and step): ' + old_checkpoint_fn + ' ...')
                 embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)
@@ -288,70 +314,57 @@ def main(unused_argv):
                 logging.info('init embeddings with external vectors...')
                 sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
 
-            # prepare test set
-            logging.info('create test data set ...')
-            #batch_test = list(test_iterator)  # [next(test_iterator) for _ in xrange(test_size)]
-            fdict_test = model.build_feed_dict(test_iterator)
-            #logging.info('test data size: ' + str(len(batch_test)))
-
             with model.compiler.multiprocessing_pool():
+                logging.info('create test data set ...')
+                test_set = list(model.compiler.build_loom_inputs(test_iterator))
+                logging.info('test data size: ' + str(len(test_set)))
+
                 logging.info('create train data set ...')
-                #data_train = list(train_iterator)
+                # data_train = list(train_iterator)
                 train_set = model.compiler.build_loom_inputs(train_iterator)
-                #logging.info('train data size: ' + str(len(data_train)))
+                # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
-                # dev_hits_best = 0.0
                 logging.info('training the model')
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
 
+                    def do_epoch(data_set, train=True):
+
+                        sim_all = []
+                        sim_all_gold = []
+                        loss_all = 0.0
+                        step = None
+                        batch_step = 0
+                        for batch in td.group_by_batches(data_set, FLAGS.batch_size, truncate=True):
+                            train_feed_dict = {model.compiler.loom_input_tensor: batch}
+                            if train:
+                                _, step, batch_loss, sim, sim_gold = sess.run(
+                                    [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities],
+                                    train_feed_dict)
+                                collect_values(step, batch_loss, sim, sim_gold, train=train)
+                                # vars for print out: take only last result
+                                sim_all = [sim]
+                                sim_all_gold = [sim_gold]
+                                loss_all = batch_loss * (batch_step + 1)
+                            else:
+                                step, batch_loss, sim, sim_gold = sess.run(
+                                    [model.global_step, model.loss, model.sim, model.gold_similarities],
+                                    train_feed_dict)
+                                # take average in test case
+                                sim_all.append(sim)
+                                sim_all_gold.append(sim_gold)
+                                loss_all += batch_loss
+                            batch_step += 1
+
+                        collect_values(step, loss_all / batch_step, np.concatenate(sim_all), np.concatenate(sim_all_gold),
+                                       train=train, print_out=True, emit=(not train))
+                        return step
+
                     # test
-                    print('test ...')
-                    step, loss_test, sim_test, sim_gold_test, mse_comp_test = sess.run(
-                        [model.global_step, model.loss, model.sim, model.gold_similarities, model.mse_compare],
-                        feed_dict=fdict_test)
-                    p_r_test = pearsonr(sim_gold_test, sim_test)
-                    emit_values(supervisor, sess, step,
-                                {  # 'mse': loss_test,  # to stay comparable with previous runs
-                                    'loss': loss_test,
-                                    'pearson_r': p_r_test[0],
-                                    'pearson_r_p': p_r_test[1],
-                                    'sim_avg': np.average(sim_test),
-                                    'mse_compare': np.average(mse_comp_test)},
-                                writer=test_writer,
-                                csv_writer=test_result_writer)
-                    logging.info('epoch=%d step=%d: loss_test =%f\tpearson_r_test =%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f\tTEST' % (
-                        epoch, step, loss_test, p_r_test[0], np.average(sim_test), np.average(sim_gold_test), np.var(sim_gold_test)))
-
-                    # print(es1[0].tolist())
-                    # print(es2[0].tolist())
-                    # cos_ = pairwise_distances([es1[0], es2[0]], metric='cosine')
-                    # print(cos_)
-                    # print(sim_test[0])
-
+                    do_epoch(test_set, train=False)
                     # train
-                    batch_step = 0
-                    for batch in td.group_by_batches(shuffled, FLAGS.batch_size):
-                        train_feed_dict = {model.compiler.loom_input_tensor: batch}
-                        _, step, batch_loss, sim_train, sim_gold_train = sess.run(
-                            [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities],
-                            train_feed_dict)
-                        # train_loss += batch_loss
-                        p_r_train = pearsonr(sim_gold_train, sim_train)
+                    step_ = do_epoch(shuffled)
 
-                        emit_values(supervisor, sess, step,
-                                    {  # 'mse': batch_loss,  # to stay comparable with previous runs
-                                        'loss': batch_loss,
-                                        'pearson_r': p_r_train[0],
-                                        'pearson_r_p': p_r_train[1],
-                                        'sim_avg': np.average(sim_train)
-                                    })
-                        batch_step += 1
-                        if batch_step == 0:  # or True:
-                            logging.info('epoch=%d step=%d: loss_train=%f\tpearson_r_train=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f' % (
-                                epoch, step, batch_loss, p_r_train[0], np.average(sim_train),
-                                np.average(sim_gold_train), np.var(sim_gold_train)))
-                            show = False
-                    supervisor.saver.save(sess, checkpoint_path(logdir, step))
+                    supervisor.saver.save(sess, checkpoint_path(logdir, step_))
                     # test_result_csv.close()
 
 
