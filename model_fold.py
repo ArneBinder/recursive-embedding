@@ -391,7 +391,7 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
 # compatibility
 class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT_LSTM_2levels):
     def __init__(self, **kwargs):
-        super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(name='LSTM_2levels', **kwargs)
+        super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(name='LSTM50_2levels', **kwargs)
 
 
 def sim_cosine(e1, e2):
