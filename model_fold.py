@@ -111,21 +111,22 @@ def norm(x):
 
 
 class TreeEmbedding(object):
-    def __init__(self, embeddings, name, embedding_fc_size_multiple=None, embedding_fc_activation=tf.nn.tanh,
-                 output_fc_activation=tf.nn.tanh):  # , apply_output_fc=False):
-        self._state_size = embeddings.get_shape().as_list()[1]  # state_size
+    def __init__(self, name, embeddings, stat_size=None, embedding_fc_activation=None, output_fc_activation=None):
+        if stat_size:
+            self._state_size = stat_size
+        else:
+            self._state_size = embeddings.get_shape().as_list()[1]  # state_size
         self._embeddings = embeddings
-        self._apply_embedding_fc = embedding_fc_size_multiple != 0
-        # self._apply_output_fc = apply_output_fc
+        self._apply_embedding_fc = (embedding_fc_activation is not None)
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._apply_embedding_fc:
-                self._embedding_fc = fc_scoped(num_units=embedding_fc_size_multiple * self.state_size,
+                self._embedding_fc = fc_scoped(num_units=self.embedding_fc_size_multiple * self.state_size,
                                                activation_fn=embedding_fc_activation, scope=scope,
                                                name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (
-                                                   embedding_fc_size_multiple * self.state_size))
+                                                   self.embedding_fc_size_multiple * self.state_size))
             else:
                 self._embedding_fc = td.Identity()
             if output_fc_activation:
@@ -134,13 +135,15 @@ class TreeEmbedding(object):
             else:
                 self._output_fc = td.Identity()
 
-                # get the head embedding from id
-
     def embed(self):
+        # get the head embedding from id
         return td.Function(lambda x: tf.gather(self._embeddings, x))
 
     def head(self, name='head_embed'):
         return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
+
+    def children(self, name='children'):
+        return td.GetItem('children', name=name)
 
     @property
     def state_size(self):
@@ -170,6 +173,10 @@ class TreeEmbedding(object):
     def output_fc(self):
         return self._output_fc
 
+    @property
+    def embedding_fc_size_multiple(self):
+        return 1
+
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode.
@@ -179,12 +186,8 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
 
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_TREE_LSTM, self).__init__(embeddings, name='TREE_LSTM',
-                                                      embedding_fc_size_multiple=(
-                                                          1 * (embedding_fc_activation is not None)),
-                                                      embedding_fc_activation=embedding_fc_activation,
-                                                      output_fc_activation=output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_TREE_LSTM, self).__init__(name='TREE_LSTM', **kwargs)
         with tf.variable_scope(self.scope) as scope:
             self._xh_linear = fc_scoped(num_units=3 * self.state_size, scope=scope,
                                         name='FC_xh_linear_%d' % (3 * self.state_size), activation_fn=None)
@@ -196,13 +199,15 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
         treelstm = treeLSTM(self._xh_linear, self._fc_f)
 
-        children = td.GetItem('children') >> td.Optional(some_case=td.Map(embed_tree()),
-                                                         none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
+        # TODO: is td.Optional necessary? (the list can be empty, but not None...)
+        children = self.children() >> td.Optional(some_case=td.Map(embed_tree()),
+                                                  none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
         cases = td.AllOf(self.head(), children) >> treelstm
         embed_tree.resolve_to(cases)
 
-        # TODO: use only h state
-        return cases >> td.Concat() >> self.output_fc
+        # TODO: use only h state. DONE, but needs testing!
+        #return cases >> td.Concat() >> self.output_fc
+        return cases >> td.GetItem(1) >> self.output_fc
 
 
 class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
@@ -213,12 +218,8 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
 
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_HTU_GRU_simplified, self).__init__(embeddings, name='HTU_GRU',
-                                                               embedding_fc_size_multiple=(
-                                                                   1 * (embedding_fc_activation is not None)),
-                                                               embedding_fc_activation=embedding_fc_activation,
-                                                               output_fc_activation=output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_GRU_simplified, self).__init__(name='HTU_GRU', **kwargs)
         with tf.variable_scope(self.scope):
             self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), 'gru_cell')
 
@@ -238,7 +239,8 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
             return tf.add(x, y)
 
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        children = td.GetItem('children') >> td.Optional(
+        # TODO: is td.Optional necessary? (the list can be empty, but not None...)
+        children = self.children() >> td.Optional(
             some_case=(td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware))),
             none_case=zero_state)
         cases = td.AllOf(self.head(), children) >> td.Function(aggregator_order_aware)
@@ -257,13 +259,9 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
         name_or_scope: A scope to share variables over instances of sequence_tree_block
     """
 
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
+    def __init__(self, **kwargs):
 
-        super(TreeEmbedding_HTU_GRU, self).__init__(embeddings, name='HTU_GRU',
-                                                    embedding_fc_size_multiple=(
-                                                        1 * (embedding_fc_activation is not None)),
-                                                    embedding_fc_activation=embedding_fc_activation,
-                                                    output_fc_activation=output_fc_activation)
+        super(TreeEmbedding_HTU_GRU, self).__init__(name='HTU_GRU', **kwargs)
         with tf.variable_scope(self.scope):
             self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self.state_size), 'gru_cell')
 
@@ -310,19 +308,14 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
 
 
 class TreeEmbedding_FLAT(TreeEmbedding):
-    def __init__(self, embeddings, name, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_FLAT, self).__init__(embeddings, name='FLAT_' + name,
-                                                 embedding_fc_size_multiple=(
-                                                     self.embedding_fc_size_multiple * (
-                                                     embedding_fc_activation is not None)),
-                                                 embedding_fc_activation=embedding_fc_activation,
-                                                 output_fc_activation=output_fc_activation)
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_FLAT, self).__init__(name='FLAT_' + name, **kwargs)
 
     def element(self, name='element'):
         return td.Pipe(self.head(), self.embedding_fc, name=name)
 
     def sequence(self, name='sequence'):
-        return td.Pipe(td.GetItem('children'), td.Map(self.element()), name=name)
+        return td.Pipe(self.children(), td.Map(self.element()), name=name)
 
     def aggregate(self, name='aggregate'):
         # an aggregation function which doesn't take the order of the inputs into account
@@ -332,20 +325,15 @@ class TreeEmbedding_FLAT(TreeEmbedding):
         model = self.sequence() >> self.aggregate() >> self.output_fc
         return model
 
-    @property
-    def embedding_fc_size_multiple(self):
-        return 1
-
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_FLAT_AVG, self).__init__(embeddings, 'AVG', embedding_fc_activation, output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_AVG, self).__init__(name='AVG', **kwargs)
 
 
 class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT):
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_FLAT_AVG_2levels, self).__init__(embeddings, 'AVG_2levels', embedding_fc_activation,
-                                                             output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_AVG_2levels, self).__init__(name='AVG_2levels', **kwargs)
 
     def element(self, name='element'):
         # use word embedding and first child embedding
@@ -361,9 +349,8 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT):
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_FLAT_LSTM, self).__init__(embeddings, 'LSTM', embedding_fc_activation,
-                                                         output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM, self).__init__(name='LSTM', **kwargs)
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size), 'lstm_cell')
 
@@ -373,9 +360,8 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
 
 
 class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT):
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_FLAT_LSTM50, self).__init__(embeddings, 'LSTM50', embedding_fc_activation,
-                                                         output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM50, self).__init__(name='LSTM50', **kwargs)
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=50, forget_bias=2.5), 'lstm_cell')
 
@@ -385,9 +371,8 @@ class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT):
 
 
 class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(embeddings, 'LSTM_2levels', embedding_fc_activation,
-                                                         output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(name='LSTM_2levels', **kwargs)
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size), 'lstm_cell')
 
@@ -409,9 +394,8 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
 
 
 class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT):
-    def __init__(self, embeddings, embedding_fc_activation=None, output_fc_activation=None):
-        super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(embeddings, 'LSTM50_2levels', embedding_fc_activation,
-                                                         output_fc_activation)
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(name='LSTM50_2levels', **kwargs)
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=50, forget_bias=2.5), 'lstm_cell')
 
@@ -457,16 +441,17 @@ def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
-                 embeddings_trainable=True, embedding_fc_activation=None, output_fc_activation=None):
+    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01,
+                 optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
+                 embeddings_trainable=True, **kwargs):
         self._embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
-                                 trainable=embeddings_trainable, name=VAR_NAME_EMBEDDING)
+                                       trainable=embeddings_trainable, name=VAR_NAME_EMBEDDING)
         self._embedding_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
         self._embedding_init = self._embeddings.assign(self._embedding_placeholder)
 
         gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        tree_embed = tree_embedder(self._embeddings, embedding_fc_activation, output_fc_activation)
+        tree_embed = tree_embedder(embeddings=self._embeddings, **kwargs)
         model = td.AllOf(td.GetItem('first') >> tree_embed(),
                          td.GetItem('second') >> tree_embed(),
                          gold_similarity)
@@ -483,7 +468,7 @@ class SimilaritySequenceTreeTupleModel(object):
         # use MSE
         self._mse = tf.pow(self._sim - self._gold_similarities, 2)
 
-        #self._mse_comp = tf.pow((self._sim * 4.0) - (self._gold_similarities * 4.0), 2)
+        # self._mse_comp = tf.pow((self._sim * 4.0) - (self._gold_similarities * 4.0), 2)
         self._mse_comp = self._mse * 16.0
 
         # self._mse = tf.square(self._sim - self._gold_similarities)
@@ -495,7 +480,7 @@ class SimilaritySequenceTreeTupleModel(object):
         #            dtype=tf.float32))
 
         self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
-        #optr = tf.train.GradientDescentOptimizer(0.01)
+        # optr = tf.train.GradientDescentOptimizer(0.01)
         optr = optimizer(learning_rate=learning_rate)
         # self._train_op = optr.minimize(self._loss, global_step=self._global_step)
 
@@ -570,7 +555,8 @@ class SimilaritySequenceTreeTupleModel(object):
 
 
 class SequenceTreeEmbedding(object):
-    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_cosine, apply_embedding_fc=False,
+    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_cosine,
+                 apply_embedding_fc=False,
                  scoring_enabled=True,
                  scoring_scope=DEFAULT_SCOPE_SCORING):
 
