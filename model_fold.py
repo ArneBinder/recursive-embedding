@@ -353,18 +353,7 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
     def __init__(self, **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name='LSTM', **kwargs)
         with tf.variable_scope(self.scope):
-            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size), 'lstm_cell')
-
-    def aggregate(self, name='aggregate'):
-        # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
-        return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
-
-
-class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_FLAT_LSTM50, self).__init__(name='LSTM50', **kwargs)
-        with tf.variable_scope(self.scope):
-            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=50, forget_bias=2.5), 'lstm_cell')
+            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5), 'lstm_cell')
 
     def aggregate(self, name='aggregate'):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
@@ -375,30 +364,7 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
     def __init__(self, **kwargs):
         super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(name='LSTM_2levels', **kwargs)
         with tf.variable_scope(self.scope):
-            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size), 'lstm_cell')
-
-    def element(self, name='element'):
-        # use word embedding and first child embedding
-        return td.Pipe(td.AllOf(self.head(name='head_level1'),
-                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
-                                    name='head_level2')),
-                       td.Concat(), self.embedding_fc, name=name)
-
-    def aggregate(self, name='aggregate'):
-        # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
-        return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
-
-    @property
-    def embedding_fc_size_multiple(self):
-        # use word embedding and first child embedding
-        return 2
-
-
-class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(name='LSTM50_2levels', **kwargs)
-        with tf.variable_scope(self.scope):
-            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=50, forget_bias=2.5), 'lstm_cell')
+            self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5), 'lstm_cell')
 
     def element(self, name='element'):
         # use word embedding and first child embedding
