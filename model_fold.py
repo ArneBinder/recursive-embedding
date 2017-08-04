@@ -350,8 +350,8 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT):
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_FLAT_LSTM, self).__init__(name='LSTM', **kwargs)
+    def __init__(self, name=None, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name or 'LSTM', **kwargs)
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5), 'lstm_cell')
 
@@ -359,10 +359,15 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
         return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
 
+# compatibility
+class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT_LSTM):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM50, self).__init__(name='LSTM50', **kwargs)
+
 
 class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(name='LSTM_2levels', **kwargs)
+    def __init__(self, name=None, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(name=name or 'LSTM_2levels', **kwargs)
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5), 'lstm_cell')
 
@@ -381,6 +386,12 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
     def embedding_fc_size_multiple(self):
         # use word embedding and first child embedding
         return 2
+
+
+# compatibility
+class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT_LSTM_2levels):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(name='LSTM_2levels', **kwargs)
 
 
 def sim_cosine(e1, e2):
