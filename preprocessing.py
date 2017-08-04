@@ -345,6 +345,42 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None, conca
     return sen_data, sen_parents, root_offsets
 
 
+# embeddings for:
+# lemma, pos (filtered)
+def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
+    sen_data = []
+    sen_parents = []
+    root_offsets = []
+    root_parents = []
+    assert concat_mode != 'tree', "concat_mode='tree' is not allowed. Use 'aggregate', 'sequence' or None."
+
+    postag_whitelist = [u'VERB', u'ADJ', u'NOUN']
+
+    for i in range(sentence.start, sentence.end):
+
+        # get current token
+        token = parsed_data[i]
+        parent_offset = token.head.i - i
+
+        if token.pos_ in postag_whitelist:
+            root_parents.append(parent_offset)
+            # save root offset
+            root_offsets.append(len(sen_parents))
+            # add word embedding
+            sen_data.append(tools.getOrAdd(data_maps, token.lemma_, dict_unknown))
+            sen_parents.append(0)
+            # add edge type embedding
+            #sen_data.append(tools.getOrAdd(data_maps, token.pos_, dict_unknown))
+            #sen_parents.append(-1)
+
+    if concat_mode == 'aggregate':
+        sen_parents.append(0)
+        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
+
+    return sen_data, sen_parents, root_offsets
+
+
 def dummy_str_reader():
     yield u'I like RTRC!'
 
