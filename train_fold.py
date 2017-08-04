@@ -27,9 +27,9 @@ import math
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
+                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
@@ -58,7 +58,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_LSTM_2levels',
+                           'TreeEmbedding_TREE_LSTM',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -80,6 +80,9 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   # 'tanh',
                                   'If not None, apply a fully connected layer with this activation function after composition',
                                   None],
+         'state_size': [tf.flags.DEFINE_integer,
+                        50,
+                        'size of the composition layer'],
          'learning_rate': [tf.flags.DEFINE_float,
                            0.001,
                            # 'tanh',
@@ -192,6 +195,7 @@ def main(unused_argv):
         if len(flags[flag]) < 3:
             flag_name = flag.replace('_', '')
             flag_value = str(new_value).replace('_', '')
+            # if flag_value is a path, take only the last two subfolders
             flag_value = ''.join(flag_value.split(os.sep)[-2:])
             run_desc.append(flag_name.lower() + flag_value.upper())
         # if a short version is set, use it. if it is set to None, add this flag not to the run_descriptions
@@ -258,6 +262,7 @@ def main(unused_argv):
             # Build the graph.
             model = model_fold.SimilaritySequenceTreeTupleModel(lex_size=lex_size,
                                                                 tree_embedder=tree_embedder,
+                                                                state_size=FLAGS.state_size,
                                                                 learning_rate=FLAGS.learning_rate,
                                                                 optimizer=optimizer,
                                                                 sim_measure=sim_measure,
