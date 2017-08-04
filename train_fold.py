@@ -19,6 +19,7 @@ import sys
 
 import corpus
 import model_fold
+import preprocessing
 import similarity_tree_tuple_pb2
 import tensorflow_fold as td
 import numpy as np
@@ -27,10 +28,10 @@ import math
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
+                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_CMsequence_ICMtree',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
                         None,
@@ -58,7 +59,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_LSTM50_2levels',
+                           'TreeEmbedding_FLAT_LSTM50',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -127,6 +128,33 @@ def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=Tru
             break
 
 
+def iterate_sim_tuples(table_paths, data, roots, children):
+    count = 0
+    for table_path in table_paths:
+        sim_tuples = np.load(table_path)
+        for sim_tuple in sim_tuples:
+            sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
+            preprocessing.build_sequence_tree(data, children, roots[int(sim_tuple[0])], sim_tree_tuple.first)
+            preprocessing.build_sequence_tree(data, children, roots[int(sim_tuple[1])], sim_tree_tuple.second)
+            sim_tree_tuple.similarity = sim_tuple[2]
+
+            yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + similarity_tree_tuple_pb2.SimilarityTreeTuple.__name__, sim_tree_tuple.SerializeToString())
+            count += 1
+
+    logging.info('records read: ' + str(count))
+
+
+def iterate_sim_tuples_(table_paths):
+    count = 0
+    for table_path in table_paths:
+        sim_tuples = np.load(table_path)
+        for sim_tuple in sim_tuples:
+            yield sim_tuple
+            count += 1
+
+    logging.info('records read: ' + str(count))
+
+
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
     summary = tf.Summary()
     for name, value in six.iteritems(values):
@@ -162,18 +190,24 @@ def main(unused_argv):
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
     logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
-    train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
+    train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.sim_tuple.*')
     train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
     logging.info('found ' + str(len(train_fnames)) + ' train data files')
     test_fname = train_fnames[FLAGS.test_file_index]
     logging.info('use ' + test_fname + ' for testing')
     del train_fnames[FLAGS.test_file_index]
 
-    train_iterator = iterate_over_tf_record_protos(
-        train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+    parents = np.load(FLAGS.train_data_path + '.parent')
+    children, roots = preprocessing.children_and_roots(parents)
+    data = np.load(FLAGS.train_data_path + '.data')
 
-    test_iterator = iterate_over_tf_record_protos(
-        [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+    #train_iterator = iterate_over_tf_record_protos(
+    #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+    train_iterator = iterate_sim_tuples_(train_fnames)
+
+    #test_iterator = iterate_over_tf_record_protos(
+    #    [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+    test_iterator = iterate_sim_tuples_([test_fname])
 
     # DEBUG
     # vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
@@ -257,6 +291,9 @@ def main(unused_argv):
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             # Build the graph.
             model = model_fold.SimilaritySequenceTreeTupleModel(lex_size=lex_size,
+                                                                data=data,
+                                                                children=children,
+                                                                roots=roots,
                                                                 tree_embedder=tree_embedder,
                                                                 learning_rate=FLAGS.learning_rate,
                                                                 optimizer=optimizer,

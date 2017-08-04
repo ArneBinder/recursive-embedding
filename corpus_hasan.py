@@ -202,8 +202,10 @@ if __name__ == '__main__':
     logging.info('shuffle data ...')
     random.shuffle(sim_tuples)
 
+    #sim_tuples_ = np.array(sim_tuples)
     fold_size = len(sim_tuples) / FLAGS.fold_count
     for fold in range(FLAGS.fold_count):
         out_fn = out_path + '.train.' + str(fold)
+        #sim_tuples_[fold * fold_size:(fold + 1) * fold_size].dump(out_path + '.sim_tuple.' + str(fold))
         corpus.write_sim_tuple_data(out_fn, sim_tuples[fold * fold_size:(fold + 1) * fold_size], data, children, roots)
 

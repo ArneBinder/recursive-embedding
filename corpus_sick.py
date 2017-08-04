@@ -204,6 +204,10 @@ if __name__ == '__main__':
     logging.debug('len(roots)='+str(len(roots)))
 
     sim_tuples = [(i*2, i*2 + 1, (scores[i] - 1.) / 4.) for i in range(len(scores))]
+    #sim_tuples_ = np.array(sim_tuples)
+
+    #sim_tuples_[:len(scores_train)].dump(out_path + '.sim_tuple.0')
+    #sim_tuples_[len(scores_train):].dump(out_path + '.sim_tuple.1')
 
     corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:len(scores_train)], data, children, roots)
     corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[len(scores_train):], data, children, roots)
