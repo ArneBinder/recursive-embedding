@@ -198,7 +198,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
     def __call__(self):
         zero_state = td.Zeros((self.state_size, self.state_size))
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
-        treelstm = treeLSTM(self._xh_linear, self._fc_f)
+        treelstm = treeLSTM(self._xh_linear, self._fc_f, forget_bias=2.5)
 
         # TODO: is td.Optional necessary? (the list can be empty, but not None...)
         children = self.children() >> td.Optional(some_case=td.Map(embed_tree()),
