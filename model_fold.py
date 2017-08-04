@@ -111,9 +111,9 @@ def norm(x):
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, embeddings, stat_size=None, embedding_fc_activation=None, output_fc_activation=None):
-        if stat_size:
-            self._state_size = stat_size
+    def __init__(self, name, embeddings, state_size=None, embedding_fc_activation=None, output_fc_activation=None):
+        if state_size:
+            self._state_size = state_size
         else:
             self._state_size = embeddings.get_shape().as_list()[1]  # state_size
         self._embeddings = embeddings
@@ -123,10 +123,11 @@ class TreeEmbedding(object):
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._apply_embedding_fc:
-                self._embedding_fc = fc_scoped(num_units=self.embedding_fc_size_multiple * self.state_size,
+                embedding_size = embeddings.get_shape().as_list()[1]
+                self._embedding_fc = fc_scoped(num_units=self.embedding_fc_size_multiple * embedding_size,
                                                activation_fn=embedding_fc_activation, scope=scope,
                                                name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (
-                                                   self.embedding_fc_size_multiple * self.state_size))
+                                                   self.embedding_fc_size_multiple * embedding_size))
             else:
                 self._embedding_fc = td.Identity()
             if output_fc_activation:
