@@ -121,6 +121,7 @@ if __name__ == '__main__':
     out_path = out_path + '_CM' + FLAGS.concat_mode
     if FLAGS.inner_concat_mode is not None:
         out_path = out_path + '_ICM' + FLAGS.inner_concat_mode
+    out_path = out_path + '_NEGSAMPLES' + str(FLAGS.negative_samples)
 
     data, parents, clusters, _ = corpus.parse_texts_clustered(filename=FLAGS.corpus_data_input_train,
                                                               reader=hasan_sentence_reader,
