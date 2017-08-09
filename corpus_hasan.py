@@ -42,8 +42,8 @@ tf.flags.DEFINE_string(
     'Which data types (features) are used to build the data sequence.')
 tf.flags.DEFINE_string(
     'concat_mode',
-    # 'sequence',
-    'aggregate',
+    'sequence',
+    #'aggregate',
     # constants.default_inner_concat_mode,
     'How to concatenate the trees returned for one sentence. '
     '"tree" -> use dependency parse tree'
@@ -52,8 +52,8 @@ tf.flags.DEFINE_string(
     '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
 tf.flags.DEFINE_string(
     'inner_concat_mode',
-    # 'tree',
-    None,
+     'tree',
+    #None,
     # constants.default_inner_concat_mode,
     'How to concatenate the trees returned for one token. '
     '"tree" -> use dependency parse tree'
@@ -61,7 +61,7 @@ tf.flags.DEFINE_string(
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     'None -> do not concat at all')
 tf.flags.DEFINE_integer(
-    'negative_samples', 1,
+    'negative_samples', 0,
     'Count of negative samples per added positive.')
 tf.flags.DEFINE_integer(
     'fold_count', 10,

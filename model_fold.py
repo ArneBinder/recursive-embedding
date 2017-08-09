@@ -236,6 +236,7 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
             return r
 
         # an aggregation function which doesn't take the order of the inputs into account
+        # TODO: try td.Mean()
         def aggregator_order_unaware(x, y):
             return tf.add(x, y)
 
@@ -278,6 +279,7 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
             return r
 
         # an aggregation function which doesn't take the order of the inputs into account
+        # TODO: try td.Mean()
         def aggregator_order_unaware(x, y):
             return tf.add(x, y)
 
