@@ -30,7 +30,7 @@ tf.flags.DEFINE_integer(
     'How many samples to write. Use a negative dummy value to set no limit.')
 tf.flags.DEFINE_string(
     'sentence_processor',
-    'process_sentence9',
+    'process_sentence4',
     'Which data types (features) are used to build the data sequence.')
 tf.flags.DEFINE_string(
     'concat_mode',

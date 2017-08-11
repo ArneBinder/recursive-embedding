@@ -237,13 +237,13 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
 
         # an aggregation function which doesn't take the order of the inputs into account
         # TODO: try td.Mean()
-        def aggregator_order_unaware(x, y):
-            return tf.add(x, y)
+        #def aggregator_order_unaware(x, y):
+        #    return tf.add(x, y)
 
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
         # TODO: is td.Optional necessary? (the list can be empty, but not None...)
         children = self.children() >> td.Optional(
-            some_case=(td.Map(embed_tree()) >> td.Reduce(td.Function(aggregator_order_unaware))),
+            some_case=(td.Map(embed_tree()) >> td.Sum()),
             none_case=zero_state)
         cases = td.AllOf(self.head(), children) >> td.Function(aggregator_order_aware)
 
@@ -280,8 +280,8 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
 
         # an aggregation function which doesn't take the order of the inputs into account
         # TODO: try td.Mean()
-        def aggregator_order_unaware(x, y):
-            return tf.add(x, y)
+        #def aggregator_order_unaware(x, y):
+        #    return tf.add(x, y)
 
         # naive version
         def case(seq_tree):
@@ -295,8 +295,7 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
             return 2
 
         def children(name='children'):
-            return td.Pipe(td.GetItem('children'), td.Map(embed_tree()),
-                           td.Reduce(td.Function(aggregator_order_unaware)), name=name)
+            return td.Pipe(td.GetItem('children'), td.Map(embed_tree()), td.Sum(), name=name)
 
         cases = td.OneOf(lambda x: case(x),
                          {0: td.AllOf(self.head(), children()) >> td.Function(aggregator_order_aware),
@@ -344,6 +343,36 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT):
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
                                     name='head_level2')),
                        td.Concat(), self.embedding_fc, name=name)
+
+    @property
+    def embedding_fc_size_multiple(self):
+        # use word embedding and first child embedding
+        return 2
+
+
+class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_SUM, self).__init__(name='AVG', **kwargs)
+
+    def aggregate(self, name='aggregate'):
+        # an aggregation function which doesn't take the order of the inputs into account
+        return td.Sum(name)
+
+
+class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_FLAT_SUM_2levels, self).__init__(name='AVG_2levels', **kwargs)
+
+    def element(self, name='element'):
+        # use word embedding and first child embedding
+        return td.Pipe(td.AllOf(self.head(name='head_level1'),
+                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
+                                    name='head_level2')),
+                       td.Concat(), self.embedding_fc, name=name)
+
+    def aggregate(self, name='aggregate'):
+        # an aggregation function which doesn't take the order of the inputs into account
+        return td.Sum(name)
 
     @property
     def embedding_fc_size_multiple(self):

@@ -28,14 +28,15 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
-                              '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate_NEGSAMPLES0',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
                         None,
-                        # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingfcactivationNONE_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_outputfcactivationNONE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3NS1PPDBCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM50',
+                        # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
                         'Set this to fine tune a pre-trained model. The old_logdir has to contain a types file with the filename "model.types"',
                         None],
          'batch_size': [tf.flags.DEFINE_integer,
@@ -374,6 +375,9 @@ def main(unused_argv):
                     step_train = do_epoch(shuffled)
 
                     supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+
+                    current_embeddings = sess.run(model.embedding_var)
+                    current_embeddings.dump(os.path.join(logdir, 'model.vec'))
                     # test_result_csv.close()
 
 
