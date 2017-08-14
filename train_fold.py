@@ -28,15 +28,16 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
+                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate_NEGSAMPLES0',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
                         None,
                         # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
+                        #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
                         'Set this to fine tune a pre-trained model. The old_logdir has to contain a types file with the filename "model.types"',
                         None],
          'batch_size': [tf.flags.DEFINE_integer,
@@ -225,6 +226,7 @@ def main(unused_argv):
         vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
         if FLAGS.old_logdir:
             old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.old_logdir)
+            assert old_checkpoint_fn is not None, 'No checkpoint file found in old_logdir: ' + FLAGS.old_logdir
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
             vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_EMBEDDING)
             types_old = corpus.read_types(os.path.join(FLAGS.old_logdir, 'model'))
@@ -272,6 +274,20 @@ def main(unused_argv):
                                                                 embedding_fc_activation=embedding_fc_activation,
                                                                 output_fc_activation=output_fc_activation)
 
+            if old_checkpoint_fn is not None:
+                logging.info(
+                    'restore from old_checkpoint (except embeddings and step): ' + old_checkpoint_fn + ' ...')
+                embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+                                                   scope=model_fold.VAR_NAME_EMBEDDING)
+                restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
+                                item not in [model.global_step] + embedding_vars]
+                pre_train_saver = tf.train.Saver(restore_vars)
+            else:
+                pre_train_saver = None
+
+            def load_pretrain(sess):
+                pre_train_saver.restore(sess, old_checkpoint_fn)
+
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
                 # saver=None,# my_saver,
@@ -279,9 +295,15 @@ def main(unused_argv):
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
                 save_model_secs=300,
-                summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph))
+                summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph),
+                init_fn=load_pretrain if pre_train_saver is not None else None
+            )
             test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
             sess = supervisor.PrepareSession(FLAGS.master)
+
+            if vecs is not None:
+                logging.info('init embeddings with external vectors...')
+                sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
 
             def collect_values(step, loss, sim, sim_gold, train, print_out=False, emit=True):
                 if train:
@@ -309,18 +331,6 @@ def main(unused_argv):
                             'epoch=%d step=%d: loss_' + suffix + '=%f\tpearson_r_' + suffix + '=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
                             epoch, step, loss, p_r_train[0], np.average(sim),
                             np.average(sim_gold), np.var(sim_gold)))
-
-            if old_checkpoint_fn is not None:
-                logging.info('restore from old_checkpoint (except embeddings and step): ' + old_checkpoint_fn + ' ...')
-                embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_EMBEDDING)
-                restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
-                                item not in [model.global_step] + embedding_vars]
-                restore_saver = tf.train.Saver(restore_vars)
-                restore_saver.restore(sess, old_checkpoint_fn)
-
-            if vecs is not None:
-                logging.info('init embeddings with external vectors...')
-                sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
 
             with model.compiler.multiprocessing_pool():
                 logging.info('create test data set ...')
