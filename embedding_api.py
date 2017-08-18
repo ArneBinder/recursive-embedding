@@ -18,6 +18,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import normalize
+#from google.protobuf.json_format import MessageToJson
 
 import constants
 import corpus
@@ -26,7 +27,7 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
-                       '/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
+                       '/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
                        #/model.ckpt-122800',
                        #'/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
                        #'/home/arne/ML_local/tf/log/final_model',
@@ -201,8 +202,10 @@ def get_or_calc_embeddings(params):
         get_or_calc_sequence_data(params)
 
         data_sequences = params['data_sequences']
-        batch = [preprocessing.build_sequence_tree_from_parse(parsed_data).SerializeToString() for parsed_data in
-                 data_sequences]
+        #batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
+        #         data_sequences]
+        batch = [preprocessing.build_sequence_tree_dict_from_parse(parsed_data) for parsed_data in data_sequences]
+
         if len(batch) > 0:
             fdict = embedder.build_feed_dict(batch)
             embeddings = sess.run(embedder.tree_embeddings, feed_dict=fdict)
@@ -220,16 +223,16 @@ def get_or_calc_embeddings(params):
 
 @app.route("/api/embed", methods=['POST'])
 def embed():
-    try:
-        start = time.time()
-        logging.info('Embeddings requested')
-        params = get_params(request.data.decode("utf-8"))
-        get_or_calc_embeddings(params)
+    #try:
+    start = time.time()
+    logging.info('Embeddings requested')
+    params = get_params(request.data.decode("utf-8"))
+    get_or_calc_embeddings(params)
 
-        json_data = json.dumps(filter_result(make_serializable(params)))
-        logging.info("Time spent handling the request: %f" % (time.time() - start))
-    except Exception as e:
-        raise InvalidUsage(e.message)
+    json_data = json.dumps(filter_result(make_serializable(params)))
+    logging.info("Time spent handling the request: %f" % (time.time() - start))
+    #except Exception as e:
+    #    raise InvalidUsage(e.message)
 
     return json_data
 

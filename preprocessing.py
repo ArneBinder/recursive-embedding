@@ -626,7 +626,6 @@ def calc_depth(children, parents, depth, start):
 # All roots are children of a headless node.
 def build_sequence_tree(seq_data, children, root, seq_tree, max_depth=9999):
     # assume, all parents are inside this array!
-    # collect children
 
     """Recursively build a tree of SequenceNode_s"""
     def build(seq_node, pos, max_depth):
@@ -640,6 +639,20 @@ def build_sequence_tree(seq_data, children, root, seq_tree, max_depth=9999):
     build(seq_tree, root, max_depth)
 
     return seq_tree
+
+
+def build_sequence_tree_dict(seq_data, children, root, max_depth=9999):
+    # assume, all parents are inside this array!
+
+    """Recursively build a tree of SequenceNode_s"""
+    def build(pos, max_depth):
+        seq_node = {'head': seq_data[pos], 'children': []}
+        if pos in children and max_depth > 0:
+            for child_offset in children[pos]:
+                seq_node['children'].append(build(pos + child_offset, max_depth - 1))
+        return seq_node
+
+    return build(root, max_depth)
 
 
 def build_sequence_tree_with_candidate(seq_data, children, root, insert_idx, candidate_idx, max_depth, max_candidate_depth, seq_tree = None):
@@ -707,6 +720,12 @@ def build_sequence_tree_from_parse(seq_graph, seq_tree=None):
     seq_data, seq_parents = seq_graph
     children, roots = children_and_roots(seq_parents)
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
+
+
+def build_sequence_tree_dict_from_parse(seq_graph):
+    seq_data, seq_parents = seq_graph
+    children, roots = children_and_roots(seq_parents)
+    return build_sequence_tree_dict(seq_data, children, roots[0])
 
 
 def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):

@@ -144,7 +144,7 @@ class TreeEmbedding(object):
         return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
 
     def children(self, name='children'):
-        return td.GetItem('children', name=name)
+        return td.InputTransform(lambda x: x.get('children', []), name=name)
 
     @property
     def state_size(self):
@@ -200,9 +200,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
         treelstm = treeLSTM(self._xh_linear, self._fc_f, forget_bias=2.5)
 
-        # TODO: is td.Optional necessary? (the list can be empty, but not None...)
-        children = self.children() >> td.Optional(some_case=td.Map(embed_tree()),
-                                                  none_case=td.Zeros(td.SequenceType(zero_state.output_type)))
+        children = self.children() >> td.Map(embed_tree())
         cases = td.AllOf(self.head(), children) >> treelstm
         embed_tree.resolve_to(cases)
 
@@ -225,9 +223,9 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
             self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), 'gru_cell')
 
     def __call__(self):
-        zero_state = td.Zeros(self._state_size)
+        #zero_state = td.Zeros(self._state_size)
         # zero_state = td.Zeros((state_size, state_size))
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=zero_state.output_type)
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
 
         # an aggregation function which takes the order of the inputs into account
         def aggregator_order_aware(head, children):
@@ -242,9 +240,8 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
 
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
         # TODO: is td.Optional necessary? (the list can be empty, but not None...)
-        children = self.children() >> td.Optional(
-            some_case=(td.Map(embed_tree()) >> td.Sum()),
-            none_case=zero_state)
+        children = self.children() >> td.Map(embed_tree()) >> td.Sum()
+
         cases = td.AllOf(self.head(), children) >> td.Function(aggregator_order_aware)
 
         embed_tree.resolve_to(cases)
@@ -582,10 +579,8 @@ class SequenceTreeEmbedding(object):
         #    embedding_fc_activation = tf.nn.tanh
 
         tree_embed = tree_embedder(embeddings=self._embeddings, **kwargs)
-        #tree_embed = tree_embedder(self._embeddings, embedding_fc_activation=embedding_fc_activation)
 
-        model = td.SerializedMessageToTree(
-            'recursive_dependency_embedding.SequenceNode') >> tree_embed()
+        model = tree_embed()
         self._compiler = td.Compiler.create(model)
         self._tree_embeddings, = self._compiler.output_tensors
 
