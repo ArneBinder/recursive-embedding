@@ -26,11 +26,12 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
-                       '/home/arne/ML_local/tf/unsupervised/log', #/model.ckpt-122800',
+                       '/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
+                       #/model.ckpt-122800',
                        #'/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
                        #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
-                       'model (without extension).')
+                       'model (without extension) and the model.type file containing the string dict.')
 tf.flags.DEFINE_string('external_embeddings',
                        #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8_/WIKIPEDIA_articles10000_offset0',
                        None,
@@ -379,15 +380,17 @@ if __name__ == '__main__':
     if checkpoint:
         # use latest checkpoint in model_dir
         input_checkpoint = checkpoint.model_checkpoint_path
+        types_fn = os.path.join(os.path.dirname(input_checkpoint), 'model')
     else:
         input_checkpoint = FLAGS.model_dir
+        types_fn = FLAGS.model_dir
 
     logging.info('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     logging.info('read types ...')
-    types = corpus.read_types(input_checkpoint)
+    types = corpus.read_types(types_fn)
     reader = tf.train.NewCheckpointReader(input_checkpoint)
     saved_shapes = reader.get_variable_to_shape_map()
 
@@ -451,10 +454,15 @@ if __name__ == '__main__':
     with tf.Graph().as_default():
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
 
-            embedder = model_fold.SequenceTreeEmbedding(lex_size, tree_embedder=tree_embedder,
+            embedder = model_fold.SequenceTreeEmbedding(lex_size=lex_size,
+                                                        tree_embedder=tree_embedder,
+                                                        state_size=50,
                                                         sim_measure=sim_measure,
-                                                        apply_embedding_fc=len(fc_embedding_var_names) > 0,
-                                                        scoring_enabled=len(scoring_var_names) > 0)
+                                                        scoring_enabled=len(scoring_var_names) > 0,
+                                                        embedding_fc_activation=None,
+                                                        output_fc_activation=None
+                                                        #apply_embedding_fc=len(fc_embedding_var_names) > 0,
+                                                        )
 
             if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)

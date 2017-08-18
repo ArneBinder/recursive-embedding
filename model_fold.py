@@ -211,7 +211,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         return cases >> td.GetItem(1) >> self.output_fc
 
 
-class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
+class TreeEmbedding_HTU_GRU(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode.
 
     Args:
@@ -220,7 +220,7 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
     """
 
     def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_GRU_simplified, self).__init__(name='HTU_GRU', **kwargs)
+        super(TreeEmbedding_HTU_GRU, self).__init__(name='HTU_GRU', **kwargs)
         with tf.variable_scope(self.scope):
             self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), 'gru_cell')
 
@@ -253,7 +253,7 @@ class TreeEmbedding_HTU_GRU_simplified(TreeEmbedding):
         return model
 
 
-class TreeEmbedding_HTU_GRU(TreeEmbedding):
+class TreeEmbedding_HTU_GRU_dep(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode.
 
     Args:
@@ -263,7 +263,7 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
 
     def __init__(self, **kwargs):
 
-        super(TreeEmbedding_HTU_GRU, self).__init__(name='HTU_GRU', **kwargs)
+        super(TreeEmbedding_HTU_GRU_dep, self).__init__(name='HTU_GRU_dep', **kwargs)
         with tf.variable_scope(self.scope):
             self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self.state_size), 'gru_cell')
 
@@ -565,9 +565,10 @@ class SimilaritySequenceTreeTupleModel(object):
 
 class SequenceTreeEmbedding(object):
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_cosine,
-                 apply_embedding_fc=False,
+                 #apply_embedding_fc=False,
                  scoring_enabled=True,
-                 scoring_scope=DEFAULT_SCOPE_SCORING):
+                 scoring_scope=DEFAULT_SCOPE_SCORING,
+                 **kwargs):
 
         self._embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
                                        trainable=True, name=VAR_NAME_EMBEDDING)
@@ -577,9 +578,11 @@ class SequenceTreeEmbedding(object):
         self._scoring_enabled = scoring_enabled
 
         embedding_fc_activation = None
-        if apply_embedding_fc:
-            embedding_fc_activation = tf.nn.tanh
-        tree_embed = tree_embedder(self._embeddings, embedding_fc_activation=embedding_fc_activation)
+        #if apply_embedding_fc:
+        #    embedding_fc_activation = tf.nn.tanh
+
+        tree_embed = tree_embedder(embeddings=self._embeddings, **kwargs)
+        #tree_embed = tree_embedder(self._embeddings, embedding_fc_activation=embedding_fc_activation)
 
         model = td.SerializedMessageToTree(
             'recursive_dependency_embedding.SequenceNode') >> tree_embed()
@@ -689,7 +692,7 @@ class SequenceTreeEmbeddingSequence(object):
         #    normed_nth = td.Function(tf.div).reads(nth_, sum_)
         #    norm.output.reads(normed_nth)
 
-        tree_embed = TreeEmbedding_HTU_GRU(embeddings)
+        tree_embed = TreeEmbedding_HTU_GRU_dep(embeddings)
 
         # with tf.variable_scope(aggregator_ordered_scope) as sc:
         #    tree_logits = td.Map(sequence_tree_block(embeddings, sc)
