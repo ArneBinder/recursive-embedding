@@ -722,10 +722,10 @@ def build_sequence_tree_from_parse(seq_graph, seq_tree=None):
     return build_sequence_tree(seq_data, children, roots[0], seq_tree)
 
 
-def build_sequence_tree_dict_from_parse(seq_graph):
+def build_sequence_tree_dict_from_parse(seq_graph, max_depth=9999):
     seq_data, seq_parents = seq_graph
     children, roots = children_and_roots(seq_parents)
-    return build_sequence_tree_dict(seq_data, children, roots[0])
+    return build_sequence_tree_dict(seq_data, children, roots[0], max_depth)
 
 
 def calc_depths_collected(out_filename, parent_dir, max_depth, seq_depths):

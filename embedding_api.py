@@ -202,9 +202,12 @@ def get_or_calc_embeddings(params):
         get_or_calc_sequence_data(params)
 
         data_sequences = params['data_sequences']
+        max_depth = 999
+        if 'max_depth' in params:
+            max_depth = int(params['max_depth'])
         #batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
         #         data_sequences]
-        batch = [preprocessing.build_sequence_tree_dict_from_parse(parsed_data) for parsed_data in data_sequences]
+        batch = [preprocessing.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in data_sequences]
 
         if len(batch) > 0:
             fdict = embedder.build_feed_dict(batch)
@@ -223,16 +226,16 @@ def get_or_calc_embeddings(params):
 
 @app.route("/api/embed", methods=['POST'])
 def embed():
-    #try:
-    start = time.time()
-    logging.info('Embeddings requested')
-    params = get_params(request.data.decode("utf-8"))
-    get_or_calc_embeddings(params)
+    try:
+        start = time.time()
+        logging.info('Embeddings requested')
+        params = get_params(request.data.decode("utf-8"))
+        get_or_calc_embeddings(params)
 
-    json_data = json.dumps(filter_result(make_serializable(params)))
-    logging.info("Time spent handling the request: %f" % (time.time() - start))
-    #except Exception as e:
-    #    raise InvalidUsage(e.message)
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
 
     return json_data
 
