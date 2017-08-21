@@ -60,8 +60,8 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
 tf.flags.DEFINE_boolean('merge_nlp_embeddings',
-                        #True,
-                        False,
+                        True,
+                        #False,
                         'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
 tf.flags.DEFINE_string('save_final_model_path',
                         None,
@@ -202,7 +202,7 @@ def get_or_calc_embeddings(params):
         get_or_calc_sequence_data(params)
 
         data_sequences = params['data_sequences']
-        max_depth = 999
+        max_depth = 150
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
         #batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
@@ -424,6 +424,12 @@ if __name__ == '__main__':
     if len(fc_embedding_var_names):
         logging.info('found embedding_fc vars: ' + ', '.join(fc_embedding_var_names) + '. Apply fully connected layer to embeddings before composition.')
 
+    fc_output_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
+                                                                         + '/' + model_fold.VAR_PREFIX_FC_OUTPUT)]
+    if len(fc_output_var_names):
+        logging.info('found output_fc vars: ' + ', '.join(
+            fc_output_var_names) + '. Apply fully connected layer to composition result.')
+
     scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
     if len(scoring_var_names) > 0:
         logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
@@ -465,7 +471,10 @@ if __name__ == '__main__':
                                                         state_size=50,
                                                         sim_measure=sim_measure,
                                                         scoring_enabled=len(scoring_var_names) > 0,
+                                                        embeddings_trainable=False,
+                                                        # TODO: depend on fc_embedding_var_names
                                                         embedding_fc_activation=None,
+                                                        # TODO: depend on fc_output_var_names
                                                         output_fc_activation=None
                                                         #apply_embedding_fc=len(fc_embedding_var_names) > 0,
                                                         )

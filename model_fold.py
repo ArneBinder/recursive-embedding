@@ -124,10 +124,11 @@ class TreeEmbedding(object):
             self._scope = scope
             if self._apply_embedding_fc:
                 embedding_size = embeddings.get_shape().as_list()[1]
-                self._embedding_fc = fc_scoped(num_units=self.embedding_fc_size_multiple * embedding_size,
+                #embedding_fc_size = self.embedding_fc_size_multiple * embedding_size
+                embedding_fc_size = embedding_size
+                self._embedding_fc = fc_scoped(num_units=embedding_fc_size,
                                                activation_fn=embedding_fc_activation, scope=scope,
-                                               name=VAR_PREFIX_FC_EMBEDDING + '_%d' % (
-                                                   self.embedding_fc_size_multiple * embedding_size))
+                                               name=VAR_PREFIX_FC_EMBEDDING + '_%d' % embedding_fc_size)
             else:
                 self._embedding_fc = td.Identity()
             if output_fc_activation:
@@ -444,16 +445,23 @@ def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
     return tf.squeeze(s, axis=[1])
 
 
+def create_embedding(lex_size, trainable=True):
+    embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
+                              trainable=trainable, name=VAR_NAME_EMBEDDING)
+    embedding_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
+    embedding_init = embeddings.assign(embedding_placeholder)
+
+    return embeddings, embedding_placeholder, embedding_init
+
+
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01,
                  optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
                  embeddings_trainable=True, **kwargs):
-        self._embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
-                                       trainable=embeddings_trainable, name=VAR_NAME_EMBEDDING)
-        self._embedding_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
-        self._embedding_init = self._embeddings.assign(self._embedding_placeholder)
+        self._embeddings, self._embedding_placeholder, self._embedding_init = create_embedding(lex_size=lex_size,
+                                                                                               trainable=embeddings_trainable)
 
         gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
@@ -563,14 +571,13 @@ class SimilaritySequenceTreeTupleModel(object):
 class SequenceTreeEmbedding(object):
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_cosine,
                  #apply_embedding_fc=False,
+                 embeddings_trainable=True,
                  scoring_enabled=True,
                  scoring_scope=DEFAULT_SCOPE_SCORING,
                  **kwargs):
 
-        self._embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
-                                       trainable=True, name=VAR_NAME_EMBEDDING)
-        self._embeddings_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
-        self._embeddings_init = self._embeddings.assign(self._embeddings_placeholder)
+        self._embeddings, self._embedding_placeholder, self._embedding_init = create_embedding(lex_size=lex_size,
+                                                                                               trainable=embeddings_trainable)
 
         self._scoring_enabled = scoring_enabled
 
