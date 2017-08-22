@@ -219,7 +219,7 @@ def main(unused_argv):
         logging.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
-        embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
+        embed_shape = saved_shapes[model_fold.VAR_NAME_LEXICON]
         lex_size = embed_shape[0]
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
@@ -229,7 +229,7 @@ def main(unused_argv):
             old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.old_logdir)
             assert old_checkpoint_fn is not None, 'No checkpoint file found in old_logdir: ' + FLAGS.old_logdir
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-            vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_EMBEDDING)
+            vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_LEXICON)
             types_old = corpus.read_types(os.path.join(FLAGS.old_logdir, 'model'))
             vecs, types = corpus.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                              remove=False)
@@ -248,9 +248,9 @@ def main(unused_argv):
 
     logging.info('lex_size: ' + str(lex_size))
 
-    embedding_fc_activation = FLAGS.embedding_fc_activation
-    if embedding_fc_activation:
-        embedding_fc_activation = getattr(tf.nn, embedding_fc_activation)
+    leaf_fc_activation = FLAGS.embedding_fc_activation
+    if leaf_fc_activation:
+        leaf_fc_activation = getattr(tf.nn, leaf_fc_activation)
     output_fc_activation = FLAGS.output_fc_activation
     if output_fc_activation:
         output_fc_activation = getattr(tf.nn, output_fc_activation)
@@ -271,15 +271,15 @@ def main(unused_argv):
                                                                 learning_rate=FLAGS.learning_rate,
                                                                 optimizer=optimizer,
                                                                 sim_measure=sim_measure,
-                                                                embeddings_trainable=FLAGS.embeddings_trainable,
-                                                                embedding_fc_activation=embedding_fc_activation,
+                                                                lexicon_trainable=FLAGS.embeddings_trainable,
+                                                                leaf_fc_activation=leaf_fc_activation,
                                                                 output_fc_activation=output_fc_activation)
 
             if old_checkpoint_fn is not None:
                 logging.info(
                     'restore from old_checkpoint (except embeddings and step): ' + old_checkpoint_fn + ' ...')
                 embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                                   scope=model_fold.VAR_NAME_EMBEDDING)
+                                                   scope=model_fold.VAR_NAME_LEXICON)
                 restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
                                 item not in [model.global_step] + embedding_vars]
                 pre_train_saver = tf.train.Saver(restore_vars)
@@ -304,7 +304,7 @@ def main(unused_argv):
 
             if vecs is not None:
                 logging.info('init embeddings with external vectors...')
-                sess.run(model.embedding_init, feed_dict={model.embedding_placeholder: vecs})
+                sess.run(model.tree_embedder.lexicon_init, feed_dict={model.tree_embedder.lexicon_placeholder: vecs})
 
             def collect_values(step, loss, sim, sim_gold, train, print_out=False, emit=True):
                 if train:
@@ -391,8 +391,8 @@ def main(unused_argv):
 
                     supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
-                    current_embeddings = sess.run(model.embedding_var)
-                    current_embeddings.dump(os.path.join(logdir, 'model.vec'))
+                    current_lexicon = sess.run(model.tree_embedder.lexicon_var)
+                    current_lexicon.dump(os.path.join(logdir, 'model.vec'))
                     # test_result_csv.close()
 
 

@@ -9,9 +9,9 @@ import tensorflow_fold.public.blocks as td
 DEFAULT_SCOPE_SCORING = 'scoring'
 DIMENSION_EMBEDDINGS = 300
 DIMENSION_SIM_MEASURE = 300
-VAR_NAME_EMBEDDING = 'embeddings'
+VAR_NAME_LEXICON = 'embeddings'
 VAR_NAME_GLOBAL_STEP = 'global_step'
-VAR_PREFIX_FC_EMBEDDING = 'FC_embedding'
+VAR_PREFIX_FC_LEAF = 'FC_embedding'
 VAR_PREFIX_FC_OUTPUT = 'FC_output'
 VAR_PREFIX_TREE_EMBEDDING = 'TreeEmbedding'
 VAR_PREFIX_SIM_MEASURE = 'sim_measure'
@@ -110,27 +110,39 @@ def norm(x):
     return tf.nn.l2_normalize(x, dim=1)
 
 
+def create_lexicon(lex_size, trainable=True):
+    lexicon = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
+                          trainable=trainable, name=VAR_NAME_LEXICON)
+    lexicon_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
+    lexicon_init = lexicon.assign(lexicon_placeholder)
+
+    return lexicon, lexicon_placeholder, lexicon_init
+
+
 class TreeEmbedding(object):
-    def __init__(self, name, embeddings, state_size=None, embedding_fc_activation=None, output_fc_activation=None):
+    def __init__(self, name, lexicon_size, lexicon_trainable=True, state_size=None, leaf_fc_activation=None,
+                 output_fc_activation=None):
+        self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
+                                                                                      trainable=lexicon_trainable)
+
         if state_size:
             self._state_size = state_size
         else:
-            self._state_size = embeddings.get_shape().as_list()[1]  # state_size
-        self._embeddings = embeddings
-        self._apply_embedding_fc = (embedding_fc_activation is not None)
+            self._state_size = self._lexicon.get_shape().as_list()[1]  # state_size
+        self._apply_leaf_fc = (leaf_fc_activation is not None)
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
-            if self._apply_embedding_fc:
-                embedding_size = embeddings.get_shape().as_list()[1]
-                #embedding_fc_size = self.embedding_fc_size_multiple * embedding_size
-                embedding_fc_size = embedding_size
-                self._embedding_fc = fc_scoped(num_units=embedding_fc_size,
-                                               activation_fn=embedding_fc_activation, scope=scope,
-                                               name=VAR_PREFIX_FC_EMBEDDING + '_%d' % embedding_fc_size)
+            if self._apply_leaf_fc:
+                lexicon_dimension = self._lexicon.get_shape().as_list()[1]
+                #leaf_fc_size = self.embedding_fc_size_multiple * lexicon_dimension
+                leaf_fc_size = lexicon_dimension
+                self._leaf_fc = fc_scoped(num_units=leaf_fc_size,
+                                          activation_fn=leaf_fc_activation, scope=scope,
+                                          name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
-                self._embedding_fc = td.Identity()
+                self._leaf_fc = td.Identity()
             if output_fc_activation:
                 self._output_fc = fc_scoped(num_units=self.state_size, activation_fn=output_fc_activation, scope=scope,
                                             name=VAR_PREFIX_FC_OUTPUT + '_%d' % self.state_size)
@@ -139,7 +151,7 @@ class TreeEmbedding(object):
 
     def embed(self):
         # get the head embedding from id
-        return td.Function(lambda x: tf.gather(self._embeddings, x))
+        return td.Function(lambda x: tf.gather(self._lexicon, x))
 
     def head(self, name='head_embed'):
         return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
@@ -153,11 +165,11 @@ class TreeEmbedding(object):
 
     @property
     def embeddings(self):
-        return self._embeddings
+        return self._lexicon
 
     @property
     def apply_embedding_fc(self):
-        return self._apply_embedding_fc
+        return self._apply_leaf_fc
 
     @property
     def name(self):
@@ -169,7 +181,7 @@ class TreeEmbedding(object):
 
     @property
     def embedding_fc(self):
-        return self._embedding_fc
+        return self._leaf_fc
 
     @property
     def output_fc(self):
@@ -178,6 +190,18 @@ class TreeEmbedding(object):
     @property
     def embedding_fc_size_multiple(self):
         return 1
+
+    @property
+    def lexicon_var(self):
+        return self._lexicon
+
+    @property
+    def lexicon_init(self):
+        return self._lexicon_init
+
+    @property
+    def lexicon_placeholder(self):
+        return self._lexicon_placeholder
 
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
@@ -445,29 +469,18 @@ def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
     return tf.squeeze(s, axis=[1])
 
 
-def create_embedding(lex_size, trainable=True):
-    embeddings = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
-                              trainable=trainable, name=VAR_NAME_EMBEDDING)
-    embedding_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
-    embedding_init = embeddings.assign(embedding_placeholder)
-
-    return embeddings, embedding_placeholder, embedding_init
-
-
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01,
                  optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
-                 embeddings_trainable=True, **kwargs):
-        self._embeddings, self._embedding_placeholder, self._embedding_init = create_embedding(lex_size=lex_size,
-                                                                                               trainable=embeddings_trainable)
+                 lexicon_trainable=True, **kwargs):
 
         gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
-        tree_embed = tree_embedder(embeddings=self._embeddings, **kwargs)
-        model = td.AllOf(td.GetItem('first') >> tree_embed(),
-                         td.GetItem('second') >> tree_embed(),
+        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable, **kwargs)
+        model = td.AllOf(td.GetItem('first') >> self._tree_embed(),
+                         td.GetItem('second') >> self._tree_embed(),
                          gold_similarity)
         self._compiler = td.Compiler.create(model)
 
@@ -549,16 +562,8 @@ class SimilaritySequenceTreeTupleModel(object):
         return self._global_step
 
     @property
-    def embedding_var(self):
-        return self._embeddings
-
-    @property
-    def embedding_init(self):
-        return self._embedding_init
-
-    @property
-    def embedding_placeholder(self):
-        return self._embedding_placeholder
+    def tree_embedder(self):
+        return self._tree_embed
 
     @property
     def compiler(self):
@@ -570,24 +575,18 @@ class SimilaritySequenceTreeTupleModel(object):
 
 class SequenceTreeEmbedding(object):
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_cosine,
-                 #apply_embedding_fc=False,
                  embeddings_trainable=True,
                  scoring_enabled=True,
                  scoring_scope=DEFAULT_SCOPE_SCORING,
                  **kwargs):
 
-        self._embeddings, self._embedding_placeholder, self._embedding_init = create_embedding(lex_size=lex_size,
-                                                                                               trainable=embeddings_trainable)
 
         self._scoring_enabled = scoring_enabled
 
-        embedding_fc_activation = None
-        #if apply_embedding_fc:
-        #    embedding_fc_activation = tf.nn.tanh
+        #tree_embed = tree_embedder(embeddings=self._embeddings, **kwargs)
+        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=embeddings_trainable, **kwargs)
 
-        tree_embed = tree_embedder(embeddings=self._embeddings, **kwargs)
-
-        model = tree_embed()
+        model = self._tree_embed()
         self._compiler = td.Compiler.create(model)
         self._tree_embeddings, = self._compiler.output_tensors
 
@@ -625,16 +624,8 @@ class SequenceTreeEmbedding(object):
         return self._compiler_scoring.build_feed_dict(embeddings)
 
     @property
-    def embeddings_var(self):
-        return self._embeddings
-
-    @property
-    def embeddings_init(self):
-        return self._embeddings_init
-
-    @property
-    def embeddings_placeholder(self):
-        return self._embeddings_placeholder
+    def tree_embedder(self):
+        return self._tree_embed
 
     @property
     def sim(self):

@@ -82,7 +82,7 @@ def extract_model_embeddings(model_fn=None, out_fn=None):
         os.rename(out_fn, out_fn + '.previous')
 
     with tf.Graph().as_default():
-        embeddings = tf.Variable(initial_value=tf.constant(0.0), validate_shape=False, name=model_fold.VAR_NAME_EMBEDDING)
+        embeddings = tf.Variable(initial_value=tf.constant(0.0), validate_shape=False, name=model_fold.VAR_NAME_LEXICON)
         saver = tf.train.Saver()
         with tf.Session() as sess:
             print('restore model from: ' + model_fn)
@@ -283,7 +283,7 @@ def main(unused_argv):
         print('loaded_global_step: '+str(loaded_global_step))
         if FLAGS.force_reload_embeddings:
             print('extract embeddings from checkpoint: ' + input_checkpoint + ' ...')
-            embeddings_checkpoint = reader.get_tensor(model_fold.VAR_NAME_EMBEDDING)
+            embeddings_checkpoint = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
             embeddings_corpus = np.load(FLAGS.train_data_path + '.vec')
             types_checkpoint = corpus.read_types(input_checkpoint)
             types_corpus = corpus.read_types(FLAGS.train_data_path)
@@ -294,7 +294,7 @@ def main(unused_argv):
         else:
             print('extract lexicon size from model: ' + input_checkpoint + ' ...')
             saved_shapes = reader.get_variable_to_shape_map()
-            embed_shape = saved_shapes[model_fold.VAR_NAME_EMBEDDING]
+            embed_shape = saved_shapes[model_fold.VAR_NAME_LEXICON]
             lex_size = embed_shape[0]
     else:
         print('load embeddings from: ' + FLAGS.train_data_path + '.vec ...')
@@ -324,7 +324,7 @@ def main(unused_argv):
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             embed_w = tf.Variable(tf.constant(0.0, shape=[lex_size, model_fold.DIMENSION_EMBEDDINGS]),
-                                  trainable=True, name=model_fold.VAR_NAME_EMBEDDING)
+                                  trainable=True, name=model_fold.VAR_NAME_LEXICON)
             embedding_placeholder = tf.placeholder(tf.float32, [lex_size, model_fold.DIMENSION_EMBEDDINGS])
             embedding_init = embed_w.assign(embedding_placeholder)
 
