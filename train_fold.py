@@ -11,6 +11,7 @@ import os
 import shutil
 
 from scipy.stats.stats import pearsonr
+from scipy.stats.mstats import spearmanr
 import six
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
@@ -61,7 +62,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_AVG',
+                           'TreeEmbedding_FLAT_LSTM',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -316,11 +317,15 @@ def main(unused_argv):
                     csv_writer = test_result_writer
 
                 p_r_train = pearsonr(sim, sim_gold)
+                s_r_train = spearmanr(sim, sim_gold)
+
                 if emit:
                     emit_values(supervisor, sess, step,
                                 {'loss': loss,
                                  'pearson_r': p_r_train[0],
                                  'pearson_r_p': p_r_train[1],
+                                 'spearman_r': s_r_train[0],
+                                 'spearman_r_p': s_r_train[1],
                                  'sim_avg': np.average(sim)
                                  },
                                 writer=writer,
