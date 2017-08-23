@@ -293,6 +293,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     new_idx = 0
     new_idx_unknown = -1
     new_count = 0
+    added_types = []
     for old_idx in reversed(sorted_indices):
         # keep unknown and save new unknown index
         if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
@@ -308,6 +309,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
             # init missing vecs with previous vecs distribution
             new_vecs[new_idx] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
             new_count += 1
+            added_types.append(types[old_idx])
             # print(types[old_idx] + '\t'+str(counts[old_idx]))
 
         new_types[new_idx] = types[old_idx]
@@ -319,6 +321,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
 
     logging.info('new lex_size: ' + str(new_idx))
     logging.debug('added ' + str(new_count) + ' new vecs to vocab')
+    logging.debug(added_types)
 
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]
