@@ -58,23 +58,31 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   'Iff enabled, fine tune the embeddings.'],
          'sim_measure': [tf.flags.DEFINE_string,
                          'sim_cosine',
-                         'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
+                         'similarity measure implementation (tensorflow) from model_fold for similarity score '
+                         'calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
                            'TreeEmbedding_FLAT_AVG_2levels',
-                           'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
-                           'Currently implemented:'
-                           '"TreeEmbedding_TREE_LSTM" -> '
-                           '"TreeEmbedding_HTU_GRU" -> '
-                           #'"TreeEmbedding_HTU_GRU_simplified" -> '
-                           '"TreeEmbedding_FLAT_AVG" -> '
-                           '"TreeEmbedding_FLAT_AVG_2levels" -> '
-                           '"TreeEmbedding_FLAT_LSTM" -> '
-                           '"TreeEmbedding_FLAT_LSTM50" -> '
-                           '"TreeEmbedding_FLAT_LSTM_2levels" -> '
-                           '"TreeEmbedding_FLAT_LSTM50_2levels" -> '],
+                           'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
+                           'calling which accepts a sequence tree and produces an embedding. '
+                           'Currently implemented (see model_fold.py):'
+                           '"TreeEmbedding_TREE_LSTM"           -> TreeLSTM'
+                           '"TreeEmbedding_HTU_GRU"             -> Headed Tree Unit, using a GRU for order aware '
+                           '                                       and summation for order unaware composition'
+                           '"TreeEmbedding_FLAT_AVG"            -> Averaging applied to first level children '
+                           '                                       (discarding the root)'
+                           '"TreeEmbedding_FLAT_AVG_2levels"    -> Like TreeEmbedding_FLAT_AVG, but concatenating first'
+                           '                                       second level children (e.g. dep-edge embedding) to '
+                           '                                       the first level children (e.g. token embeddings)'
+                           '"TreeEmbedding_FLAT_LSTM"           -> LSTM applied to first level children (discarding the'
+                           '                                       root)'
+                           '"TreeEmbedding_FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
+                           '                                       first second level children (e.g. dependency-edge '
+                           '                                       type embedding) to the first level children '
+                           '                                       (e.g. token embeddings)'
+                           ],
          'leaf_fc_activation': [tf.flags.DEFINE_string,
                                      # None,
                                      'tanh',
