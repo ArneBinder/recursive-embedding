@@ -12,7 +12,7 @@ DIMENSION_SIM_MEASURE = 300
 VAR_NAME_LEXICON = 'embeddings'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 VAR_PREFIX_FC_LEAF = 'FC_embedding'
-VAR_PREFIX_FC_OUTPUT = 'FC_output'
+VAR_PREFIX_FC_ROOT = 'FC_output'
 VAR_PREFIX_TREE_EMBEDDING = 'TreeEmbedding'
 VAR_PREFIX_SIM_MEASURE = 'sim_measure'
 
@@ -121,7 +121,7 @@ def create_lexicon(lex_size, trainable=True):
 
 class TreeEmbedding(object):
     def __init__(self, name, lexicon_size, lexicon_trainable=True, state_size=None, leaf_fc_activation=None,
-                 output_fc_activation=None):
+                 root_fc_activation=None):
         self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
                                                                                       trainable=lexicon_trainable)
 
@@ -143,11 +143,11 @@ class TreeEmbedding(object):
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
                 self._leaf_fc = td.Identity()
-            if output_fc_activation:
-                self._output_fc = fc_scoped(num_units=self.state_size, activation_fn=output_fc_activation, scope=scope,
-                                            name=VAR_PREFIX_FC_OUTPUT + '_%d' % self.state_size)
+            if root_fc_activation:
+                self._root_fc = fc_scoped(num_units=self.state_size, activation_fn=root_fc_activation, scope=scope,
+                                          name=VAR_PREFIX_FC_ROOT + '_%d' % self.state_size)
             else:
-                self._output_fc = td.Identity()
+                self._root_fc = td.Identity()
 
     def embed(self):
         # get the head embedding from id
@@ -164,11 +164,11 @@ class TreeEmbedding(object):
         return self._state_size
 
     @property
-    def embeddings(self):
+    def lexicon(self):
         return self._lexicon
 
     @property
-    def apply_embedding_fc(self):
+    def apply_leaf_fc(self):
         return self._apply_leaf_fc
 
     @property
@@ -180,12 +180,12 @@ class TreeEmbedding(object):
         return self._scope
 
     @property
-    def embedding_fc(self):
+    def leaf_fc(self):
         return self._leaf_fc
 
     @property
-    def output_fc(self):
-        return self._output_fc
+    def root_fc(self):
+        return self._root_fc
 
     @property
     def embedding_fc_size_multiple(self):
@@ -231,7 +231,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
 
         # TODO: use only h state. DONE, but needs testing!
         #return cases >> td.Concat() >> self.output_fc
-        return cases >> td.GetItem(1) >> self.output_fc
+        return cases >> td.GetItem(1) >> self.root_fc
 
 
 class TreeEmbedding_HTU_GRU(TreeEmbedding):
@@ -264,13 +264,12 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
         #    return tf.add(x, y)
 
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        # TODO: is td.Optional necessary? (the list can be empty, but not None...)
         children = self.children() >> td.Map(embed_tree()) >> td.Sum()
 
         cases = td.AllOf(self.head(), children) >> td.Function(aggregator_order_aware)
 
         embed_tree.resolve_to(cases)
-        model = cases >> self.output_fc
+        model = cases >> self.root_fc
 
         return model
 
@@ -327,7 +326,7 @@ class TreeEmbedding_HTU_GRU_dep(TreeEmbedding):
 
         embed_tree.resolve_to(cases)
 
-        model = cases >> self.output_fc
+        model = cases >> self.root_fc
         return model
 
 
@@ -336,7 +335,7 @@ class TreeEmbedding_FLAT(TreeEmbedding):
         super(TreeEmbedding_FLAT, self).__init__(name='FLAT_' + name, **kwargs)
 
     def element(self, name='element'):
-        return td.Pipe(self.head(), self.embedding_fc, name=name)
+        return td.Pipe(self.head(), self.leaf_fc, name=name)
 
     def sequence(self, name='sequence'):
         return td.Pipe(self.children(), td.Map(self.element()), name=name)
@@ -346,7 +345,7 @@ class TreeEmbedding_FLAT(TreeEmbedding):
         return td.Mean(name)
 
     def __call__(self):
-        model = self.sequence() >> self.aggregate() >> self.output_fc
+        model = self.sequence() >> self.aggregate() >> self.root_fc
         return model
 
 
@@ -364,7 +363,7 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT):
         return td.Pipe(td.AllOf(self.head(name='head_level1'),
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
                                     name='head_level2')),
-                       td.Concat(), self.embedding_fc, name=name)
+                       td.Concat(), self.leaf_fc, name=name)
 
     @property
     def embedding_fc_size_multiple(self):
@@ -390,7 +389,7 @@ class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT):
         return td.Pipe(td.AllOf(self.head(name='head_level1'),
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
                                     name='head_level2')),
-                       td.Concat(), self.embedding_fc, name=name)
+                       td.Concat(), self.leaf_fc, name=name)
 
     def aggregate(self, name='aggregate'):
         # an aggregation function which doesn't take the order of the inputs into account
@@ -429,7 +428,7 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
         return td.Pipe(td.AllOf(self.head(name='head_level1'),
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
                                     name='head_level2')),
-                       td.Concat(), self.embedding_fc, name=name)
+                       td.Concat(), self.leaf_fc, name=name)
 
     def aggregate(self, name='aggregate'):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)

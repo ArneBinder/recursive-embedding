@@ -352,7 +352,7 @@ def main(unused_argv):
 
             config = projector.ProjectorConfig()
             # You can add multiple embeddings. Here we add only one.
-            embedding = config.embeddings.add()
+            embedding = config.lexicon.add()
             embedding.tensor_name = embed_w.name
             # Link this tensor to its metadata file (e.g. labels).
             embedding.metadata_path = os.path.join(FLAGS.logdir, 'type.tsv')

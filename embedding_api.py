@@ -33,11 +33,11 @@ tf.flags.DEFINE_string('model_dir',
                        #'/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension) and the model.type file containing the string dict.')
-tf.flags.DEFINE_string('external_embeddings',
+tf.flags.DEFINE_string('external_lexicon',
                        #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8_/WIKIPEDIA_articles10000_offset0',
                        None,
-                       'If not None, load embeddings from numpy array located at "<external_embeddings>.vec" and type '
-                       'string mappings from "<external_embeddings>.type" file and merge them into the embeddings '
+                       'If not None, load embeddings from numpy array located at "<external_lexicon>.vec" and type '
+                       'string mappings from "<external_lexicon>.type" file and merge them into the embeddings '
                        'from the loaded model ("<model_dir>/[model].type").')
 #tf.flags.DEFINE_boolean('load_embeddings', False,
 #                        'Load embeddings from numpy array located at "<dict_file>.vec"')
@@ -59,7 +59,7 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        '\n"aggregate" -> roots point to an added, artificial token (AGGREGATOR) '
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
-tf.flags.DEFINE_boolean('merge_nlp_embeddings',
+tf.flags.DEFINE_boolean('merge_nlp_lexicon',
                         True,
                         #False,
                         'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
@@ -424,11 +424,11 @@ if __name__ == '__main__':
     if len(fc_leaf_var_names):
         logging.info('found leaf_fc vars: ' + ', '.join(fc_leaf_var_names) + '. Apply fully connected layer to lexicon entries before composition.')
 
-    fc_output_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
-                                                                         + '/' + model_fold.VAR_PREFIX_FC_OUTPUT)]
-    if len(fc_output_var_names):
-        logging.info('found output_fc vars: ' + ', '.join(
-            fc_output_var_names) + '. Apply fully connected layer to composition result.')
+    fc_root_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
+                                                                    + '/' + model_fold.VAR_PREFIX_FC_ROOT)]
+    if len(fc_root_var_names):
+        logging.info('found root_fc vars: ' + ', '.join(
+            fc_root_var_names) + '. Apply fully connected layer to composition result.')
 
     scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
     if len(scoring_var_names) > 0:
@@ -438,7 +438,7 @@ if __name__ == '__main__':
 
     sim_measure = getattr(model_fold, FLAGS.sim_measure)
 
-    if not FLAGS.merge_nlp_embeddings and not FLAGS.external_embeddings:
+    if not FLAGS.merge_nlp_lexicon and not FLAGS.external_lexicon:
         logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
         #saved_shapes = reader.get_variable_to_shape_map()
         lexicon_shape = saved_shapes[model_fold.VAR_NAME_LEXICON]
@@ -446,13 +446,13 @@ if __name__ == '__main__':
     else:
         logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
         lexicon_np = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
-        if FLAGS.external_embeddings:
-            logging.info('read external types: '+FLAGS.external_embeddings+'.type ...')
-            external_types = corpus.read_types(FLAGS.external_embeddings)
-            logging.info('load external embeddings from: '+FLAGS.external_embeddings+'.vec ...')
-            external_vecs = np.load(FLAGS.external_embeddings+'.vec')
+        if FLAGS.external_lexicon:
+            logging.info('read external types: '+FLAGS.external_lexicon+'.type ...')
+            external_types = corpus.read_types(FLAGS.external_lexicon)
+            logging.info('load external embeddings from: '+FLAGS.external_lexicon+'.vec ...')
+            external_vecs = np.load(FLAGS.external_lexicon+'.vec')
             lexicon_np, types = corpus.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
-        if FLAGS.merge_nlp_embeddings:
+        if FLAGS.merge_nlp_lexicon:
             logging.info('extract nlp embeddings and types ...')
             nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
             logging.info('merge nlp embeddings into loaded embeddings ...')
@@ -472,14 +472,14 @@ if __name__ == '__main__':
                                                         sim_measure=sim_measure,
                                                         scoring_enabled=len(scoring_var_names) > 0,
                                                         embeddings_trainable=False,
-                                                        # TODO: depend on fc_embedding_var_names and use tf.nn.tanh
-                                                        leaf_fc_activation=None,
-                                                        # TODO: depend on fc_output_var_names and use tf.nn.tanh
-                                                        output_fc_activation=None
+                                                        # TODO: depend on fc_leaf_var_names and use tf.nn.tanh. DONE, test!
+                                                        leaf_fc_activation=(tf.nn.tanh if len(fc_leaf_var_names) > 0 else None),
+                                                        # TODO: depend on fc_root_var_names and use tf.nn.tanh. DONE, test!
+                                                        output_fc_activation=(tf.nn.tanh if len(fc_root_var_names) > 0 else None)
                                                         #apply_embedding_fc=len(fc_embedding_var_names) > 0,
                                                         )
 
-            if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
+            if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
                 vars_without_embed = [v for v in vars_all if v != embedder.tree_embedder.lexicon_var]
                 if len(vars_without_embed) > 0:
@@ -495,7 +495,7 @@ if __name__ == '__main__':
                 logging.info('restore model from: ' + input_checkpoint + '...')
                 saver.restore(sess, input_checkpoint)
 
-            if FLAGS.external_embeddings or FLAGS.merge_nlp_embeddings:
+            if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                 logging.info('init embeddings with external vectors ...')
                 sess.run(embedder.tree_embedder.lexicon_init, feed_dict={embedder.tree_embedder.lexicon_placeholder: lexicon_np})
 

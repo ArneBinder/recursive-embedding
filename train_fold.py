@@ -51,6 +51,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'test_file_index': [tf.flags.DEFINE_integer,
                              1,
                              'Which file of the train data files should be used as test data.'],
+         # TODO: rename to 'lexicon_trainable' (not yet done because of compatibility)
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
                                   True,
                                   # True,
@@ -62,7 +63,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_LSTM',
+                           'TreeEmbedding_FLAT_AVG_2levels',
                            'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented:'
                            '"TreeEmbedding_TREE_LSTM" -> '
@@ -74,12 +75,12 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                            '"TreeEmbedding_FLAT_LSTM50" -> '
                            '"TreeEmbedding_FLAT_LSTM_2levels" -> '
                            '"TreeEmbedding_FLAT_LSTM50_2levels" -> '],
-         'embedding_fc_activation': [tf.flags.DEFINE_string,
+         'leaf_fc_activation': [tf.flags.DEFINE_string,
                                      # None,
                                      'tanh',
                                      'If not None, apply a fully connected layer with this activation function before composition',
                                      None],
-         'output_fc_activation': [tf.flags.DEFINE_string,
+         'root_fc_activation': [tf.flags.DEFINE_string,
                                   None,
                                   # 'tanh',
                                   'If not None, apply a fully connected layer with this activation function after composition',
@@ -248,12 +249,12 @@ def main(unused_argv):
 
     logging.info('lex_size: ' + str(lex_size))
 
-    leaf_fc_activation = FLAGS.embedding_fc_activation
+    leaf_fc_activation = FLAGS.leaf_fc_activation
     if leaf_fc_activation:
         leaf_fc_activation = getattr(tf.nn, leaf_fc_activation)
-    output_fc_activation = FLAGS.output_fc_activation
-    if output_fc_activation:
-        output_fc_activation = getattr(tf.nn, output_fc_activation)
+    root_fc_activation = FLAGS.root_fc_activation
+    if root_fc_activation:
+        root_fc_activation = getattr(tf.nn, root_fc_activation)
     optimizer = FLAGS.optimizer
     if FLAGS.optimizer:
         optimizer = getattr(tf.train, optimizer)
@@ -273,7 +274,7 @@ def main(unused_argv):
                                                                 sim_measure=sim_measure,
                                                                 lexicon_trainable=FLAGS.embeddings_trainable,
                                                                 leaf_fc_activation=leaf_fc_activation,
-                                                                output_fc_activation=output_fc_activation)
+                                                                root_fc_activation=root_fc_activation)
 
             if old_checkpoint_fn is not None:
                 logging.info(
