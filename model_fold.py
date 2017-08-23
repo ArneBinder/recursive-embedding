@@ -506,14 +506,14 @@ class SimilaritySequenceTreeTupleModel(object):
         #            dtype=tf.float32))
 
         self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
-        # optr = tf.train.GradientDescentOptimizer(0.01)
-        optr = optimizer(learning_rate=learning_rate)
-        # self._train_op = optr.minimize(self._loss, global_step=self._global_step)
+        # self._optimizer = tf.train.GradientDescentOptimizer(0.01)
+        self._optimizer = optimizer(learning_rate=learning_rate)
+        # self._train_op = _optimizer.minimize(self._loss, global_step=self._global_step)
 
         # gradient clipping
-        gradients, variables = zip(*optr.compute_gradients(self._loss))
+        gradients, variables = zip(*self._optimizer.compute_gradients(self._loss))
         gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
-        self._train_op = optr.apply_gradients(grads_and_vars=zip(gradients, variables),
+        self._train_op = self._optimizer.apply_gradients(grads_and_vars=zip(gradients, variables),
                                               global_step=self._global_step)
 
     @property
@@ -567,6 +567,15 @@ class SimilaritySequenceTreeTupleModel(object):
     @property
     def compiler(self):
         return self._compiler
+
+    def optimizer_vars(self):
+        slot_names = self._optimizer.get_slot_names()
+        all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+        opt_vars = []
+        for slot_name in slot_names:
+            opt_vars.extend([self._optimizer.get_slot(var=v, name=slot_name) for v in all_vars if
+                             self._optimizer.get_slot(var=v, name=slot_name)])
+        return opt_vars
 
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)

@@ -37,8 +37,9 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
-                        None,
+                        # None,
                         #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
+                        '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGFLATAVG2LEVELS',
                         'Set this to fine tune a pre-trained model. The old_logdir has to contain a types file with the filename "model.types"',
                         None],
          'batch_size': [tf.flags.DEFINE_integer,
@@ -106,7 +107,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
-                    '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC',
+                    '/home/arne/ML_local/tf/supervised/log/SA/DEBUG',
                     'Directory in which to write event logs.',
                     None]
          }
@@ -286,11 +287,11 @@ def main(unused_argv):
 
             if old_checkpoint_fn is not None:
                 logging.info(
-                    'restore from old_checkpoint (except embeddings and step): ' + old_checkpoint_fn + ' ...')
-                embedding_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                                   scope=model_fold.VAR_NAME_LEXICON)
+                    'restore from old_checkpoint (except lexicon, step and optimizer vars): ' + old_checkpoint_fn + ' ...')
+                lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON)
+                optimizer_vars = model.optimizer_vars()
                 restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
-                                item not in [model.global_step] + embedding_vars]
+                                item not in [model.global_step] + lexicon_vars + optimizer_vars]
                 pre_train_saver = tf.train.Saver(restore_vars)
             else:
                 pre_train_saver = None
