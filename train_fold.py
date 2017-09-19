@@ -37,9 +37,9 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
                              'TF Record file containing the training dataset of sequence tuples.'],
          'old_logdir': [tf.flags.DEFINE_string,
-                        # None,
+                        None,
                         #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
-                        '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGFLATAVG2LEVELS',
+                        # '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGFLATAVG2LEVELS',
                         'Set this to fine tune a pre-trained model. The old_logdir has to contain a types file with the filename "model.types"',
                         None],
          'batch_size': [tf.flags.DEFINE_integer,
@@ -54,8 +54,8 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                              'Which file of the train data files should be used as test data.'],
          # TODO: rename to 'lexicon_trainable' (not yet done because of compatibility)
          'embeddings_trainable': [tf.flags.DEFINE_boolean,
+                                  # False,
                                   True,
-                                  # True,
                                   'Iff enabled, fine tune the embeddings.'],
          'sim_measure': [tf.flags.DEFINE_string,
                          'sim_cosine',
@@ -65,7 +65,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                          '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
          'tree_embedder': [tf.flags.DEFINE_string,
-                           'TreeEmbedding_FLAT_AVG_2levels',
+                           'TreeEmbedding_FLAT_AVG',
                            'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
                            'calling which accepts a sequence tree and produces an embedding. '
                            'Currently implemented (see model_fold.py):'
@@ -95,7 +95,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   'If not None, apply a fully connected layer with this activation function after composition',
                                   None],
          'state_size': [tf.flags.DEFINE_integer,
-                        50,
+                        300,
                         'size of the composition layer'],
          'learning_rate': [tf.flags.DEFINE_float,
                            0.001,
@@ -107,7 +107,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
-                    '/home/arne/ML_local/tf/supervised/log/SA/DEBUG',
+                    '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
                     'Directory in which to write event logs.',
                     None]
          }
@@ -137,7 +137,9 @@ def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=Tru
         count = 0
         for table_path in table_paths:
             for v in tf.python_io.tf_record_iterator(table_path):
-                yield td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
+                res = td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
+                res['id'] = count
+                yield res
                 count += 1
         if not multiple_epochs:
             logging.info('records read: ' + str(count))
@@ -364,13 +366,15 @@ def main(unused_argv):
 
                         sim_all = []
                         sim_all_gold = []
+                        ids_all = []
                         loss_all = 0.0
                         step = None
+                        #for batch in td.group_by_batches(data_set, FLAGS.batch_size if train else len(test_set)):
                         for batch in td.group_by_batches(data_set, FLAGS.batch_size):
                             train_feed_dict = {model.compiler.loom_input_tensor: batch}
                             if train:
-                                _, step, batch_loss, sim, sim_gold = sess.run(
-                                    [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities],
+                                _, step, batch_loss, sim, sim_gold, ids = sess.run(
+                                    [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities, model.id],
                                     train_feed_dict)
                                 collect_values(step, batch_loss, sim, sim_gold, train=train)
                                 # vars for print out: take only last result
@@ -379,18 +383,24 @@ def main(unused_argv):
                                 # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                                 #loss_all = batch_loss * len(batch)
                             else:
-                                step, batch_loss, sim, sim_gold = sess.run(
-                                    [model.global_step, model.loss, model.sim, model.gold_similarities],
+                                step, batch_loss, sim, sim_gold, ids = sess.run(
+                                    [model.global_step, model.loss, model.sim, model.gold_similarities, model.id],
                                     train_feed_dict)
                                 # take average in test case
                             sim_all.append(sim)
                             sim_all_gold.append(sim_gold)
+                            ids_all.append(ids)
                             # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                             loss_all += batch_loss * len(batch)
                         #print(np.concatenate(sim_all).tolist())
                         #print(np.concatenate(sim_all_gold).tolist())
                         sim_all_ = np.concatenate(sim_all)
-                        collect_values(step, loss_all / len(sim_all_), sim_all_, np.concatenate(sim_all_gold),
+                        sim_all_gold_ = np.concatenate(sim_all_gold)
+                        ids_all_ = np.concatenate(ids_all)
+                        #print(sim_all_.tolist())
+                        #print(sim_all_gold_.tolist())
+                        #print(ids_all_.tolist())
+                        collect_values(step, loss_all / len(sim_all_), sim_all_, sim_all_gold_,
                                        train=train, print_out=True, emit=(not train))
                         return step
 

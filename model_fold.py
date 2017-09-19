@@ -4,6 +4,7 @@ from __future__ import print_function
 # import google3
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
+import numpy as np
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
@@ -137,7 +138,9 @@ class TreeEmbedding(object):
             if self._apply_leaf_fc:
                 lexicon_dimension = self._lexicon.get_shape().as_list()[1]
                 #leaf_fc_size = self.embedding_fc_size_multiple * lexicon_dimension
-                leaf_fc_size = lexicon_dimension
+                # TODO: parametrize leaf_fc_size
+                #leaf_fc_size = lexicon_dimension
+                leaf_fc_size = 300
                 self._leaf_fc = fc_scoped(num_units=leaf_fc_size,
                                           activation_fn=leaf_fc_activation, scope=scope,
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
@@ -480,11 +483,13 @@ class SimilaritySequenceTreeTupleModel(object):
         self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable, **kwargs)
         model = td.AllOf(td.GetItem('first') >> self._tree_embed(),
                          td.GetItem('second') >> self._tree_embed(),
-                         gold_similarity)
+                         gold_similarity,
+                         td.GetItem('id') >> td.Scalar(dtype='int32')
+                         )
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
-        (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities) = self._compiler.output_tensors
+        (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities, self._id) = self._compiler.output_tensors
 
         self._sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
@@ -547,6 +552,10 @@ class SimilaritySequenceTreeTupleModel(object):
     @property
     def sim(self):
         return self._sim
+
+    @property
+    def id(self):
+        return self._id
 
     # @property
     # def accuracy(self):

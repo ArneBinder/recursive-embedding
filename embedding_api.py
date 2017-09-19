@@ -28,6 +28,8 @@ import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
                        '/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
+                       #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
+                       #'/home/arne/ML_local/tf/supervised/log/BACKUP_batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
                        #/model.ckpt-122800',
                        #'/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
                        #'/home/arne/ML_local/tf/log/final_model',
@@ -475,7 +477,7 @@ if __name__ == '__main__':
                                                         # TODO: depend on fc_leaf_var_names and use tf.nn.tanh. DONE, test!
                                                         leaf_fc_activation=(tf.nn.tanh if len(fc_leaf_var_names) > 0 else None),
                                                         # TODO: depend on fc_root_var_names and use tf.nn.tanh. DONE, test!
-                                                        output_fc_activation=(tf.nn.tanh if len(fc_root_var_names) > 0 else None)
+                                                        root_fc_activation=(tf.nn.tanh if len(fc_root_var_names) > 0 else None)
                                                         #apply_embedding_fc=len(fc_embedding_var_names) > 0,
                                                         )
 
