@@ -471,6 +471,18 @@ def sim_layer(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
     return tf.squeeze(s, axis=[1])
 
 
+def get_all_heads(tree):
+    current_heads = [tree['head']]
+    for child in tree['children']:
+        current_heads.extend(get_all_heads(child))
+    return current_heads
+
+
+def get_jaccard_sim(tree_tuple):
+    heads1 = set(get_all_heads(tree_tuple['first']))
+    heads2 = set(get_all_heads(tree_tuple['second']))
+    return len(heads1 & heads2) / float(len(heads1 | heads2))
+
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
@@ -481,7 +493,8 @@ class SimilaritySequenceTreeTupleModel(object):
         gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
 
         self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable, **kwargs)
-        model = td.AllOf(td.GetItem('first') >> self._tree_embed(),
+        model = td.AllOf(td.InputTransform(get_jaccard_sim) >> td.Scalar(),
+                         td.GetItem('first') >> self._tree_embed(),
                          td.GetItem('second') >> self._tree_embed(),
                          gold_similarity,
                          td.GetItem('id') >> td.Scalar(dtype='int32')
@@ -489,7 +502,8 @@ class SimilaritySequenceTreeTupleModel(object):
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.
-        (self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities, self._id) = self._compiler.output_tensors
+        (self._sim_jaccard, self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities, self._id) = self._compiler.output_tensors
+        #(self._tree_embeddings_1, self._tree_embeddings_2, self._gold_similarities, self._id) = self._compiler.output_tensors
 
         self._sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
@@ -497,13 +511,15 @@ class SimilaritySequenceTreeTupleModel(object):
         #    logits=logits, labels=labels))
 
         # use MSE
-        self._mse = tf.pow(self._sim - self._gold_similarities, 2)
+        self._mse = tf.square(self._sim - self._gold_similarities)
 
         # self._mse_comp = tf.pow((self._sim * 4.0) - (self._gold_similarities * 4.0), 2)
         self._mse_comp = self._mse * 16.0
 
         # self._mse = tf.square(self._sim - self._gold_similarities)
         self._loss = tf.reduce_mean(self._mse)
+
+        #self._loss_rev = tf.reduce_mean(tf.square(self._sim - self._sim_jaccard))
 
         # self._accuracy = tf.reduce_mean(
         #    tf.cast(tf.equal(tf.argmax(labels, 1),
@@ -515,11 +531,18 @@ class SimilaritySequenceTreeTupleModel(object):
         self._optimizer = optimizer(learning_rate=learning_rate)
         # self._train_op = _optimizer.minimize(self._loss, global_step=self._global_step)
 
-        # gradient clipping
+        # gradient manipulation
         gradients, variables = zip(*self._optimizer.compute_gradients(self._loss))
+        # reversal gradient integration
+        #gradients_rev, _ = zip(*self._optimizer.compute_gradients(self._loss_rev))
+        #gradients = list(gradients)
+        #for grads_idx, grads in enumerate(gradients):
+        #    if isinstance(grads, tf.Tensor):
+        #        gradients[grads_idx] = gradients[grads_idx] - gradients_rev[grads_idx]
+        # gradient clipping
         gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
         self._train_op = self._optimizer.apply_gradients(grads_and_vars=zip(gradients, variables),
-                                              global_step=self._global_step)
+                                                         global_step=self._global_step)
 
     @property
     def tree_embeddings_1(self):
@@ -552,6 +575,10 @@ class SimilaritySequenceTreeTupleModel(object):
     @property
     def sim(self):
         return self._sim
+
+    @property
+    def sim_jaccard(self):
+        return self._sim_jaccard
 
     @property
     def id(self):

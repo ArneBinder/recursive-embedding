@@ -98,7 +98,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                         300,
                         'size of the composition layer'],
          'learning_rate': [tf.flags.DEFINE_float,
-                           0.001,
+                           0.01,
                            # 'tanh',
                            'learning rate'],
          'optimizer': [tf.flags.DEFINE_string,
@@ -107,6 +107,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
+                    #'/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
                     '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
                     'Directory in which to write event logs.',
                     None]
@@ -360,12 +361,13 @@ def main(unused_argv):
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
-                for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs), 1):
+                for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
 
                     def do_epoch(data_set, train=True):
 
                         sim_all = []
                         sim_all_gold = []
+                        sim_all_jaccard = []
                         ids_all = []
                         loss_all = 0.0
                         step = None
@@ -373,8 +375,8 @@ def main(unused_argv):
                         for batch in td.group_by_batches(data_set, FLAGS.batch_size):
                             train_feed_dict = {model.compiler.loom_input_tensor: batch}
                             if train:
-                                _, step, batch_loss, sim, sim_gold, ids = sess.run(
-                                    [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities, model.id],
+                                _, step, batch_loss, sim, sim_gold, sim_jaccard, ids = sess.run(
+                                    [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities, model.sim_jaccard, model.id],
                                     train_feed_dict)
                                 collect_values(step, batch_loss, sim, sim_gold, train=train)
                                 # vars for print out: take only last result
@@ -383,12 +385,13 @@ def main(unused_argv):
                                 # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                                 #loss_all = batch_loss * len(batch)
                             else:
-                                step, batch_loss, sim, sim_gold, ids = sess.run(
-                                    [model.global_step, model.loss, model.sim, model.gold_similarities, model.id],
+                                step, batch_loss, sim, sim_gold, sim_jaccard, ids = sess.run(
+                                    [model.global_step, model.loss, model.sim, model.gold_similarities, model.sim_jaccard, model.id],
                                     train_feed_dict)
                                 # take average in test case
                             sim_all.append(sim)
                             sim_all_gold.append(sim_gold)
+                            sim_all_jaccard.append(sim_jaccard)
                             ids_all.append(ids)
                             # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                             loss_all += batch_loss * len(batch)
@@ -396,9 +399,12 @@ def main(unused_argv):
                         #print(np.concatenate(sim_all_gold).tolist())
                         sim_all_ = np.concatenate(sim_all)
                         sim_all_gold_ = np.concatenate(sim_all_gold)
+                        sim_all_jaccard_ = np.concatenate(sim_all_jaccard)
                         ids_all_ = np.concatenate(ids_all)
                         #print(sim_all_.tolist())
                         #print(sim_all_gold_.tolist())
+                        #print((sim_all_gold_ * 4.0 + 1.0).tolist())
+                        #print(sim_all_jaccard_.tolist())
                         #print(ids_all_.tolist())
                         collect_values(step, loss_all / len(sim_all_), sim_all_, sim_all_gold_,
                                        train=train, print_out=True, emit=(not train))
