@@ -98,7 +98,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                         300,
                         'size of the composition layer'],
          'learning_rate': [tf.flags.DEFINE_float,
-                           0.01,
+                           0.025001,
                            # 'tanh',
                            'learning rate'],
          'optimizer': [tf.flags.DEFINE_string,
@@ -361,6 +361,7 @@ def main(unused_argv):
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
+                test_losses = []
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
 
                     def do_epoch(data_set, train=True):
@@ -408,18 +409,28 @@ def main(unused_argv):
                         #print(ids_all_.tolist())
                         collect_values(step, loss_all / len(sim_all_), sim_all_, sim_all_gold_,
                                        train=train, print_out=True, emit=(not train))
-                        return step
+                        return step, loss_all / len(sim_all_)
 
                     # test
-                    _ = do_epoch(test_set, train=False)
-                    # train
-                    step_train = do_epoch(shuffled)
+                    _, loss_test = do_epoch(test_set, train=False)
 
-                    supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+                    # stop, if 5 different previous test losses are smaller than current loss
+                    if loss_test not in test_losses:
+                        test_losses.append(loss_test)
+                    if max(test_losses) == loss_test and len(test_losses) > 5:
+                        break
+                    else:
+                        if len(test_losses) > 5:
+                            del test_losses[0]
 
-                    current_lexicon = sess.run(model.tree_embedder.lexicon_var)
-                    current_lexicon.dump(os.path.join(logdir, 'model.vec'))
-                    # test_result_csv.close()
+                        # train
+                        step_train, _ = do_epoch(shuffled)
+
+                        supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+
+                        current_lexicon = sess.run(model.tree_embedder.lexicon_var)
+                        current_lexicon.dump(os.path.join(logdir, 'model.vec'))
+                        # test_result_csv.close()
 
 
 if __name__ == '__main__':
