@@ -98,7 +98,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                         300,
                         'size of the composition layer'],
          'learning_rate': [tf.flags.DEFINE_float,
-                           0.025001,
+                           0.1,
                            # 'tanh',
                            'learning rate'],
          'optimizer': [tf.flags.DEFINE_string,
@@ -308,7 +308,7 @@ def main(unused_argv):
                 logdir=logdir,
                 is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
-                save_model_secs=300,
+                save_model_secs=0,
                 summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph),
                 init_fn=load_pretrain if pre_train_saver is not None else None
             )
