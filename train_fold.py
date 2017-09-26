@@ -379,7 +379,7 @@ def main(unused_argv):
                                 _, step, batch_loss, sim, sim_gold, sim_jaccard, ids = sess.run(
                                     [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities, model.sim_jaccard, model.id],
                                     train_feed_dict)
-                                collect_values(step, batch_loss, sim, sim_gold, train=train)
+                                #collect_values(step, batch_loss, sim, sim_gold, train=train)
                                 # vars for print out: take only last result
                                 #sim_all = [sim]
                                 #sim_all_gold = [sim_gold]
@@ -408,16 +408,18 @@ def main(unused_argv):
                         #print(sim_all_jaccard_.tolist())
                         #print(ids_all_.tolist())
                         collect_values(step, loss_all / len(sim_all_), sim_all_, sim_all_gold_,
-                                       train=train, print_out=True, emit=(not train))
+                                       train=train, print_out=True)#, emit=(not train))
                         return step, loss_all / len(sim_all_)
 
                     # test
                     _, loss_test = do_epoch(test_set, train=False)
+                    loss_test = round(loss_test, 8) #100000000
 
                     # stop, if 5 different previous test losses are smaller than current loss
                     if loss_test not in test_losses:
                         test_losses.append(loss_test)
                     if max(test_losses) == loss_test and len(test_losses) > 5:
+                        logging.info('last test losses: ' + str(test_losses))
                         break
                     else:
                         if len(test_losses) > 5:
