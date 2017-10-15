@@ -105,7 +105,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   'If not 0, apply a fully connected layer with this size after composition'
                           ],
          'state_size': [tf.flags.DEFINE_integer,
-                        300,
+                        50,
                         'size of the composition layer'],
          'learning_rate': [tf.flags.DEFINE_float,
                            0.02,
@@ -114,6 +114,10 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'optimizer': [tf.flags.DEFINE_string,
                        'AdadeltaOptimizer',
                        'optimizer'],
+         'early_stop': [tf.flags.DEFINE_boolean,
+                       True,
+                       'If True, stop training when test loss decreases (queued)',
+                       None],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -430,7 +434,7 @@ def main(unused_argv):
                     # stop, if 5 different previous test losses are smaller than current loss
                     if loss_test not in test_losses:
                         test_losses.append(loss_test)
-                    if max(test_losses) == loss_test and len(test_losses) > 5:
+                    if max(test_losses) == loss_test and len(test_losses) > 5 and FLAGS.early_stop:
                         logging.info('last test losses: ' + str(test_losses))
                         break
                     else:
