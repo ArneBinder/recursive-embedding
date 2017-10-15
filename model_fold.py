@@ -122,7 +122,7 @@ def create_lexicon(lex_size, trainable=True):
 
 class TreeEmbedding(object):
     def __init__(self, name, lexicon_size, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
-                 root_fc_size=None):
+                 root_fc_size=0):
         self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
                                                                                       trainable=lexicon_trainable)
 
@@ -137,11 +137,6 @@ class TreeEmbedding(object):
             self._scope = scope
             #if self._apply_leaf_fc:
             if leaf_fc_size:
-                lexicon_dimension = self._lexicon.get_shape().as_list()[1]
-                #leaf_fc_size = self.embedding_fc_size_multiple * lexicon_dimension
-                # TODO: parametrize leaf_fc_size
-                #leaf_fc_size = lexicon_dimension
-                #leaf_fc_size = 300
                 self._leaf_fc = fc_scoped(num_units=leaf_fc_size,
                                           activation_fn=tf.nn.tanh, scope=scope,
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
@@ -407,10 +402,9 @@ class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT_
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, keep_prob=1.0, **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name or 'LSTM', **kwargs)
         with tf.variable_scope(self.scope):
-            keep_prob = 0.7
             self._lstm_cell = td.ScopedLayer(
                 tf.contrib.rnn.DropoutWrapper(
                     tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5),

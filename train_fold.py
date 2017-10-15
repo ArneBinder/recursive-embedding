@@ -118,6 +118,10 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                        True,
                        'If True, stop training when test loss decreases (queued)',
                        None],
+         'keep_prob': [tf.flags.DEFINE_float,
+                        0.7,
+                        'Keep probability for dropout layer',
+                        'kp'],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -302,7 +306,8 @@ def main(unused_argv):
                                                                 #leaf_fc_activation=leaf_fc_activation,
                                                                 #root_fc_activation=root_fc_activation)
                                                                 leaf_fc_size=FLAGS.leaf_fc_size,
-                                                                root_fc_size=FLAGS.root_fc_size)
+                                                                root_fc_size=FLAGS.root_fc_size,
+                                                                keep_prob=FLAGS.keep_prob)
 
             if old_checkpoint_fn is not None:
                 logging.info(
