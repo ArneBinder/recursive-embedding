@@ -191,9 +191,9 @@ class TreeEmbedding(object):
     def root_fc(self):
         return self._root_fc
 
-    @property
-    def embedding_fc_size_multiple(self):
-        return 1
+    #@property
+    #def embedding_fc_size_multiple(self):
+    #    return 1
 
     @property
     def lexicon_var(self):
@@ -270,7 +270,7 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
         children = self.children() >> td.Map(embed_tree()) >> td.Sum()
 
-        cases = td.AllOf(self.head(), children) >> td.Function(aggregator_order_aware)
+        cases = td.AllOf(self.head() >> self.leaf_fc, children) >> td.Function(aggregator_order_aware)
 
         embed_tree.resolve_to(cases)
         model = cases >> self.root_fc
@@ -369,15 +369,15 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT):
                                     name='head_level2')),
                        td.Concat(), self.leaf_fc, name=name)
 
-    @property
-    def embedding_fc_size_multiple(self):
-        # use word embedding and first child embedding
-        return 2
+    #@property
+    #def embedding_fc_size_multiple(self):
+    #    # use word embedding and first child embedding
+    #    return 2
 
 
 class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
     def __init__(self, **kwargs):
-        super(TreeEmbedding_FLAT_SUM, self).__init__(name='AVG', **kwargs)
+        super(TreeEmbedding_FLAT_SUM, self).__init__(name='SUM', **kwargs)
 
     def aggregate(self, name='aggregate'):
         # an aggregation function which doesn't take the order of the inputs into account
@@ -386,7 +386,7 @@ class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
 
 class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT):
     def __init__(self, **kwargs):
-        super(TreeEmbedding_FLAT_SUM_2levels, self).__init__(name='AVG_2levels', **kwargs)
+        super(TreeEmbedding_FLAT_SUM_2levels, self).__init__(name='SUM_2levels', **kwargs)
 
     def element(self, name='element'):
         # use word embedding and first child embedding
@@ -399,10 +399,10 @@ class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT):
         # an aggregation function which doesn't take the order of the inputs into account
         return td.Sum(name)
 
-    @property
-    def embedding_fc_size_multiple(self):
-        # use word embedding and first child embedding
-        return 2
+    #@property
+    #def embedding_fc_size_multiple(self):
+    #    # use word embedding and first child embedding
+    #    return 2
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
@@ -439,16 +439,42 @@ class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
         return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
 
-    @property
-    def embedding_fc_size_multiple(self):
-        # use word embedding and first child embedding
-        return 2
+    #@property
+    #def embedding_fc_size_multiple(self):
+    #    # use word embedding and first child embedding
+    #    return 2
 
 
 # compatibility
 class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT_LSTM_2levels):
     def __init__(self, **kwargs):
         super(TreeEmbedding_FLAT_LSTM50_2levels, self).__init__(name='LSTM50_2levels', **kwargs)
+
+
+class TreeEmbedding_FLAT_GRU(TreeEmbedding_FLAT):
+    def __init__(self, name=None, **kwargs):
+        this_name = 'GRU'
+        super(TreeEmbedding_FLAT_GRU, self).__init__(name=this_name + '_' + name if name else this_name, **kwargs)
+        with tf.variable_scope(self.scope):
+            self._gru_cell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self.state_size), 'gru_cell')
+
+    def aggregate(self, name='aggregate'):
+        # apply GRU >> take the GRU output state(s)
+        #return td.Pipe(td.RNN(self._gru_cell), td.GetItem(0), name=name)
+        return td.Pipe(td.RNN(self._gru_cell), td.GetItem(1), name=name)
+
+
+class TreeEmbedding_FLAT_GRU_2levels(TreeEmbedding_FLAT_GRU):
+    def __init__(self, name=None, **kwargs):
+        this_name = '2levels'
+        super(TreeEmbedding_FLAT_GRU_2levels, self).__init__(name=this_name + '_' + name if name else this_name, **kwargs)
+
+    def element(self, name='element'):
+        # use word embedding and first child embedding
+        return td.Pipe(td.AllOf(self.head(name='head_level1'),
+                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
+                                    name='head_level2')),
+                       td.Concat(), self.leaf_fc, name=name)
 
 
 def sim_cosine(e1, e2):
