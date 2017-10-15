@@ -432,13 +432,14 @@ def main(unused_argv):
                     loss_test = round(loss_test, 6) #100000000
 
                     # stop, if 5 different previous test losses are smaller than current loss
+                    queue_size = 50
                     if loss_test not in test_losses:
                         test_losses.append(loss_test)
-                    if max(test_losses) == loss_test and len(test_losses) > 5 and FLAGS.early_stop:
+                    if max(test_losses) == loss_test and len(test_losses) > queue_size and FLAGS.early_stop:
                         logging.info('last test losses: ' + str(test_losses))
                         break
                     else:
-                        if len(test_losses) > 5:
+                        if len(test_losses) > queue_size:
                             del test_losses[0]
 
                         # train
