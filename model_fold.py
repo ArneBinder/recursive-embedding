@@ -121,8 +121,8 @@ def create_lexicon(lex_size, trainable=True):
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, lexicon_size, lexicon_trainable=True, state_size=None, leaf_fc_activation=None,
-                 root_fc_activation=None):
+    def __init__(self, name, lexicon_size, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
+                 root_fc_size=None):
         self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
                                                                                       trainable=lexicon_trainable)
 
@@ -130,24 +130,25 @@ class TreeEmbedding(object):
             self._state_size = state_size
         else:
             self._state_size = self._lexicon.get_shape().as_list()[1]  # state_size
-        self._apply_leaf_fc = (leaf_fc_activation is not None)
+        #self._apply_leaf_fc = (leaf_fc_size > 0)
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
-            if self._apply_leaf_fc:
+            #if self._apply_leaf_fc:
+            if leaf_fc_size:
                 lexicon_dimension = self._lexicon.get_shape().as_list()[1]
                 #leaf_fc_size = self.embedding_fc_size_multiple * lexicon_dimension
                 # TODO: parametrize leaf_fc_size
                 #leaf_fc_size = lexicon_dimension
-                leaf_fc_size = 300
+                #leaf_fc_size = 300
                 self._leaf_fc = fc_scoped(num_units=leaf_fc_size,
-                                          activation_fn=leaf_fc_activation, scope=scope,
+                                          activation_fn=tf.nn.tanh, scope=scope,
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
                 self._leaf_fc = td.Identity()
-            if root_fc_activation:
-                self._root_fc = fc_scoped(num_units=self.state_size, activation_fn=root_fc_activation, scope=scope,
+            if root_fc_size:
+                self._root_fc = fc_scoped(num_units=self.state_size, activation_fn=tf.nn.tanh, scope=scope,
                                           name=VAR_PREFIX_FC_ROOT + '_%d' % self.state_size)
             else:
                 self._root_fc = td.Identity()
@@ -170,9 +171,9 @@ class TreeEmbedding(object):
     def lexicon(self):
         return self._lexicon
 
-    @property
-    def apply_leaf_fc(self):
-        return self._apply_leaf_fc
+    #@property
+    #def apply_leaf_fc(self):
+    #    return self._apply_leaf_fc
 
     @property
     def name(self):
@@ -414,6 +415,7 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
         return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
 
+
 # compatibility
 class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT_LSTM):
     def __init__(self, **kwargs):
@@ -482,6 +484,7 @@ def get_jaccard_sim(tree_tuple):
     heads1 = set(get_all_heads(tree_tuple['first']))
     heads2 = set(get_all_heads(tree_tuple['second']))
     return len(heads1 & heads2) / float(len(heads1 | heads2))
+
 
 class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""

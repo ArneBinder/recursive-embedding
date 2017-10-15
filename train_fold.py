@@ -94,11 +94,21 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                                   # 'tanh',
                                   'If not None, apply a fully connected layer with this activation function after composition',
                                   None],
+         'leaf_fc_size': [tf.flags.DEFINE_integer,
+                                     # 0,
+                                     50,
+                                     'If not 0, apply a fully connected layer with this size before composition'
+                          ],
+         'root_fc_size': [tf.flags.DEFINE_integer,
+                                  # 0,
+                                  50,
+                                  'If not 0, apply a fully connected layer with this size after composition'
+                          ],
          'state_size': [tf.flags.DEFINE_integer,
                         300,
                         'size of the composition layer'],
          'learning_rate': [tf.flags.DEFINE_float,
-                           0.1,
+                           0.02,
                            # 'tanh',
                            'learning rate'],
          'optimizer': [tf.flags.DEFINE_string,
@@ -108,7 +118,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
-                    '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
+                    '/home/arne/ML_local/tf/supervised/log/SA/NEW',
                     'Directory in which to write event logs.',
                     None]
          }
@@ -261,12 +271,12 @@ def main(unused_argv):
 
     logging.info('lex_size: ' + str(lex_size))
 
-    leaf_fc_activation = FLAGS.leaf_fc_activation
-    if leaf_fc_activation:
-        leaf_fc_activation = getattr(tf.nn, leaf_fc_activation)
-    root_fc_activation = FLAGS.root_fc_activation
-    if root_fc_activation:
-        root_fc_activation = getattr(tf.nn, root_fc_activation)
+    #leaf_fc_activation = FLAGS.leaf_fc_activation
+    #if leaf_fc_activation:
+    #    leaf_fc_activation = getattr(tf.nn, leaf_fc_activation)
+    #root_fc_activation = FLAGS.root_fc_activation
+    #if root_fc_activation:
+    #    root_fc_activation = getattr(tf.nn, root_fc_activation)
     optimizer = FLAGS.optimizer
     if FLAGS.optimizer:
         optimizer = getattr(tf.train, optimizer)
@@ -285,8 +295,10 @@ def main(unused_argv):
                                                                 optimizer=optimizer,
                                                                 sim_measure=sim_measure,
                                                                 lexicon_trainable=FLAGS.embeddings_trainable,
-                                                                leaf_fc_activation=leaf_fc_activation,
-                                                                root_fc_activation=root_fc_activation)
+                                                                #leaf_fc_activation=leaf_fc_activation,
+                                                                #root_fc_activation=root_fc_activation)
+                                                                leaf_fc_size=FLAGS.leaf_fc_size,
+                                                                root_fc_size=FLAGS.root_fc_size)
 
             if old_checkpoint_fn is not None:
                 logging.info(
@@ -413,7 +425,7 @@ def main(unused_argv):
 
                     # test
                     _, loss_test = do_epoch(test_set, train=False)
-                    loss_test = round(loss_test, 8) #100000000
+                    loss_test = round(loss_test, 6) #100000000
 
                     # stop, if 5 different previous test losses are smaller than current loss
                     if loss_test not in test_losses:
