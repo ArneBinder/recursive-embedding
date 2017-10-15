@@ -470,14 +470,15 @@ if __name__ == '__main__':
 
             embedder = model_fold.SequenceTreeEmbedding(lex_size=lex_size,
                                                         tree_embedder=tree_embedder,
+                                                        #TODO: depend on state_size in model
                                                         state_size=50,
                                                         sim_measure=sim_measure,
                                                         scoring_enabled=len(scoring_var_names) > 0,
                                                         embeddings_trainable=False,
-                                                        # TODO: depend on fc_leaf_var_names and use tf.nn.tanh. DONE, test!
-                                                        leaf_fc_activation=(tf.nn.tanh if len(fc_leaf_var_names) > 0 else None),
-                                                        # TODO: depend on fc_root_var_names and use tf.nn.tanh. DONE, test!
-                                                        root_fc_activation=(tf.nn.tanh if len(fc_root_var_names) > 0 else None)
+                                                        # TODO: depend on fc_leaf_var_names in model
+                                                        leaf_fc_size=(50 if len(fc_leaf_var_names) > 0 else 0),
+                                                        # TODO: depend on fc_root_var_names in model
+                                                        root_fc_size=(50 if len(fc_root_var_names) > 0 else 0)
                                                         #apply_embedding_fc=len(fc_embedding_var_names) > 0,
                                                         )
 
