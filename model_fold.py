@@ -352,9 +352,8 @@ class TreeEmbedding_FLAT(TreeEmbedding):
         return model
 
 
-#TODO: use this!
 class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name, **kwargs):
         super(TreeEmbedding_FLAT_2levels, self).__init__(name=name, **kwargs)
 
     def element(self, name='element'):
@@ -374,16 +373,16 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
         return td.Mean(name)
 
 
-class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG):
+class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT_2levels):
     def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_AVG_2levels, self).__init__(name=name or 'AVG_2levels', **kwargs)
 
-    def element(self, name='element'):
-        # use word embedding and first child embedding
-        return td.Pipe(td.AllOf(self.head(name='head_level1'),
-                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
-                                    name='head_level2')),
-                       td.Concat(), self.leaf_fc, name=name)
+    #def element(self, name='element'):
+    #    # use word embedding and first child embedding
+    #    return td.Pipe(td.AllOf(self.head(name='head_level1'),
+    #                            td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
+    #                                name='head_level2')),
+    #                   td.Concat(), self.leaf_fc, name=name)
 
 
 class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
@@ -395,20 +394,16 @@ class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
         return td.Sum(name)
 
 
-class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT):
+class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT_2levels):
     def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_SUM_2levels, self).__init__(name=name or 'SUM_2levels', **kwargs)
 
-    def element(self, name='element'):
-        # use word embedding and first child embedding
-        return td.Pipe(td.AllOf(self.head(name='head_level1'),
-                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
-                                    name='head_level2')),
-                       td.Concat(), self.leaf_fc, name=name)
-
-    def aggregate(self, name='aggregate'):
-        # an aggregation function which doesn't take the order of the inputs into account
-        return td.Sum(name)
+    #def element(self, name='element'):
+    #    # use word embedding and first child embedding
+    #    return td.Pipe(td.AllOf(self.head(name='head_level1'),
+    #                            td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
+    #                                name='head_level2')),
+    #                   td.Concat(), self.leaf_fc, name=name)
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
@@ -434,16 +429,16 @@ class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT_LSTM):
         super(TreeEmbedding_FLAT_LSTM50, self).__init__(name='LSTM50', **kwargs)
 
 
-class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT_LSTM):
+class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT_LSTM, TreeEmbedding_FLAT_2levels):
     def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_LSTM_2levels, self).__init__(name=name or 'LSTM_2levels', **kwargs)
 
-    def element(self, name='element'):
-        # use word embedding and first child embedding
-        return td.Pipe(td.AllOf(self.head(name='head_level1'),
-                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
-                                    name='head_level2')),
-                       td.Concat(), self.leaf_fc, name=name)
+    #def element(self, name='element'):
+    #    # use word embedding and first child embedding
+    #    return td.Pipe(td.AllOf(self.head(name='head_level1'),
+    #                            td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
+    #                                name='head_level2')),
+    #                   td.Concat(), self.leaf_fc, name=name)
 
 
 # compatibility
@@ -463,16 +458,16 @@ class TreeEmbedding_FLAT_GRU(TreeEmbedding_FLAT):
         return td.Pipe(td.RNN(self._gru_cell), td.GetItem(1), name=name)
 
 
-class TreeEmbedding_FLAT_GRU_2levels(TreeEmbedding_FLAT_GRU):
+class TreeEmbedding_FLAT_GRU_2levels(TreeEmbedding_FLAT_GRU, TreeEmbedding_FLAT_2levels):
     def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_GRU_2levels, self).__init__(name=name or 'GRU_2levels', **kwargs)
 
-    def element(self, name='element'):
-        # use word embedding and first child embedding
-        return td.Pipe(td.AllOf(self.head(name='head_level1'),
-                                td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
-                                    name='head_level2')),
-                       td.Concat(), self.leaf_fc, name=name)
+    #def element(self, name='element'):
+    #    # use word embedding and first child embedding
+    #    return td.Pipe(td.AllOf(self.head(name='head_level1'),
+    #                            td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
+    #                                name='head_level2')),
+    #                   td.Concat(), self.leaf_fc, name=name)
 
 
 def sim_cosine(e1, e2):
