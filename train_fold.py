@@ -27,7 +27,8 @@ import numpy as np
 flags = {'train_data_path': [tf.flags.DEFINE_string,
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',   # SICK_default
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/stsbenchmark/process_sentence3/STSBENCH_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
@@ -126,7 +127,7 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
-                    '/home/arne/ML_local/tf/supervised/log/SA/NEW',
+                    '/home/arne/ML_local/tf/supervised/log/SA/STSB',
                     'Directory in which to write event logs.',
                     None]
          }
@@ -200,7 +201,7 @@ def main(unused_argv):
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
     logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
-    train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.*')
+    train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.[0-9]*')
     train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
     logging.info('found ' + str(len(train_fnames)) + ' train data files')
     test_fname = train_fnames[FLAGS.test_file_index]

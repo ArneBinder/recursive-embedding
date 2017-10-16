@@ -372,7 +372,7 @@ class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, keep_prob=1.0, **kwargs):
         super(TreeEmbedding_FLAT_AVG, self).__init__(name=name or 'AVG', **kwargs)
 
     def aggregate(self, name='aggregate'):
@@ -386,7 +386,7 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT_
 
 
 class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, keep_prob=1.0, **kwargs):
         super(TreeEmbedding_FLAT_SUM, self).__init__(name=name or 'SUM', **kwargs)
 
     def aggregate(self, name='aggregate'):
