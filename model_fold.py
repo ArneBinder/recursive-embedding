@@ -133,10 +133,10 @@ class TreeEmbedding(object):
         #self._apply_leaf_fc = (leaf_fc_size > 0)
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
+        self._leaf_fc_size = leaf_fc_size
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
-            #if self._apply_leaf_fc:
-            if leaf_fc_size:
+            if self._leaf_fc_size:
                 self._leaf_fc = fc_scoped(num_units=leaf_fc_size,
                                           activation_fn=tf.nn.tanh, scope=scope,
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
@@ -181,6 +181,10 @@ class TreeEmbedding(object):
     @property
     def leaf_fc(self):
         return self._leaf_fc
+
+    @property
+    def leaf_fc_size(self):
+        return self._leaf_fc_size or 0
 
     @property
     def root_fc(self):
@@ -346,6 +350,10 @@ class TreeEmbedding_FLAT(TreeEmbedding):
         model = self.sequence() >> self.aggregate() >> self.root_fc
         return model
 
+    @property
+    def element_size(self):
+        return self.leaf_fc_size or DIMENSION_EMBEDDINGS
+
 
 class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
     def __init__(self, name, **kwargs):
@@ -357,6 +365,10 @@ class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0]) >> self.head(
                                     name='head_level2')),
                        td.Concat(), self.leaf_fc, name=name)
+
+    @property
+    def element_size(self):
+        return self.leaf_fc_size or (DIMENSION_EMBEDDINGS * 2)
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
@@ -409,7 +421,10 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
                 tf.contrib.rnn.DropoutWrapper(
                     tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5),
                     input_keep_prob=keep_prob,
-                    output_keep_prob=keep_prob),
+                    output_keep_prob=keep_prob,
+                    variational_recurrent=True,
+                    dtype=tf.float32,
+                    input_size=self.element_size),
                 'lstm_cell')
 
     def aggregate(self, name='aggregate'):
