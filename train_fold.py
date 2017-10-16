@@ -114,14 +114,14 @@ flags = {'train_data_path': [tf.flags.DEFINE_string,
          'optimizer': [tf.flags.DEFINE_string,
                        'AdadeltaOptimizer',
                        'optimizer'],
-         'early_stop': [tf.flags.DEFINE_boolean,
-                       True,
-                       'If True, stop training when test loss decreases (queued)',
-                       None],
+         'early_stop_queue': [tf.flags.DEFINE_integer,
+                              50,
+                              'If not 0, stop training when current test loss is smaller then last queued previous losses',
+                              None],
          'keep_prob': [tf.flags.DEFINE_float,
                         0.7,
-                        'Keep probability for dropout layer',
-                        'kp'],
+                        'Keep probability for dropout layer'
+                       ],
          'logdir': [tf.flags.DEFINE_string,
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -437,14 +437,14 @@ def main(unused_argv):
                     loss_test = round(loss_test, 6) #100000000
 
                     # stop, if 5 different previous test losses are smaller than current loss
-                    queue_size = 50
+                    #queue_size = 50
                     if loss_test not in test_losses:
                         test_losses.append(loss_test)
-                    if max(test_losses) == loss_test and len(test_losses) > queue_size and FLAGS.early_stop:
+                    if max(test_losses) == loss_test and len(test_losses) > FLAGS.early_stop_queue and FLAGS.early_stop_queue:
                         logging.info('last test losses: ' + str(test_losses))
                         break
                     else:
-                        if len(test_losses) > queue_size:
+                        if len(test_losses) > FLAGS.early_stop_queue:
                             del test_losses[0]
 
                         # train
