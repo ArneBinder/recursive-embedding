@@ -11,23 +11,28 @@ import numpy as np
 import corpus
 import preprocessing
 
+corpus_name = 'SICK'
+
 tf.flags.DEFINE_string(
     'corpus_data_input_train', '/home/arne/devel/ML/data/corpora/SICK/sick_train/SICK_train.txt',
-    'The path to the SICK train data file.')
+    'The path to the ' + corpus_name + ' train data file.')
 tf.flags.DEFINE_string(
-    'corpus_data_input_test', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
-    'The path to the SICK test data file.')
+    'corpus_data_input_dev', '/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
+    'The path to the ' + corpus_name + ' dev data file.')
+tf.flags.DEFINE_string(
+    'corpus_data_input_test',
+    None, #'/home/arne/devel/ML/data/corpora/SICK/sick_test_annotated/SICK_test_annotated.txt',
+    'The path to the ' + corpus_name + ' test data file.')
 tf.flags.DEFINE_string(
     'corpus_data_output_dir',
-    # 'data/corpora/sick',
-    '/media/arne/WIN/Users/Arne/ML/data/corpora/sick',
+    '/media/arne/WIN/Users/Arne/ML/data/corpora/' + corpus_name,
     'The path to the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
-    'corpus_data_output_fn', 'SICK_tt',
+    'corpus_data_output_fn', corpus_name + '_tt',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
 tf.flags.DEFINE_string(
     'sentence_processor',
-    'process_sentence4',
+    'process_sentence3',
     'Which data types (features) are used to build the data sequence.')
 tf.flags.DEFINE_string(
     'concat_mode',
@@ -50,9 +55,12 @@ tf.flags.DEFINE_string(
     '"sequence" -> roots point to next root, '
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     'None -> do not concat at all. This produces one sentence-tree per token.')
-#tf.flags.DEFINE_integer(
-#    'fold_count', 5,
-#    'How many folds to write.')
+tf.flags.DEFINE_integer(
+    'count_threshold',
+    1,
+    #TODO: check if less or equal-less
+    'remove token which occur less then count_threshold times in the corpus')
+
 
 FLAGS = tf.flags.FLAGS
 
@@ -107,14 +115,18 @@ if __name__ == '__main__':
                                          inner_concat_mode=FLAGS.inner_concat_mode)
 
     data_train, parents_train, scores_train, _ = read_data(FLAGS.corpus_data_input_train)
-    #data_dev, parents_dev, scores_dev, _ = read_data(FLAGS.corpus_data_input_dev)
-    data_test, parents_test, scores_test, _ = read_data(FLAGS.corpus_data_input_test)
-
-    data = np.concatenate((data_train, data_test))
-    parents = np.concatenate((parents_train, parents_test))
-    scores = np.concatenate((scores_train, scores_test))
+    data_dev, parents_dev, scores_dev, _ = read_data(FLAGS.corpus_data_input_dev)
+    if FLAGS.corpus_data_input_test:
+        data_test, parents_test, scores_test, _ = read_data(FLAGS.corpus_data_input_test)
+        data = np.concatenate((data_train, data_dev, data_test))
+        parents = np.concatenate((parents_train, parents_dev, parents_test))
+        scores = np.concatenate((scores_train, scores_dev, scores_test))
+    else:
+        data = np.concatenate((data_train, data_dev))
+        parents = np.concatenate((parents_train, parents_dev))
+        scores = np.concatenate((scores_train, scores_dev))
     types = corpus.revert_mapping_to_list(mapping)
-    converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types, count_threshold=1)
+    converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types, count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')
@@ -129,12 +141,9 @@ if __name__ == '__main__':
     sim_tuples = [(i*2, i*2 + 1, (scores[i] - 1.) / 4.) for i in range(len(scores))]
 
     corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:len(scores_train)], data, children, roots)
-    corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[len(scores_train):], data, children, roots)
+    corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[len(scores_train):len(scores_train)+len(scores_dev)], data, children, roots)
+    if FLAGS.corpus_data_input_test:
+        corpus.write_sim_tuple_data(out_path + '.train.2.test', sim_tuples[len(scores_train)+len(scores_dev):], data, children, roots)
 
-    #fold_size = len(roots) / FLAGS.fold_count
-    #start_idx = 0
-    #for fold in range(FLAGS.fold_count):
-    #    out_fn = out_path + '.train.'+str(fold)
-    #    write_data(out_fn, start_idx, fold_size, data, children, roots)
 
 
