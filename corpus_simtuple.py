@@ -1,12 +1,10 @@
-import csv
-import os
-import pprint
 import logging
+import os
 import sys
 
+import numpy as np
 import spacy
 import tensorflow as tf
-import numpy as np
 
 import corpus
 import preprocessing
@@ -64,11 +62,19 @@ def set_flags(corpus_name, fn_train, fn_dev, fn_test=None, output_suffix=None):
         'remove token which occur less then count_threshold times in the corpus')
 
 
-#FLAGS = tf.flags.FLAGS
+def create_corpus(reader_sentences, reader_score, FLAGS):
+    """
+    Creates a training corpus consisting of the following files (enumerated by file extension):
+        * .train.0, .train.1, (.train.2.test):  training, development and, optionally, test data
+        * .type:                                a types mapping, e.g. a list of types (strings), where its list
+                                                position serves as index
+        * .vec:                                 embedding vectors (indexed by types mapping)
+    :param reader_sentences: a file reader that yields sentences of the tuples where every two succinct sentences come
+                            from the same tuple: (sentence0, sentence1), (sentence2, sentence3), ...
+    :param reader_score: a file reader that yields similarity scores in the range of [0.0..1.0]
+    :param FLAGS: the flags
+    """
 
-#pp = pprint.PrettyPrinter(indent=4)
-
-def create_corpus(sentence_reader, score_reader, FLAGS):
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('load spacy ...')
     nlp = spacy.load('en')
@@ -92,14 +98,13 @@ def create_corpus(sentence_reader, score_reader, FLAGS):
 
     def read_data(file_name):
         return corpus.parse_texts_scored(filename=file_name,
-                                         reader=sentence_reader,
-                                         reader_scores=score_reader,
+                                         reader=reader_sentences,
+                                         reader_scores=reader_score,
                                          sentence_processor=sentence_processor,
                                          parser=nlp,
                                          mapping=mapping,
                                          concat_mode=FLAGS.concat_mode,
                                          inner_concat_mode=FLAGS.inner_concat_mode)
-
 
     data_train, parents_train, scores_train, _ = read_data(FLAGS.corpus_data_input_train)
     data_dev, parents_dev, scores_dev, _ = read_data(FLAGS.corpus_data_input_dev)
@@ -126,7 +131,8 @@ def create_corpus(sentence_reader, score_reader, FLAGS):
     children, roots = preprocessing.children_and_roots(parents)
     logging.debug('len(roots)=' + str(len(roots)))
 
-    sim_tuples = [(i * 2, i * 2 + 1, (scores[i] - 1.) / 4.) for i in range(len(scores))]
+    sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(len(scores))]
+    #sim_tuples = zip(np.array(range(len(scores)))*2, np.array(range(len(scores)))*2+1, scores)
 
     corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:len(scores_train)], data, children, roots)
     corpus.write_sim_tuple_data(out_path + '.train.1',

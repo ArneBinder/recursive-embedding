@@ -27,8 +27,8 @@ import numpy as np
 flags = {'train_data_path': ['DEFINE_string',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',   # SICK_default
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/stsbenchmark/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/SICK/process_sentence3/SICK_TT_CMaggregate',   # SICK_default
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
@@ -220,6 +220,7 @@ def main(unused_argv):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
         train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.[0-9]*')
         train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
+        assert len(train_fnames) > 0, 'no matching train data files found for ' + FLAGS.train_data_path
         logging.info('found ' + str(len(train_fnames)) + ' train data files')
         test_fname = train_fnames[FLAGS.test_file_index]
         logging.info('use ' + test_fname + ' for testing')

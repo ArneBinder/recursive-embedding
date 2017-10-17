@@ -27,11 +27,11 @@ def score_reader(filename):
     with open(filename, 'rb') as csvfile:
         reader = csv.reader(csvfile, delimiter=delimiter, quotechar='"')
         for row in reader:
-            yield float(row[2])
+            yield (float(row[2]) - 1.0) / 4.0
 
 
 if __name__ == '__main__':
-    corpus_simtuple.create_corpus(sentence_reader=sentence_reader, score_reader=score_reader, FLAGS=FLAGS)
+    corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader, FLAGS=FLAGS)
 
 
 
