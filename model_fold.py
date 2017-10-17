@@ -141,12 +141,13 @@ class TreeEmbedding(object):
             self._scope = scope
             if self._leaf_fc_size:
                 self._leaf_fc = fc_scoped(num_units=leaf_fc_size,
-                                          activation_fn=tf.nn.tanh, scope=scope,
+                                          activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
                 self._leaf_fc = td.Identity()
             if root_fc_size:
-                self._root_fc = fc_scoped(num_units=self.state_size, activation_fn=tf.nn.tanh, scope=scope,
+                self._root_fc = fc_scoped(num_units=root_fc_size, activation_fn=tf.nn.tanh, scope=scope,
+                                          keep_prob=self.keep_prob,
                                           name=VAR_PREFIX_FC_ROOT + '_%d' % self.state_size)
             else:
                 self._root_fc = td.Identity()
