@@ -36,7 +36,8 @@ flags = {'train_data_path': ['DEFINE_string',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate_NEGSAMPLES0',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
                              #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
-                             'TF Record file containing the training dataset of sequence tuples.'],
+                             'TF Record file containing the training dataset of sequence tuples.',
+                             'data'],
          'old_logdir': ['DEFINE_string',
                         None,
                         #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
@@ -45,26 +46,30 @@ flags = {'train_data_path': ['DEFINE_string',
                         None],
          'batch_size': ['DEFINE_integer',
                         100,
-                        'How many samples to read per batch.'],
+                        'How many samples to read per batch.',
+                        'batchs'],
          'epochs': ['DEFINE_integer',
                     1000000,
                     'The number of epochs.',
                     None],
          'test_file_index': ['DEFINE_integer',
                              1,
-                             'Which file of the train data files should be used as test data.'],
+                             'Which file of the train data files should be used as test data.',
+                             'test_file_i'],
          # TODO: rename to 'lexicon_trainable' (not yet done because of compatibility)
          'embeddings_trainable': ['DEFINE_boolean',
                                   # False,
                                   True,
-                                  'Iff enabled, fine tune the embeddings.'],
+                                  'Iff enabled, fine tune the embeddings.',
+                                  'lex_train'],
          'sim_measure': ['DEFINE_string',
                          'sim_cosine',
                          'similarity measure implementation (tensorflow) from model_fold for similarity score '
                          'calculation. Currently implemented:'
                          '"sim_cosine" -> cosine'
                          '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
-                         '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]'],
+                         '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
+                         'sm'],
          'tree_embedder': ['DEFINE_string',
                            'TreeEmbedding_FLAT_AVG',
                            'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
@@ -83,38 +88,44 @@ flags = {'train_data_path': ['DEFINE_string',
                            '"TreeEmbedding_FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
                            '                                       first second level children (e.g. dependency-edge '
                            '                                       type embedding) to the first level children '
-                           '                                       (e.g. token embeddings)'
+                           '                                       (e.g. token embeddings)',
+                           'te'
                            ],
-         'leaf_fc_activation': ['DEFINE_string',
-                                     # None,
-                                     'tanh',
-                                     'If not None, apply a fully connected layer with this activation function before composition',
-                                     None],
-         'root_fc_activation': ['DEFINE_string',
-                                  None,
-                                  # 'tanh',
-                                  'If not None, apply a fully connected layer with this activation function after composition',
-                                  None],
+         #'leaf_fc_activation': ['DEFINE_string',
+         #                            # None,
+         #                            'tanh',
+         #                            'If not None, apply a fully connected layer with this activation function before composition',
+         #                            None],
+         #'root_fc_activation': ['DEFINE_string',
+         #                         None,
+         #                         # 'tanh',
+         #                         'If not None, apply a fully connected layer with this activation function after composition',
+         #                         None],
          'leaf_fc_size': ['DEFINE_integer',
                                      # 0,
                                      50,
-                                     'If not 0, apply a fully connected layer with this size before composition'
+                                     'If not 0, apply a fully connected layer with this size before composition',
+                            'leaffc'
                           ],
          'root_fc_size': ['DEFINE_integer',
                                   # 0,
                                   50,
-                                  'If not 0, apply a fully connected layer with this size after composition'
+                                  'If not 0, apply a fully connected layer with this size after composition',
+                          'rootfc'
                           ],
          'state_size': ['DEFINE_integer',
                         50,
-                        'size of the composition layer'],
+                        'size of the composition layer',
+                        'state'],
          'learning_rate': ['DEFINE_float',
                            0.02,
                            # 'tanh',
-                           'learning rate'],
+                           'learning rate',
+                           'learning_r'],
          'optimizer': ['DEFINE_string',
                        'AdadeltaOptimizer',
-                       'optimizer'],
+                       'optimizer',
+                       'opt'],
          'early_stop_queue': ['DEFINE_integer',
                               50,
                               'If not 0, stop training when current test loss is smaller then last queued previous losses',
@@ -241,22 +252,24 @@ def main(unused_argv):
 
     run_desc = []
     for flag in sorted(flags.keys()):
-        # throw the type away
-        #flags[flag] = flags[flag][1:] + flags[flag][0]
         # get real flag value
         new_value = getattr(FLAGS, flag)
         flags[flag][1] = new_value
 
         # collect run description
-        if len(flags[flag]) < 4:
-            flag_name = flag.replace('_', '')
+        # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
+        if len(flags[flag]) < 4 or flags[flag][3]:
+            if len(flags[flag]) >= 4:
+                flag_name = flags[flag][3]
+            else:
+                flag_name = flag
+            flag_name = flag_name.replace('_', '')
             flag_value = str(new_value).replace('_', '')
             # if flag_value is a path, take only the last two subfolders
             flag_value = ''.join(flag_value.split(os.sep)[-2:])
             run_desc.append(flag_name.lower() + flag_value.upper())
-        # if a short version is set, use it. if it is set to None, add this flag not to the run_descriptions
-        elif flags[flag][3]:
-            run_desc.append(flag.replace('_', '').lower() + str(flags[flag][3]).replace('_', '').upper())
+        #elif flags[flag][3]:
+        #    run_desc.append(flag.replace('_', '').lower() + str(flags[flag][3]).replace('_', '').upper())
 
     flags['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
     logging.info('serialized run description: ' + flags['run_description'][1])
