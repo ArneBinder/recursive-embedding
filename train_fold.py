@@ -326,8 +326,6 @@ def main(unused_argv):
                                                                 optimizer=optimizer,
                                                                 sim_measure=sim_measure,
                                                                 lexicon_trainable=FLAGS.lexicon_trainable,
-                                                                #leaf_fc_activation=leaf_fc_activation,
-                                                                #root_fc_activation=root_fc_activation)
                                                                 leaf_fc_size=FLAGS.leaf_fc_size,
                                                                 root_fc_size=FLAGS.root_fc_size,
                                                                 keep_prob=FLAGS.keep_prob)
@@ -404,12 +402,12 @@ def main(unused_argv):
                 step = None
                 # for batch in td.group_by_batches(data_set, FLAGS.batch_size if train else len(test_set)):
                 for batch in td.group_by_batches(data_set, FLAGS.batch_size):
-                    train_feed_dict = {model.compiler.loom_input_tensor: batch}
                     if train:
+                        feed_dict = {model.compiler.loom_input_tensor: batch}
                         _, step, batch_loss, sim, sim_gold, sim_jaccard, ids = sess.run(
                             [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities,
                              model.sim_jaccard, model.id],
-                            train_feed_dict)
+                            feed_dict)
                         # collect_values(step, batch_loss, sim, sim_gold, train=train)
                         # vars for print out: take only last result
                         # sim_all = [sim]
@@ -417,10 +415,11 @@ def main(unused_argv):
                         # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                         # loss_all = batch_loss * len(batch)
                     else:
+                        feed_dict = {model.compiler.loom_input_tensor: batch, model.keep_prob: 1.0}
                         step, batch_loss, sim, sim_gold, sim_jaccard, ids = sess.run(
                             [model.global_step, model.loss, model.sim, model.gold_similarities, model.sim_jaccard,
                              model.id],
-                            train_feed_dict)
+                            feed_dict)
                         # take average in test case
                     sim_all.append(sim)
                     sim_all_gold.append(sim_gold)

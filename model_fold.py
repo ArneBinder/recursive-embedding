@@ -33,9 +33,12 @@ def SeqToTuple(T, N):
             .set_output_type(td.TupleType(*([T] * N))))
 
 
-def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu):
+def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu, keep_prob=None):
     def fc_(inputs, scope):
-        return tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope)
+        if keep_prob is None:
+            return tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope)
+        else:
+            return tf.nn.dropout(tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope), keep_prob)
 
     if not name:
         name = 'FC_scoped_%d' % num_units
@@ -121,11 +124,11 @@ def create_lexicon(lex_size, trainable=True):
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, lexicon_size, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
+    def __init__(self, name, lexicon_size, keep_prob_placeholder, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
                  root_fc_size=0):
         self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
                                                                                       trainable=lexicon_trainable)
-
+        self._keep_prob = keep_prob_placeholder
         if state_size:
             self._state_size = state_size
         else:
@@ -205,6 +208,10 @@ class TreeEmbedding(object):
     @property
     def lexicon_placeholder(self):
         return self._lexicon_placeholder
+
+    @property
+    def keep_prob(self):
+        return self._keep_prob
 
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
@@ -372,7 +379,7 @@ class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
-    def __init__(self, name=None, keep_prob=1.0, **kwargs):
+    def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_AVG, self).__init__(name=name or 'AVG', **kwargs)
 
     def aggregate(self, name='aggregate'):
@@ -386,7 +393,7 @@ class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT_
 
 
 class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
-    def __init__(self, name=None, keep_prob=1.0, **kwargs):
+    def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_SUM, self).__init__(name=name or 'SUM', **kwargs)
 
     def aggregate(self, name='aggregate'):
@@ -400,14 +407,14 @@ class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT_
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
-    def __init__(self, name=None, keep_prob=1.0, **kwargs):
+    def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name or 'LSTM', **kwargs)
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(
                 tf.contrib.rnn.DropoutWrapper(
                     tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5),
-                    input_keep_prob=keep_prob,
-                    output_keep_prob=keep_prob,
+                    input_keep_prob=self.keep_prob,
+                    output_keep_prob=self.keep_prob,
                     variational_recurrent=True,
                     dtype=tf.float32,
                     input_size=self.element_size),
@@ -436,14 +443,14 @@ class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT_LSTM_2levels):
 
 
 class TreeEmbedding_FLAT_GRU(TreeEmbedding_FLAT):
-    def __init__(self, name=None, keep_prob=1.0, **kwargs):
+    def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_GRU, self).__init__(name=name or 'GRU', **kwargs)
         with tf.variable_scope(self.scope):
             self._gru_cell = td.ScopedLayer(
                 tf.contrib.rnn.DropoutWrapper(
                     tf.contrib.rnn.GRUCell(num_units=self.state_size),
-                    input_keep_prob=keep_prob,
-                    output_keep_prob=keep_prob,
+                    input_keep_prob=self.keep_prob,
+                    output_keep_prob=self.keep_prob,
                     variational_recurrent=True,
                     dtype=tf.float32,
                     input_size=self.element_size),
@@ -499,11 +506,13 @@ class SimilaritySequenceTreeTupleModel(object):
 
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01,
                  optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
-                 lexicon_trainable=True, **kwargs):
+                 lexicon_trainable=True, keep_prob=1.0, **kwargs):
 
         gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
+        self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
 
-        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable, **kwargs)
+        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable,
+                                         keep_prob_placeholder=self._keep_prob, **kwargs)
         model = td.AllOf(td.InputTransform(get_jaccard_sim) >> td.Scalar(),
                          td.GetItem('first') >> self._tree_embed(),
                          td.GetItem('second') >> self._tree_embed(),
@@ -626,6 +635,10 @@ class SimilaritySequenceTreeTupleModel(object):
 
     def build_feed_dict(self, sim_trees):
         return self._compiler.build_feed_dict(sim_trees)
+
+    @property
+    def keep_prob(self):
+        return self._keep_prob
 
 
 class SequenceTreeEmbedding(object):
