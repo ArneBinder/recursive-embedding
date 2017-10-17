@@ -25,32 +25,31 @@ tf.flags.DEFINE_string(
 tf.flags.DEFINE_string(
     'corpus_data_output_fn', 'SICK_tt',
     'Base filename of the output data files (samples, embedding vectors, mappings).')
-tf.flags.DEFINE_integer(
-    'corpus_size', -1,
-    'How many samples to write. Use a negative dummy value to set no limit.')
 tf.flags.DEFINE_string(
     'sentence_processor',
     'process_sentence4',
     'Which data types (features) are used to build the data sequence.')
 tf.flags.DEFINE_string(
     'concat_mode',
-    'sequence',
-    #'aggregate',
+    #'sequence',
+    'aggregate',
     #constants.default_inner_concat_mode,
-    'How to concatenate the trees returned for one sentence. '
+    'How to concatenate the sentence-trees with each other. '
+    'A sentence-tree represents the information regarding one sentence. '
     '"sequence" -> roots point to next root, '
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
 tf.flags.DEFINE_string(
     'inner_concat_mode',
-    'tree',
-    #None,
+    #'tree',
+    None,
     #constants.default_inner_concat_mode,
-    'How to concatenate the trees returned for one token. '
+    'How to concatenate the token-trees with each other. '
+    'A token-tree represents the information regarding one token. '
     '"tree" -> use dependency parse tree'
     '"sequence" -> roots point to next root, '
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
-    'None -> do not concat at all')
+    'None -> do not concat at all. This produces one sentence-tree per token.')
 #tf.flags.DEFINE_integer(
 #    'fold_count', 5,
 #    'How many folds to write.')
@@ -60,7 +59,7 @@ FLAGS = tf.flags.FLAGS
 pp = pprint.PrettyPrinter(indent=4)
 
 
-def sick_sentence_reader(filename):
+def sentence_reader(filename):
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, delimiter='\t')
         for row in reader:
@@ -68,7 +67,7 @@ def sick_sentence_reader(filename):
             yield row['sentence_B'].decode('utf-8') + '.'
 
 
-def sick_score_reader(filename):
+def score_reader(filename):
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, delimiter='\t')
         for row in reader:
@@ -97,23 +96,19 @@ if __name__ == '__main__':
     if FLAGS.inner_concat_mode is not None:
         out_path = out_path + '_ICM' + FLAGS.inner_concat_mode
 
-    data_train, parents_train, scores_train, _ = corpus.parse_texts_scored(filename=FLAGS.corpus_data_input_train,
-                                                                           reader=sick_sentence_reader,
-                                                                           reader_scores=sick_score_reader,
-                                                                           sentence_processor=sentence_processor,
-                                                                           parser=nlp,
-                                                                           mapping=mapping,
-                                                                           concat_mode=FLAGS.concat_mode,
-                                                                           inner_concat_mode=FLAGS.inner_concat_mode)
+    def read_data(file_name):
+        return corpus.parse_texts_scored(filename=file_name,
+                                         reader=sentence_reader,
+                                         reader_scores=score_reader,
+                                         sentence_processor=sentence_processor,
+                                         parser=nlp,
+                                         mapping=mapping,
+                                         concat_mode=FLAGS.concat_mode,
+                                         inner_concat_mode=FLAGS.inner_concat_mode)
 
-    data_test, parents_test, scores_test, _ = corpus.parse_texts_scored(filename=FLAGS.corpus_data_input_test,
-                                                                        reader=sick_sentence_reader,
-                                                                        reader_scores=sick_score_reader,
-                                                                        sentence_processor=sentence_processor,
-                                                                        parser=nlp,
-                                                                        mapping=mapping,
-                                                                        concat_mode=FLAGS.concat_mode,
-                                                                        inner_concat_mode=FLAGS.inner_concat_mode)
+    data_train, parents_train, scores_train, _ = read_data(FLAGS.corpus_data_input_train)
+    #data_dev, parents_dev, scores_dev, _ = read_data(FLAGS.corpus_data_input_dev)
+    data_test, parents_test, scores_test, _ = read_data(FLAGS.corpus_data_input_test)
 
     data = np.concatenate((data_train, data_test))
     parents = np.concatenate((parents_train, parents_test))

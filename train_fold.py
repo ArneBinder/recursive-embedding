@@ -27,8 +27,8 @@ import numpy as np
 flags = {'train_data_path': ['DEFINE_string',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',   # SICK_default
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/stsbenchmark/process_sentence3/STSBENCH_CMaggregate',
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMaggregate',   # SICK_default
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/stsbenchmark/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
@@ -127,7 +127,7 @@ flags = {'train_data_path': ['DEFINE_string',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
-                    '/home/arne/ML_local/tf/supervised/log/SA/STSB',
+                    '/home/arne/ML_local/tf/supervised/log/SA/ROOTFC0',
                     'Directory in which to write event logs.',
                     None]
          }

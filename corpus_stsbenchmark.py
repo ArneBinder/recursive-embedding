@@ -37,7 +37,8 @@ tf.flags.DEFINE_string(
     #'sequence',
     'aggregate',
     #constants.default_inner_concat_mode,
-    'How to concatenate the sentence-trees (a sentence-tree represents the information regarding one sentence). '
+    'How to concatenate the sentence-trees with each other. '
+    'A sentence-tree represents the information regarding one sentence. '
     '"sequence" -> roots point to next root, '
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
     '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
@@ -46,11 +47,12 @@ tf.flags.DEFINE_string(
     #'tree',
     None,
     #constants.default_inner_concat_mode,
-    'How to concatenate the token-trees (a token-tree represents the information regarding one token). '
+    'How to concatenate the token-trees with each other. '
+    'A token-tree represents the information regarding one token. '
     '"tree" -> use dependency parse tree'
     '"sequence" -> roots point to next root, '
     '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
-    'None -> do not concat at all')
+    'None -> do not concat at all. This produces one sentence-tree per token.')
 #tf.flags.DEFINE_integer(
 #    'fold_count', 5,
 #    'How many folds to write.')
