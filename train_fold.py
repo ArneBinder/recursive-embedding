@@ -127,7 +127,7 @@ flags = {'train_data_path': ['DEFINE_string',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
-                    '/home/arne/ML_local/tf/supervised/log/SA/ROOTFC0',
+                    '/home/arne/ML_local/tf/supervised/log/SA/DEBUG',
                     'Directory in which to write event logs.',
                     None]
          }
@@ -234,11 +234,6 @@ def main(unused_argv):
     test_iterator = iterate_over_tf_record_protos(
         [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
-    # DEBUG
-    # vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
-    # lex_size = vecs.shape[0]
-    # embedding_dim = vecs.shape[1]
-
     run_desc = []
     for flag in sorted(flags.keys()):
         # get real flag value
@@ -257,8 +252,6 @@ def main(unused_argv):
             # if flag_value is a path, take only the last two subfolders
             flag_value = ''.join(flag_value.split(os.sep)[-2:])
             run_desc.append(flag_name.lower() + flag_value.upper())
-        #elif flags[flag][3]:
-        #    run_desc.append(flag.replace('_', '').lower() + str(flags[flag][3]).replace('_', '').upper())
 
     flags['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
     logging.info('serialized run description: ' + flags['run_description'][1])
@@ -302,12 +295,6 @@ def main(unused_argv):
 
     logging.info('lex_size: ' + str(lex_size))
 
-    #leaf_fc_activation = FLAGS.leaf_fc_activation
-    #if leaf_fc_activation:
-    #    leaf_fc_activation = getattr(tf.nn, leaf_fc_activation)
-    #root_fc_activation = FLAGS.root_fc_activation
-    #if root_fc_activation:
-    #    root_fc_activation = getattr(tf.nn, root_fc_activation)
     optimizer = FLAGS.optimizer
     if FLAGS.optimizer:
         optimizer = getattr(tf.train, optimizer)
@@ -477,9 +464,7 @@ def main(unused_argv):
                         test_p_rs_sorted = sorted(test_p_rs, reverse=True)
                     rank = test_p_rs_sorted.index(p_r)
 
-                    #print(p_r)
-                    #print(test_p_rs)
-                    logging.debug('pearson_r rank (of '+str(len(test_p_rs))+'):\t'+str(rank)+'\tdif: '+str(p_r_dif))
+                    logging.debug('pearson_r rank (of %i):\t%i\tdif: %f' % (len(test_p_rs), rank, round(p_r_dif, 6)))
                     if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(test_p_rs) -1: #min(test_p_rs) == p_r :
                         logging.info('last test pearsons_r: ' + str(test_p_rs))
                         break
@@ -494,7 +479,6 @@ def main(unused_argv):
 
                         current_lexicon = sess.run(model.tree_embedder.lexicon_var)
                         current_lexicon.dump(os.path.join(logdir, 'model.vec'))
-                        # test_result_csv.close()
 
 
 if __name__ == '__main__':
