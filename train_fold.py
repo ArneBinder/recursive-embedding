@@ -371,16 +371,16 @@ def main(unused_argv):
                     writer = test_writer
                     csv_writer = test_result_writer
 
-                p_r_train = pearsonr(sim, sim_gold)
-                s_r_train = spearmanr(sim, sim_gold)
+                p_r = pearsonr(sim, sim_gold)
+                s_r = spearmanr(sim, sim_gold)
 
                 if emit:
                     emit_values(supervisor, sess, step,
                                 {'loss': loss,
-                                 'pearson_r': p_r_train[0],
-                                 'pearson_r_p': p_r_train[1],
-                                 'spearman_r': s_r_train[0],
-                                 'spearman_r_p': s_r_train[1],
+                                 'pearson_r': p_r[0],
+                                 'pearson_r_p': p_r[1],
+                                 'spearman_r': s_r[0],
+                                 'spearman_r_p': s_r[1],
                                  'sim_avg': np.average(sim)
                                  },
                                 writer=writer,
@@ -389,7 +389,7 @@ def main(unused_argv):
                     logging.info(
                         (
                             'epoch=%d step=%d: loss_' + suffix + '=%f\tpearson_r_' + suffix + '=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
-                            epoch, step, loss, p_r_train[0], np.average(sim),
+                            epoch, step, loss, p_r[0], np.average(sim),
                             np.average(sim_gold), np.var(sim_gold)))
 
             def do_epoch(model, data_set, epoch, train=True, emit=True):
@@ -460,28 +460,35 @@ def main(unused_argv):
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
-                test_losses = []
+                test_p_rs = []
+                test_p_rs_sorted = [0]
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
 
                     # test
                     step, loss_test, sim_all, sim_all_gold = do_epoch(model, test_set, epoch, train=False)
-                    #collect_values(step, loss_test, sim_all, sim_all_gold, train=False)
 
-                    loss_test = round(loss_test, 6) #100000000
+                    #loss_test = round(loss_test, 6) #100000000
+                    p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
+                    p_r_dif = p_r - max(test_p_rs_sorted)
                     # stop, if different previous test losses are smaller than current loss. The amount of regarded
                     # previous values is set by FLAGS.early_stop_queue
-                    if loss_test not in test_losses:
-                        test_losses.append(loss_test)
-                    if max(test_losses) == loss_test and len(test_losses) > FLAGS.early_stop_queue and FLAGS.early_stop_queue:
-                        logging.info('last test losses: ' + str(test_losses))
+                    if p_r not in test_p_rs:
+                        test_p_rs.append(p_r)
+                        test_p_rs_sorted = sorted(test_p_rs, reverse=True)
+                    rank = test_p_rs_sorted.index(p_r)
+
+                    #print(p_r)
+                    #print(test_p_rs)
+                    logging.debug('pearson_r rank (of '+str(len(test_p_rs))+'):\t'+str(rank)+'\tdif: '+str(p_r_dif))
+                    if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(test_p_rs) -1: #min(test_p_rs) == p_r :
+                        logging.info('last test pearsons_r: ' + str(test_p_rs))
                         break
                     else:
-                        if len(test_losses) > FLAGS.early_stop_queue:
-                            del test_losses[0]
+                        if len(test_p_rs) > FLAGS.early_stop_queue:
+                            del test_p_rs[0]
 
                         # train
                         step_train, loss_train, sim_all, sim_all_gold = do_epoch(model, shuffled, epoch)
-                        #collect_values(step, loss_train, sim_all, sim_all_gold, train=True)
 
                         supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
