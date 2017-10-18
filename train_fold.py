@@ -9,6 +9,7 @@ import ntpath
 import os
 # import google3
 import shutil
+from functools import reduce
 
 from scipy.stats.stats import pearsonr
 from scipy.stats.mstats import spearmanr
@@ -57,8 +58,8 @@ flags = {'train_data_path': ['DEFINE_string',
                              'Which file of the train data files should be used as test data.',
                              'test_file_i'],
          'lexicon_trainable': ['DEFINE_boolean',
-                                  # False,
-                                  True,
+                                  False,
+                               # True,
                                   'Iff enabled, fine tune the embeddings.',
                                   'lex_train'],
          'sim_measure': ['DEFINE_string',
@@ -136,7 +137,7 @@ flags = {'train_data_path': ['DEFINE_string',
 tf.flags.DEFINE_string('test_only_file',
                        None,
                        'Set this to execute evaluation only.')
-tf.flags.DEFINE_string('logdir_continue',
+tf.flags.DEFINE_string('load_logdir',
                        None,
                        'continue training with config from flags.json')
 
@@ -153,10 +154,10 @@ logging_format = '%(asctime)s %(message)s'
 tf.logging._logger.propagate = False
 tf.logging._logger.format = logging_format
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
-# overwrite current flags with values from logdir_continue/flags.json
-if FLAGS.logdir_continue:
-    logging.info('load flags from logdir: %s', FLAGS.logdir_continue)
-    with open(os.path.join(FLAGS.logdir_continue, 'flags.json'), 'r') as infile:
+# overwrite current flags with values from load_logdir/flags.json
+if FLAGS.load_logdir:
+    logging.info('load flags from logdir: %s', FLAGS.load_logdir)
+    with open(os.path.join(FLAGS.load_logdir, 'flags.json'), 'r') as infile:
         flags = json.load(infile)
 
 for flag in flags:
@@ -213,6 +214,14 @@ def csv_test_writer(logdir, mode='w'):
     return test_result_writer
 
 
+def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
+    count = 0
+    for tensor_name in shapes:
+        if tensor_name.endswith(selector_suffix):
+            count += reduce((lambda x, y: x * y), shapes[tensor_name])
+    return count
+
+
 def main(unused_argv):
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
@@ -266,6 +275,7 @@ def main(unused_argv):
         logging.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
+        logging.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
         embed_shape = saved_shapes[model_fold.VAR_NAME_LEXICON]
         lex_size = embed_shape[0]
         # create test result writer
