@@ -58,8 +58,8 @@ flags = {'train_data_path': ['DEFINE_string',
                              'Which file of the train data files should be used as test data.',
                              'test_file_i'],
          'lexicon_trainable': ['DEFINE_boolean',
-                                  False,
-                               # True,
+                               #   False,
+                               True,
                                   'Iff enabled, fine tune the embeddings.',
                                   'lex_train'],
          'sim_measure': ['DEFINE_string',
@@ -128,7 +128,7 @@ flags = {'train_data_path': ['DEFINE_string',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
                     #'/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
-                    '/home/arne/ML_local/tf/supervised/log/SA/DEBUG',
+                    '/home/arne/ML_local/tf/supervised/log/SA/ROOTFC0',
                     'Directory in which to write event logs.',
                     None]
          }
@@ -461,8 +461,11 @@ def main(unused_argv):
                 test_p_rs_sorted = [0]
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
 
+                    # train
+                    do_epoch(model, shuffled, epoch)
+
                     # test
-                    step, loss_test, sim_all, sim_all_gold = do_epoch(model, test_set, epoch, train=False)
+                    step_test, loss_test, sim_all, sim_all_gold = do_epoch(model, test_set, epoch, train=False)
 
                     #loss_test = round(loss_test, 6) #100000000
                     p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
@@ -478,17 +481,19 @@ def main(unused_argv):
                     if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(test_p_rs) -1: #min(test_p_rs) == p_r :
                         logging.info('last test pearsons_r: ' + str(test_p_rs))
                         break
-                    else:
-                        if len(test_p_rs) > FLAGS.early_stop_queue:
-                            del test_p_rs[0]
 
-                        # train
-                        step_train, loss_train, sim_all, sim_all_gold = do_epoch(model, shuffled, epoch)
+                    if len(test_p_rs) > FLAGS.early_stop_queue:
+                        if test_p_rs[0] == max(test_p_rs):
+                            logging.debug('warning: remove highest value (%f)' % test_p_rs[0])
+                        del test_p_rs[0]
 
-                        supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+                    if rank == 0:
+                        supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
                         current_lexicon = sess.run(model.tree_embedder.lexicon_var)
                         current_lexicon.dump(os.path.join(logdir, 'model.vec'))
+                    else:
+                        supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
 
 
 if __name__ == '__main__':
