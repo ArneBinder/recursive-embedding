@@ -124,6 +124,11 @@ flags = {'train_data_path': ['DEFINE_string',
                         0.7,
                         'Keep probability for dropout layer'
                        ],
+         'auto_restore': ['DEFINE_boolean',
+                          False,
+                          #   True,
+                          'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
+                          'restore'],
          'logdir': ['DEFINE_string',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                     # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -492,7 +497,8 @@ def main(unused_argv):
 
                         current_lexicon = sess.run(model.tree_embedder.lexicon_var)
                         current_lexicon.dump(os.path.join(logdir, 'model.vec'))
-                    else:
+                    # auto restore if no improvement on test data
+                    elif FLAGS.auto_restore:
                         supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
 
 
