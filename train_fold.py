@@ -155,8 +155,9 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
 
-logging_format = '%(asctime)s %(message)s'
+logging_format = '%(asctime)s %(levelname)s %(message)s'
 tf.logging._logger.propagate = False
+tf.logging._handler.setFormatter(logging.Formatter(logging_format))
 tf.logging._logger.format = logging_format
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
 # overwrite current flags with values from load_logdir/flags.json
@@ -467,7 +468,8 @@ def main(unused_argv):
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
 
                     # train
-                    do_epoch(model, shuffled, epoch)
+                    if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
+                        do_epoch(model, shuffled, epoch)
 
                     # test
                     step_test, loss_test, sim_all, sim_all_gold = do_epoch(model, test_set, epoch, train=False)
@@ -492,14 +494,17 @@ def main(unused_argv):
                             logging.debug('warning: remove highest value (%f)' % test_p_rs[0])
                         del test_p_rs[0]
 
-                    if rank == 0:
-                        supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
+                    if rank > 0:
+                        # auto restore if no improvement on test data
+                        if FLAGS.auto_restore:
+                            supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                    else:
+                        # don't save after first epoch if FLAGS.early_stop_queue > 0
+                        if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
+                            supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
-                        current_lexicon = sess.run(model.tree_embedder.lexicon_var)
-                        current_lexicon.dump(os.path.join(logdir, 'model.vec'))
-                    # auto restore if no improvement on test data
-                    elif FLAGS.auto_restore:
-                        supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                            current_lexicon = sess.run(model.tree_embedder.lexicon_var)
+                            current_lexicon.dump(os.path.join(logdir, 'model.vec'))
 
 
 if __name__ == '__main__':
