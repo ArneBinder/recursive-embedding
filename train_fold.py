@@ -28,8 +28,9 @@ import numpy as np
 flags = {'train_data_path': ['DEFINE_string',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/SICK/process_sentence3/SICK_TT_CMaggregate',   # SICK_default
+                             '/media/arne/WIN/Users/Arne/ML/data/corpora/SICK/process_sentence3/SICK_TT_CMaggregate',   # SICK default
                              #'/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
+                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/ANNOPPDB/process_sentence3/ANNOPPDB_CMaggregate',   # ANNOPPDB default
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
                              # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
@@ -494,7 +495,7 @@ def main(unused_argv):
                             logging.debug('warning: remove highest value (%f)' % test_p_rs[0])
                         del test_p_rs[0]
 
-                    if rank > 0:
+                    if rank > len(test_p_rs) * 0.05:
                         # auto restore if no improvement on test data
                         if FLAGS.auto_restore:
                             supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
