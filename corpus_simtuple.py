@@ -125,6 +125,19 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
     data.dump(out_path + '.data')
     parents.dump(out_path + '.parent')
     scores.dump(out_path + '.score')
+
+    #one_hot_types = []
+    #one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj', u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl', u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt', u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp', u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj', u'DEP#']
+    one_hot_types = [t for t in types if t.startswith('DEP#')]
+    mapping = corpus.mapping_from_list(types)
+    one_hot_ids = [mapping[t] for t in one_hot_types]
+    if len(one_hot_ids) > vecs.shape[1]:
+        logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
+                        ' That overrides previously added one hot embeddings!' % vecs.shape[1])
+    for i, idx in enumerate(one_hot_ids):
+        vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
+        vecs[idx][i % vecs.shape[1]] = 1.0
+
     corpus.write_dict(out_path, vecs=vecs, types=types)
     logging.info('the dataset contains ' + str(len(scores)) + ' scored text tuples')
     logging.debug('calc roots ...')
