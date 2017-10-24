@@ -32,7 +32,7 @@ def set_flags(corpus_name, fn_train, fn_dev, fn_test=None, output_suffix=None):
         'Base filename of the output data files (samples, embedding vectors, mappings).')
     tf.flags.DEFINE_string(
         'sentence_processor',
-        'process_sentence3',
+        'process_sentence3_marked',
         'Which data types (features) are used to build the data sequence.')
     tf.flags.DEFINE_string(
         'concat_mode',
@@ -60,10 +60,6 @@ def set_flags(corpus_name, fn_train, fn_dev, fn_test=None, output_suffix=None):
         1,
         #TODO: check if less or equal-less
         'remove token which occur less then count_threshold times in the corpus')
-    tf.flags.DEFINE_boolean(
-        'new_as_one_hot',
-        True,
-        'Iff enabled use one hot encodings for newly added lexicon entries')
 
 
 def create_corpus(reader_sentences, reader_score, FLAGS):
@@ -123,8 +119,7 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         scores = np.concatenate((scores_train, scores_dev))
     types = corpus.revert_mapping_to_list(mapping)
     converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types,
-                                                                                            count_threshold=FLAGS.count_threshold,
-                                                                                            new_as_one_hot=FLAGS.new_as_one_hot)
+                                                                                            count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')

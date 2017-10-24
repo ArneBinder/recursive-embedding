@@ -266,7 +266,7 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
     return vecs1, types1
 
 
-def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1, new_as_one_hot=False):
+def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     logging.info('sort, cut and fill embeddings ...')
     new_max_size = len(types)
     logging.info('initial vecs shape: ' + str(vecs.shape))
@@ -307,14 +307,14 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1, new_as_
 
         else:
             # init missing vecs with previous vecs distribution
-            if not new_as_one_hot:
-                new_vecs[new_idx] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
-            else:
-                if new_count >= vecs.shape[1]:
-                    logging.warning('Adding more then vecs-size=%i new lex entries with new_as_one_hot=True (use '
-                                    'one-hot encodings). That overrides previously added new fake embeddings!'
-                                    % vecs.shape[1])
-                new_vecs[new_idx][new_count % vecs.shape[1]] = 1.0
+            #if not new_as_one_hot:
+            new_vecs[new_idx] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
+            #else:
+            #    if new_count >= vecs.shape[1]:
+            #        logging.warning('Adding more then vecs-size=%i new lex entries with new_as_one_hot=True (use '
+            #                        'one-hot encodings). That overrides previously added new fake embeddings!'
+            #                        % vecs.shape[1])
+            #    new_vecs[new_idx][new_count % vecs.shape[1]] = 1.0
             new_count += 1
             added_types.append(types[old_idx])
             # print(types[old_idx] + '\t'+str(counts[old_idx]))
