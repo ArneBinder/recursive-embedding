@@ -124,11 +124,14 @@ def create_lexicon(lex_size, trainable=True):
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, lexicon_size, keep_prob_placeholder, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
+    def __init__(self, name, lexicon_size, keep_prob_placeholder=None, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
                  root_fc_size=0):
         self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
                                                                                       trainable=lexicon_trainable)
-        self._keep_prob = keep_prob_placeholder
+        if keep_prob_placeholder is not None:
+            self._keep_prob = keep_prob_placeholder
+        else:
+            self._keep_prob = 1.0
         if state_size:
             self._state_size = state_size
         else:
@@ -506,7 +509,7 @@ class SimilaritySequenceTreeTupleModel(object):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, learning_rate=0.01,
-                 optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_layer,
+                 optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_cosine,
                  lexicon_trainable=True, keep_prob=1.0, **kwargs):
 
         gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
@@ -644,16 +647,14 @@ class SimilaritySequenceTreeTupleModel(object):
 
 class SequenceTreeEmbedding(object):
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, sim_measure=sim_cosine,
-                 embeddings_trainable=True,
+                 lexicon_trainable=True,
                  scoring_enabled=True,
                  scoring_scope=DEFAULT_SCOPE_SCORING,
                  **kwargs):
 
-
         self._scoring_enabled = scoring_enabled
 
-        #tree_embed = tree_embedder(embeddings=self._embeddings, **kwargs)
-        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=embeddings_trainable, **kwargs)
+        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable, **kwargs)
 
         model = self._tree_embed()
         self._compiler = td.Compiler.create(model)

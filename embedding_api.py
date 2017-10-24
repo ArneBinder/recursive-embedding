@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import ast
 import json
 import logging
 import os
@@ -27,7 +28,8 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
-                       '/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
+                       '/home/arne/ML_local/tf/supervised/log/SA/ROOTFC0/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3SICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
+                       #'/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
                        #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
                        #'/home/arne/ML_local/tf/supervised/log/BACKUP_batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
                        #/model.ckpt-122800',
@@ -43,7 +45,7 @@ tf.flags.DEFINE_string('external_lexicon',
                        'from the loaded model ("<model_dir>/[model].type").')
 #tf.flags.DEFINE_boolean('load_embeddings', False,
 #                        'Load embeddings from numpy array located at "<dict_file>.vec"')
-tf.flags.DEFINE_string('sentence_processor', 'process_sentence7',  # 'process_sentence8',#'process_sentence3',
+tf.flags.DEFINE_string('sentence_processor', 'process_sentence3',  # 'process_sentence8',#'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string('default_concat_mode',
                        'sequence',
@@ -62,8 +64,8 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
 tf.flags.DEFINE_boolean('merge_nlp_lexicon',
-                        True,
-                        #False,
+                        #True,
+                        False,
                         'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
 tf.flags.DEFINE_string('save_final_model_path',
                         None,
@@ -93,8 +95,29 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
 
+with open(os.path.join(FLAGS.model_dir, 'flags.json'), 'r') as infile:
+    model_flags = json.load(infile)
+for flag in model_flags:
+    v = model_flags[flag]
+    getattr(tf.flags, v[0])('model_' + flag, v[1], v[2])
+
+
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 PROTO_CLASS = 'SequenceNode'
+
+logging_format = '%(asctime)s %(levelname)s %(message)s'
+tf.logging._logger.propagate = False
+tf.logging._handler.setFormatter(logging.Formatter(logging_format))
+tf.logging._logger.format = logging_format
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
+
+sess = None
+embedder = None
+data_maps = None
+types = None
+logging.info('load spacy ...')
+nlp = spacy.load('en')
+
 
 ##################################################
 # API part
@@ -163,18 +186,34 @@ def filter_result(r):
     return r
 
 
-def get_params(data):
-    if data == "":
-        return form_data_to_dict(request.form)
-    else:
-        return json.loads(data)
+def parse_params(params, prev={}):
+    result = prev
+    for param in params:
+        v_ = params[param]
+        try:
+            v = ast.literal_eval(v_)
+        except ValueError:
+            v = v_
+        result[param] = v
+    return result
+
+
+def get_params(request):
+    data = request.data.decode("utf-8")
+    params = {}
+    if data != "":
+        params = json.loads(data)
+    params = parse_params(request.args, params)
+    params = parse_params(request.form, params)
+
+    return params
 
 
 def get_or_calc_sequence_data(params):
     if 'data_sequences' in params:
         params['data_sequences'] = np.array(params['data_sequences'])
     elif 'sequences' in params:
-        sequences = params['sequences']
+        sequences = [s.decode("utf-8") for s in params['sequences']]
         concat_mode = FLAGS.default_concat_mode
         inner_concat_mode = FLAGS.default_inner_concat_mode
         if 'concat_mode' in params:
@@ -231,7 +270,7 @@ def embed():
     try:
         start = time.time()
         logging.info('Embeddings requested')
-        params = get_params(request.data.decode("utf-8"))
+        params = get_params(request)
         get_or_calc_embeddings(params)
 
         json_data = json.dumps(filter_result(make_serializable(params)))
@@ -247,7 +286,7 @@ def distance():
     try:
         start = time.time()
         logging.info('Distance requested')
-        params = get_params(request.data.decode("utf-8"))
+        params = get_params(request)
         get_or_calc_embeddings(params)
 
         result = pairwise_distances(params['embeddings'], metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
@@ -265,7 +304,7 @@ def sim():
     try:
         start = time.time()
         logging.info('Similarity requested')
-        params = get_params(request.data.decode("utf-8"))
+        params = get_params(request)
         get_or_calc_embeddings(params)
 
         count = len(params['embeddings'])
@@ -286,7 +325,7 @@ def cluster():
     try:
         start = time.time()
         logging.info('Clusters requested')
-        params = get_params(request.data.decode("utf-8"))
+        params = get_params(request)
         get_or_calc_embeddings(params)
 
         labels, meta, best_idx = get_cluster_ids(embeddings=np.array(params['embeddings']))
@@ -305,7 +344,7 @@ def norm():
     try:
         start = time.time()
         logging.info('Norms requested')
-        params = get_params(request.data.decode("utf-8"))
+        params = get_params(request)
         get_or_calc_embeddings(params)
 
         _, norms = normalize(params['embeddings'], norm='l2', axis=1, copy=False, return_norm=True)
@@ -324,7 +363,7 @@ def visualize():
     try:
         start = time.time()
         logging.info('Visualizations requested')
-        params = get_params(request.data.decode("utf-8"))
+        params = get_params(request)
         get_or_calc_sequence_data(params)
 
         vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
@@ -377,7 +416,9 @@ def all_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__() for g in all_subclasses(s)]
 
 
-if __name__ == '__main__':
+def main(unused_argv):
+    global sess, embedder, data_maps, types
+
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
@@ -388,13 +429,19 @@ if __name__ == '__main__':
     if checkpoint:
         # use latest checkpoint in model_dir
         input_checkpoint = checkpoint.model_checkpoint_path
-        types_fn = os.path.join(os.path.dirname(input_checkpoint), 'model')
+        #types_fn = os.path.join(os.path.dirname(input_checkpoint), 'model')
     else:
+        # TODO: does this still work?
         input_checkpoint = FLAGS.model_dir
-        types_fn = FLAGS.model_dir
 
-    logging.info('load spacy ...')
-    nlp = spacy.load('en')
+    types_fn = os.path.join(FLAGS.model_dir, 'model')
+
+    logging.info('load model flags from logdir: %s', FLAGS.model_dir)
+
+
+
+    #logging.info('load spacy ...')
+    #nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     logging.info('read types ...')
@@ -410,27 +457,28 @@ if __name__ == '__main__':
     #                      'TreeEmbedding_FLAT_LSTM',
     #                      'TreeEmbedding_FLAT_LSTM_2levels']
 
-    available_embedder = [cls.__name__ for cls in all_subclasses(model_fold.TreeEmbedding)]
+    #available_embedder = [cls.__name__ for cls in all_subclasses(model_fold.TreeEmbedding)]
 
-    tree_embedder_names = [en for en in available_embedder if len([vn for vn in saved_shapes if vn.startswith(en + '/')]) > 0]
-    assert len(tree_embedder_names) <= 1, 'found vars for multiple tree embedders: ' + ', '.join(tree_embedder_names)
-    if len(tree_embedder_names) == 0:
-        logging.info('No tree embedder vars found in model. Use "TreeEmbedding_FLAT_AVG".')
-        tree_embedder_names = ['TreeEmbedding_FLAT_AVG']
-    else:
-        logging.info('Tree embedder vars found in model. Use "' + tree_embedder_names[0] + '".')
-    tree_embedder = getattr(model_fold, tree_embedder_names[0])
+    #tree_embedder_names = [en for en in available_embedder if len([vn for vn in saved_shapes if vn.startswith(en + '/')]) > 0]
+    #assert len(tree_embedder_names) <= 1, 'found vars for multiple tree embedders: ' + ', '.join(tree_embedder_names)
+    #if len(tree_embedder_names) == 0:
+    #    logging.info('No tree embedder vars found in model. Use "TreeEmbedding_FLAT_AVG".')
+    #    tree_embedder_names = ['TreeEmbedding_FLAT_AVG']
+    #else:
+    #    logging.info('Tree embedder vars found in model. Use "' + tree_embedder_names[0] + '".')
+    #tree_embedder = getattr(model_fold, tree_embedder_names[0])
+    tree_embedder = getattr(model_fold, FLAGS.model_tree_embedder)
 
-    fc_leaf_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
-                                                                    + '/' + model_fold.VAR_PREFIX_FC_LEAF)]
-    if len(fc_leaf_var_names):
-        logging.info('found leaf_fc vars: ' + ', '.join(fc_leaf_var_names) + '. Apply fully connected layer to lexicon entries before composition.')
+    #fc_leaf_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
+    #                                                                + '/' + model_fold.VAR_PREFIX_FC_LEAF)]
+    #if len(fc_leaf_var_names):
+    #    logging.info('found leaf_fc vars: ' + ', '.join(fc_leaf_var_names) + '. Apply fully connected layer to lexicon entries before composition.')
 
-    fc_root_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
-                                                                    + '/' + model_fold.VAR_PREFIX_FC_ROOT)]
-    if len(fc_root_var_names):
-        logging.info('found root_fc vars: ' + ', '.join(
-            fc_root_var_names) + '. Apply fully connected layer to composition result.')
+    #fc_root_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
+    #                                                                + '/' + model_fold.VAR_PREFIX_FC_ROOT)]
+    #if len(fc_root_var_names):
+    #    logging.info('found root_fc vars: ' + ', '.join(
+    #        fc_root_var_names) + '. Apply fully connected layer to composition result.')
 
     scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
     if len(scoring_var_names) > 0:
@@ -471,14 +519,17 @@ if __name__ == '__main__':
             embedder = model_fold.SequenceTreeEmbedding(lex_size=lex_size,
                                                         tree_embedder=tree_embedder,
                                                         #TODO: depend on state_size in model
-                                                        state_size=50,
+                                                        #state_size=50,
+                                                        state_size=FLAGS.model_state_size,
                                                         sim_measure=sim_measure,
                                                         scoring_enabled=len(scoring_var_names) > 0,
-                                                        embeddings_trainable=False,
+                                                        lexicon_trainable=False,
                                                         # TODO: depend on fc_leaf_var_names in model
-                                                        leaf_fc_size=(50 if len(fc_leaf_var_names) > 0 else 0),
+                                                        #leaf_fc_size=(50 if len(fc_leaf_var_names) > 0 else 0),
+                                                        leaf_fc_size=FLAGS.model_leaf_fc_size,
                                                         # TODO: depend on fc_root_var_names in model
-                                                        root_fc_size=(50 if len(fc_root_var_names) > 0 else 0)
+                                                        #root_fc_size=(50 if len(fc_root_var_names) > 0 else 0)
+                                                        root_fc_size=FLAGS.model_root_fc_size,
                                                         #apply_embedding_fc=len(fc_embedding_var_names) > 0,
                                                         )
 
@@ -510,3 +561,7 @@ if __name__ == '__main__':
 
     logging.info('Starting the API')
     app.run()
+
+
+if __name__ == '__main__':
+    tf.app.run()

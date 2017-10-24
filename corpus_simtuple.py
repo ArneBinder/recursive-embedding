@@ -62,7 +62,7 @@ def set_flags(corpus_name, fn_train, fn_dev, fn_test=None, output_suffix=None):
         'remove token which occur less then count_threshold times in the corpus')
     tf.flags.DEFINE_boolean(
         'new_as_one_hot',
-        False,
+        True,
         'Iff enabled use one hot encodings for newly added lexicon entries')
 
 
