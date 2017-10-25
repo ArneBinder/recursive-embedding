@@ -27,8 +27,10 @@ import model_fold
 import preprocessing
 import visualize as vis
 
-tf.flags.DEFINE_string('model_dir',
-                       '/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
+tf.flags.DEFINE_string('data_source',
+                       #'/media/arne/WIN/ML/data/corpora/PPDB/process_sentence3_marked/PPDB_CMaggregate',
+                       '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       #'/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
                        #'/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
                        #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
                        #'/home/arne/ML_local/tf/supervised/log/BACKUP_batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
@@ -42,7 +44,7 @@ tf.flags.DEFINE_string('external_lexicon',
                        None,
                        'If not None, load embeddings from numpy array located at "<external_lexicon>.vec" and type '
                        'string mappings from "<external_lexicon>.type" file and merge them into the embeddings '
-                       'from the loaded model ("<model_dir>/[model].type").')
+                       'from the loaded model ("<data_source>/[model].type").')
 #tf.flags.DEFINE_boolean('load_embeddings', False,
 #                        'Load embeddings from numpy array located at "<dict_file>.vec"')
 tf.flags.DEFINE_string('default_sentence_processor', 'process_sentence3',  # 'process_sentence8',#'process_sentence3',
@@ -94,12 +96,14 @@ tf.flags.DEFINE_string('sim_measure',
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
+flags_fn = os.path.join(FLAGS.data_source, 'flags.json')
 
-with open(os.path.join(FLAGS.model_dir, 'flags.json'), 'r') as infile:
-    model_flags = json.load(infile)
-for flag in model_flags:
-    v = model_flags[flag]
-    getattr(tf.flags, v[0])('model_' + flag, v[1], v[2])
+if os.path.isfile(flags_fn):
+    with open(flags_fn, 'r') as infile:
+        model_flags = json.load(infile)
+    for flag in model_flags:
+        v = model_flags[flag]
+        getattr(tf.flags, v[0])('model_' + flag, v[1], v[2])
 
 
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
@@ -359,18 +363,49 @@ def norm():
 
 
 @app.route("/api/visualize", methods=['POST'])
-def visualize():
+@app.route("/api/visualize/<simtuple_file>", methods=['POST'])
+def visualize(simtuple_file=None):
     try:
         start = time.time()
         logging.info('Visualizations requested')
         params = get_params(request)
-        get_or_calc_sequence_data(params)
+        if not simtuple_file:
+            get_or_calc_sequence_data(params)
+        elif os.path.isfile(FLAGS.data_source + '.' + simtuple_file):
+            # get sequence data from sim tuple file
+            params['data_sequences'] = []
+            params['similarities'] = []
+            start = params.get('start', 0)
+            end = params.get('end', -1)
+            for i, sim_tuple in enumerate(corpus.iterate_sim_tuple_data([FLAGS.data_source + '.' + simtuple_file])):
+                if i < start:
+                    continue
+                if 0 <= end <= i:
+                    break
+                data1, parent1 = preprocessing.sequence_node_to_arrays(sim_tuple['first'])
+                data2, parent2 = preprocessing.sequence_node_to_arrays(sim_tuple['second'])
+                params['data_sequences'].append([data1 + data2, parent1 + parent2])
+                params['similarities'].append(sim_tuple['similarity'])
+        else:
+            raise IOError('could not open "%s"' % (FLAGS.data_source + '.' + simtuple_file))
 
-        vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
+        mode = params.get('mode', 'image')
+        if mode == 'image':
+            vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
+            result = send_file(vis.TEMP_FN)
+        elif mode == 'text':
+            params['text'] = []
+            for data, parents in params['data_sequences']:
+                texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), types)]
+                params['text'].append(texts)
+
+            result = json.dumps(filter_result(make_serializable(params)))
+        else:
+            ValueError('Unknown mode=%s. Use "image" (default) or "text".')
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
-    return send_file(vis.TEMP_FN)
+    return result
 
 
 def get_cluster_ids(embeddings):
@@ -425,99 +460,98 @@ def main(unused_argv):
     td.proto_tools.import_proto_file('sequence_node.proto')
 
     # We retrieve our checkpoint fullpath
-    checkpoint = tf.train.get_checkpoint_state(FLAGS.model_dir)
+    checkpoint = tf.train.get_checkpoint_state(FLAGS.data_source)
+    # if a checkpoint file exist, take data_source as model dir
     if checkpoint:
-        # use latest checkpoint in model_dir
+        logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % FLAGS.data_source)
+        # use latest checkpoint in data_source
         input_checkpoint = checkpoint.model_checkpoint_path
+        types_fn = os.path.join(FLAGS.data_source, 'model')
         #types_fn = os.path.join(os.path.dirname(input_checkpoint), 'model')
+        reader = tf.train.NewCheckpointReader(input_checkpoint)
+        #loaded_lex_size = saved_shapes[model_fold.VAR_NAME_LEXICON][0]
+        logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
+        lexicon_np = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
+    # take data_source as corpus path
     else:
-        # TODO: does this still work?
-        input_checkpoint = FLAGS.model_dir
-
-    types_fn = os.path.join(FLAGS.model_dir, 'model')
-
-    logging.info('load model flags from logdir: %s', FLAGS.model_dir)
+        logging.info('No model checkpoint found in "%s". Load as corpus.' % FLAGS.data_source)
+        types_fn = FLAGS.data_source
+        logging.info('load embeddings from: ' + types_fn+'.vec ...')
+        lexicon_np = np.load(types_fn+'.vec')
 
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     logging.info('read types ...')
     types = corpus.read_types(types_fn)
-    reader = tf.train.NewCheckpointReader(input_checkpoint)
-    saved_shapes = reader.get_variable_to_shape_map()
 
-    tree_embedder = getattr(model_fold, FLAGS.model_tree_embedder)
-
-    scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
-    if len(scoring_var_names) > 0:
-        logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
-    else:
-        logging.info('no scoring vars found. Disable scoring functionality.')
-
-    sim_measure = getattr(model_fold, FLAGS.sim_measure)
-
-    if not FLAGS.merge_nlp_lexicon and not FLAGS.external_lexicon:
-        logging.info('extract lexicon size from model: ' + input_checkpoint + ' ...')
-        #saved_shapes = reader.get_variable_to_shape_map()
-        lexicon_shape = saved_shapes[model_fold.VAR_NAME_LEXICON]
-        lex_size = lexicon_shape[0]
-    else:
-        logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
-        lexicon_np = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
-        if FLAGS.external_lexicon:
-            logging.info('read external types: '+FLAGS.external_lexicon+'.type ...')
-            external_types = corpus.read_types(FLAGS.external_lexicon)
-            logging.info('load external embeddings from: '+FLAGS.external_lexicon+'.vec ...')
-            external_vecs = np.load(FLAGS.external_lexicon+'.vec')
-            lexicon_np, types = corpus.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
-        if FLAGS.merge_nlp_lexicon:
-            logging.info('extract nlp embeddings and types ...')
-            nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
-            logging.info('merge nlp embeddings into loaded embeddings ...')
-            lexicon_np, types = corpus.merge_dicts(lexicon_np, types, nlp_vecs, nlp_types, add=True, remove=False)
-        lex_size = lexicon_np.shape[0]
+    if FLAGS.external_lexicon:
+        logging.info('read external types: '+FLAGS.external_lexicon+'.type ...')
+        external_types = corpus.read_types(FLAGS.external_lexicon)
+        logging.info('load external embeddings from: '+FLAGS.external_lexicon+'.vec ...')
+        external_vecs = np.load(FLAGS.external_lexicon+'.vec')
+        lexicon_np, types = corpus.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
+    if FLAGS.merge_nlp_lexicon:
+        logging.info('extract nlp embeddings and types ...')
+        nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
+        logging.info('merge nlp embeddings into loaded embeddings ...')
+        lexicon_np, types = corpus.merge_dicts(lexicon_np, types, nlp_vecs, nlp_types, add=True, remove=False)
+    lex_size = lexicon_np.shape[0]
 
     logging.info('dict size: ' + str(len(types)))
     assert len(types) == lex_size, 'count of types (' +str(len(types)) + ') does not match count of embedding vectors (' + str(lex_size) + ')'
     data_maps = corpus.mapping_from_list(types)
 
-    with tf.Graph().as_default():
-        with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
+    # load model
+    if checkpoint:
+        tree_embedder = getattr(model_fold, FLAGS.model_tree_embedder)
 
-            embedder = model_fold.SequenceTreeEmbedding(lex_size=lex_size,
-                                                        tree_embedder=tree_embedder,
-                                                        state_size=FLAGS.model_state_size,
-                                                        sim_measure=sim_measure,
-                                                        scoring_enabled=len(scoring_var_names) > 0,
-                                                        lexicon_trainable=False,
-                                                        leaf_fc_size=FLAGS.model_leaf_fc_size,
-                                                        root_fc_size=FLAGS.model_root_fc_size,
-                                                        )
+        saved_shapes = reader.get_variable_to_shape_map()
+        scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
+        if len(scoring_var_names) > 0:
+            logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
+        else:
+            logging.info('no scoring vars found. Disable scoring functionality.')
 
-            if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
-                vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                vars_without_embed = [v for v in vars_all if v != embedder.tree_embedder.lexicon_var]
-                if len(vars_without_embed) > 0:
-                    saver = tf.train.Saver(var_list=vars_without_embed)
+        sim_measure = getattr(model_fold, FLAGS.sim_measure)
+
+        with tf.Graph().as_default():
+            with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
+
+                embedder = model_fold.SequenceTreeEmbedding(lex_size=lex_size,
+                                                            tree_embedder=tree_embedder,
+                                                            state_size=FLAGS.model_state_size,
+                                                            sim_measure=sim_measure,
+                                                            scoring_enabled=len(scoring_var_names) > 0,
+                                                            lexicon_trainable=False,
+                                                            leaf_fc_size=FLAGS.model_leaf_fc_size,
+                                                            root_fc_size=FLAGS.model_root_fc_size,
+                                                            )
+
+                if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
+                    vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+                    vars_without_embed = [v for v in vars_all if v != embedder.tree_embedder.lexicon_var]
+                    if len(vars_without_embed) > 0:
+                        saver = tf.train.Saver(var_list=vars_without_embed)
+                    else:
+                        saver = None
                 else:
-                    saver = None
-            else:
-                saver = tf.train.Saver()
+                    saver = tf.train.Saver()
 
-            sess = tf.Session()
-            # Restore variables from disk.
-            if saver:
-                logging.info('restore model from: ' + input_checkpoint + '...')
-                saver.restore(sess, input_checkpoint)
+                sess = tf.Session()
+                # Restore variables from disk.
+                if saver:
+                    logging.info('restore model from: ' + input_checkpoint + '...')
+                    saver.restore(sess, input_checkpoint)
 
-            if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
-                logging.info('init embeddings with external vectors ...')
-                sess.run(embedder.tree_embedder.lexicon_init, feed_dict={embedder.tree_embedder.lexicon_placeholder: lexicon_np})
+                if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
+                    logging.info('init embeddings with external vectors ...')
+                    sess.run(embedder.tree_embedder.lexicon_init, feed_dict={embedder.tree_embedder.lexicon_placeholder: lexicon_np})
 
-            if FLAGS.save_final_model_path:
-                logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
-                saver_final = tf.train.Saver()
-                saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
-                corpus.write_dict(FLAGS.save_final_model_path, types=types)
+                if FLAGS.save_final_model_path:
+                    logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
+                    saver_final = tf.train.Saver()
+                    saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
+                    corpus.write_dict(FLAGS.save_final_model_path, types=types)
 
     logging.info('Starting the API')
     app.run()
