@@ -12,12 +12,12 @@ import preprocessing
 corpora_source_root = '/home/arne/devel/ML/data/corpora'
 
 
-def set_flags(corpus_name, fn_train, fn_dev, fn_test=None, output_suffix=None):
+def set_flags(corpus_name, fn_train, fn_dev=None, fn_test=None, output_suffix=None):
     tf.flags.DEFINE_string(
         'corpus_data_input_train', corpora_source_root + '/' + corpus_name + '/' + fn_train,
         'The path to the ' + corpus_name + ' train data file.')
     tf.flags.DEFINE_string(
-        'corpus_data_input_dev', corpora_source_root + '/' + corpus_name + '/' + fn_dev,
+        'corpus_data_input_dev', corpora_source_root + '/' + corpus_name + '/' + fn_dev if fn_dev else None,
         'The path to the ' + corpus_name + ' dev data file.')
     tf.flags.DEFINE_string(
         'corpus_data_input_test',
@@ -60,6 +60,17 @@ def set_flags(corpus_name, fn_train, fn_dev, fn_test=None, output_suffix=None):
         1,
         #TODO: check if less or equal-less
         'remove token which occur less then count_threshold times in the corpus')
+    tf.flags.DEFINE_integer(
+        'neg_samples',
+        0,
+        'amount of negative samples to add'
+    )
+
+
+def distance_jaccard(ids1, ids2):
+    ids1_set = set(ids1)
+    ids2_set = set(ids2)
+    return len(ids1_set & ids2_set) * 1.0 / len(ids1_set | ids2_set)
 
 
 def create_corpus(reader_sentences, reader_score, FLAGS):
@@ -106,17 +117,25 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
                                          concat_mode=FLAGS.concat_mode,
                                          inner_concat_mode=FLAGS.inner_concat_mode)
 
-    data_train, parents_train, scores_train, _ = read_data(FLAGS.corpus_data_input_train)
-    data_dev, parents_dev, scores_dev, _ = read_data(FLAGS.corpus_data_input_dev)
+    file_names = [FLAGS.corpus_data_input_train]
+    if FLAGS.corpus_data_input_dev:
+        file_names.append(FLAGS.corpus_data_input_dev)
     if FLAGS.corpus_data_input_test:
-        data_test, parents_test, scores_test, _ = read_data(FLAGS.corpus_data_input_test)
-        data = np.concatenate((data_train, data_dev, data_test))
-        parents = np.concatenate((parents_train, parents_dev, parents_test))
-        scores = np.concatenate((scores_train, scores_dev, scores_test))
-    else:
-        data = np.concatenate((data_train, data_dev))
-        parents = np.concatenate((parents_train, parents_dev))
-        scores = np.concatenate((scores_train, scores_dev))
+        file_names.append(FLAGS.corpus_data_input_test)
+
+    _data = [None]*len(file_names)
+    _parents = [None]*len(file_names)
+    _scores = [None]*len(file_names)
+    sizes = []
+    for i, fn in enumerate(file_names):
+        _data[i], _parents[i], _scores[i], _ = read_data(fn)
+        sizes.append(len(_scores[i]))
+
+    logging.debug(str(sizes))
+    data = np.concatenate(_data)
+    parents = np.concatenate(_parents)
+    scores = np.concatenate(_scores)
+
     types = corpus.revert_mapping_to_list(mapping)
     converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types,
                                                                                             count_threshold=FLAGS.count_threshold)
@@ -144,15 +163,33 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
     children, roots = preprocessing.children_and_roots(parents)
     logging.debug('len(roots)=' + str(len(roots)))
 
-    sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(len(scores))]
-    #sim_tuples = zip(np.array(range(len(scores)))*2, np.array(range(len(scores)))*2+1, scores)
+    if FLAGS.neg_samples:
+        leafs = []
+        for root in roots:
+            descendant_indices = preprocessing.get_descendant_indices(children, root)
+            leafs.append([data[idx] for idx in sorted(descendant_indices)])
+        distances = np.zeros(shape=(len(roots), len(roots)))
+        for i1 in range(len(roots)):
+            for i2 in range(len(roots)):
+                distances[i1][i2] = distance_jaccard(leafs[i1], leafs[i2])
+        distances_correct = np.zeros(shape=len(roots) / 2)
+        for i in range(len(distances_correct)):
+            distances_correct[i] = distances[i][i+1]
+        # TODO: implement
+        # 1) get mean and std
+        # 2) choice() from roots with distances[i] according to mean, std
 
-    corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:len(scores_train)], data, children, roots)
-    corpus.write_sim_tuple_data(out_path + '.train.1',
-                                sim_tuples[len(scores_train):len(scores_train) + len(scores_dev)], data, children,
-                                roots)
+        #sim_tuples =
+    else:
+        sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(len(scores))]
+        #sim_tuples = zip(np.array(range(len(scores)))*2, np.array(range(len(scores)))*2+1, scores)
+
+    corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:sizes[0]], data, children, roots)
+    if len(sizes) > 1:
+        corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[sizes[0]:sizes[0] + sizes[1]], data, children,
+                                    roots)
     if FLAGS.corpus_data_input_test:
-        corpus.write_sim_tuple_data(out_path + '.train.2.test', sim_tuples[len(scores_train) + len(scores_dev):], data,
+        corpus.write_sim_tuple_data(out_path + '.train.2.test', sim_tuples[sizes[0] + sizes[1]:], data,
                                     children, roots)
 
 
