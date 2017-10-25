@@ -8,6 +8,7 @@ import numpy as np
 import spacy
 import ntpath
 import tensorflow as tf
+import tensorflow_fold as td
 
 import constants
 # import preprocessing
@@ -18,6 +19,12 @@ import tools
 
 TSV_COLUMN_NAME_LABEL = 'label'
 TSV_COLUMN_NAME_ID = 'id_orig'
+
+PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
+#s_root = os.path.dirname(__file__)
+# Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
+td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
+td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 
 # def write_dict(out_path, mapping, vecs, vocab_nlp=None, vocab_manual=None):
@@ -583,3 +590,13 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
             preprocessing.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], sim_tree_tuple.second)
             sim_tree_tuple.similarity = sim_tuples[idx][2]
             record_output.write(sim_tree_tuple.SerializeToString())
+
+
+def iterate_sim_tuple_data(paths):
+    count = 0
+    for path in paths:
+        for v in tf.python_io.tf_record_iterator(path):
+            res = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.' + similarity_tree_tuple_pb2.SimilarityTreeTuple.__name__, v)
+            res['id'] = count
+            yield res
+            count += 1

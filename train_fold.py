@@ -172,13 +172,14 @@ for flag in flags:
     getattr(tf.flags, v[0])(flag, v[1], v[2])
 
 
-PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-s_root = os.path.dirname(__file__)
+#PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
+#s_root = os.path.dirname(__file__)
 # Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
-td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
-td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
+#td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
+#td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
-
+# DEPRECATED
+# use corpus.iterate_sim_tuple_data
 def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=True):
     while True:
         count = 0
@@ -241,14 +242,16 @@ def main(unused_argv):
         test_fname = train_fnames[FLAGS.test_file_index]
         logging.info('use ' + test_fname + ' for testing')
         del train_fnames[FLAGS.test_file_index]
-        train_iterator = iterate_over_tf_record_protos(
-            train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+        #train_iterator = iterate_over_tf_record_protos(
+        #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+        train_iterator = corpus.iterate_sim_tuple_data(train_fnames)
     else:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
         train_iterator = None
 
-    test_iterator = iterate_over_tf_record_protos(
-        [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+    #test_iterator = iterate_over_tf_record_protos(
+    #    [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
+    test_iterator = corpus.iterate_sim_tuple_data([test_fname])
 
     run_desc = []
     for flag in sorted(flags.keys()):
