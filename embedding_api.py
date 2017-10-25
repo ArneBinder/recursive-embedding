@@ -28,7 +28,7 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('model_dir',
-                       '/home/arne/ML_local/tf/supervised/log/SA/ROOTFC0/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3SICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
+                       '/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
                        #'/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
                        #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
                        #'/home/arne/ML_local/tf/supervised/log/BACKUP_batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
@@ -45,7 +45,7 @@ tf.flags.DEFINE_string('external_lexicon',
                        'from the loaded model ("<model_dir>/[model].type").')
 #tf.flags.DEFINE_boolean('load_embeddings', False,
 #                        'Load embeddings from numpy array located at "<dict_file>.vec"')
-tf.flags.DEFINE_string('sentence_processor', 'process_sentence3',  # 'process_sentence8',#'process_sentence3',
+tf.flags.DEFINE_string('default_sentence_processor', 'process_sentence3',  # 'process_sentence8',#'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string('default_concat_mode',
                        'sequence',
@@ -225,7 +225,7 @@ def get_or_calc_sequence_data(params):
             assert inner_concat_mode in constants.concat_modes, 'unknown inner_concat_mode=' + inner_concat_mode
             logging.info('use inner_concat_mode=' + concat_mode)
 
-        sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
+        sentence_processor = getattr(preprocessing, FLAGS.default_sentence_processor)
         if 'sentence_processor' in params:
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=' + sentence_processor.__name__)
@@ -438,10 +438,6 @@ def main(unused_argv):
 
     logging.info('load model flags from logdir: %s', FLAGS.model_dir)
 
-
-
-    #logging.info('load spacy ...')
-    #nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     logging.info('read types ...')
@@ -449,36 +445,7 @@ def main(unused_argv):
     reader = tf.train.NewCheckpointReader(input_checkpoint)
     saved_shapes = reader.get_variable_to_shape_map()
 
-    #available_embedder = ['TreeEmbedding_TREE_LSTM',
-    #                      'TreeEmbedding_HTU_GRU',
-    #                      'TreeEmbedding_HTU_GRU_simplified',
-    #                      'TreeEmbedding_FLAT_AVG',
-    #                      'TreeEmbedding_FLAT_AVG_2levels',
-    #                      'TreeEmbedding_FLAT_LSTM',
-    #                      'TreeEmbedding_FLAT_LSTM_2levels']
-
-    #available_embedder = [cls.__name__ for cls in all_subclasses(model_fold.TreeEmbedding)]
-
-    #tree_embedder_names = [en for en in available_embedder if len([vn for vn in saved_shapes if vn.startswith(en + '/')]) > 0]
-    #assert len(tree_embedder_names) <= 1, 'found vars for multiple tree embedders: ' + ', '.join(tree_embedder_names)
-    #if len(tree_embedder_names) == 0:
-    #    logging.info('No tree embedder vars found in model. Use "TreeEmbedding_FLAT_AVG".')
-    #    tree_embedder_names = ['TreeEmbedding_FLAT_AVG']
-    #else:
-    #    logging.info('Tree embedder vars found in model. Use "' + tree_embedder_names[0] + '".')
-    #tree_embedder = getattr(model_fold, tree_embedder_names[0])
     tree_embedder = getattr(model_fold, FLAGS.model_tree_embedder)
-
-    #fc_leaf_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
-    #                                                                + '/' + model_fold.VAR_PREFIX_FC_LEAF)]
-    #if len(fc_leaf_var_names):
-    #    logging.info('found leaf_fc vars: ' + ', '.join(fc_leaf_var_names) + '. Apply fully connected layer to lexicon entries before composition.')
-
-    #fc_root_var_names = [vn for vn in saved_shapes if vn.startswith(tree_embedder_names[0]
-    #                                                                + '/' + model_fold.VAR_PREFIX_FC_ROOT)]
-    #if len(fc_root_var_names):
-    #    logging.info('found root_fc vars: ' + ', '.join(
-    #        fc_root_var_names) + '. Apply fully connected layer to composition result.')
 
     scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
     if len(scoring_var_names) > 0:
@@ -518,19 +485,12 @@ def main(unused_argv):
 
             embedder = model_fold.SequenceTreeEmbedding(lex_size=lex_size,
                                                         tree_embedder=tree_embedder,
-                                                        #TODO: depend on state_size in model
-                                                        #state_size=50,
                                                         state_size=FLAGS.model_state_size,
                                                         sim_measure=sim_measure,
                                                         scoring_enabled=len(scoring_var_names) > 0,
                                                         lexicon_trainable=False,
-                                                        # TODO: depend on fc_leaf_var_names in model
-                                                        #leaf_fc_size=(50 if len(fc_leaf_var_names) > 0 else 0),
                                                         leaf_fc_size=FLAGS.model_leaf_fc_size,
-                                                        # TODO: depend on fc_root_var_names in model
-                                                        #root_fc_size=(50 if len(fc_root_var_names) > 0 else 0)
                                                         root_fc_size=FLAGS.model_root_fc_size,
-                                                        #apply_embedding_fc=len(fc_embedding_var_names) > 0,
                                                         )
 
             if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
