@@ -584,6 +584,14 @@ def children_and_roots(seq_parents):
     return children, roots
 
 
+def get_descendant_indices(children, root):
+    leafs = [root]
+    if root in children:
+        for c in children[root]:
+            leafs.extend(get_descendant_indices(children, c + root))
+    return leafs
+
+
 def get_all_children_rec(idx, children, max_depth, current_depth=0, max_depth_only=False):
     #if idx not in children or max_depth == 0:
     if idx not in children or max_depth == 0:
