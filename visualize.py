@@ -105,12 +105,26 @@ def get_text(sequence_graph, types):
     result = []
 
     if len(data) > 0:
-        for i, d in enumerate(data):
-            if d < len(types):
-                l = types[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
-            else:
-                l = types[constants.UNKNOWN_EMBEDDING]
-            result.append(l)
+        children, roots = preprocessing.children_and_roots(parents)
+        for root in roots:
+            current_res = []
+            indices = sorted(preprocessing.get_descendant_indices(children, root))
+            for i in indices:
+                d = data[i]
+                #if d < len(types):
+                l = types[d]  # data_to_word(d, data_maps_rev, vocab, vocab_neg)
+                #else:
+                #    l = types[constants.UNKNOWN_EMBEDDING]
+                current_res.append(l)
+            result.append(current_res)
+
+
+        #for i, d in enumerate(data):
+        #    if d < len(types):
+        #        l = types[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
+        #    else:
+        #        l = types[constants.UNKNOWN_EMBEDDING]
+        #    result.append(l)
 
     return result
 
