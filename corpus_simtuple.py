@@ -7,6 +7,7 @@ from collections import Counter
 import numpy as np
 import spacy
 import tensorflow as tf
+from progress.bar import Bar
 
 import corpus
 import preprocessing
@@ -69,7 +70,7 @@ def set_flags(corpus_name, fn_train, fn_dev=None, fn_test=None, output_suffix=No
     )
 
 
-def distance_jaccard(ids1, ids2):
+def sim_jaccard(ids1, ids2):
     ids1_set = set(ids1)
     ids2_set = set(ids2)
     return len(ids1_set & ids2_set) * 1.0 / len(ids1_set | ids2_set)
@@ -201,6 +202,7 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
 
     if FLAGS.neg_samples:
         # separate into subtrees (e.g. sentences)
+        logging.debug('split into subtrees ...')
         subtrees = []
         for root in roots:
             descendant_indices = preprocessing.get_descendant_indices(children, root)
@@ -210,33 +212,36 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             subtrees.append(new_subtree)
             #TODO: check for replicates? (if yes, check successive tuples!)
         n = len(subtrees) / 2
-        distances_correct = np.zeros(shape=n)
+        logging.debug('calc sims_correct ...')
+        sims_correct = np.zeros(shape=n)
         for i in range(n):
-            distances_correct[i] = distance_jaccard(subtrees[i * 2][0], subtrees[i * 2 +1][0])
+            sims_correct[i] = sim_jaccard(subtrees[i * 2][0], subtrees[i * 2 + 1][0])
 
         # debug
-        #distances_correct.dump('distance_cor')
+        #sims_correct.dump('sim_cor')
         # debug-end
 
-        distances_correct.sort()
+        sims_correct.sort()
 
+        logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
+        bar = Bar('Processing', max=n)
         new_subtrees = []
         for i in range(n):
-            # sample according to distances_correct probability distribution
-            distances = np.zeros(shape=n)
+            # sample according to sims_correct probability distribution
+            sims = np.zeros(shape=n)
             for j in range(n):
-                distances[j] = distance_jaccard(subtrees[i * 2][0], subtrees[j * 2 + 1][0])
-            distance_original = distances[i]
-            distances_sorted = np.sort(distances)
-            prob_map = continuous_binning(hist_src=distances_sorted, hist_dest=distances_correct)
+                sims[j] = sim_jaccard(subtrees[i * 2][0], subtrees[j * 2 + 1][0])
+            sim_original = sims[i]
+            sims_sorted = np.sort(sims)
+            prob_map = continuous_binning(hist_src=sims_sorted, hist_dest=sims_correct)
 
             # set probabilities according to prob_map, but set to 0.0
             # if this is the original pair (can occur multiple times)
             # or if the two subtrees are equal
-            p = [prob_map[d] for d in distances]
+            p = [prob_map[d] for d in sims]
             #p_0 = []
-            for j, d in enumerate(distances):
-                if (d == distance_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (
+            for j, d in enumerate(sims):
+                if (d == sim_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (
                         d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1]):
                     p[j] = 0.0
 
@@ -253,16 +258,21 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             current_subtrees = [subtrees[i * 2]] * FLAGS.neg_samples
             _current_new_subtrees = zip(current_subtrees, current_new_subtrees)
             new_subtrees.extend(_current_new_subtrees)
+            bar.next()
+
+        bar.finish()
+
+        logging.debug('rearrange new data ...')
         # rearrange from tuples of subtrees to flattened list of subtrees
         new_subtrees = list(sum(new_subtrees, ()))
         # get data and parents
         new_data, new_parents = zip(*new_subtrees)
 
         # debug
-        #distances_neg = np.zeros(shape=n * FLAGS.neg_samples)
+        #sims_neg = np.zeros(shape=n * FLAGS.neg_samples)
         #for i in range(n * FLAGS.neg_samples):
-        #    distances_neg[i] = distance_jaccard(new_data[i * 2], new_data[i * 2 + 1])
-        #distances_neg.dump('distances_neg-naive')
+        #    sims_neg[i] = distance_jaccard(new_data[i * 2], new_data[i * 2 + 1])
+        #sims_neg.dump('sims_neg-naive')
         # debug-end
 
         # concat subtrees
