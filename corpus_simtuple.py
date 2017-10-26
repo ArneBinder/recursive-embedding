@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 import sys
 from collections import Counter
 
@@ -261,7 +262,7 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         #distances_neg = np.zeros(shape=n * FLAGS.neg_samples)
         #for i in range(n * FLAGS.neg_samples):
         #    distances_neg[i] = distance_jaccard(new_data[i * 2], new_data[i * 2 + 1])
-        #distances_neg.dump('distances_neg')
+        #distances_neg.dump('distances_neg-naive')
         # debug-end
 
         # concat subtrees
@@ -285,9 +286,9 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             current_sim_tuples.extend(neg_sample_tuples)
         sim_tuples.append(current_sim_tuples)
         start = end
-    #sim_tuples = zip(np.array(range(len(scores)))*2, np.array(range(len(scores)))*2+1, scores)
+        # shuffle
+        random.shuffle(sim_tuples[-1])
 
-    # TODO: shuffle?
     corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[0], data, children, roots)
     if len(sizes) > 1:
         corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[1], data, children,
