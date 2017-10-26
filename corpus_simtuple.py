@@ -131,7 +131,7 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         _data[i], _parents[i], _scores[i], _ = read_data(fn)
         sizes.append(len(_scores[i]))
 
-    logging.debug(str(sizes))
+    logging.debug('sizes: %s' % str(sizes))
     data = np.concatenate(_data)
     parents = np.concatenate(_parents)
     scores = np.concatenate(_scores)
@@ -164,25 +164,93 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
     logging.debug('len(roots)=' + str(len(roots)))
 
     if FLAGS.neg_samples:
-        leafs = []
+        # separate into subtrees (e.g. sentences)
+        subtrees = []
         for root in roots:
             descendant_indices = preprocessing.get_descendant_indices(children, root)
-            leafs.append([data[idx] for idx in sorted(descendant_indices)])
-        distances = np.zeros(shape=(len(roots), len(roots)))
-        for i1 in range(len(roots)):
-            for i2 in range(len(roots)):
-                distances[i1][i2] = distance_jaccard(leafs[i1], leafs[i2])
-        distances_correct = np.zeros(shape=len(roots) / 2)
-        for i in range(len(distances_correct)):
-            distances_correct[i] = distances[i][i+1]
-        # TODO: implement
-        # 1) get mean and std
-        # 2) choice() from roots with distances[i] according to mean, std
+            new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
+            #if new_subtree in subtrees:
+            #    repl_roots.append(root)
+            subtrees.append(new_subtree)
+            #TODO: check for replicates? (if yes, check successive tuples!)
+        n = len(subtrees) / 2
+        distances_correct = np.zeros(shape=n)
+        for i in range(n):
+            distances_correct[i] = distance_jaccard(subtrees[i * 2][0], subtrees[i * 2 +1][0])
+        distances_correct.sort()
 
-        #sim_tuples =
-    else:
-        sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(len(scores))]
-        #sim_tuples = zip(np.array(range(len(scores)))*2, np.array(range(len(scores)))*2+1, scores)
+        new_subtrees = []
+        for i in range(n):
+            distances = np.zeros(shape=n)
+            for j in range(n):
+                distances[j] = distance_jaccard(subtrees[i * 2][0], subtrees[j * 2 + 1][0])
+            correct_dist = distances[i]
+            # calc p according to distances_correct (and set p[i]=0.0)
+            distances_sorted = np.sort(distances)
+            prob_map = {}
+            last_cu = []
+            last_co = []
+            i_cu = i_co = 0
+            while i_cu < n and i_co < n:
+                if distances_sorted[i_cu] <= distances_correct[i_co]:
+                    if not len(last_co) == 0:
+                        for x in set(last_cu):
+                            prob_map[x] = len(last_co) / float(len(last_cu) * n)
+                        last_cu = []
+                        last_co = []
+                    if distances_sorted[i_cu] != correct_dist:
+                        last_cu.append(distances_sorted[i_cu])
+                    i_cu += 1
+                else:
+                    #if not len(last_cu) == 0:
+                    last_co.append(distances_correct[i_co])
+                    i_co += 1
+            # add remaining
+            while i_cu < n:
+                if distances_sorted[i_cu] != correct_dist:
+                    last_cu.append(distances_sorted[i_cu])
+                i_cu += 1
+            while i_co < n:
+                last_co.append(distances_correct[i_co])
+                i_co += 1
+            if 1.0 not in last_cu:
+                last_cu.append(1.0)
+            for x in set(last_cu):
+                prob_map[x] = len(last_co) / float(len(last_cu) * n)
+            # remove
+            prob_map[1.0] = 0.0
+
+            p = [prob_map.get(d, 0.0) for d in distances]
+            # normalize probs
+            p = np.array(p)
+            s = p.sum()
+            p = p / s
+
+            new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p)
+
+            # add original
+            current_new_subtrees = [subtrees[j * 2 + 1] for j in new_indices]
+            current_subtrees = [subtrees[i * 2]] * FLAGS.neg_samples
+            _current_new_subtrees = zip(current_subtrees, current_new_subtrees)
+            new_subtrees.extend(_current_new_subtrees)
+        # rearrange from tuples of subtrees to flattened list of subtrees
+        new_subtrees = list(sum(new_subtrees, ()))
+        # get data and parents
+        new_data, new_parents = zip(*new_subtrees)
+        new_data = np.concatenate(new_data)
+        new_parents = np.concatenate(new_parents)
+        new_scores = np.zeros(shape=n * FLAGS.neg_samples, dtype=scores.dtype)
+        data = np.concatenate((data, new_data))
+        parents = np.concatenate((parents, new_parents))
+        scores = np.concatenate((scores, new_scores))
+        logging.debug('calc roots ...')
+        children, roots = preprocessing.children_and_roots(parents)
+        logging.debug('new root count: %i' % len(roots))
+        sizes[0] += n * FLAGS.neg_samples
+        # TODO: implement for multiple data files (train, dev test)
+
+    sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(len(scores))]
+    #sim_tuples = zip(np.array(range(len(scores)))*2, np.array(range(len(scores)))*2+1, scores)
 
     corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:sizes[0]], data, children, roots)
     if len(sizes) > 1:
