@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+from collections import Counter
 
 import numpy as np
 import spacy
@@ -71,6 +72,40 @@ def distance_jaccard(ids1, ids2):
     ids1_set = set(ids1)
     ids2_set = set(ids2)
     return len(ids1_set & ids2_set) * 1.0 / len(ids1_set | ids2_set)
+
+
+def continuous_binning(hist_src, hist_dest):
+    c_src = Counter(hist_src)
+    c_dest = Counter(hist_dest)
+    keys_src = sorted(c_src.keys())
+    keys_dest = sorted(c_dest.keys())
+    prob_map = {}
+    last_dest = []
+    last_src = []
+    i_dest = i_src = 0
+    while i_dest < len(c_dest) and i_src < len(c_src):
+        if keys_dest[i_dest] <= keys_src[i_src]:
+            if len(last_src) > 0 and len(last_dest) > 0:
+                sum_dest = sum([c_dest[d] for d in last_dest])
+                sum_src = sum([c_src[d] for d in last_src])
+                for x in last_src:
+                    prob_map[x] = sum_dest / float(sum_src * len(hist_dest))
+                last_dest = []
+                last_src = []
+            last_dest.append(keys_dest[i_dest])
+            i_dest += 1
+        else:
+            last_src.append(keys_src[i_src])
+            i_src += 1
+    # add remaining
+    last_dest.extend(keys_dest[i_dest:])
+    last_src.extend(keys_src[i_src:])
+    sum_dest = sum([c_dest[d] for d in last_dest])
+    sum_src = sum([c_src[d] for d in last_src])
+    for x in set(last_src):
+        prob_map[x] = sum_dest / float(sum_src * len(hist_dest))
+
+    return prob_map
 
 
 def create_corpus(reader_sentences, reader_score, FLAGS):
@@ -181,53 +216,35 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
 
         new_subtrees = []
         for i in range(n):
+            # sample according to distances_correct probability distribution
             distances = np.zeros(shape=n)
             for j in range(n):
                 distances[j] = distance_jaccard(subtrees[i * 2][0], subtrees[j * 2 + 1][0])
-            correct_dist = distances[i]
-            # calc p according to distances_correct (and set p[i]=0.0)
+            distance_original = distances[i]
             distances_sorted = np.sort(distances)
-            prob_map = {}
-            last_cu = []
-            last_co = []
-            i_cu = i_co = 0
-            while i_cu < n and i_co < n:
-                if distances_sorted[i_cu] <= distances_correct[i_co]:
-                    if not len(last_co) == 0:
-                        for x in set(last_cu):
-                            prob_map[x] = len(last_co) / float(len(last_cu) * n)
-                        last_cu = []
-                        last_co = []
-                    if distances_sorted[i_cu] != correct_dist:
-                        last_cu.append(distances_sorted[i_cu])
-                    i_cu += 1
-                else:
-                    #if not len(last_cu) == 0:
-                    last_co.append(distances_correct[i_co])
-                    i_co += 1
-            # add remaining
-            while i_cu < n:
-                if distances_sorted[i_cu] != correct_dist:
-                    last_cu.append(distances_sorted[i_cu])
-                i_cu += 1
-            while i_co < n:
-                last_co.append(distances_correct[i_co])
-                i_co += 1
-            if 1.0 not in last_cu:
-                last_cu.append(1.0)
-            for x in set(last_cu):
-                prob_map[x] = len(last_co) / float(len(last_cu) * n)
-            # remove
-            prob_map[1.0] = 0.0
+            prob_map = continuous_binning(hist_src=distances_sorted, hist_dest=distances_correct)
 
-            p = [prob_map.get(d, 0.0) for d in distances]
+            # set probabilities according to prob_map, but set to 0.0
+            # if this is the original pair (can occur multiple times)
+            # or if the two subtrees are equal
+            #p_0 = [i for i, d in enumerate(distances) if (d == distance_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1])]
+            p_0 = []
+            for j, d in enumerate(distances):
+                if (d == distance_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (
+                        d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1]):
+                    p_0.append(j)
+            #p = [prob_map[d] if (d != distance_original or i != j or subtrees[2 * i + 1] != subtrees[2 * j + 1]) and (d != 1.0 or subtrees[2 * i] != subtrees[2 * j + 1]) else 0.0 for j, d in enumerate(distances)]
+            p = [prob_map[d] for d in distances]
+            for x in p_0:
+                p[x] = 0.0
             # normalize probs
             p = np.array(p)
-            s = p.sum()
-            p = p / s
-
-            new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p)
-
+            p = p / p.sum()
+            try:
+                new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=False)
+            except ValueError as e:
+                logging.warning('Error: "%s" (source tuple index: %i) Retry sampling with repeated elements allowed ...' % (e.message, i))
+                new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=True)
             # add original
             current_new_subtrees = [subtrees[j * 2 + 1] for j in new_indices]
             current_subtrees = [subtrees[i * 2]] * FLAGS.neg_samples
