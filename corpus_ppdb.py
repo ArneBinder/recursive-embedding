@@ -3,7 +3,7 @@ import tensorflow as tf
 import corpus_simtuple
 
 
-corpus_simtuple.set_flags(corpus_name='PPDB', fn_train='ppdb-2.0-s-phrasal_1000')
+corpus_simtuple.set_flags(corpus_name='PPDB', output_suffix='_1000', fn_train='ppdb-2.0-s-phrasal_0000-1000', fn_dev='ppdb-2.0-s-phrasal_1000-2000')
 
 FLAGS = tf.flags.FLAGS
 

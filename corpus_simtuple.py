@@ -84,28 +84,31 @@ def continuous_binning(hist_src, hist_dest):
     prob_map = {}
     last_dest = []
     last_src = []
+
+    def process_probs():
+        sum_dest = sum([c_dest[d] for d in last_dest])
+        sum_src = sum([c_src[d] for d in last_src])
+        for x in last_src:
+            prob_map[x] = sum_dest / float(sum_src * len(hist_dest))
+        del last_dest[:]
+        del last_src[:]
+
     i_dest = i_src = 0
     while i_dest < len(c_dest) and i_src < len(c_src):
         if keys_dest[i_dest] <= keys_src[i_src]:
             if len(last_src) > 0 and len(last_dest) > 0:
-                sum_dest = sum([c_dest[d] for d in last_dest])
-                sum_src = sum([c_src[d] for d in last_src])
-                for x in last_src:
-                    prob_map[x] = sum_dest / float(sum_src * len(hist_dest))
-                last_dest = []
-                last_src = []
+                process_probs()
             last_dest.append(keys_dest[i_dest])
             i_dest += 1
         else:
+            if len(last_src) > 0 and len(last_dest) > 0:
+                process_probs()
             last_src.append(keys_src[i_src])
             i_src += 1
     # add remaining
     last_dest.extend(keys_dest[i_dest:])
     last_src.extend(keys_src[i_src:])
-    sum_dest = sum([c_dest[d] for d in last_dest])
-    sum_src = sum([c_src[d] for d in last_src])
-    for x in set(last_src):
-        prob_map[x] = sum_dest / float(sum_src * len(hist_dest))
+    process_probs()
 
     return prob_map
 
@@ -143,6 +146,8 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
     out_path = out_path + '_CM' + FLAGS.concat_mode
     if FLAGS.inner_concat_mode is not None:
         out_path = out_path + '_ICM' + FLAGS.inner_concat_mode
+    if FLAGS.neg_samples:
+        out_path = out_path + '_NEGS' + str(FLAGS.neg_samples)
 
     def read_data(file_name):
         return corpus.parse_texts_scored(filename=file_name,
@@ -225,7 +230,7 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         sims_correct.sort()
 
         logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
-        bar = Bar('Processing', max=n)
+        bar = Bar('Create negative samples', max=n)
         new_subtrees = []
         for i in range(n):
             # sample according to sims_correct probability distribution
