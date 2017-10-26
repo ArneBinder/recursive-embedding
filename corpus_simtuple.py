@@ -212,6 +212,11 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         distances_correct = np.zeros(shape=n)
         for i in range(n):
             distances_correct[i] = distance_jaccard(subtrees[i * 2][0], subtrees[i * 2 +1][0])
+
+        # debug
+        #distances_correct.dump('distance_cor')
+        # debug-end
+
         distances_correct.sort()
 
         new_subtrees = []
@@ -227,16 +232,13 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             # set probabilities according to prob_map, but set to 0.0
             # if this is the original pair (can occur multiple times)
             # or if the two subtrees are equal
-            #p_0 = [i for i, d in enumerate(distances) if (d == distance_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1])]
-            p_0 = []
+            p = [prob_map[d] for d in distances]
+            #p_0 = []
             for j, d in enumerate(distances):
                 if (d == distance_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (
                         d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1]):
-                    p_0.append(j)
-            #p = [prob_map[d] if (d != distance_original or i != j or subtrees[2 * i + 1] != subtrees[2 * j + 1]) and (d != 1.0 or subtrees[2 * i] != subtrees[2 * j + 1]) else 0.0 for j, d in enumerate(distances)]
-            p = [prob_map[d] for d in distances]
-            for x in p_0:
-                p[x] = 0.0
+                    p[j] = 0.0
+
             # normalize probs
             p = np.array(p)
             p = p / p.sum()
@@ -254,27 +256,44 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         new_subtrees = list(sum(new_subtrees, ()))
         # get data and parents
         new_data, new_parents = zip(*new_subtrees)
+
+        # debug
+        #distances_neg = np.zeros(shape=n * FLAGS.neg_samples)
+        #for i in range(n * FLAGS.neg_samples):
+        #    distances_neg[i] = distance_jaccard(new_data[i * 2], new_data[i * 2 + 1])
+        #distances_neg.dump('distances_neg')
+        # debug-end
+
+        # concat subtrees
         new_data = np.concatenate(new_data)
         new_parents = np.concatenate(new_parents)
         new_scores = np.zeros(shape=n * FLAGS.neg_samples, dtype=scores.dtype)
+        # integrate into existing
         data = np.concatenate((data, new_data))
         parents = np.concatenate((parents, new_parents))
         scores = np.concatenate((scores, new_scores))
         logging.debug('calc roots ...')
         children, roots = preprocessing.children_and_roots(parents)
         logging.debug('new root count: %i' % len(roots))
-        sizes[0] += n * FLAGS.neg_samples
-        # TODO: implement for multiple data files (train, dev test)
 
-    sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(len(scores))]
+    sim_tuples = []
+    start = 0
+    for end in np.cumsum(sizes):
+        current_sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(start, end)]
+        if FLAGS.neg_samples:
+            neg_sample_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(sum(sizes) + start * FLAGS.neg_samples, sum(sizes) + end * FLAGS.neg_samples)]
+            current_sim_tuples.extend(neg_sample_tuples)
+        sim_tuples.append(current_sim_tuples)
+        start = end
     #sim_tuples = zip(np.array(range(len(scores)))*2, np.array(range(len(scores)))*2+1, scores)
 
-    corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[:sizes[0]], data, children, roots)
+    # TODO: shuffle?
+    corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[0], data, children, roots)
     if len(sizes) > 1:
-        corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[sizes[0]:sizes[0] + sizes[1]], data, children,
+        corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[1], data, children,
                                     roots)
     if FLAGS.corpus_data_input_test:
-        corpus.write_sim_tuple_data(out_path + '.train.2.test', sim_tuples[sizes[0] + sizes[1]:], data,
+        corpus.write_sim_tuple_data(out_path + '.train.2.test', sim_tuples[2], data,
                                     children, roots)
 
 
