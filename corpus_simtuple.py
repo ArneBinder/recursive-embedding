@@ -194,11 +194,12 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
         vecs[idx][i % vecs.shape[1]] = 1.0
 
+    n = len(scores)
     corpus.write_dict(out_path, vecs=vecs, types=types)
-    logging.info('the dataset contains ' + str(len(scores)) + ' scored text tuples')
+    logging.info('the dataset contains %i scored text tuples' % n)
     logging.debug('calc roots ...')
     children, roots = preprocessing.children_and_roots(parents)
-    logging.debug('len(roots)=' + str(len(roots)))
+    logging.debug('len(roots)=%i' % len(roots))
 
     if FLAGS.neg_samples:
         # separate into subtrees (e.g. sentences)
@@ -211,7 +212,7 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             #    repl_roots.append(root)
             subtrees.append(new_subtree)
             #TODO: check for replicates? (if yes, check successive tuples!)
-        n = len(subtrees) / 2
+        assert n == len(subtrees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(subtrees) / 2, n)
         logging.debug('calc sims_correct ...')
         sims_correct = np.zeros(shape=n)
         for i in range(n):
