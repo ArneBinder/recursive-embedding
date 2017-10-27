@@ -4,7 +4,9 @@ import tensorflow as tf
 
 import corpus_simtuple
 
-corpus_simtuple.set_flags(corpus_name='SICK', fn_train='sick_train/SICK_train.txt', fn_dev='sick_test_annotated/SICK_test_annotated.txt', output_suffix='_TT')
+tf.flags.DEFINE_string('corpus_name',
+                       'SICK',
+                       'name of the corpus (used as source folder and output dir)')
 
 FLAGS = tf.flags.FLAGS
 
@@ -24,5 +26,15 @@ def score_reader(filename):
             yield (float(row['relatedness_score']) - 1.0) / 4.0
 
 
+def main(args=None):
+    if len(args) > 1:
+        file_names = args[1:]
+    else:
+        file_names = ['sick_train/SICK_train.txt', 'sick_test_annotated/SICK_test_annotated.txt']
+    corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader,
+                                  corpus_name=FLAGS.corpus_name,
+                                  file_names=file_names)
+
+
 if __name__ == '__main__':
-    corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader, FLAGS=FLAGS)
+    tf.app.run()

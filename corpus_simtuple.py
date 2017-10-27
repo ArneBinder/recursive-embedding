@@ -12,62 +12,54 @@ from progress.bar import Bar
 import corpus
 import preprocessing
 
-corpora_source_root = '/home/arne/devel/ML/data/corpora'
+tf.flags.DEFINE_string('corpora_source_root',
+                       '/home/arne/devel/ML/data/corpora',
+                       'location of raw corpora directories')
+tf.flags.DEFINE_string('corpora_target_root',
+                       '/media/arne/WIN/Users/Arne/ML/data/corpora',
+                       'location of raw corpora directories')
+tf.flags.DEFINE_string(
+    'sentence_processor',
+    'process_sentence3_marked',
+    'Which data types (features) are used to build the data sequence.')
+tf.flags.DEFINE_string(
+    'concat_mode',
+    # 'sequence',
+    'aggregate',
+    # constants.default_inner_concat_mode,
+    'How to concatenate the sentence-trees with each other. '
+    'A sentence-tree represents the information regarding one sentence. '
+    '"sequence" -> roots point to next root, '
+    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
+    '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
+tf.flags.DEFINE_string(
+    'inner_concat_mode',
+    # 'tree',
+    None,
+    # constants.default_inner_concat_mode,
+    'How to concatenate the token-trees with each other. '
+    'A token-tree represents the information regarding one token. '
+    '"tree" -> use dependency parse tree'
+    '"sequence" -> roots point to next root, '
+    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
+    'None -> do not concat at all. This produces one sentence-tree per token.')
+tf.flags.DEFINE_integer(
+    'count_threshold',
+    1,
+    # TODO: check if less or equal-less
+    'remove token which occur less then count_threshold times in the corpus')
+tf.flags.DEFINE_integer(
+    'neg_samples',
+    0,
+    'amount of negative samples to add'
+)
 
-
-def set_flags(corpus_name, fn_train, fn_dev=None, fn_test=None, output_suffix=None):
-    tf.flags.DEFINE_string(
-        'corpus_data_input_train', corpora_source_root + '/' + corpus_name + '/' + fn_train,
-        'The path to the ' + corpus_name + ' train data file.')
-    tf.flags.DEFINE_string(
-        'corpus_data_input_dev', corpora_source_root + '/' + corpus_name + '/' + fn_dev if fn_dev else None,
-        'The path to the ' + corpus_name + ' dev data file.')
-    tf.flags.DEFINE_string(
-        'corpus_data_input_test',
-        corpora_source_root + '/' + corpus_name + '/' + fn_test if fn_test else None,
-        'The path to the ' + corpus_name + ' test data file.')
-    tf.flags.DEFINE_string(
-        'corpus_data_output_dir',
-        '/media/arne/WIN/Users/Arne/ML/data/corpora/' + corpus_name,
-        'The path to the output data files (samples, embedding vectors, mappings).')
-    tf.flags.DEFINE_string(
-        'corpus_data_output_fn', corpus_name + (output_suffix or ''),
-        'Base filename of the output data files (samples, embedding vectors, mappings).')
-    tf.flags.DEFINE_string(
-        'sentence_processor',
-        'process_sentence3_marked',
-        'Which data types (features) are used to build the data sequence.')
-    tf.flags.DEFINE_string(
-        'concat_mode',
-        #'sequence',
-        'aggregate',
-        #constants.default_inner_concat_mode,
-        'How to concatenate the sentence-trees with each other. '
-        'A sentence-tree represents the information regarding one sentence. '
-        '"sequence" -> roots point to next root, '
-        '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
-        '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
-    tf.flags.DEFINE_string(
-        'inner_concat_mode',
-        #'tree',
-        None,
-        #constants.default_inner_concat_mode,
-        'How to concatenate the token-trees with each other. '
-        'A token-tree represents the information regarding one token. '
-        '"tree" -> use dependency parse tree'
-        '"sequence" -> roots point to next root, '
-        '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
-        'None -> do not concat at all. This produces one sentence-tree per token.')
-    tf.flags.DEFINE_integer(
-        'count_threshold',
-        1,
-        #TODO: check if less or equal-less
-        'remove token which occur less then count_threshold times in the corpus')
-    tf.flags.DEFINE_integer(
-        'neg_samples',
-        0,
-        'amount of negative samples to add'
-    )
+FLAGS = tf.flags.FLAGS
+logging_format = '%(asctime)s %(levelname)s %(message)s'
+tf.logging._logger.propagate = False
+tf.logging._handler.setFormatter(logging.Formatter(logging_format))
+tf.logging._logger.format = logging_format
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
 
 
 def sim_jaccard(ids1, ids2):
@@ -113,20 +105,21 @@ def continuous_binning(hist_src, hist_dest):
     return prob_map
 
 
-def create_corpus(reader_sentences, reader_score, FLAGS):
+def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
-        * .train.0, .train.1, (.train.2.test):  training, development and, optionally, test data
-        * .type:                                a types mapping, e.g. a list of types (strings), where its list
-                                                position serves as index
-        * .vec:                                 embedding vectors (indexed by types mapping)
+        * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
+        * .type:                        a types mapping, e.g. a list of types (strings), where its list
+                                        position serves as index
+        * .vec:                         embedding vectors (indexed by types mapping)
     :param reader_sentences: a file reader that yields sentences of the tuples where every two succinct sentences come
                             from the same tuple: (sentence0, sentence1), (sentence2, sentence3), ...
     :param reader_score: a file reader that yields similarity scores in the range of [0.0..1.0]
-    :param FLAGS: the flags
+    :param corpus_name: name of the corpus. This is taken for input- and output folder names
+    :param file_names: the input file names
+    :param output_suffix:
     """
 
-    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('load spacy ...')
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
@@ -135,11 +128,11 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
     mapping = corpus.mapping_from_list(types)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
-    out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
+    out_dir = os.path.abspath(os.path.join(FLAGS.corpora_target_root, corpus_name, sentence_processor.func_name))
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
 
-    out_path = os.path.join(out_dir, FLAGS.corpus_data_output_fn)
+    out_path = os.path.join(out_dir, corpus_name + (output_suffix or ''))
 
     assert FLAGS.concat_mode is not None and FLAGS.concat_mode != 'tree', \
         "concat_mode=None or concat_mode='tree' is NOT ALLOWED for similarity scored tuples! Use 'sequence' or 'aggregate'"
@@ -159,19 +152,16 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
                                          concat_mode=FLAGS.concat_mode,
                                          inner_concat_mode=FLAGS.inner_concat_mode)
 
-    file_names = [FLAGS.corpus_data_input_train]
-    if FLAGS.corpus_data_input_dev:
-        file_names.append(FLAGS.corpus_data_input_dev)
-    if FLAGS.corpus_data_input_test:
-        file_names.append(FLAGS.corpus_data_input_test)
+    file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
 
-    _data = [None]*len(file_names)
-    _parents = [None]*len(file_names)
-    _scores = [None]*len(file_names)
-    sizes = []
+    _data = [None] * len(file_names)
+    _parents = [None] * len(file_names)
+    _scores = [None] * len(file_names)
+
     for i, fn in enumerate(file_names):
         _data[i], _parents[i], _scores[i], _ = read_data(fn)
-        sizes.append(len(_scores[i]))
+
+    sizes = [len(s) for s in _scores]
 
     logging.debug('sizes: %s' % str(sizes))
     data = np.concatenate(_data)
@@ -187,8 +177,13 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
     parents.dump(out_path + '.parent')
     scores.dump(out_path + '.score')
 
-    #one_hot_types = []
-    #one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj', u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl', u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt', u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp', u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj', u'DEP#']
+    # one_hot_types = []
+    # one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
+    # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
+    # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
+    # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
+    # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
+    # u'DEP#']
     one_hot_types = [t for t in types if t.startswith('DEP#')]
     mapping = corpus.mapping_from_list(types)
     one_hot_ids = [mapping[t] for t in one_hot_types]
@@ -213,10 +208,10 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         for root in roots:
             descendant_indices = preprocessing.get_descendant_indices(children, root)
             new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
-            #if new_subtree in subtrees:
+            # if new_subtree in subtrees:
             #    repl_roots.append(root)
             subtrees.append(new_subtree)
-            #TODO: check for replicates? (if yes, check successive tuples!)
+            # TODO: check for replicates? (if yes, check successive tuples!)
         assert n == len(subtrees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(subtrees) / 2, n)
         logging.debug('calc sims_correct ...')
         sims_correct = np.zeros(shape=n)
@@ -224,7 +219,7 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             sims_correct[i] = sim_jaccard(subtrees[i * 2][0], subtrees[i * 2 + 1][0])
 
         # debug
-        #sims_correct.dump('sim_cor')
+        # sims_correct.dump('sim_cor')
         # debug-end
 
         sims_correct.sort()
@@ -245,10 +240,10 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             # if this is the original pair (can occur multiple times)
             # or if the two subtrees are equal
             p = [prob_map[d] for d in sims]
-            #p_0 = []
+            # p_0 = []
             for j, d in enumerate(sims):
                 if (d == sim_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (
-                        d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1]):
+                                d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1]):
                     p[j] = 0.0
 
             # normalize probs
@@ -257,7 +252,9 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
             try:
                 new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=False)
             except ValueError as e:
-                logging.warning('Error: "%s" (source tuple index: %i) Retry sampling with repeated elements allowed ...' % (e.message, i))
+                logging.warning(
+                    'Error: "%s" (source tuple index: %i) Retry sampling with repeated elements allowed ...' % (
+                    e.message, i))
                 new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=True)
             # add original
             current_new_subtrees = [subtrees[j * 2 + 1] for j in new_indices]
@@ -275,10 +272,10 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
         new_data, new_parents = zip(*new_subtrees)
 
         # debug
-        #sims_neg = np.zeros(shape=n * FLAGS.neg_samples)
-        #for i in range(n * FLAGS.neg_samples):
+        # sims_neg = np.zeros(shape=n * FLAGS.neg_samples)
+        # for i in range(n * FLAGS.neg_samples):
         #    sims_neg[i] = distance_jaccard(new_data[i * 2], new_data[i * 2 + 1])
-        #sims_neg.dump('sims_neg-naive')
+        # sims_neg.dump('sims_neg-naive')
         # debug-end
 
         # concat subtrees
@@ -298,19 +295,13 @@ def create_corpus(reader_sentences, reader_score, FLAGS):
     for end in np.cumsum(sizes):
         current_sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(start, end)]
         if FLAGS.neg_samples:
-            neg_sample_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(sum(sizes) + start * FLAGS.neg_samples, sum(sizes) + end * FLAGS.neg_samples)]
+            neg_sample_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in
+                                 range(sum(sizes) + start * FLAGS.neg_samples, sum(sizes) + end * FLAGS.neg_samples)]
             current_sim_tuples.extend(neg_sample_tuples)
         sim_tuples.append(current_sim_tuples)
         start = end
         # shuffle
         random.shuffle(sim_tuples[-1])
 
-    corpus.write_sim_tuple_data(out_path + '.train.0', sim_tuples[0], data, children, roots)
-    if len(sizes) > 1:
-        corpus.write_sim_tuple_data(out_path + '.train.1', sim_tuples[1], data, children,
-                                    roots)
-    if FLAGS.corpus_data_input_test:
-        corpus.write_sim_tuple_data(out_path + '.train.2.test', sim_tuples[2], data,
-                                    children, roots)
-
-
+    for i, _sim_tuples in enumerate(sim_tuples):
+        corpus.write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children, roots)
