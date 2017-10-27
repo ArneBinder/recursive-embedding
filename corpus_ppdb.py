@@ -69,7 +69,7 @@ def main(args=None):
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
-                                  output_suffix='_size%i' % FLAGS.size)
+                                  output_suffix='_%i' % FLAGS.size)
 
 
 if __name__ == '__main__':

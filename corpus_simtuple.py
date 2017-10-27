@@ -219,7 +219,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
             sims_correct[i] = sim_jaccard(subtrees[i * 2][0], subtrees[i * 2 + 1][0])
 
         # debug
-        # sims_correct.dump('sim_cor')
+        #sims_correct.dump('sims_cor')
         # debug-end
 
         sims_correct.sort()
@@ -272,10 +272,10 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         new_data, new_parents = zip(*new_subtrees)
 
         # debug
-        # sims_neg = np.zeros(shape=n * FLAGS.neg_samples)
-        # for i in range(n * FLAGS.neg_samples):
-        #    sims_neg[i] = distance_jaccard(new_data[i * 2], new_data[i * 2 + 1])
-        # sims_neg.dump('sims_neg-naive')
+        #sims_neg = np.zeros(shape=n * FLAGS.neg_samples)
+        #for i in range(n * FLAGS.neg_samples):
+        #   sims_neg[i] = sim_jaccard(new_data[i * 2], new_data[i * 2 + 1])
+        #sims_neg.dump('sims_neg-naive')
         # debug-end
 
         # concat subtrees

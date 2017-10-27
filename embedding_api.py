@@ -28,8 +28,8 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('data_source',
-                       #'/media/arne/WIN/ML/data/corpora/PPDB/process_sentence3_marked/PPDB_CMaggregate',
-                       '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       '/media/arne/WIN/ML/data/corpora/PPDB/process_sentence3_marked/PPDB_CMaggregate',
+                       #'/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
                        #'/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
                        #'/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
                        #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
