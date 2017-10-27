@@ -221,7 +221,7 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 
 def main(unused_argv):
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
-    if not FLAGS.test_only_file:
+    if not (FLAGS.test_only_file or FLAGS.init_only):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
         train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.[0-9]*')
         train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
@@ -233,13 +233,18 @@ def main(unused_argv):
         # train_iterator = iterate_over_tf_record_protos(
         #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
         train_iterator = corpus.iterate_sim_tuple_data(train_fnames)
-    else:
+        test_iterator = corpus.iterate_sim_tuple_data([test_fname])
+    elif FLAGS.test_only_file:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
+        test_iterator = corpus.iterate_sim_tuple_data([test_fname])
+        train_iterator = None
+    else:
+        test_iterator = None
         train_iterator = None
 
     # test_iterator = iterate_over_tf_record_protos(
     #    [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
-    test_iterator = corpus.iterate_sim_tuple_data([test_fname])
+
 
     run_desc = []
     for flag in sorted(model_flags.keys()):
@@ -358,6 +363,13 @@ def main(unused_argv):
                 logging.info('init embeddings with external vectors...')
                 sess.run(model.tree_embedder.lexicon_init, feed_dict={model.tree_embedder.lexicon_placeholder: vecs})
 
+            if FLAGS.init_only:
+                supervisor.saver.save(sess, checkpoint_path(logdir, 0))
+
+                current_lexicon = sess.run(model.tree_embedder.lexicon_var)
+                current_lexicon.dump(os.path.join(logdir, 'model.vec'))
+                return
+
             def collect_values(epoch, step, loss, sim, sim_gold, train, print_out=True, emit=True):
                 if train:
                     suffix = 'train'
@@ -463,7 +475,7 @@ def main(unused_argv):
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
 
                     # train
-                    if (not FLAGS.early_stop_queue or len(test_p_rs) > 0) and not FLAGS.init_only:
+                    if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
                         do_epoch(model, shuffled, epoch)
 
                     # test
@@ -496,14 +508,11 @@ def main(unused_argv):
                             supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
                     else:
                         # don't save after first epoch if FLAGS.early_stop_queue > 0
-                        if len(test_p_rs) > 1 or not FLAGS.early_stop_queue or FLAGS.init_only:
+                        if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
                             supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
                             current_lexicon = sess.run(model.tree_embedder.lexicon_var)
                             current_lexicon.dump(os.path.join(logdir, 'model.vec'))
-
-                            if FLAGS.init_only:
-                                return
 
 
 if __name__ == '__main__':
