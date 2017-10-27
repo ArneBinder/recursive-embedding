@@ -25,127 +25,132 @@ import similarity_tree_tuple_pb2
 import tensorflow_fold as td
 import numpy as np
 
-flags = {'train_data_path': ['DEFINE_string',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                             '/media/arne/WIN/Users/Arne/ML/data/corpora/SICK/process_sentence3/SICK_TT_CMaggregate',   # SICK default
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
-                             #'/media/arne/WIN/Users/Arne/ML/data/corpora/ANNOPPDB/process_sentence3/ANNOPPDB_CMaggregate',   # ANNOPPDB default
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate_NEGSAMPLES0',
-                             # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
-                             #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
-                             'TF Record file containing the training dataset of sequence tuples.',
-                             'data'],
-         'old_logdir': ['DEFINE_string',
-                        None,
-                        #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
-                        # '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGFLATAVG2LEVELS',
-                        'Set this to fine tune a pre-trained model. The old_logdir has to contain a types file with the filename "model.types"',
-                        None],
-         'batch_size': ['DEFINE_integer',
-                        100,
-                        'How many samples to read per batch.',
-                        'batchs'],
-         'epochs': ['DEFINE_integer',
-                    1000000,
-                    'The number of epochs.',
-                    None],
-         'test_file_index': ['DEFINE_integer',
-                             1,
-                             'Which file of the train data files should be used as test data.',
-                             'test_file_i'],
-         'lexicon_trainable': ['DEFINE_boolean',
-                               #   False,
-                               True,
-                                  'Iff enabled, fine tune the embeddings.',
-                                  'lex_train'],
-         'sim_measure': ['DEFINE_string',
-                         'sim_cosine',
-                         'similarity measure implementation (tensorflow) from model_fold for similarity score '
-                         'calculation. Currently implemented:'
-                         '"sim_cosine" -> cosine'
-                         '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
-                         '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
-                         'sm'],
-         'tree_embedder': ['DEFINE_string',
-                           'TreeEmbedding_FLAT_AVG',
-                           'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
-                           'calling which accepts a sequence tree and produces an embedding. '
-                           'Currently implemented (see model_fold.py):'
-                           '"TreeEmbedding_TREE_LSTM"           -> TreeLSTM'
-                           '"TreeEmbedding_HTU_GRU"             -> Headed Tree Unit, using a GRU for order aware '
-                           '                                       and summation for order unaware composition'
-                           '"TreeEmbedding_FLAT_AVG"            -> Averaging applied to first level children '
-                           '                                       (discarding the root)'
-                           '"TreeEmbedding_FLAT_AVG_2levels"    -> Like TreeEmbedding_FLAT_AVG, but concatenating first'
-                           '                                       second level children (e.g. dep-edge embedding) to '
-                           '                                       the first level children (e.g. token embeddings)'
-                           '"TreeEmbedding_FLAT_LSTM"           -> LSTM applied to first level children (discarding the'
-                           '                                       root)'
-                           '"TreeEmbedding_FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
-                           '                                       first second level children (e.g. dependency-edge '
-                           '                                       type embedding) to the first level children '
-                           '                                       (e.g. token embeddings)',
-                           'te'
-                           ],
-         'leaf_fc_size': ['DEFINE_integer',
-                                     # 0,
-                                     50,
-                                     'If not 0, apply a fully connected layer with this size before composition',
-                            'leaffc'
-                          ],
-         'root_fc_size': ['DEFINE_integer',
-                                  # 0,
-                                  50,
-                                  'If not 0, apply a fully connected layer with this size after composition',
-                          'rootfc'
-                          ],
-         'state_size': ['DEFINE_integer',
-                        50,
-                        'size of the composition layer',
-                        'state'],
-         'learning_rate': ['DEFINE_float',
-                           0.02,
-                           # 'tanh',
-                           'learning rate',
-                           'learning_r'],
-         'optimizer': ['DEFINE_string',
-                       'AdadeltaOptimizer',
-                       'optimizer',
-                       'opt'],
-         'early_stop_queue': ['DEFINE_integer',
+# model flags (saved in flags.json)
+model_flags = {'train_data_path': ['DEFINE_string',
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                                   '/media/arne/WIN/Users/Arne/ML/data/corpora/SICK/process_sentence3/SICK_TT_CMaggregate',
+                                   # SICK default
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/ANNOPPDB/process_sentence3/ANNOPPDB_CMaggregate',   # ANNOPPDB default
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate_NEGSAMPLES0',
+                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
+                                   #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
+                                   'TF Record file containing the training dataset of sequence tuples.',
+                                   'data'],
+               'batch_size': ['DEFINE_integer',
+                              100,
+                              'How many samples to read per batch.',
+                              'batchs'],
+               'epochs': ['DEFINE_integer',
+                          1000000,
+                          'The number of epochs.',
+                          None],
+               'test_file_index': ['DEFINE_integer',
+                                   1,
+                                   'Which file of the train data files should be used as test data.',
+                                   'test_file_i'],
+               'lexicon_trainable': ['DEFINE_boolean',
+                                     #   False,
+                                     True,
+                                     'Iff enabled, fine tune the embeddings.',
+                                     'lex_train'],
+               'sim_measure': ['DEFINE_string',
+                               'sim_cosine',
+                               'similarity measure implementation (tensorflow) from model_fold for similarity score '
+                               'calculation. Currently implemented:'
+                               '"sim_cosine" -> cosine'
+                               '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
+                               '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
+                               'sm'],
+               'tree_embedder': ['DEFINE_string',
+                                 'TreeEmbedding_FLAT_AVG',
+                                 'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
+                                 'calling which accepts a sequence tree and produces an embedding. '
+                                 'Currently implemented (see model_fold.py):'
+                                 '"TreeEmbedding_TREE_LSTM"           -> TreeLSTM'
+                                 '"TreeEmbedding_HTU_GRU"             -> Headed Tree Unit, using a GRU for order aware '
+                                 '                                       and summation for order unaware composition'
+                                 '"TreeEmbedding_FLAT_AVG"            -> Averaging applied to first level children '
+                                 '                                       (discarding the root)'
+                                 '"TreeEmbedding_FLAT_AVG_2levels"    -> Like TreeEmbedding_FLAT_AVG, but concatenating first'
+                                 '                                       second level children (e.g. dep-edge embedding) to '
+                                 '                                       the first level children (e.g. token embeddings)'
+                                 '"TreeEmbedding_FLAT_LSTM"           -> LSTM applied to first level children (discarding the'
+                                 '                                       root)'
+                                 '"TreeEmbedding_FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
+                                 '                                       first second level children (e.g. dependency-edge '
+                                 '                                       type embedding) to the first level children '
+                                 '                                       (e.g. token embeddings)',
+                                 'te'
+                                 ],
+               'leaf_fc_size': ['DEFINE_integer',
+                                # 0,
+                                50,
+                                'If not 0, apply a fully connected layer with this size before composition',
+                                'leaffc'
+                                ],
+               'root_fc_size': ['DEFINE_integer',
+                                # 0,
+                                50,
+                                'If not 0, apply a fully connected layer with this size after composition',
+                                'rootfc'
+                                ],
+               'state_size': ['DEFINE_integer',
                               50,
-                              'If not 0, stop training when current test loss is smaller then last queued previous losses',
-                              None],
-         'keep_prob': ['DEFINE_float',
-                        0.7,
-                        'Keep probability for dropout layer'
-                       ],
-         'auto_restore': ['DEFINE_boolean',
-                          False,
-                          #   True,
-                          'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
-                          'restore'],
-         'logdir': ['DEFINE_string',
-                    # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
-                    # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
-                    #'/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
-                    '/home/arne/ML_local/tf/supervised/log/SA/ROOTFC0',
-                    'Directory in which to write event logs.',
-                    None]
-         }
+                              'size of the composition layer',
+                              'state'],
+               'learning_rate': ['DEFINE_float',
+                                 0.02,
+                                 # 'tanh',
+                                 'learning rate',
+                                 'learning_r'],
+               'optimizer': ['DEFINE_string',
+                             'AdadeltaOptimizer',
+                             'optimizer',
+                             'opt'],
+               'early_stop_queue': ['DEFINE_integer',
+                                    50,
+                                    'If not 0, stop training when current test loss is smaller then last queued previous losses',
+                                    None],
+               'keep_prob': ['DEFINE_float',
+                             0.7,
+                             'Keep probability for dropout layer'
+                             ],
+               'auto_restore': ['DEFINE_boolean',
+                                False,
+                                #   True,
+                                'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
+                                'restore'],
 
+               }
 
+# non-saveable flags
+tf.flags.DEFINE_string('logdir',
+                       # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
+                       #  '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
+                       #  '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
+                       '/home/arne/ML_local/tf/supervised/log/SA/PRETRAINED',
+                       'Directory in which to write event logs.')
 tf.flags.DEFINE_string('test_only_file',
                        None,
                        'Set this to execute evaluation only.')
-tf.flags.DEFINE_string('load_logdir',
+tf.flags.DEFINE_string('logdir_continue',
                        None,
                        'continue training with config from flags.json')
+tf.flags.DEFINE_string('logdir_pretrained',
+                       None,
+                       # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
+                       # '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGFLATAVG2LEVELS',
+                       'Set this to fine tune a pre-trained model. The logdir_pretrained has to contain a types file with the filename "model.types"'
+                       )
+tf.flags.DEFINE_boolean('init_only',
+                        False,
+                        'If True, save the model without training and exit')
 
 # flags which are not logged in logdir/flags.json
 tf.flags.DEFINE_string('master', '',
@@ -161,37 +166,21 @@ tf.logging._logger.propagate = False
 tf.logging._handler.setFormatter(logging.Formatter(logging_format))
 tf.logging._logger.format = logging_format
 logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
-# overwrite current flags with values from load_logdir/flags.json
-if FLAGS.load_logdir:
-    logging.info('load flags from logdir: %s', FLAGS.load_logdir)
-    with open(os.path.join(FLAGS.load_logdir, 'flags.json'), 'r') as infile:
-        flags = json.load(infile)
 
-for flag in flags:
-    v = flags[flag]
+if FLAGS.logdir_continue:
+    logging.info('load flags from logdir: %s', FLAGS.logdir_continue)
+    with open(os.path.join(FLAGS.logdir_continue, 'flags.json'), 'r') as infile:
+        model_flags = json.load(infile)
+elif FLAGS.logdir_pretrained:
+    logging.info('load flags from logdir_pretrained: %s', FLAGS.logdir_pretrained)
+    new_train_data_path = model_flags['train_data_path']
+    with open(os.path.join(FLAGS.logdir_pretrained, 'flags.json'), 'r') as infile:
+        model_flags = json.load(infile)
+    model_flags['train_data_path'] = new_train_data_path
+
+for flag in model_flags:
+    v = model_flags[flag]
     getattr(tf.flags, v[0])(flag, v[1], v[2])
-
-
-#PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-#s_root = os.path.dirname(__file__)
-# Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
-#td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
-#td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
-
-# DEPRECATED
-# use corpus.iterate_sim_tuple_data
-def iterate_over_tf_record_protos(table_paths, message_type, multiple_epochs=True):
-    while True:
-        count = 0
-        for table_path in table_paths:
-            for v in tf.python_io.tf_record_iterator(table_path):
-                res = td.proto_tools.serialized_message_to_tree(PROTO_PACKAGE_NAME + '.' + message_type.__name__, v)
-                res['id'] = count
-                yield res
-                count += 1
-        if not multiple_epochs:
-            logging.info('records read: ' + str(count))
-            break
 
 
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
@@ -231,7 +220,6 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 
 
 def main(unused_argv):
-
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not FLAGS.test_only_file:
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
@@ -242,28 +230,28 @@ def main(unused_argv):
         test_fname = train_fnames[FLAGS.test_file_index]
         logging.info('use ' + test_fname + ' for testing')
         del train_fnames[FLAGS.test_file_index]
-        #train_iterator = iterate_over_tf_record_protos(
+        # train_iterator = iterate_over_tf_record_protos(
         #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
         train_iterator = corpus.iterate_sim_tuple_data(train_fnames)
     else:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
         train_iterator = None
 
-    #test_iterator = iterate_over_tf_record_protos(
+    # test_iterator = iterate_over_tf_record_protos(
     #    [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
     test_iterator = corpus.iterate_sim_tuple_data([test_fname])
 
     run_desc = []
-    for flag in sorted(flags.keys()):
+    for flag in sorted(model_flags.keys()):
         # get real flag value
         new_value = getattr(FLAGS, flag)
-        flags[flag][1] = new_value
+        model_flags[flag][1] = new_value
 
         # collect run description
         # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
-        if len(flags[flag]) < 4 or flags[flag][3]:
-            if len(flags[flag]) >= 4:
-                flag_name = flags[flag][3]
+        if len(model_flags[flag]) < 4 or model_flags[flag][3]:
+            if len(model_flags[flag]) >= 4:
+                flag_name = model_flags[flag][3]
             else:
                 flag_name = flag
             flag_name = flag_name.replace('_', '')
@@ -272,10 +260,11 @@ def main(unused_argv):
             flag_value = ''.join(flag_value.split(os.sep)[-2:])
             run_desc.append(flag_name.lower() + flag_value.upper())
 
-    flags['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
-    logging.info('serialized run description: ' + flags['run_description'][1])
+    model_flags['run_description'] = ['DEFINE_string', '_'.join(run_desc),
+                                      'short string description of the current run', None]
+    logging.info('serialized run description: ' + model_flags['run_description'][1])
 
-    logdir = os.path.join(FLAGS.logdir, flags['run_description'][1])
+    logdir = FLAGS.logdir_continue or os.path.join(FLAGS.logdir, model_flags['run_description'][1])
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
@@ -292,12 +281,13 @@ def main(unused_argv):
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
     else:
         vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
-        if FLAGS.old_logdir:
-            old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.old_logdir)
-            assert old_checkpoint_fn is not None, 'No checkpoint file found in old_logdir: ' + FLAGS.old_logdir
+        if FLAGS.logdir_pretrained:
+            logging.info('load lexicon from pre-trained model: %s' % FLAGS.logdir_pretrained)
+            old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir_pretrained)
+            assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + FLAGS.logdir_pretrained
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
             vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_LEXICON)
-            types_old = corpus.read_types(os.path.join(FLAGS.old_logdir, 'model'))
+            types_old = corpus.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
             vecs, types = corpus.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                              remove=False)
             # save types file in log dir
@@ -308,12 +298,12 @@ def main(unused_argv):
         lex_size = vecs.shape[0]
         # write flags for current run
         with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
-            json.dump(flags, outfile, indent=2, sort_keys=True)
+            json.dump(model_flags, outfile, indent=2, sort_keys=True)
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
         test_result_writer.writeheader()
 
-    logging.info('lex_size: ' + str(lex_size))
+    logging.info('lex_size: %i' % lex_size)
 
     optimizer = FLAGS.optimizer
     if FLAGS.optimizer:
@@ -448,7 +438,7 @@ def main(unused_argv):
                 # print(sim_all_jaccard_.tolist())
                 # print(ids_all_.tolist())
 
-                #collect_values(step, loss_all, sim_all_, sim_all_gold_,
+                # collect_values(step, loss_all, sim_all_, sim_all_gold_,
                 #               train=train, print_out=True)  # , emit=(not train))
                 collect_values(epoch, step, loss_all, sim_all_, sim_all_gold_, train=train, emit=emit)
                 return step, loss_all, sim_all_, sim_all_gold_
@@ -473,13 +463,13 @@ def main(unused_argv):
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
 
                     # train
-                    if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
+                    if (not FLAGS.early_stop_queue or len(test_p_rs) > 0) and not FLAGS.init_only:
                         do_epoch(model, shuffled, epoch)
 
                     # test
                     step_test, loss_test, sim_all, sim_all_gold = do_epoch(model, test_set, epoch, train=False)
 
-                    #loss_test = round(loss_test, 6) #100000000
+                    # loss_test = round(loss_test, 6) #100000000
                     p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
                     p_r_dif = p_r - max(test_p_rs_sorted)
                     # stop, if different previous test losses are smaller than current loss. The amount of regarded
@@ -490,7 +480,8 @@ def main(unused_argv):
                     rank = test_p_rs_sorted.index(p_r)
 
                     logging.debug('pearson_r rank (of %i):\t%i\tdif: %f' % (len(test_p_rs), rank, round(p_r_dif, 6)))
-                    if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(test_p_rs) -1: #min(test_p_rs) == p_r :
+                    if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(
+                            test_p_rs) - 1:  # min(test_p_rs) == p_r :
                         logging.info('last test pearsons_r: ' + str(test_p_rs))
                         break
 
@@ -505,11 +496,14 @@ def main(unused_argv):
                             supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
                     else:
                         # don't save after first epoch if FLAGS.early_stop_queue > 0
-                        if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
+                        if len(test_p_rs) > 1 or not FLAGS.early_stop_queue or FLAGS.init_only:
                             supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
                             current_lexicon = sess.run(model.tree_embedder.lexicon_var)
                             current_lexicon.dump(os.path.join(logdir, 'model.vec'))
+
+                            if FLAGS.init_only:
+                                return
 
 
 if __name__ == '__main__':
