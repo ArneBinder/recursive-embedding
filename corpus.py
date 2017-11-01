@@ -592,6 +592,14 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
             record_output.write(sim_tree_tuple.SerializeToString())
 
 
+def load_sim_tuple_indices(filename):
+    _loaded = np.load(filename).T
+    ids1 = _loaded[0].astype(int)
+    ids2 = _loaded[1].astype(int)
+    loaded = zip(ids1, ids2, _loaded[2])
+    return loaded
+
+
 def iterate_sim_tuple_data(paths):
     count = 0
     for path in paths:

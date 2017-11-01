@@ -218,15 +218,11 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         for i in range(n):
             sims_correct[i] = sim_jaccard(subtrees[i * 2][0], subtrees[i * 2 + 1][0])
 
-        # debug
-        #sims_correct.dump('sims_cor')
-        # debug-end
-
         sims_correct.sort()
 
         logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
         bar = Bar('Create negative samples', max=n)
-        new_subtrees = []
+        sample_indices = np.zeros(shape=n * FLAGS.neg_samples, dtype=int)
         for i in range(n):
             # sample according to sims_correct probability distribution
             sims = np.zeros(shape=n)
@@ -256,52 +252,43 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
                     'Error: "%s" (source tuple index: %i) Retry sampling with repeated elements allowed ...' % (
                     e.message, i))
                 new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=True)
-            # add original
-            current_new_subtrees = [subtrees[j * 2 + 1] for j in new_indices]
-            current_subtrees = [subtrees[i * 2]] * FLAGS.neg_samples
-            _current_new_subtrees = zip(current_subtrees, current_new_subtrees)
-            new_subtrees.extend(_current_new_subtrees)
+            sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
             bar.next()
 
         bar.finish()
 
-        logging.debug('rearrange new data ...')
-        # rearrange from tuples of subtrees to flattened list of subtrees
-        new_subtrees = list(sum(new_subtrees, ()))
-        # get data and parents
-        new_data, new_parents = zip(*new_subtrees)
-
-        # debug
-        #sims_neg = np.zeros(shape=n * FLAGS.neg_samples)
-        #for i in range(n * FLAGS.neg_samples):
-        #   sims_neg[i] = sim_jaccard(new_data[i * 2], new_data[i * 2 + 1])
-        #sims_neg.dump('sims_neg-naive')
-        # debug-end
-
-        # concat subtrees
-        new_data = np.concatenate(new_data)
-        new_parents = np.concatenate(new_parents)
-        new_scores = np.zeros(shape=n * FLAGS.neg_samples, dtype=scores.dtype)
-        # integrate into existing
-        data = np.concatenate((data, new_data))
-        parents = np.concatenate((parents, new_parents))
-        scores = np.concatenate((scores, new_scores))
-        logging.debug('calc roots ...')
-        children, roots = preprocessing.children_and_roots(parents)
-        logging.debug('new root count: %i' % len(roots))
+    # debug
+    #sims_jac = np.zeros(shape=n * (1 + FLAGS.neg_samples))
+    #sims_cor = np.zeros(shape=sims_jac.shape)
+    #offset = 0
+    # debug end
 
     sim_tuples = []
     start = 0
     for end in np.cumsum(sizes):
         current_sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(start, end)]
         if FLAGS.neg_samples:
-            neg_sample_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in
-                                 range(sum(sizes) + start * FLAGS.neg_samples, sum(sizes) + end * FLAGS.neg_samples)]
+            neg_sample_tuples = [((i / FLAGS.neg_samples) * 2, sample_indices[i] * 2 + 1, 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
             current_sim_tuples.extend(neg_sample_tuples)
         sim_tuples.append(current_sim_tuples)
         start = end
+
+        # debug
+        #for i, st in enumerate(sim_tuples[-1]):
+        #    sims_jac[offset + i] = sim_jaccard(subtrees[st[0]][0], subtrees[st[1]][0])
+        #    sims_cor[offset + i] = st[2]
+
+        #offset += len(sim_tuples[-1])
+        # debug end
+
         # shuffle
         random.shuffle(sim_tuples[-1])
 
+    # debug
+    #sims_jac.dump('sims_jac')
+    #sims_cor.dump('sims_cor')
+    # debug end
+
     for i, _sim_tuples in enumerate(sim_tuples):
         corpus.write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children, roots)
+        np.array(_sim_tuples).dump('%s.idx.%i' % (out_path, i))
