@@ -1,5 +1,6 @@
 # import codecs
 import csv
+import fnmatch
 import os
 # import pickle
 
@@ -53,14 +54,19 @@ def write_dict(out_path, vecs=None, types=None, counts=None):
         counts.dump(out_path + '.count')
 
 
+def read_dict(fn):
+    logging.debug('load vecs from file: ' + fn + '.vec ...')
+    v = np.load(fn + '.vec')
+    t = read_types(fn)
+    logging.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
+    return v, t
+
+
 def create_or_read_dict(fn, vocab=None, dont_read=False):
     if os.path.isfile(fn + '.vec') and os.path.isfile(fn + '.type'):
         if dont_read:
             return
-        logging.debug('load vecs from file: ' + fn + '.vec ...')
-        v = np.load(fn + '.vec')
-        t = read_types(fn)
-        logging.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
+        v, t = read_dict(fn)
     else:
         logging.debug('extract word embeddings from spaCy ...')
         v, t = get_dict_from_vocab(vocab)
@@ -592,14 +598,6 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
             record_output.write(sim_tree_tuple.SerializeToString())
 
 
-def load_sim_tuple_indices(filename):
-    _loaded = np.load(filename).T
-    ids1 = _loaded[0].astype(int)
-    ids2 = _loaded[1].astype(int)
-    loaded = zip(ids1, ids2, _loaded[2])
-    return loaded
-
-
 def iterate_sim_tuple_data(paths):
     count = 0
     for path in paths:
@@ -608,3 +606,44 @@ def iterate_sim_tuple_data(paths):
             res['id'] = count
             yield res
             count += 1
+
+
+def load_sim_tuple_indices(filename):
+    _loaded = np.load(filename).T
+    ids1 = _loaded[0].astype(int)
+    ids2 = _loaded[1].astype(int)
+    loaded = zip(ids1, ids2, _loaded[2])
+    return loaded
+
+
+def load_data_and_parents(fn):
+    data = np.load('%s.data' % fn)
+    parents = np.load('%s.parent' % fn)
+    return data, parents
+
+
+# TODO: check this!
+def merge_into_corpus(corpus_fn1, corpus_fn2):
+    """
+    Merges corpus2 into corpus1 e.g. merges types and vecs and converts data2 according to new types dict and writes
+    training files from index files (file extension: .idx.<id>)
+
+    :param corpus_fn1: file name of source corpus
+    :param corpus_fn2: file name of target corpus
+    :return:
+    """
+    vecs, types = read_dict(corpus_fn1)
+    vecs2, types2 = read_dict(corpus_fn2)
+    vecs, types = merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
+    data2, parents2 = load_data_and_parents(corpus_fn2)
+    m = mapping_from_list(types)
+    mapping = {i: m[t] for i, t in enumerate(types2)}
+    data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)
+    dir2 = os.path.abspath(os.path.join(corpus_fn2, os.pardir))
+    indices2_fnames = fnmatch.filter(os.listdir(dir2), ntpath.basename(corpus_fn2) + '.idx.[0-9]*')
+    indices2 = [load_sim_tuple_indices(os.path.join(dir2, fn)) for fn in indices2_fnames]
+    children2, roots2 = preprocessing.children_and_roots(parents2)
+    for i, sim_tuples in enumerate(indices2):
+        write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2, roots2)
+    write_dict('%s.merged' % corpus_fn1, vecs=vecs, types=types)
+
