@@ -270,6 +270,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         if FLAGS.neg_samples:
             neg_sample_tuples = [((i / FLAGS.neg_samples) * 2, sample_indices[i] * 2 + 1, 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
             current_sim_tuples.extend(neg_sample_tuples)
+            # shuffle
+            random.shuffle(current_sim_tuples)
         sim_tuples.append(current_sim_tuples)
         start = end
 
@@ -280,9 +282,6 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
         #offset += len(sim_tuples[-1])
         # debug end
-
-        # shuffle
-        random.shuffle(sim_tuples[-1])
 
     # debug
     #sims_jac.dump('sims_jac')
