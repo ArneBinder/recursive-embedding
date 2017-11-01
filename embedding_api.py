@@ -28,7 +28,8 @@ import preprocessing
 import visualize as vis
 
 tf.flags.DEFINE_string('data_source',
-                       '/media/arne/WIN/ML/data/corpora/PPDB/process_sentence3_marked/PPDB_CMaggregate',
+                       #'/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       '/home/arne/ML_local/tf/supervised/log/SA/FINETUNE/PPDB/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKCMAGGREGATE_teTREEEMBEDDINGFLATLSTM',
                        #'/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
                        #'/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
                        #'/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
@@ -75,23 +76,6 @@ tf.flags.DEFINE_string('save_final_model_path',
                         'If not None, save the final model (after integration of external and/or nlp '
                         'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
                         'further usages.')
-tf.flags.DEFINE_string('sim_measure',
-                       'sim_cosine',
-                       'similarity measure implementation (tensorflow) from model_fold for similarity score calculation. Currently implemented:'
-                       '"sim_cosine" -> cosine'
-                       '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
-                       '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]')
-#tf.flags.DEFINE_string('tree_embedder',
-#                           'TreeEmbedding_FLAT_LSTM_2levels',
-#                           'Tree embedder implementation from model_fold that produces a tensorflow fold block on calling which accepts a sequence tree and produces an embedding. '
-#                           'Currently implemented:'
-#                           '"TreeEmbedding_TREE_LSTM" -> '
-#                           '"TreeEmbedding_HTU_GRU" -> '
-#                           '"TreeEmbedding_HTU_GRU_simplified" -> '
-#                           '"TreeEmbedding_FLAT_AVG" -> '
-#                           '"TreeEmbedding_FLAT_AVG_2levels" -> '
-#                           '"TreeEmbedding_FLAT_LSTM" -> '
-#                           '"TreeEmbedding_FLAT_LSTM_2levels" -> ')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -104,6 +88,8 @@ if os.path.isfile(flags_fn):
     for flag in model_flags:
         v = model_flags[flag]
         getattr(tf.flags, v[0])('model_' + flag, v[1], v[2])
+else:
+    tf.flags.DEFINE_string('model_train_data_path', FLAGS.data_source, '')
 
 
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
@@ -119,8 +105,7 @@ sess = None
 embedder = None
 data_maps = None
 types = None
-logging.info('load spacy ...')
-nlp = spacy.load('en')
+nlp = None
 
 
 ##################################################
@@ -234,6 +219,7 @@ def get_or_calc_sequence_data(params):
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=' + sentence_processor.__name__)
 
+        init_nlp
         params['data_sequences'] = list(corpus.parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
 
     else:
@@ -363,21 +349,21 @@ def norm():
 
 
 @app.route("/api/visualize", methods=['POST'])
-@app.route("/api/visualize/<simtuple_file>", methods=['POST'])
-def visualize(simtuple_file=None):
+@app.route("/api/visualize/<simtuple_extension>", methods=['POST'])
+def visualize(simtuple_extension=None):
     try:
         start = time.time()
         logging.info('Visualizations requested')
         params = get_params(request)
-        if not simtuple_file:
+        if not simtuple_extension:
             get_or_calc_sequence_data(params)
-        elif os.path.isfile(FLAGS.data_source + '.' + simtuple_file):
+        elif os.path.isfile(FLAGS.model_train_data_path + '.' + simtuple_extension):
             # get sequence data from sim tuple file
             params['data_sequences'] = []
             params['similarities'] = []
             start = params.get('start', 0)
             end = params.get('end', -1)
-            for i, sim_tuple in enumerate(corpus.iterate_sim_tuple_data([FLAGS.data_source + '.' + simtuple_file])):
+            for i, sim_tuple in enumerate(corpus.iterate_sim_tuple_data([FLAGS.model_train_data_path + '.' + simtuple_extension])):
                 if i < start:
                     continue
                 if 0 <= end <= i:
@@ -387,7 +373,7 @@ def visualize(simtuple_file=None):
                 params['data_sequences'].append([data1 + data2, parent1 + parent2])
                 params['similarities'].append(sim_tuple['similarity'])
         else:
-            raise IOError('could not open "%s"' % (FLAGS.data_source + '.' + simtuple_file))
+            raise IOError('could not open "%s"' % (FLAGS.model_train_data_path + '.' + simtuple_extension))
 
         mode = params.get('mode', 'image')
         if mode == 'image':
@@ -451,6 +437,15 @@ def all_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__() for g in all_subclasses(s)]
 
 
+def init_nlp():
+    global nlp
+
+    if nlp is None:
+        logging.info('load spacy ...')
+        nlp = spacy.load('en')
+        nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+
+
 def main(unused_argv):
     global sess, embedder, data_maps, types
 
@@ -474,12 +469,12 @@ def main(unused_argv):
         lexicon_np = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
     # take data_source as corpus path
     else:
-        logging.info('No model checkpoint found in "%s". Load as corpus.' % FLAGS.data_source)
-        types_fn = FLAGS.data_source
+        logging.info('No model checkpoint found in "%s". Load train data corpus from: "%s"' % (FLAGS.data_source, FLAGS.model_train_data_path))
+        types_fn = FLAGS.model_train_data_path
         logging.info('load embeddings from: ' + types_fn+'.vec ...')
         lexicon_np = np.load(types_fn+'.vec')
 
-    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+
 
     logging.info('read types ...')
     types = corpus.read_types(types_fn)
@@ -492,6 +487,7 @@ def main(unused_argv):
         lexicon_np, types = corpus.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
     if FLAGS.merge_nlp_lexicon:
         logging.info('extract nlp embeddings and types ...')
+        init_nlp()
         nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
         logging.info('merge nlp embeddings into loaded embeddings ...')
         lexicon_np, types = corpus.merge_dicts(lexicon_np, types, nlp_vecs, nlp_types, add=True, remove=False)
@@ -512,7 +508,7 @@ def main(unused_argv):
         else:
             logging.info('no scoring vars found. Disable scoring functionality.')
 
-        sim_measure = getattr(model_fold, FLAGS.sim_measure)
+        sim_measure = getattr(model_fold, FLAGS.model_sim_measure)
 
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
