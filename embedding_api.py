@@ -207,17 +207,17 @@ def get_or_calc_sequence_data(params):
         inner_concat_mode = FLAGS.default_inner_concat_mode
         if 'concat_mode' in params:
             concat_mode = params['concat_mode']
-            assert concat_mode in constants.concat_modes, 'unknown concat_mode=' + concat_mode
-            logging.info('use concat_mode=' + concat_mode)
+            assert concat_mode in constants.concat_modes, 'unknown concat_mode=%s' % concat_mode
+            logging.info('use concat_mode=%s' % concat_mode)
         if 'inner_concat_mode' in params:
             inner_concat_mode = params['inner_concat_mode']
-            assert inner_concat_mode in constants.concat_modes, 'unknown inner_concat_mode=' + inner_concat_mode
-            logging.info('use inner_concat_mode=' + concat_mode)
+            assert inner_concat_mode in constants.concat_modes, 'unknown inner_concat_mode=%s' % inner_concat_mode
+            logging.info('use inner_concat_mode=%s' % inner_concat_mode)
 
         sentence_processor = getattr(preprocessing, FLAGS.default_sentence_processor)
         if 'sentence_processor' in params:
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
-            logging.info('use sentence_processor=' + sentence_processor.__name__)
+            logging.info('use sentence_processor=%s' % sentence_processor.__name__)
 
         init_nlp()
         params['data_sequences'] = list(corpus.parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))

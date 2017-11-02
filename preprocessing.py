@@ -5,10 +5,11 @@ import logging
 import numpy as np
 
 import constants
+import mytools
 import sequence_trees
-import tools
 
 
+# unused
 def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
     root_offset = 0
     result_data = list()
@@ -22,7 +23,7 @@ def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
         result_data.append(sen_data[i])
         # shift parent indices
         parent_idx = sen_parents[i] + i
-        shift = tools.get_default(sen_offsets, parent_idx - 1, 0) - tools.get_default(sen_offsets, i - 1, 0)
+        shift = mytools.get_default(sen_offsets, parent_idx - 1, 0) - mytools.get_default(sen_offsets, i - 1, 0)
         # add (shifted) main parent
         result_parents.append(sen_parents[i] + shift)
         # insert additional data
@@ -38,7 +39,7 @@ def concat_roots(parents, root_offsets, root_parents=None, concat_mode='tree'):
     if not concat_mode:
         return parents, root_offsets
     elif concat_mode == 'aggregate':
-        for i in range(len(root_offsets)):
+        for i in range(len(root_offsets) - 1):
             parents[root_offsets[i]] = len(parents) - root_offsets[i] - 1
         return parents, [len(parents) - 1]
     elif concat_mode == 'tree':
@@ -56,7 +57,7 @@ def concat_roots(parents, root_offsets, root_parents=None, concat_mode='tree'):
     elif concat_mode == 'sequence':
         for i in range(len(root_offsets) - 1):
             parents[root_offsets[i]] = root_offsets[i + 1] - root_offsets[i]
-        return parents, [len(parents) - 1]
+        return parents, [root_offsets[-1]]
 
     else:
         raise NameError('unknown concat_mode: ' + concat_mode)
@@ -73,7 +74,7 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None,
     for i in range(sentence.start, sentence.end):
         token = parsed_data[i]
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
 
         parent_offset = token.head.i - i
         root_parents.append(parent_offset)
@@ -83,8 +84,9 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None,
         sen_parents.append(0)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -105,15 +107,16 @@ def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None, conca
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-1)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -134,15 +137,16 @@ def process_sentence3_marked(sentence, parsed_data, data_maps, dict_unknown=None
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, 'DEP#' + token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, 'DEP#' + token.dep_, dict_unknown))
         sen_parents.append(-1)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -163,21 +167,22 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None, conca
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
         # add word embedding embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-2)
         # add edge type embedding embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -199,19 +204,20 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None, conca
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-1)
 
         if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
-            sen_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             sen_parents.append(-2)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -233,28 +239,29 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None, conca
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
 
         # add word type type embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-2)
         # add edge type type embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
 
         if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
-            sen_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             sen_parents.append(-2)
-            sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_EMBEDDING], dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_EMBEDDING], dict_unknown))
             sen_parents.append(-1)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -278,28 +285,29 @@ def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None, conca
         root_offset = len(sen_parents)
         root_offsets.append(root_offset)
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
 
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(root_offset - len(sen_parents))
         # add pos-tag type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.tag_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.tag_, dict_unknown))
         sen_parents.append(root_offset - len(sen_parents))
 
         # add entity type embedding
         if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
-            sen_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             sen_parents.append(root_offset - len(sen_parents))
         # add lemma type embedding
         if token.lemma != token.orth:
-            sen_data.append(tools.getOrAdd(data_maps, token.lemma_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, token.lemma_, dict_unknown))
             sen_parents.append(root_offset - len(sen_parents))
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -323,45 +331,46 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None, conca
         root_offset = len(sen_parents)
         root_offsets.append(root_offset)
         # add word embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
 
         # add word type type embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.TOKEN_EMBEDDING], dict_unknown))
         sen_parents.append(root_offset - len(sen_parents))
         # add edge type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(root_offset - len(sen_parents))
         # add edge type type embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
         # add pos-tag type embedding
-        sen_data.append(tools.getOrAdd(data_maps, token.tag_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, token.tag_, dict_unknown))
         sen_parents.append(root_offset - len(sen_parents))
         # add pos-tag type type embedding
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.POS_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.POS_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
 
         # add entity type embedding
         if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
-            sen_data.append(tools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, token.ent_type_, dict_unknown))
             sen_parents.append(root_offset - len(sen_parents))
             # add entity type type embedding
             sen_data.append(
-                tools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_EMBEDDING], dict_unknown))
+                mytools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_EMBEDDING], dict_unknown))
             sen_parents.append(-1)
         # add lemma type embedding
         if token.lemma != token.orth:
-            sen_data.append(tools.getOrAdd(data_maps, token.lemma_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, token.lemma_, dict_unknown))
             sen_parents.append(root_offset - len(sen_parents))
             # add lemma type type embedding
             sen_data.append(
-                tools.getOrAdd(data_maps, constants.vocab_manual[constants.LEMMA_EMBEDDING], dict_unknown))
+                mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEMMA_EMBEDDING], dict_unknown))
             sen_parents.append(-1)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -389,15 +398,16 @@ def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None, conca
             # save root offset
             root_offsets.append(len(sen_parents))
             # add word embedding
-            sen_data.append(tools.getOrAdd(data_maps, token.lemma_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, token.lemma_, dict_unknown))
             sen_parents.append(0)
             # add edge type embedding
-            # sen_data.append(tools.getOrAdd(data_maps, token.pos_, dict_unknown))
+            # sen_data.append(mytools.getOrAdd(data_maps, token.pos_, dict_unknown))
             # sen_parents.append(-1)
 
     if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
         sen_parents.append(0)
-        sen_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
     sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
 
     return sen_data, sen_parents, root_offsets
@@ -413,7 +423,7 @@ def identity_reader(content):
 
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode,
-              inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True, calc_depths=False):
+              inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True, calc_depths=False, reader_source=None):
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
     # offsets of the parents
@@ -431,6 +441,9 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
         unknown_default = None
     else:
         unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+
+    if reader_source is None:
+        reader_source = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], 0)
 
     logging.debug('start read_data ...')
     sen_count = 0
@@ -454,12 +467,13 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
 
             sen_count += 1
 
-        # add aggregator node
-        if concat_mode == 'aggregate':
+        # add source node, if concat_mod is not None:
+        if concat_mode:
+            temp_roots.append(len(seq_data))
             seq_parents.append(0)
-            seq_data.append(tools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING],
-                                           unknown_default))
-        seq_parents, seq_roots = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
+            seq_data.append(mytools.getOrAdd(data_maps, reader_source.next(), unknown_default))
+
+        seq_parents, _ = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
 
         if calc_depths:
             # get current parents

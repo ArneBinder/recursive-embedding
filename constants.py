@@ -16,10 +16,13 @@ vocab_manual = {TOKEN_EMBEDDING: u'WORD', EDGE_EMBEDDING: u'EDGE', UNKNOWN_EMBED
 #                AGGREGATOR_EMBEDDING: u'AGGREGATOR', ENTITY_EMBEDDING: u'ENTITY',
 #                LEMMA_EMBEDDING: u'LEMMA', POS_EMBEDDING: u'POS'}
 
-concat_modes = [None, 'sequence', 'aggregate', 'tree']
+CM_TREE = 'tree'
+CM_SEQUENCE = 'sequence'
+CM_AGGREGATE = 'aggregate'
+concat_modes = [None, CM_SEQUENCE, CM_AGGREGATE, CM_TREE]
 
-default_concat_mode = 'sequence'
-default_inner_concat_mode = 'tree'
+default_concat_mode = CM_SEQUENCE
+default_inner_concat_mode = CM_TREE
 
 #DEPRECATED
 
