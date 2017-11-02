@@ -25,7 +25,7 @@ def convert_data(seq_data, converter, lex_size, new_idx_unknown):
     return seq_data
 
 
-#@tools.fn_timer
+#@mytools.fn_timer
 def convert_texts(in_filename, out_filename, init_dict_filename, sentence_processor, parser, reader,  # mapping, vecs,
                   max_articles=10000, max_depth=10, batch_size=100, article_offset=0, count_threshold=2,
                   concat_mode='sequence', inner_concat_mode='tree'):

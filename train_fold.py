@@ -16,17 +16,16 @@ import numpy as np
 import six
 import tensorflow as tf
 import tensorflow_fold as td
-import tools
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
 
-import corpus
 import corpus_simtuple
 import lexicon as lex
 import model_fold
-import logg
 
 # model flags (saved in flags.json)
+import mytools
+
 model_flags = {'train_data_path': ['DEFINE_string',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
@@ -161,7 +160,7 @@ tf.flags.DEFINE_integer('task', 0,
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
-tools.logging_init()
+mytools.logging_init()
 
 if FLAGS.logdir_continue:
     logging.info('load flags from logdir: %s', FLAGS.logdir_continue)

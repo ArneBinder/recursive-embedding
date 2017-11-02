@@ -12,8 +12,8 @@ import spacy
 import tensorflow as tf
 import tensorflow_fold as td
 
+import mytools
 import sequence_trees
-import tools
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from sklearn import metrics
@@ -85,7 +85,7 @@ tf.flags.DEFINE_string('save_final_model_path',
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
-tools.logging_init()
+mytools.logging_init()
 
 flags_fn = os.path.join(FLAGS.data_source, 'flags.json')
 if os.path.isfile(flags_fn):

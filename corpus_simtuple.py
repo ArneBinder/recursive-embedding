@@ -16,7 +16,7 @@ import lexicon as lex
 import preprocessing
 import sequence_trees
 import similarity_tree_tuple_pb2
-import tools
+import mytools
 
 #PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 #s_root = os.path.dirname(__file__)
@@ -67,7 +67,7 @@ tf.flags.DEFINE_integer(
 )
 
 FLAGS = tf.flags.FLAGS
-tools.logging_init()
+mytools.logging_init()
 
 
 def sim_jaccard(ids1, ids2):
