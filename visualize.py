@@ -2,14 +2,12 @@ import copy
 import os
 import re
 
-import pydot
 import matplotlib.pyplot as plt
-import constants
-from PIL import Image
+import pydot
 import svgutils.transform as sg
+from PIL import Image
 
-
-import preprocessing
+import constants
 import sequence_trees
 
 TEMP_FN = 'temp_forest.svg'
@@ -190,6 +188,7 @@ def concat_visualizations_svg(file_name, count):
 
     for fn in file_names:
         os.remove(fn)
+
 
 # deprecated
 def unfold_and_plot(data, width):

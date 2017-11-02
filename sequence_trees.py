@@ -32,11 +32,57 @@ def children_and_roots(seq_parents):
     return children, roots
 
 
+def children_and_roots_flat(seq_parents):
+    # assume, all parents are inside this array!
+
+    root_count = 0
+    children_counts = np.zeros(shape=len(seq_parents), dtype=np.int32)
+    for i, p in enumerate(seq_parents):
+        if p == 0:  # is it a root?
+            root_count += 1
+            continue
+        p_idx = i + p
+        children_counts[p_idx] += 1
+    children_offsets = np.zeros(shape=len(seq_parents), dtype=np.int32)
+    cc = 0
+    for i, c in enumerate(children_counts):
+        children_offsets[i] = cc
+        cc += c
+
+    roots = np.zeros(shape=root_count, dtype=np.int32)
+    root_count = 0
+    children_indices = np.zeros(shape=cc, dtype=np.int32)
+    current_offsets = np.zeros(shape=len(seq_parents), dtype=np.int32)
+    for i, p in enumerate(seq_parents):
+        if p == 0:  # is it a root?
+            roots[root_count] = i
+            root_count += 1
+            continue
+        p_idx = i + p
+        children_indices[children_offsets[p_idx] + current_offsets[p_idx]] = -p
+        current_offsets[p_idx] += 1
+    return (children_counts, children_offsets, children_indices), roots
+
+
+def get_children(children, idx):
+    children_counts, children_offsets, children_indices = children
+    c = children_counts[idx]
+    o = children_offsets[idx]
+    return children_indices[o:o+c]
+
+
 def get_descendant_indices(children, root):
     leafs = [root]
     if root in children:
         for c in children[root]:
             leafs.extend(get_descendant_indices(children, c + root))
+    return leafs
+
+
+def get_descendant_indices_flat(children, root):
+    leafs = [root]
+    for c in get_children(children, root):
+        leafs.extend(get_descendant_indices(children, c + root))
     return leafs
 
 
@@ -167,6 +213,24 @@ def build_sequence_tree(seq_data, children, root, seq_tree, max_depth=9999):
         seq_node.head = seq_data[pos]
         if pos in children and max_depth > 0:
             for child_offset in children[pos]:
+                build(seq_node.children.add(), pos + child_offset, max_depth - 1)
+
+    if seq_tree is None:
+        seq_tree = sequence_node_pb2.SequenceNode()
+    build(seq_tree, root, max_depth)
+
+    return seq_tree
+
+
+def build_sequence_tree_flat(seq_data, children, root, seq_tree, max_depth=9999):
+    # assume, all parents are inside this array!
+
+    """Recursively build a tree of SequenceNode_s"""
+
+    def build(seq_node, pos, max_depth):
+        seq_node.head = seq_data[pos]
+        if max_depth > 0:
+            for child_offset in get_children(children, pos):
                 build(seq_node.children.add(), pos + child_offset, max_depth - 1)
 
     if seq_tree is None:
