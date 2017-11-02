@@ -11,11 +11,12 @@ import tensorflow_fold as td
 import os
 
 import sequence_node_pb2
+import sequence_trees
 import tools
 import train_fold_nce
 import visualize
 import unittest
-
+import lexicon as lex
 
 class Tester(unittest.TestCase):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +31,7 @@ class Tester(unittest.TestCase):
     seq_parents = [2, -1, 0, -1, 4, -1, 2, -1, -6, -1, -2, -1, 4, -1, 2, -1, -6, -1, -16, -1, 2, -1, 0, -1, -2, -1, -4,
                    -1]  # [1, 10, 2, 1, -3, -1, 2, 1, -3, -8, 1, 0, -1, -2]
     print('calc children and roots ...')
-    children, roots = preprocessing.children_and_roots(seq_parents)
+    children, roots = sequence_trees.children_and_roots(seq_parents)
     print(children)
     print(roots)
 
@@ -49,7 +50,7 @@ class Tester(unittest.TestCase):
         pp = pprint.PrettyPrinter(indent=2)
         insert_idx = 5
         candidate_indices = [2, 8]
-        seq_tree_c = preprocessing.build_sequence_tree_with_candidates(self.seq_data, self.seq_parents, self.children, self.roots[0], insert_idx, candidate_indices)
+        seq_tree_c = sequence_trees.build_sequence_tree_with_candidates(self.seq_data, self.seq_parents, self.children, self.roots[0], insert_idx, candidate_indices)
         #pp.pprint(seq_tree_c)
         pp.pprint(td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeCandidates', seq_tree_c.SerializeToString()))
 
@@ -60,7 +61,7 @@ class Tester(unittest.TestCase):
         candidate_idx = 8
         max_depth = 10
         max_candidate_depth = 3
-        seq_tree_c = preprocessing.build_sequence_tree_with_candidate(self.seq_data, self.children, self.roots[0], insert_idx, candidate_idx, max_depth, max_candidate_depth)
+        seq_tree_c = sequence_trees.build_sequence_tree_with_candidate(self.seq_data, self.children, self.roots[0], insert_idx, candidate_idx, max_depth, max_candidate_depth)
         pp.pprint(seq_tree_c)
         #pp.pprint(td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeCandidates', seq_tree_c.SerializeToString()))
 
@@ -71,12 +72,12 @@ class Tester(unittest.TestCase):
         candidate_idx = 8
         max_depth = 10
         max_candidate_depth = 3
-        seq_tree_c = preprocessing.build_sequence_tree_with_candidate(self.seq_data, self.children, self.roots[0], insert_idx,
+        seq_tree_c = sequence_trees.build_sequence_tree_with_candidate(self.seq_data, self.children, self.roots[0], insert_idx,
                                                                       candidate_idx, max_depth, max_candidate_depth)
         pp.pprint(seq_tree_c)
         tree_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNode', seq_tree_c.SerializeToString())
 
-        new_data, new_parents = preprocessing.sequence_node_to_arrays(tree_)
+        new_data, new_parents = sequence_trees.sequence_node_to_arrays(tree_)
         print(new_data)
         print(new_parents)
 
@@ -84,15 +85,15 @@ class Tester(unittest.TestCase):
     def test_get_all_children(self):
         start = 11
         for max_depth in range(1, 5):
-            print(preprocessing.get_all_children_rec(start, self.children, max_depth, max_depth_only=True))
+            print(sequence_trees.get_all_children_rec(start, self.children, max_depth, max_depth_only=True))
 
     @unittest.skip("skip")
     def test_read_data_2(self):
         nlp = spacy.load('en')
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
         print('extract word embeddings from spaCy...')
-        vecs, types = corpus.get_dict_from_vocab(nlp.vocab)
-        mapping = corpus.mapping_from_list(types)
+        vecs, types = lex.get_dict_from_vocab(nlp.vocab)
+        mapping = lex.mapping_from_list(types)
         sentence = 'London is a big city in the United Kingdom. I like this.'
         res = preprocessing.read_data_2(preprocessing.string_reader, preprocessing.process_sentence2, nlp, mapping,
                                   args={'content': sentence})  # , concat_mode='sequence')
@@ -100,7 +101,7 @@ class Tester(unittest.TestCase):
 
     @unittest.skip("skip")
     def test_collected_shuffled_child_indices(self):
-        x = preprocessing.collected_shuffled_child_indices('/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10', 1)
+        x = corpus.collected_shuffled_child_indices('/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence7/WIKIPEDIA_articles10000_maxdepth10', 1)
         print(x.shape)
 
     @unittest.skip("skip")
@@ -112,7 +113,7 @@ class Tester(unittest.TestCase):
         max_depth = 1
 
 
-        types = corpus.read_types(train_path)
+        types = lex.read_types(train_path)
         #print('load mapping from file: ' + train_path + '.mapping ...')
         #m = pickle.load(open(train_path + '.mapping', "rb"))
         #print('len(mapping): ' + str(len(m)))
@@ -126,7 +127,7 @@ class Tester(unittest.TestCase):
         print('load corpus parents from: ' + train_path + '.parent ...')
         seq_parents = np.load(train_path + '.parent')
         print('calc children ...')
-        children, roots = preprocessing.children_and_roots(seq_parents)
+        children, roots = sequence_trees.children_and_roots(seq_parents)
 
         #token_list = list(corpus.create_or_read_dict_types_string(train_path, mapping=m, spacy_vocab=parser.vocab))
 
@@ -153,7 +154,7 @@ class Tester(unittest.TestCase):
         sample_count = 5
         max_depth = 3
 
-        types = corpus.read_types(train_path)
+        types = lex.read_types(train_path)
 
         # load corpus data
         print('load corpus data from: ' + train_path + '.data ...')
@@ -236,7 +237,7 @@ class Tester(unittest.TestCase):
         types2 = ['5', '1', '3', '8', '0', '6', '7', '4']
         #types2 = []
 
-        new_vecs, new_types = corpus.merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True)
+        new_vecs, new_types = lex.merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True)
         print(new_vecs)
         print(new_types)
 

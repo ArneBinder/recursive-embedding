@@ -10,6 +10,7 @@ import svgutils.transform as sg
 
 
 import preprocessing
+import sequence_trees
 
 TEMP_FN = 'temp_forest.svg'
 
@@ -105,10 +106,10 @@ def get_text(sequence_graph, types):
     result = []
 
     if len(data) > 0:
-        children, roots = preprocessing.children_and_roots(parents)
+        children, roots = sequence_trees.children_and_roots(parents)
         for root in roots:
             current_res = []
-            indices = sorted(preprocessing.get_descendant_indices(children, root))
+            indices = sorted(sequence_trees.get_descendant_indices(children, root))
             for i in indices:
                 d = data[i]
                 #if d < len(types):
@@ -128,9 +129,10 @@ def get_text(sequence_graph, types):
 
     return result
 
+
 def visualize_seq_node_list(seq_tree_list, types, file_name=TEMP_FN):
     for i, seq_tree in enumerate(seq_tree_list):
-        current_data, current_parents = preprocessing.sequence_node_to_arrays(seq_tree)
+        current_data, current_parents = sequence_trees.sequence_node_to_arrays(seq_tree)
         visualize(file_name + '.' + str(i), (current_data, current_parents), types)
     concat_visualizations_svg(file_name, len(seq_tree_list))
 

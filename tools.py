@@ -2,10 +2,10 @@ import time
 from functools import wraps
 import errno
 import os
-import spacy
-import constants
+import tensorflow as tf
+import sys
+import logging
 
-#nlp = spacy.load('en')
 
 def mkdir_p(path):
     try:
@@ -92,3 +92,17 @@ def get_default(l, idx, default):
     except IndexError:
         return default
 
+
+def logging_init():
+    logging_format = '%(asctime)s %(levelname)s %(message)s'
+    tf.logging._logger.propagate = False
+    tf.logging._handler.setFormatter(logging.Formatter(logging_format))
+    tf.logging._logger.format = logging_format
+    logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
+
+
+#unused
+def make_parent_dir(fn):
+    out_dir = os.path.abspath(os.path.join(fn, os.pardir))
+    if not os.path.isdir(out_dir):
+        os.makedirs(out_dir)

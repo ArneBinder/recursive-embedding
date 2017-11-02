@@ -5,31 +5,32 @@ from __future__ import print_function
 import csv
 import fnmatch
 import json
+import logging
 import ntpath
 import os
 # import google3
 import shutil
 from functools import reduce
 
-from scipy.stats.stats import pearsonr
-from scipy.stats.mstats import spearmanr
+import numpy as np
 import six
-from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
-import logging
-import sys
+import tensorflow_fold as td
+import tools
+from scipy.stats.mstats import spearmanr
+from scipy.stats.stats import pearsonr
 
 import corpus
+import corpus_simtuple
+import lexicon as lex
 import model_fold
-import similarity_tree_tuple_pb2
-import tensorflow_fold as td
-import numpy as np
+import logg
 
 # model flags (saved in flags.json)
 model_flags = {'train_data_path': ['DEFINE_string',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                                   '/media/arne/WIN/Users/Arne/ML/data/corpora/SICK/process_sentence3/SICK_TT_CMaggregate',
+                                   '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
                                    # SICK default
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/ANNOPPDB/process_sentence3/ANNOPPDB_CMaggregate',   # ANNOPPDB default
@@ -160,12 +161,7 @@ tf.flags.DEFINE_integer('task', 0,
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
-
-logging_format = '%(asctime)s %(levelname)s %(message)s'
-tf.logging._logger.propagate = False
-tf.logging._handler.setFormatter(logging.Formatter(logging_format))
-tf.logging._logger.format = logging_format
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
+tools.logging_init()
 
 if FLAGS.logdir_continue:
     logging.info('load flags from logdir: %s', FLAGS.logdir_continue)
@@ -232,11 +228,11 @@ def main(unused_argv):
         del train_fnames[FLAGS.test_file_index]
         # train_iterator = iterate_over_tf_record_protos(
         #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
-        train_iterator = corpus.iterate_sim_tuple_data(train_fnames)
-        test_iterator = corpus.iterate_sim_tuple_data([test_fname])
+        train_iterator = corpus_simtuple.iterate_sim_tuple_data(train_fnames)
+        test_iterator = corpus_simtuple.iterate_sim_tuple_data([test_fname])
     elif FLAGS.test_only_file:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
-        test_iterator = corpus.iterate_sim_tuple_data([test_fname])
+        test_iterator = corpus_simtuple.iterate_sim_tuple_data([test_fname])
         train_iterator = None
     else:
         test_iterator = None
@@ -285,18 +281,18 @@ def main(unused_argv):
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
     else:
-        vecs, types = corpus.create_or_read_dict(FLAGS.train_data_path)
+        vecs, types = lex.create_or_read_dict(FLAGS.train_data_path)
         if FLAGS.logdir_pretrained:
             logging.info('load lexicon from pre-trained model: %s' % FLAGS.logdir_pretrained)
             old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir_pretrained)
             assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + FLAGS.logdir_pretrained
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
             vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_LEXICON)
-            types_old = corpus.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
-            vecs, types = corpus.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
+            types_old = lex.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
+            vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                              remove=False)
             # save types file in log dir
-            corpus.write_dict(os.path.join(logdir, 'model'), types=types)
+            lex.write_dict(os.path.join(logdir, 'model'), types=types)
         else:
             # save types file in log dir
             shutil.copyfile(FLAGS.train_data_path + '.type', os.path.join(logdir, 'model.type'))

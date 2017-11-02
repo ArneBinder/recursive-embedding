@@ -1,16 +1,28 @@
+import fnmatch
 import logging
+import ntpath
 import os
 import random
-import sys
 from collections import Counter
 
 import numpy as np
 import spacy
 import tensorflow as tf
+import tensorflow_fold as td
 from progress.bar import Bar
 
 import corpus
+import lexicon as lex
 import preprocessing
+import sequence_trees
+import similarity_tree_tuple_pb2
+import tools
+
+#PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
+#s_root = os.path.dirname(__file__)
+# Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
+td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
+td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 
 tf.flags.DEFINE_string('corpora_source_root',
                        '/home/arne/devel/ML/data/corpora',
@@ -55,11 +67,7 @@ tf.flags.DEFINE_integer(
 )
 
 FLAGS = tf.flags.FLAGS
-logging_format = '%(asctime)s %(levelname)s %(message)s'
-tf.logging._logger.propagate = False
-tf.logging._handler.setFormatter(logging.Formatter(logging_format))
-tf.logging._logger.format = logging_format
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
+tools.logging_init()
 
 
 def sim_jaccard(ids1, ids2):
@@ -124,8 +132,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     nlp = spacy.load('en')
     nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
-    vecs, types = corpus.get_dict_from_vocab(nlp.vocab)
-    mapping = corpus.mapping_from_list(types)
+    vecs, types = lex.get_dict_from_vocab(nlp.vocab)
+    mapping = lex.mapping_from_list(types)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpora_target_root, corpus_name, sentence_processor.func_name))
@@ -168,8 +176,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     parents = np.concatenate(_parents)
     scores = np.concatenate(_scores)
 
-    types = corpus.revert_mapping_to_list(mapping)
-    converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types,
+    types = lex.revert_mapping_to_list(mapping)
+    converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
                                                                                             count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
@@ -185,7 +193,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
     # u'DEP#']
     one_hot_types = [t for t in types if t.startswith('DEP#')]
-    mapping = corpus.mapping_from_list(types)
+    mapping = lex.mapping_from_list(types)
     one_hot_ids = [mapping[t] for t in one_hot_types]
     if len(one_hot_ids) > vecs.shape[1]:
         logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
@@ -195,10 +203,10 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         vecs[idx][i % vecs.shape[1]] = 1.0
 
     n = len(scores)
-    corpus.write_dict(out_path, vecs=vecs, types=types)
+    lex.write_dict(out_path, vecs=vecs, types=types)
     logging.info('the dataset contains %i scored text tuples' % n)
     logging.debug('calc roots ...')
-    children, roots = preprocessing.children_and_roots(parents)
+    children, roots = sequence_trees.children_and_roots(parents)
     logging.debug('len(roots)=%i' % len(roots))
 
     if FLAGS.neg_samples:
@@ -206,7 +214,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         logging.debug('split into subtrees ...')
         subtrees = []
         for root in roots:
-            descendant_indices = preprocessing.get_descendant_indices(children, root)
+            descendant_indices = sequence_trees.get_descendant_indices(children, root)
             new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
             # if new_subtree in subtrees:
             #    repl_roots.append(root)
@@ -289,5 +297,72 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     # debug end
 
     for i, _sim_tuples in enumerate(sim_tuples):
-        corpus.write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children, roots)
+        write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children, roots)
         np.array(_sim_tuples).dump('%s.idx.%i' % (out_path, i))
+
+
+def iterate_sim_tuple_data(paths):
+    count = 0
+    for path in paths:
+        for v in tf.python_io.tf_record_iterator(path):
+            res = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.' + similarity_tree_tuple_pb2.SimilarityTreeTuple.__name__, v)
+            res['id'] = count
+            yield res
+            count += 1
+
+
+def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
+    """
+    Write sim_tuple(s) to file.
+
+    :param out_fn the   file name to write the data into
+    :param sim_tuples   list of tuples (root_idx1, root_idx2, similarity), where root_idx1 and root_idx2 are indices to
+                        roots which thereby point to the sequence tree for the first / second sequence. Similarity is a
+                        float value in [0.0, 1.0].
+    :param data         the data sequence
+    :param children     preprocessed child information, see preprocessing.children_and_roots
+    :param roots        preprocessed root information (indices to roots in data), see preprocessing.children_and_roots
+    """
+
+    logging.info('write data to: ' + out_fn + ' ...')
+    with tf.python_io.TFRecordWriter(out_fn) as record_output:
+        for idx in range(len(sim_tuples)):
+            sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
+            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][0]], sim_tree_tuple.first)
+            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], sim_tree_tuple.second)
+            sim_tree_tuple.similarity = sim_tuples[idx][2]
+            record_output.write(sim_tree_tuple.SerializeToString())
+
+
+def load_sim_tuple_indices(filename):
+    _loaded = np.load(filename).T
+    ids1 = _loaded[0].astype(int)
+    ids2 = _loaded[1].astype(int)
+    loaded = zip(ids1, ids2, _loaded[2])
+    return loaded
+
+
+# TODO: check this!
+def merge_into_corpus(corpus_fn1, corpus_fn2):
+    """
+    Merges corpus2 into corpus1 e.g. merges types and vecs and converts data2 according to new types dict and writes
+    training files from index files (file extension: .idx.<id>)
+
+    :param corpus_fn1: file name of source corpus
+    :param corpus_fn2: file name of target corpus
+    :return:
+    """
+    vecs, types = lex.read_dict(corpus_fn1)
+    vecs2, types2 = lex.read_dict(corpus_fn2)
+    vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
+    data2, parents2 = lex.load_data_and_parents(corpus_fn2)
+    m = lex.mapping_from_list(types)
+    mapping = {i: m[t] for i, t in enumerate(types2)}
+    data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)
+    dir2 = os.path.abspath(os.path.join(corpus_fn2, os.pardir))
+    indices2_fnames = fnmatch.filter(os.listdir(dir2), ntpath.basename(corpus_fn2) + '.idx.[0-9]*')
+    indices2 = [load_sim_tuple_indices(os.path.join(dir2, fn)) for fn in indices2_fnames]
+    children2, roots2 = sequence_trees.children_and_roots(parents2)
+    for i, sim_tuples in enumerate(indices2):
+        write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2, roots2)
+    lex.write_dict('%s.merged' % corpus_fn1, vecs=vecs, types=types)

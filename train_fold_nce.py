@@ -19,7 +19,8 @@ import shutil
 import logging
 import sys
 from tensorflow.contrib.tensorboard.plugins import projector
-
+import lexicon as lex
+import sequence_trees
 
 tf.flags.DEFINE_string('logdir', '/home/arne/ML_local/tf/unsupervised/log',  # '/home/arne/tmp/tf/log',
                        'Directory in which to write event logs and model checkpoints.')
@@ -141,7 +142,7 @@ def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
         seq_data, seq_parents = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
                                                         data_maps,
                                                         reader_args={'content': s}, expand_dict=False)
-        children, roots = preprocessing.children_and_roots(seq_parents)
+        children, roots = sequence_trees.children_and_roots(seq_parents)
 
         # dummy position
         insert_idx = 5
@@ -151,7 +152,7 @@ def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
         seq_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
         seq_tree_seq.idx_correct = 0
         for candidate_idx in candidate_indices:
-            preprocessing.build_sequence_tree_with_candidate(seq_data, children, roots[0], insert_idx, max_depth,
+            sequence_trees.build_sequence_tree_with_candidate(seq_data, children, roots[0], insert_idx, max_depth,
                                                              max_dandidate_depth, candidate_idx,
                                                              seq_tree=seq_tree_seq.trees.add())
         pp.pprint(seq_tree_seq)
@@ -164,7 +165,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
 
     # load corpus depth_max dependent data:
     print('create collected shuffled children indices ...')
-    children_indices = preprocessing.collected_shuffled_child_indices(corpus_path, max_depth)
+    children_indices = corpus.collected_shuffled_child_indices(corpus_path, max_depth)
     # print(children_indices.shape)
     size = len(children_indices)
     print('train data size: ' + str(size))
@@ -187,7 +188,7 @@ def iterator_sequence_trees(corpus_path, max_depth, seq_data, children, sample_c
                 offset -= 1
                 continue
 
-            seq_tree_seq = preprocessing.create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count,
+            seq_tree_seq = sequence_trees.create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count,
                                                              all_depths_collected)
             seq_tree_seq_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
                                                             seq_tree_seq.SerializeToString())
@@ -218,7 +219,7 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
                 continue
 
             seq_tree = sequence_node_pb2.SequenceNode()
-            preprocessing.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
+            sequence_trees.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
             seq_tree_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNode',
                                                             seq_tree.SerializeToString())
             seq_tree_seq = {'trees': [seq_tree_]}
@@ -285,11 +286,11 @@ def main(unused_argv):
             print('extract embeddings from checkpoint: ' + input_checkpoint + ' ...')
             embeddings_checkpoint = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
             embeddings_corpus = np.load(FLAGS.train_data_path + '.vec')
-            types_checkpoint = corpus.read_types(input_checkpoint)
-            types_corpus = corpus.read_types(FLAGS.train_data_path)
+            types_checkpoint = lex.read_types(input_checkpoint)
+            types_corpus = lex.read_types(FLAGS.train_data_path)
             print('merge checkpoint dict into corpus dict (add all entries from checkpoint, don\'t remove anything '
                   'from corpus dict) ...')
-            embeddings_corpus, types_corpus = corpus.merge_dicts(embeddings_corpus, types_corpus, embeddings_checkpoint, types_checkpoint, add=True, remove=False)
+            embeddings_corpus, types_corpus = lex.merge_dicts(embeddings_corpus, types_corpus, embeddings_checkpoint, types_checkpoint, add=True, remove=False)
             lex_size = embeddings_corpus.shape[0]
         else:
             print('extract lexicon size from model: ' + input_checkpoint + ' ...')
@@ -310,7 +311,7 @@ def main(unused_argv):
     print('load corpus parents from: ' + FLAGS.train_data_path + '.parent ...')
     seq_parents = np.load(FLAGS.train_data_path + '.parent')
     print('calc children ...')
-    children, roots = preprocessing.children_and_roots(seq_parents)
+    children, roots = sequence_trees.children_and_roots(seq_parents)
 
     if not FLAGS.train_mode:
         train_iterator = iterator_sequence_trees(FLAGS.train_data_path, FLAGS.max_depth, seq_data, children,

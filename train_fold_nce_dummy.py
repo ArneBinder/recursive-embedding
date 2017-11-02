@@ -12,6 +12,8 @@ import sequence_node_candidates_pb2
 import numpy as np
 
 # Replication flags:
+import sequence_trees
+
 tf.flags.DEFINE_string('logdir', '/home/arne/tmp/tf/log',
                        'Directory in which to write event logs.')
 tf.flags.DEFINE_string('model_path', '/home/arne/tmp/tf/log/model.ckpt-976',
@@ -39,7 +41,7 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps):
         seq_tree_seq.idx_correct = idx_correct
         for s2 in s:
             new_tree = seq_tree_seq.trees.add()
-            preprocessing.build_sequence_tree_from_str(str_=s2, sentence_processor=sentence_processor, parser=parser,
+            sequence_trees.build_sequence_tree_from_str(str_=s2, sentence_processor=sentence_processor, parser=parser,
                                                        data_maps=data_maps, seq_tree=new_tree)
         #pp.pprint(seq_tree_seq)
         yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence', seq_tree_seq.SerializeToString())
@@ -50,12 +52,12 @@ def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
     for s in sequences:
         seq_data, seq_parents = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser, data_maps,
                                                         reader_args={'content': s}, expand_dict=False)
-        children, roots = preprocessing.children_and_roots(seq_parents)
+        children, roots = sequence_trees.children_and_roots(seq_parents)
 
         # dummy position
         insert_idx = 5
         candidate_indices = [2, 8]
-        seq_tree_cand = preprocessing.build_sequence_tree_with_candidates(seq_data, children, roots[0], insert_idx, candidate_indices)
+        seq_tree_cand = sequence_trees.build_sequence_tree_with_candidates(seq_data, children, roots[0], insert_idx, candidate_indices)
         pp.pprint(seq_tree_cand)
         yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeCandidates', seq_tree_cand.SerializeToString())
 

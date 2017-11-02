@@ -11,6 +11,9 @@ import numpy as np
 import spacy
 import tensorflow as tf
 import tensorflow_fold as td
+
+import sequence_trees
+import tools
 from flask import Flask, request, send_file, jsonify
 from flask_cors import CORS
 from sklearn import metrics
@@ -23,9 +26,11 @@ from sklearn.preprocessing import normalize
 
 import constants
 import corpus
+import corpus_simtuple
 import model_fold
 import preprocessing
 import visualize as vis
+import lexicon as lex
 
 tf.flags.DEFINE_string('data_source',
                        #'/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
@@ -80,8 +85,9 @@ tf.flags.DEFINE_string('save_final_model_path',
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
-flags_fn = os.path.join(FLAGS.data_source, 'flags.json')
+tools.logging_init()
 
+flags_fn = os.path.join(FLAGS.data_source, 'flags.json')
 if os.path.isfile(flags_fn):
     with open(flags_fn, 'r') as infile:
         model_flags = json.load(infile)
@@ -94,12 +100,6 @@ else:
 
 PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 PROTO_CLASS = 'SequenceNode'
-
-logging_format = '%(asctime)s %(levelname)s %(message)s'
-tf.logging._logger.propagate = False
-tf.logging._handler.setFormatter(logging.Formatter(logging_format))
-tf.logging._logger.format = logging_format
-logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
 
 sess = None
 embedder = None
@@ -238,7 +238,7 @@ def get_or_calc_embeddings(params):
             max_depth = int(params['max_depth'])
         #batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
         #         data_sequences]
-        batch = [preprocessing.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in data_sequences]
+        batch = [sequence_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in data_sequences]
 
         if len(batch) > 0:
             fdict = embedder.build_feed_dict(batch)
@@ -363,13 +363,13 @@ def visualize(simtuple_extension=None):
             params['similarities'] = []
             start = params.get('start', 0)
             end = params.get('end', -1)
-            for i, sim_tuple in enumerate(corpus.iterate_sim_tuple_data([FLAGS.model_train_data_path + '.' + simtuple_extension])):
+            for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data([FLAGS.model_train_data_path + '.' + simtuple_extension])):
                 if i < start:
                     continue
                 if 0 <= end <= i:
                     break
-                data1, parent1 = preprocessing.sequence_node_to_arrays(sim_tuple['first'])
-                data2, parent2 = preprocessing.sequence_node_to_arrays(sim_tuple['second'])
+                data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['first'])
+                data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
                 params['data_sequences'].append([data1 + data2, parent1 + parent2])
                 params['similarities'].append(sim_tuple['similarity'])
         else:
@@ -426,7 +426,7 @@ def get_cluster_ids(embeddings):
 def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_concat_mode):
     # pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
-        seq_tree = preprocessing.build_sequence_tree_from_str(str_=s, sentence_processor=sentence_processor,
+        seq_tree = sequence_trees.build_sequence_tree_from_str(str_=s, sentence_processor=sentence_processor,
                                                               parser=parser, data_maps=data_maps,
                                                               inner_concat_mode=inner_concat_mode, expand_dict=False)
         # pp.pprint(seq_tree)
@@ -474,28 +474,24 @@ def main(unused_argv):
         logging.info('load embeddings from: ' + types_fn+'.vec ...')
         lexicon_np = np.load(types_fn+'.vec')
 
-
-
     logging.info('read types ...')
-    types = corpus.read_types(types_fn)
+    types = lex.read_types(types_fn)
 
     if FLAGS.external_lexicon:
         logging.info('read external types: '+FLAGS.external_lexicon+'.type ...')
-        external_types = corpus.read_types(FLAGS.external_lexicon)
-        logging.info('load external embeddings from: '+FLAGS.external_lexicon+'.vec ...')
-        external_vecs = np.load(FLAGS.external_lexicon+'.vec')
-        lexicon_np, types = corpus.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
+        external_vecs, external_types = lex.read_dict(FLAGS.external_lexicon)
+        lexicon_np, types = lex.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
     if FLAGS.merge_nlp_lexicon:
         logging.info('extract nlp embeddings and types ...')
         init_nlp()
-        nlp_vecs, nlp_types = corpus.get_dict_from_vocab(nlp.vocab)
+        nlp_vecs, nlp_types = lex.get_dict_from_vocab(nlp.vocab)
         logging.info('merge nlp embeddings into loaded embeddings ...')
-        lexicon_np, types = corpus.merge_dicts(lexicon_np, types, nlp_vecs, nlp_types, add=True, remove=False)
+        lexicon_np, types = lex.merge_dicts(lexicon_np, types, nlp_vecs, nlp_types, add=True, remove=False)
     lex_size = lexicon_np.shape[0]
 
     logging.info('dict size: ' + str(len(types)))
     assert len(types) == lex_size, 'count of types (' +str(len(types)) + ') does not match count of embedding vectors (' + str(lex_size) + ')'
-    data_maps = corpus.mapping_from_list(types)
+    data_maps = lex.mapping_from_list(types)
 
     # load model
     if checkpoint:
@@ -547,7 +543,7 @@ def main(unused_argv):
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
                     saver_final = tf.train.Saver()
                     saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
-                    corpus.write_dict(FLAGS.save_final_model_path, types=types)
+                    lex.write_dict(FLAGS.save_final_model_path, types=types)
 
     logging.info('Starting the API')
     app.run()

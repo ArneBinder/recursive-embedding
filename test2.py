@@ -3,6 +3,7 @@ import preprocessing
 import test_model
 
 import sequence_node_pb2
+import sequence_trees
 import train_fold
 import similarity_tree_tuple_pb2, sequence_node_sequence_pb2
 import pprint
@@ -49,9 +50,9 @@ def test_build_sequence_tree():
     pp = pprint.PrettyPrinter(indent=2)
     seq_parents = [0, -1, -2, -1]
     seq_data = [1, 2, 3, 4]
-    children, roots = preprocessing.children_and_roots(seq_parents)
+    children, roots = sequence_trees.children_and_roots(seq_parents)
     seq_tree = sequence_node_pb2.SequenceNode()
-    preprocessing.build_sequence_tree(seq_data, children, roots[0], seq_tree)
+    sequence_trees.build_sequence_tree(seq_data, children, roots[0], seq_tree)
     s = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNode', seq_tree.SerializeToString())
     pp.pprint(s)
 

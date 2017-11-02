@@ -15,7 +15,10 @@ import numpy as np
 
 import constants
 import corpus
+import corpus_simtuple
 import preprocessing
+import lexicon as lex
+import sequence_trees
 import similarity_tree_tuple_pb2  # , sequence_node_sequence_pb2
 
 tf.flags.DEFINE_string(
@@ -106,8 +109,8 @@ if __name__ == '__main__':
 
     # vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
     # corpus.make_parent_dir(FLAGS.dict_filename)
-    vecs, types = corpus.get_dict_from_vocab(nlp.vocab)  # corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
-    mapping = corpus.mapping_from_list(types)
+    vecs, types = lex.get_dict_from_vocab(nlp.vocab)  # corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    mapping = lex.mapping_from_list(types)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
@@ -132,8 +135,8 @@ if __name__ == '__main__':
                                                               concat_mode=FLAGS.concat_mode,
                                                               inner_concat_mode=FLAGS.inner_concat_mode)
 
-    types = corpus.revert_mapping_to_list(mapping)
-    converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types,
+    types = lex.revert_mapping_to_list(mapping)
+    converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
                                                                                             count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
@@ -142,8 +145,8 @@ if __name__ == '__main__':
     with open(out_path + '.cluster', 'wb') as cluster_file:
         pickle.dump(clusters, cluster_file)
     # scores.dump(out_path + '.score')
-    corpus.write_dict(out_path, vecs=vecs, types=types)
-    children, roots = preprocessing.children_and_roots(parents)
+    lex.write_dict(out_path, vecs=vecs, types=types)
+    children, roots = sequence_trees.children_and_roots(parents)
     logging.info('the dataset contains ' + str(len(clusters)) + ' clustered texts')
 
     clusters_by_id = {None: []}
@@ -206,5 +209,5 @@ if __name__ == '__main__':
     fold_size = len(sim_tuples) / FLAGS.fold_count
     for fold in range(FLAGS.fold_count):
         out_fn = out_path + '.train.' + str(fold)
-        corpus.write_sim_tuple_data(out_fn, sim_tuples[fold * fold_size:(fold + 1) * fold_size], data, children, roots)
+        corpus_simtuple.write_sim_tuple_data(out_fn, sim_tuples[fold * fold_size:(fold + 1) * fold_size], data, children, roots)
 

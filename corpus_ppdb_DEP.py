@@ -1,18 +1,17 @@
-import csv
+import logging
 import os
 import pprint
-import logging
 import random
 import sys
 from itertools import izip
 
 import spacy
 import tensorflow as tf
-import numpy as np
 
-import constants
 import corpus
+import lexicon as lex
 import preprocessing
+import sequence_trees
 import similarity_tree_tuple_pb2  # , sequence_node_sequence_pb2
 
 tf.flags.DEFINE_string(
@@ -89,8 +88,8 @@ if __name__ == '__main__':
 
     # vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
     # corpus.make_parent_dir(FLAGS.dict_filename)
-    vecs, types = corpus.get_dict_from_vocab(nlp.vocab)  # corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
-    mapping = corpus.mapping_from_list(types)
+    vecs, types = lex.get_dict_from_vocab(nlp.vocab)  # corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
+    mapping = lex.mapping_from_list(types)
 
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpus_data_output_dir, sentence_processor.func_name))
@@ -118,18 +117,18 @@ if __name__ == '__main__':
     data = data_train #np.concatenate((data_train, data_test))
     parents = parents_train #np.concatenate((parents_train, parents_test))
     scores = scores_train #np.concatenate((scores_train, scores_test))
-    types = corpus.revert_mapping_to_list(mapping)
-    converter, vecs, types, new_counts, new_idx_unknown = corpus.sort_and_cut_and_fill_dict(data, vecs, types,
+    types = lex.revert_mapping_to_list(mapping)
+    converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
                                                                                             count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')
     parents.dump(out_path + '.parent')
     scores.dump(out_path + '.score')
-    corpus.write_dict(out_path, vecs=vecs, types=types)
+    lex.write_dict(out_path, vecs=vecs, types=types)
     logging.info('the dataset contains ' + str(len(scores)) + ' scored text tuples')
     logging.debug('calc roots ...')
-    children, roots = preprocessing.children_and_roots(parents)
+    children, roots = sequence_trees.children_and_roots(parents)
     logging.debug('len(roots)='+str(len(roots)))
     root_pairs = list(izip(*[iter(roots)]*2))
     random.shuffle(root_pairs)
@@ -141,8 +140,8 @@ if __name__ == '__main__':
             size = len(root_pairs) / FLAGS.fold_count
             for idx in range(fold * size, (fold + 1) * size):
                 sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-                t1 = preprocessing.build_sequence_tree(data, children, root_pairs[idx][0], sim_tree_tuple.first)
-                t2 = preprocessing.build_sequence_tree(data, children, root_pairs[idx][1], sim_tree_tuple.second)
+                t1 = sequence_trees.build_sequence_tree(data, children, root_pairs[idx][0], sim_tree_tuple.first)
+                t2 = sequence_trees.build_sequence_tree(data, children, root_pairs[idx][1], sim_tree_tuple.second)
                 sim_tree_tuple.similarity = scores[idx] #(scores[idx / 2] - 1.) / 4.
                 record_output.write(sim_tree_tuple.SerializeToString())
                 for _ in range(FLAGS.sample_count):
@@ -150,8 +149,8 @@ if __name__ == '__main__':
                     sample_idx = random.randint(0, len(root_pairs) - 1)
 
                     sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-                    t1 = preprocessing.build_sequence_tree(data, children, root_pairs[idx][0], sim_tree_tuple.first)
-                    t2 = preprocessing.build_sequence_tree(data, children, root_pairs[sample_idx][1], sim_tree_tuple.second)
+                    t1 = sequence_trees.build_sequence_tree(data, children, root_pairs[idx][0], sim_tree_tuple.first)
+                    t2 = sequence_trees.build_sequence_tree(data, children, root_pairs[sample_idx][1], sim_tree_tuple.second)
                     sim_tree_tuple.similarity = 0.0 # scores[idx / 2]  # (scores[idx / 2] - 1.) / 4.
                     record_output.write(sim_tree_tuple.SerializeToString())
 
