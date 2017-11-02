@@ -9,6 +9,6 @@ shift
 echo path: $path
 echo arguments: $*
 
-find $path -name "checkpoint" -exec sh -c 'python train_fold.py --logdir_continue=$(dirname "{}")'" $*" \;
-
+for D in $path/*; do [ -d "${D}" ] && python train_fold.py --logdir_continue=$D $*; done
+#for D in $path/*; do [ -d "${D}" ] && echo $D; done
 
