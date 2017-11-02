@@ -342,7 +342,6 @@ def load_sim_tuple_indices(filename):
     return loaded
 
 
-# TODO: check this!
 def merge_into_corpus(corpus_fn1, corpus_fn2):
     """
     Merges corpus2 into corpus1 e.g. merges types and vecs and converts data2 according to new types dict and writes

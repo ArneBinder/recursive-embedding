@@ -466,8 +466,7 @@ def main(unused_argv):
                 logging.info('training the model')
                 test_p_rs = []
                 test_p_rs_sorted = [0]
-                # TODO: re-enable shuffling?
-                for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=False), 1):
+                for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=True), 1):
 
                     # train
                     if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
