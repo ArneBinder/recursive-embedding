@@ -289,7 +289,7 @@ def main(unused_argv):
             vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_LEXICON)
             types_old = lex.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
-                                             remove=False)
+                                          remove=False)
             # save types file in log dir
             lex.write_dict(os.path.join(logdir, 'model'), types=types)
         else:
@@ -361,8 +361,8 @@ def main(unused_argv):
             if FLAGS.init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
 
-                current_lexicon = sess.run(model.tree_embedder.lexicon_var)
-                current_lexicon.dump(os.path.join(logdir, 'model.vec'))
+                #current_lexicon = sess.run(model.tree_embedder.lexicon_var)
+                #current_lexicon.dump(os.path.join(logdir, 'model.vec'))
                 return
 
             def collect_values(epoch, step, loss, sim, sim_gold, train, print_out=True, emit=True):
@@ -505,8 +505,8 @@ def main(unused_argv):
                         if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
                             supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
-                            current_lexicon = sess.run(model.tree_embedder.lexicon_var)
-                            current_lexicon.dump(os.path.join(logdir, 'model.vec'))
+                            #current_lexicon = sess.run(model.tree_embedder.lexicon_var)
+                            #current_lexicon.dump(os.path.join(logdir, 'model.vec'))
 
 
 if __name__ == '__main__':

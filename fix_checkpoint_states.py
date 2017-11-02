@@ -8,7 +8,7 @@ import tensorflow as tf
 
 tf.flags.DEFINE_string('dir',
                        os.getcwd(),
-                       'Root directory for looking recursively downwards for checkpoint files. Defaults to the current working derectory.')
+                       'Root directory for looking recursively downwards for checkpoint files. Defaults to the current working directory.')
 
 FLAGS = tf.flags.FLAGS
 
