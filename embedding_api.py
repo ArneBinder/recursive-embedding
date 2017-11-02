@@ -219,7 +219,7 @@ def get_or_calc_sequence_data(params):
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=' + sentence_processor.__name__)
 
-        init_nlp
+        init_nlp()
         params['data_sequences'] = list(corpus.parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
 
     else:
@@ -426,7 +426,7 @@ def get_cluster_ids(embeddings):
 def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_concat_mode):
     # pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
-        seq_tree = sequence_trees.build_sequence_tree_from_str(str_=s, sentence_processor=sentence_processor,
+        seq_tree = preprocessing.build_sequence_tree_from_str(str_=s, sentence_processor=sentence_processor,
                                                               parser=parser, data_maps=data_maps,
                                                               inner_concat_mode=inner_concat_mode, expand_dict=False)
         # pp.pprint(seq_tree)

@@ -407,6 +407,10 @@ def dummy_str_reader():
     yield u'I like RTRC!'
 
 
+def identity_reader(content):
+    yield content
+
+
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode,
               inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True, calc_depths=False):
@@ -474,3 +478,12 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
 
     return data, parents, np.concatenate(depth_list)
 
+
+def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, concat_mode=constants.default_concat_mode,
+                                 inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True,
+                                 seq_tree=None):
+    seq_data, seq_parents, _ = read_data(identity_reader, sentence_processor, parser, data_maps,
+                                                       reader_args={'content': str_}, concat_mode=concat_mode,
+                                                       inner_concat_mode=inner_concat_mode, expand_dict=expand_dict)
+    children, roots = sequence_trees.children_and_roots(seq_parents)
+    return sequence_trees.build_sequence_tree(seq_data, children, roots[0], seq_tree)
