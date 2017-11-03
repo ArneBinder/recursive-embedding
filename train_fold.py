@@ -393,69 +393,37 @@ def main(unused_argv):
                             epoch, step, loss, p_r[0], np.average(sim),
                             np.average(sim_gold), np.var(sim_gold)))
 
-            def do_epoch_single(model, data_set, epoch, train=True, emit=True):
-                score_all = []
-                score_all_gold = []
-                loss_all = 0.0
-                step = None
-                for batch in td.group_by_batches(data_set, FLAGS.batch_size):
-                    if train:
-                        feed_dict = {model.compiler.loom_input_tensor: batch}
-                        _, step, batch_loss, score, score_gold = sess.run(
-                            [model.train_op, model.global_step, model.loss, model.score, model.score_gold], feed_dict)
-                    else:
-                        feed_dict = {model.compiler.loom_input_tensor: batch, model.keep_prob: 1.0}
-                        step, batch_loss, score, score_gold = sess.run([model.global_step, model.loss, model.score,
-                                                                        model.score_gold], feed_dict)
-                        # take average in test case
-                    score_all.append(score)
-                    score_all_gold.append(score_gold)
-                    # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
-                    loss_all += batch_loss * len(batch)
-
-                score_all_ = np.concatenate(score_all)
-                score_all_gold_ = np.concatenate(score_all_gold)
-                loss_all /= len(score_all_)
-                collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
-                return step, loss_all, score_all_, score_all_gold_
-
             def do_epoch(model, data_set, epoch, train=True, emit=True):
 
-                sim_all = []
-                sim_all_gold = []
-                #sim_all_jaccard = []
-                #ids_all = []
+                score_all = []
+                score_all_gold = []
                 loss_all = 0.0
                 step = None
                 # for batch in td.group_by_batches(data_set, FLAGS.batch_size if train else len(test_set)):
                 for batch in td.group_by_batches(data_set, FLAGS.batch_size):
                     if train:
                         feed_dict = {model.compiler.loom_input_tensor: batch}
-                        _, step, batch_loss, sim, sim_gold = sess.run(
-                            [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities],
+                        _, step, batch_loss, score, score_gold = sess.run(
+                            [model.train_op, model.global_step, model.loss, model.scores, model.scores_gold],
                             feed_dict)
                     else:
                         feed_dict = {model.compiler.loom_input_tensor: batch, model.keep_prob: 1.0}
-                        step, batch_loss, sim, sim_gold = sess.run(
-                            [model.global_step, model.loss, model.sim, model.gold_similarities],
+                        step, batch_loss, score, score_gold = sess.run(
+                            [model.global_step, model.loss, model.scores, model.scores_gold],
                             feed_dict)
                         # take average in test case
-                    sim_all.append(sim)
-                    sim_all_gold.append(sim_gold)
-                    #sim_all_jaccard.append(sim_jaccard)
-                    #ids_all.append(ids)
+                    score_all.append(score)
+                    score_all_gold.append(score_gold)
                     # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                     loss_all += batch_loss * len(batch)
 
-                # print(np.concatenate(sim_all).tolist())
-                # print(np.concatenate(sim_all_gold).tolist())
-                sim_all_ = np.concatenate(sim_all)
-                sim_all_gold_ = np.concatenate(sim_all_gold)
-                #sim_all_jaccard_ = np.concatenate(sim_all_jaccard)
-                #ids_all_ = np.concatenate(ids_all)
-                loss_all /= len(sim_all_)
-                collect_values(epoch, step, loss_all, sim_all_, sim_all_gold_, train=train, emit=emit)
-                return step, loss_all, sim_all_, sim_all_gold_
+                # print(np.concatenate(score_all).tolist())
+                # print(np.concatenate(score_all_gold).tolist())
+                score_all_ = np.concatenate(score_all)
+                score_all_gold_ = np.concatenate(score_all_gold)
+                loss_all /= len(score_all_)
+                collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
+                return step, loss_all, score_all_, score_all_gold_
 
             with model.compiler.multiprocessing_pool():
                 logging.info('create test data set ...')

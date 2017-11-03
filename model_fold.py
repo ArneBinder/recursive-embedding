@@ -581,7 +581,7 @@ class SimilaritySequenceTreeTupleModel(object):
     #    return self._cosine_similarities
 
     @property
-    def gold_similarities(self):
+    def scores_gold(self):
         return self._gold_similarities
 
     @property
@@ -597,7 +597,7 @@ class SimilaritySequenceTreeTupleModel(object):
         return self._mse_comp
 
     @property
-    def sim(self):
+    def scores(self):
         return self._sim
 
     @property
