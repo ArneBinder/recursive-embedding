@@ -215,6 +215,7 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 
 
 def main(unused_argv):
+    data_iterator = corpus_simtuple.iterate_sim_tuple_data
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
@@ -227,11 +228,11 @@ def main(unused_argv):
         del train_fnames[FLAGS.test_file_index]
         # train_iterator = iterate_over_tf_record_protos(
         #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
-        train_iterator = corpus_simtuple.iterate_sim_tuple_data(train_fnames)
-        test_iterator = corpus_simtuple.iterate_sim_tuple_data([test_fname])
+        train_iterator = data_iterator(train_fnames)
+        test_iterator = data_iterator([test_fname])
     elif FLAGS.test_only_file:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
-        test_iterator = corpus_simtuple.iterate_sim_tuple_data([test_fname])
+        test_iterator = data_iterator([test_fname])
         train_iterator = None
     else:
         test_iterator = None
@@ -239,7 +240,6 @@ def main(unused_argv):
 
     # test_iterator = iterate_over_tf_record_protos(
     #    [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
-
 
     run_desc = []
     for flag in sorted(model_flags.keys()):
@@ -360,9 +360,6 @@ def main(unused_argv):
 
             if FLAGS.init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
-
-                #current_lexicon = sess.run(model.tree_embedder.lexicon_var)
-                #current_lexicon.dump(os.path.join(logdir, 'model.vec'))
                 return
 
             def collect_values(epoch, step, loss, sim, sim_gold, train, print_out=True, emit=True):
@@ -396,39 +393,57 @@ def main(unused_argv):
                             epoch, step, loss, p_r[0], np.average(sim),
                             np.average(sim_gold), np.var(sim_gold)))
 
+            def do_epoch_single(model, data_set, epoch, train=True, emit=True):
+                score_all = []
+                score_all_gold = []
+                loss_all = 0.0
+                step = None
+                for batch in td.group_by_batches(data_set, FLAGS.batch_size):
+                    if train:
+                        feed_dict = {model.compiler.loom_input_tensor: batch}
+                        _, step, batch_loss, score, score_gold = sess.run(
+                            [model.train_op, model.global_step, model.loss, model.score, model.score_gold], feed_dict)
+                    else:
+                        feed_dict = {model.compiler.loom_input_tensor: batch, model.keep_prob: 1.0}
+                        step, batch_loss, score, score_gold = sess.run([model.global_step, model.loss, model.score,
+                                                                        model.score_gold], feed_dict)
+                        # take average in test case
+                    score_all.append(score)
+                    score_all_gold.append(score_gold)
+                    # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
+                    loss_all += batch_loss * len(batch)
+
+                score_all_ = np.concatenate(score_all)
+                score_all_gold_ = np.concatenate(score_all_gold)
+                loss_all /= len(score_all_)
+                collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
+                return step, loss_all, score_all_, score_all_gold_
+
             def do_epoch(model, data_set, epoch, train=True, emit=True):
 
                 sim_all = []
                 sim_all_gold = []
-                sim_all_jaccard = []
-                ids_all = []
+                #sim_all_jaccard = []
+                #ids_all = []
                 loss_all = 0.0
                 step = None
                 # for batch in td.group_by_batches(data_set, FLAGS.batch_size if train else len(test_set)):
                 for batch in td.group_by_batches(data_set, FLAGS.batch_size):
                     if train:
                         feed_dict = {model.compiler.loom_input_tensor: batch}
-                        _, step, batch_loss, sim, sim_gold, sim_jaccard, ids = sess.run(
-                            [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities,
-                             model.sim_jaccard, model.id],
+                        _, step, batch_loss, sim, sim_gold = sess.run(
+                            [model.train_op, model.global_step, model.loss, model.sim, model.gold_similarities],
                             feed_dict)
-                        # collect_values(step, batch_loss, sim, sim_gold, train=train)
-                        # vars for print out: take only last result
-                        # sim_all = [sim]
-                        # sim_all_gold = [sim_gold]
-                        # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
-                        # loss_all = batch_loss * len(batch)
                     else:
                         feed_dict = {model.compiler.loom_input_tensor: batch, model.keep_prob: 1.0}
-                        step, batch_loss, sim, sim_gold, sim_jaccard, ids = sess.run(
-                            [model.global_step, model.loss, model.sim, model.gold_similarities, model.sim_jaccard,
-                             model.id],
+                        step, batch_loss, sim, sim_gold = sess.run(
+                            [model.global_step, model.loss, model.sim, model.gold_similarities],
                             feed_dict)
                         # take average in test case
                     sim_all.append(sim)
                     sim_all_gold.append(sim_gold)
-                    sim_all_jaccard.append(sim_jaccard)
-                    ids_all.append(ids)
+                    #sim_all_jaccard.append(sim_jaccard)
+                    #ids_all.append(ids)
                     # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                     loss_all += batch_loss * len(batch)
 
@@ -436,17 +451,9 @@ def main(unused_argv):
                 # print(np.concatenate(sim_all_gold).tolist())
                 sim_all_ = np.concatenate(sim_all)
                 sim_all_gold_ = np.concatenate(sim_all_gold)
-                sim_all_jaccard_ = np.concatenate(sim_all_jaccard)
-                ids_all_ = np.concatenate(ids_all)
+                #sim_all_jaccard_ = np.concatenate(sim_all_jaccard)
+                #ids_all_ = np.concatenate(ids_all)
                 loss_all /= len(sim_all_)
-                # print(sim_all_.tolist())
-                # print(sim_all_gold_.tolist())
-                # print((sim_all_gold_ * 4.0 + 1.0).tolist())
-                # print(sim_all_jaccard_.tolist())
-                # print(ids_all_.tolist())
-
-                # collect_values(step, loss_all, sim_all_, sim_all_gold_,
-                #               train=train, print_out=True)  # , emit=(not train))
                 collect_values(epoch, step, loss_all, sim_all_, sim_all_gold_, train=train, emit=emit)
                 return step, loss_all, sim_all_, sim_all_gold_
 
@@ -504,9 +511,6 @@ def main(unused_argv):
                         # don't save after first epoch if FLAGS.early_stop_queue > 0
                         if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
                             supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
-
-                            #current_lexicon = sess.run(model.tree_embedder.lexicon_var)
-                            #current_lexicon.dump(os.path.join(logdir, 'model.vec'))
 
 
 if __name__ == '__main__':
