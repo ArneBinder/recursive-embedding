@@ -2,6 +2,7 @@ import os
 import logging
 import tensorflow as tf
 
+import constants
 import corpus_simtuple
 
 tf.flags.DEFINE_string('corpus_name',
@@ -32,6 +33,14 @@ def score_reader(filename):
     num_lines = sum(1 for _ in open(filename))
     for _ in range(num_lines):
         yield 1.0
+
+
+def reader_source(prefix):
+    lc = 0
+    while True:
+        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
+        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
+        lc += 1
 
 
 def source_fn(fn):
@@ -69,7 +78,9 @@ def main(args=None):
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
-                                  output_suffix='_%i' % FLAGS.size)
+                                  output_suffix='_%i' % FLAGS.size,
+                                  reader_source=reader_source
+                                  )
 
 
 if __name__ == '__main__':

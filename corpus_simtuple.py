@@ -330,7 +330,11 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
         for idx in range(len(sim_tuples)):
             sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
             sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][0]], sim_tree_tuple.first)
+            # set root of second to root of first (in case of negative samples)
+            data_root2 = data[roots[sim_tuples[idx][1]]]
+            data[roots[sim_tuples[idx][1]]] = data[roots[sim_tuples[idx][0]]]
             sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], sim_tree_tuple.second)
+            data[roots[sim_tuples[idx][1]]] = data_root2
             sim_tree_tuple.similarity = sim_tuples[idx][2]
             record_output.write(sim_tree_tuple.SerializeToString())
 
