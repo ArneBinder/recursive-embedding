@@ -14,6 +14,7 @@ from progress.bar import Bar
 import corpus
 import lexicon as lex
 import preprocessing
+import scored_tree_pb2
 import sequence_trees
 import similarity_tree_tuple_pb2
 import mytools
@@ -337,6 +338,37 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
             data[roots[sim_tuples[idx][1]]] = data_root2
             sim_tree_tuple.similarity = sim_tuples[idx][2]
             record_output.write(sim_tree_tuple.SerializeToString())
+
+
+def write_sim_tuple_data_single(out_fn, sim_tuples, data, children, roots):
+    """
+    Write sim_tuple(s) to file.
+
+    :param out_fn the   file name to write the data into
+    :param sim_tuples   list of tuples (root_idx1, root_idx2, similarity), where root_idx1 and root_idx2 are indices to
+                        roots which thereby point to the sequence tree for the first / second sequence. Similarity is a
+                        float value in [0.0, 1.0].
+    :param data         the data sequence
+    :param children     preprocessed child information, see preprocessing.children_and_roots
+    :param roots        preprocessed root information (indices to roots in data), see preprocessing.children_and_roots
+    """
+
+    logging.info('write data to: ' + out_fn + ' ...')
+    with tf.python_io.TFRecordWriter(out_fn) as record_output:
+        for idx in range(len(sim_tuples)):
+            scored_tree = scored_tree_pb2.ScoredTree()
+            scored_tree.score = 1.0
+            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][0]], scored_tree.tree)
+            record_output.write(scored_tree.SerializeToString())
+
+            scored_tree = scored_tree_pb2.ScoredTree()
+            scored_tree.score = sim_tuples[idx][2]
+            # set root of second to root of first (in case of negative samples)
+            data_root2 = data[roots[sim_tuples[idx][1]]]
+            data[roots[sim_tuples[idx][1]]] = data[roots[sim_tuples[idx][0]]]
+            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], scored_tree.tree)
+            data[roots[sim_tuples[idx][1]]] = data_root2
+            record_output.write(scored_tree.SerializeToString())
 
 
 def load_sim_tuple_indices(filename):
