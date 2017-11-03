@@ -301,6 +301,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
     for i, _sim_tuples in enumerate(sim_tuples):
         write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children, roots)
+        write_sim_tuple_data_single('%s.train.%i.single' % (out_path, i), _sim_tuples, data, children, roots)
         np.array(_sim_tuples).dump('%s.idx.%i' % (out_path, i))
 
 
@@ -410,4 +411,5 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     children2, roots2 = sequence_trees.children_and_roots(parents2)
     for i, sim_tuples in enumerate(indices2):
         write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2, roots2)
+        write_sim_tuple_data_single('%s.merged.train.%i.single' % (corpus_fn1, i), sim_tuples, data2_converted, children2, roots2)
     lex.write_dict('%s.merged' % corpus_fn1, vecs=vecs, types=types)

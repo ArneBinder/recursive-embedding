@@ -424,7 +424,6 @@ def main(unused_argv):
                             [model.loss, model.scores, model.scores_gold],
                             feed_dict)
                         step = test_step
-                        # take average in test case
                     score_all.append(score)
                     score_all_gold.append(score_gold)
                     # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
