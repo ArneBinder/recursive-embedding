@@ -22,7 +22,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import normalize
-#from google.protobuf.json_format import MessageToJson
+# from google.protobuf.json_format import MessageToJson
 
 import constants
 import corpus
@@ -33,25 +33,25 @@ import visualize as vis
 import lexicon as lex
 
 tf.flags.DEFINE_string('data_source',
-                       #'/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       # '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
                        '/home/arne/ML_local/tf/supervised/log/SA/FINETUNE/PPDB/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKCMAGGREGATE_teTREEEMBEDDINGFLATLSTM',
-                       #'/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
-                       #'/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
-                       #'/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
-                       #'/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
-                       #'/home/arne/ML_local/tf/supervised/log/BACKUP_batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
-                       #/model.ckpt-122800',
-                       #'/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
-                       #'/home/arne/ML_local/tf/log/final_model',
+                       # '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       # '/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
+                       # '/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
+                       # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
+                       # '/home/arne/ML_local/tf/supervised/log/BACKUP_batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
+                       # /model.ckpt-122800',
+                       # '/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
+                       # '/home/arne/ML_local/tf/log/final_model',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension) and the model.type file containing the string dict.')
 tf.flags.DEFINE_string('external_lexicon',
-                       #'/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8_/WIKIPEDIA_articles10000_offset0',
+                       # '/media/arne/WIN/Users/Arne/ML/data/corpora/wikipedia/process_sentence8_/WIKIPEDIA_articles10000_offset0',
                        None,
                        'If not None, load embeddings from numpy array located at "<external_lexicon>.vec" and type '
                        'string mappings from "<external_lexicon>.type" file and merge them into the embeddings '
                        'from the loaded model ("<data_source>/[model].type").')
-#tf.flags.DEFINE_boolean('load_embeddings', False,
+# tf.flags.DEFINE_boolean('load_embeddings', False,
 #                        'Load embeddings from numpy array located at "<dict_file>.vec"')
 tf.flags.DEFINE_string('default_sentence_processor', 'process_sentence3',  # 'process_sentence8',#'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
@@ -72,15 +72,15 @@ tf.flags.DEFINE_string('default_inner_concat_mode',
                        'in the end of the token sequence '
                        '\nNone -> do not concatenate at all')
 tf.flags.DEFINE_boolean('merge_nlp_lexicon',
-                        #True,
+                        # True,
                         False,
                         'If True, merge embeddings from nlp framework (spacy) into loaded embeddings.')
 tf.flags.DEFINE_string('save_final_model_path',
-                        None,
-                        #'/home/arne/ML_local/tf/temp/log/final_model',
-                        'If not None, save the final model (after integration of external and/or nlp '
-                        'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
-                        'further usages.')
+                       None,
+                       # '/home/arne/ML_local/tf/temp/log/final_model',
+                       'If not None, save the final model (after integration of external and/or nlp '
+                       'embeddings) to <save_final_model_path> and the types to <save_final_model_path>.type for '
+                       'further usages.')
 
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
@@ -97,16 +97,14 @@ if os.path.isfile(flags_fn):
 else:
     tf.flags.DEFINE_string('model_train_data_path', FLAGS.data_source, '')
 
-
-#PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-#PROTO_CLASS = 'SequenceNode'
+# PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
+# PROTO_CLASS = 'SequenceNode'
 
 sess = None
 embedder = None
 data_maps = None
 types = None
 nlp = None
-
 
 ##################################################
 # API part
@@ -220,7 +218,8 @@ def get_or_calc_sequence_data(params):
             logging.info('use sentence_processor=%s' % sentence_processor.__name__)
 
         init_nlp()
-        params['data_sequences'] = list(corpus.parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
+        params['data_sequences'] = list(
+            corpus.parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
 
     else:
         raise ValueError('no sequences or data_sequences found in request')
@@ -236,9 +235,10 @@ def get_or_calc_embeddings(params):
         max_depth = 150
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
-        #batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
+        # batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
         #         data_sequences]
-        batch = [sequence_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in data_sequences]
+        batch = [sequence_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in
+                 data_sequences]
 
         if len(batch) > 0:
             fdict = embedder.build_feed_dict(batch)
@@ -279,7 +279,8 @@ def distance():
         params = get_params(request)
         get_or_calc_embeddings(params)
 
-        result = pairwise_distances(params['embeddings'], metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
+        result = pairwise_distances(params['embeddings'],
+                                    metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
         params['distances'] = result.tolist()
         json_data = json.dumps(filter_result(make_serializable(params)))
         logging.info("Time spent handling the request: %f" % (time.time() - start))
@@ -298,8 +299,9 @@ def sim():
         get_or_calc_embeddings(params)
 
         count = len(params['embeddings'])
-        sims = sess.run(embedder.sim, feed_dict={embedder.e1_placeholder: np.repeat(params['embeddings'], count, axis=0),
-                                                 embedder.e2_placeholder: np.tile(params['embeddings'], (count, 1))})
+        sims = sess.run(embedder.sim,
+                        feed_dict={embedder.e1_placeholder: np.repeat(params['embeddings'], count, axis=0),
+                                   embedder.e2_placeholder: np.tile(params['embeddings'], (count, 1))})
 
         params['similarities'] = sims.reshape((count, count)).tolist()
         json_data = json.dumps(filter_result(make_serializable(params)))
@@ -363,19 +365,28 @@ def visualize(simtuple_extension=None):
             params['similarities'] = []
             start = params.get('start', 0)
             end = params.get('end', -1)
-            for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data([FLAGS.model_train_data_path + '.' + simtuple_extension])):
-            #for i, sim_tuple in enumerate(corpus_simtuple.iterate_scored_tree_data([FLAGS.model_train_data_path + '.' + simtuple_extension])):
-                if i < start:
-                    continue
-                if 0 <= end <= i:
-                    break
-                data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['first'])
-                data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
-                params['data_sequences'].append([data1 + data2, parent1 + parent2])
-                params['similarities'].append(sim_tuple['similarity'])
-                #data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['tree'])
-                #params['data_sequences'].append([data1, parent1])
-                #params['similarities'].append(sim_tuple['score'])
+            if 'new_format' in params:
+                for i, sim_tuple in enumerate(corpus_simtuple.iterate_scored_tree_data(
+                        [FLAGS.model_train_data_path + '.' + simtuple_extension])):
+                    if i < start:
+                        continue
+                    if 0 <= end <= i:
+                        break
+
+                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['tree'])
+                    params['data_sequences'].append([data1, parent1])
+                    params['similarities'].append(sim_tuple['score'])
+            else:
+                for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data(
+                        [FLAGS.model_train_data_path + '.' + simtuple_extension])):
+                    if i < start:
+                        continue
+                    if 0 <= end <= i:
+                        break
+                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['first'])
+                    data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
+                    params['data_sequences'].append([data1 + data2, parent1 + parent2])
+                    params['similarities'].append(sim_tuple['similarity'])
         else:
             raise IOError('could not open "%s"' % (FLAGS.model_train_data_path + '.' + simtuple_extension))
 
@@ -426,7 +437,7 @@ def get_cluster_ids(embeddings):
     return labels, meta, best_idx
 
 
-#unused
+# unused
 def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_concat_mode):
     # pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:
@@ -467,23 +478,24 @@ def main(unused_argv):
         # use latest checkpoint in data_source
         input_checkpoint = checkpoint.model_checkpoint_path
         types_fn = os.path.join(FLAGS.data_source, 'model')
-        #types_fn = os.path.join(os.path.dirname(input_checkpoint), 'model')
+        # types_fn = os.path.join(os.path.dirname(input_checkpoint), 'model')
         reader = tf.train.NewCheckpointReader(input_checkpoint)
-        #loaded_lex_size = saved_shapes[model_fold.VAR_NAME_LEXICON][0]
+        # loaded_lex_size = saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
         lexicon_np = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
     # take data_source as corpus path
     else:
-        logging.info('No model checkpoint found in "%s". Load train data corpus from: "%s"' % (FLAGS.data_source, FLAGS.model_train_data_path))
+        logging.info('No model checkpoint found in "%s". Load train data corpus from: "%s"' % (
+        FLAGS.data_source, FLAGS.model_train_data_path))
         types_fn = FLAGS.model_train_data_path
-        logging.info('load embeddings from: ' + types_fn+'.vec ...')
-        lexicon_np = np.load(types_fn+'.vec')
+        logging.info('load embeddings from: ' + types_fn + '.vec ...')
+        lexicon_np = np.load(types_fn + '.vec')
 
     logging.info('read types ...')
     types = lex.read_types(types_fn)
 
     if FLAGS.external_lexicon:
-        logging.info('read external types: '+FLAGS.external_lexicon+'.type ...')
+        logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
         external_vecs, external_types = lex.read_dict(FLAGS.external_lexicon)
         lexicon_np, types = lex.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
     if FLAGS.merge_nlp_lexicon:
@@ -495,7 +507,8 @@ def main(unused_argv):
     lex_size = lexicon_np.shape[0]
 
     logging.info('dict size: ' + str(len(types)))
-    assert len(types) == lex_size, 'count of types (' +str(len(types)) + ') does not match count of embedding vectors (' + str(lex_size) + ')'
+    assert len(types) == lex_size, 'count of types (' + str(
+        len(types)) + ') does not match count of embedding vectors (' + str(lex_size) + ')'
     data_maps = lex.mapping_from_list(types)
 
     # load model
@@ -513,20 +526,22 @@ def main(unused_argv):
 
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
+                tree_model = model_fold.SequenceTreeModel(lex_size=lex_size,
+                                                          tree_embedder=tree_embedder,
+                                                          state_size=FLAGS.model_state_size,
+                                                          lexicon_trainable=False,
+                                                          leaf_fc_size=FLAGS.model_leaf_fc_size,
+                                                          root_fc_size=FLAGS.model_root_fc_size,
+                                                          keep_prob=1.0)
 
-                embedder = model_fold.SequenceTreeEmbedding(lex_size=lex_size,
-                                                            tree_embedder=tree_embedder,
-                                                            state_size=FLAGS.model_state_size,
+                embedder = model_fold.SequenceTreeEmbedding(tree_model=tree_model,
                                                             sim_measure=sim_measure,
-                                                            scoring_enabled=len(scoring_var_names) > 0,
-                                                            lexicon_trainable=False,
-                                                            leaf_fc_size=FLAGS.model_leaf_fc_size,
-                                                            root_fc_size=FLAGS.model_root_fc_size,
+                                                            scoring_enabled=len(scoring_var_names) > 0
                                                             )
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                    vars_without_embed = [v for v in vars_all if v != embedder.tree_embedder.lexicon_var]
+                    vars_without_embed = [v for v in vars_all if v != tree_model.embedder.lexicon_var]
                     if len(vars_without_embed) > 0:
                         saver = tf.train.Saver(var_list=vars_without_embed)
                     else:
@@ -542,7 +557,8 @@ def main(unused_argv):
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     logging.info('init embeddings with external vectors ...')
-                    sess.run(embedder.tree_embedder.lexicon_init, feed_dict={embedder.tree_embedder.lexicon_placeholder: lexicon_np})
+                    sess.run(embedder.tree_model.embedder.lexicon_init,
+                             feed_dict={embedder.tree_model.embedder.lexicon_placeholder: lexicon_np})
 
                 if FLAGS.save_final_model_path:
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')

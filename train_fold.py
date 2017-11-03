@@ -215,7 +215,9 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 
 
 def main(unused_argv):
-    data_iterator = corpus_simtuple.iterate_sim_tuple_data
+    #data_iterator_train = corpus_simtuple.iterate_scored_tree_data
+    data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
+    data_iterator_test = corpus_simtuple.iterate_sim_tuple_data
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
@@ -228,11 +230,11 @@ def main(unused_argv):
         del train_fnames[FLAGS.test_file_index]
         # train_iterator = iterate_over_tf_record_protos(
         #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
-        train_iterator = data_iterator(train_fnames)
-        test_iterator = data_iterator([test_fname])
+        train_iterator = data_iterator_train(train_fnames)
+        test_iterator = data_iterator_test([test_fname])
     elif FLAGS.test_only_file:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
-        test_iterator = data_iterator([test_fname])
+        test_iterator = data_iterator_test([test_fname])
         train_iterator = None
     else:
         test_iterator = None
@@ -316,24 +318,33 @@ def main(unused_argv):
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             # Build the graph.
-            model = model_fold.SimilaritySequenceTreeTupleModel(lex_size=lex_size,
-                                                                tree_embedder=tree_embedder,
-                                                                state_size=FLAGS.state_size,
-                                                                learning_rate=FLAGS.learning_rate,
-                                                                optimizer=optimizer,
-                                                                sim_measure=sim_measure,
-                                                                lexicon_trainable=FLAGS.lexicon_trainable,
-                                                                leaf_fc_size=FLAGS.leaf_fc_size,
-                                                                root_fc_size=FLAGS.root_fc_size,
-                                                                keep_prob=FLAGS.keep_prob)
+            model_tree = model_fold.SequenceTreeModel(lex_size=lex_size,
+                                                      tree_embedder=tree_embedder,
+                                                      state_size=FLAGS.state_size,
+                                                      lexicon_trainable=FLAGS.lexicon_trainable,
+                                                      leaf_fc_size=FLAGS.leaf_fc_size,
+                                                      root_fc_size=FLAGS.root_fc_size,
+                                                      keep_prob=FLAGS.keep_prob)
+
+            model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                                                                     learning_rate=FLAGS.learning_rate,
+                                                                     optimizer=optimizer,
+                                                                     sim_measure=sim_measure,
+                                                                     )
+            model_train = model_test
+            #model_train = model_fold.ScoredSequenceTreeModel(tree_model=model_tree,
+            #                                                 learning_rate=FLAGS.learning_rate,
+            #                                                 optimizer=optimizer)
 
             if old_checkpoint_fn is not None:
                 logging.info(
-                    'restore from old_checkpoint (except lexicon, step and optimizer vars): ' + old_checkpoint_fn + ' ...')
+                    'restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...' % old_checkpoint_fn)
                 lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON)
-                optimizer_vars = model.optimizer_vars()
+                optimizer_vars = model_train.optimizer_vars() + [model_train.global_step] \
+                                 + ((model_test.optimizer_vars() + [
+                    model_test.global_step]) if model_test != model_train else [])
                 restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
-                                item not in [model.global_step] + lexicon_vars + optimizer_vars]
+                                item not in lexicon_vars + optimizer_vars]
                 pre_train_saver = tf.train.Saver(restore_vars)
             else:
                 pre_train_saver = None
@@ -356,7 +367,8 @@ def main(unused_argv):
 
             if vecs is not None:
                 logging.info('init embeddings with external vectors...')
-                sess.run(model.tree_embedder.lexicon_init, feed_dict={model.tree_embedder.lexicon_placeholder: vecs})
+                sess.run(model_tree.embedder.lexicon_init,
+                         feed_dict={model_tree.embedder.lexicon_placeholder: vecs})
 
             if FLAGS.init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
@@ -393,7 +405,7 @@ def main(unused_argv):
                             epoch, step, loss, p_r[0], np.average(sim),
                             np.average(sim_gold), np.var(sim_gold)))
 
-            def do_epoch(model, data_set, epoch, train=True, emit=True):
+            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0):
 
                 score_all = []
                 score_all_gold = []
@@ -408,9 +420,10 @@ def main(unused_argv):
                             feed_dict)
                     else:
                         feed_dict = {model.compiler.loom_input_tensor: batch, model.keep_prob: 1.0}
-                        step, batch_loss, score, score_gold = sess.run(
-                            [model.global_step, model.loss, model.scores, model.scores_gold],
+                        batch_loss, score, score_gold = sess.run(
+                            [model.loss, model.scores, model.scores_gold],
                             feed_dict)
+                        step = test_step
                         # take average in test case
                     score_all.append(score)
                     score_all_gold.append(score_gold)
@@ -425,30 +438,32 @@ def main(unused_argv):
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
-            with model.compiler.multiprocessing_pool():
+            with model_train.compiler.multiprocessing_pool():
                 logging.info('create test data set ...')
-                test_set = list(model.compiler.build_loom_inputs(test_iterator))
+                test_set = list(model_test.compiler.build_loom_inputs(test_iterator))
                 logging.info('test data size: ' + str(len(test_set)))
                 if not train_iterator:
-                    do_epoch(model, test_set, 0, train=False, emit=False)
+                    do_epoch(model_test, test_set, 0, train=False, emit=False)
                     return
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)
-                train_set = model.compiler.build_loom_inputs(train_iterator)
+                train_set = model_train.compiler.build_loom_inputs(train_iterator)
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
                 test_p_rs = []
                 test_p_rs_sorted = [0]
+                step_train = sess.run(model_train.global_step)
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=True), 1):
 
                     # train
                     if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
-                        do_epoch(model, shuffled, epoch)
+                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch)
 
                     # test
-                    step_test, loss_test, sim_all, sim_all_gold = do_epoch(model, test_set, epoch, train=False)
+                    step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch, train=False,
+                                                                           test_step=step_train)
 
                     # loss_test = round(loss_test, 6) #100000000
                     p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
