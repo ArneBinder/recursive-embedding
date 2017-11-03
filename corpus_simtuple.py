@@ -24,6 +24,7 @@ import mytools
 # Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
 td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
 td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
+td.proto_tools.import_proto_file('scored_tree.proto')
 
 tf.flags.DEFINE_string('corpora_source_root',
                        '/home/arne/devel/ML/data/corpora',

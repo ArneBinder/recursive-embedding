@@ -664,7 +664,7 @@ class ScoredSequenceTreeModel(object):
 
         score_gold = td.GetItem('score') >> td.Scalar(dtype='float', name='score_gold')
 
-        model = td.AllOf(self._tree_embed() >> td.AllOf(td.Identity(), scoring_fc), score_gold)
+        model = td.AllOf(td.GetItem('tree') >> self._tree_embed() >> td.AllOf(td.Identity(), scoring_fc), score_gold)
         self._compiler = td.Compiler.create(model)
 
         # Get the tensorflow tensors that correspond to the outputs of model.

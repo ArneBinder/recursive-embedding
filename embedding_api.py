@@ -98,8 +98,8 @@ else:
     tf.flags.DEFINE_string('model_train_data_path', FLAGS.data_source, '')
 
 
-PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-PROTO_CLASS = 'SequenceNode'
+#PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
+#PROTO_CLASS = 'SequenceNode'
 
 sess = None
 embedder = None
@@ -364,6 +364,7 @@ def visualize(simtuple_extension=None):
             start = params.get('start', 0)
             end = params.get('end', -1)
             for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data([FLAGS.model_train_data_path + '.' + simtuple_extension])):
+            #for i, sim_tuple in enumerate(corpus_simtuple.iterate_scored_tree_data([FLAGS.model_train_data_path + '.' + simtuple_extension])):
                 if i < start:
                     continue
                 if 0 <= end <= i:
@@ -372,6 +373,9 @@ def visualize(simtuple_extension=None):
                 data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
                 params['data_sequences'].append([data1 + data2, parent1 + parent2])
                 params['similarities'].append(sim_tuple['similarity'])
+                #data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['tree'])
+                #params['data_sequences'].append([data1, parent1])
+                #params['similarities'].append(sim_tuple['score'])
         else:
             raise IOError('could not open "%s"' % (FLAGS.model_train_data_path + '.' + simtuple_extension))
 
@@ -453,6 +457,7 @@ def main(unused_argv):
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
     td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
     td.proto_tools.import_proto_file('sequence_node.proto')
+    td.proto_tools.import_proto_file('scored_tree.proto')
 
     # We retrieve our checkpoint fullpath
     checkpoint = tf.train.get_checkpoint_state(FLAGS.data_source)
