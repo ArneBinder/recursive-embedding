@@ -313,6 +313,14 @@ def iterate_sim_tuple_data(paths):
             count += 1
 
 
+def iterate_scored_tree_data(paths):
+    for path in paths:
+        for v in tf.python_io.tf_record_iterator(path):
+            res = td.proto_tools.serialized_message_to_tree(
+                'recursive_dependency_embedding.' + scored_tree_pb2.ScoredTree.__name__, v)
+            yield res
+
+
 def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
     """
     Write sim_tuple(s) to file.
