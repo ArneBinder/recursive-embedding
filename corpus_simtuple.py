@@ -113,7 +113,7 @@ def continuous_binning(hist_src, hist_dest):
     return prob_map
 
 
-def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None):
+def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_source=None):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
         * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
@@ -158,7 +158,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
                                          parser=nlp,
                                          mapping=mapping,
                                          concat_mode=FLAGS.concat_mode,
-                                         inner_concat_mode=FLAGS.inner_concat_mode)
+                                         inner_concat_mode=FLAGS.inner_concat_mode,
+                                         reader_source=reader_source)
 
     file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
 

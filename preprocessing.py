@@ -422,8 +422,8 @@ def identity_reader(content):
 
 
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
-              concat_mode=constants.default_concat_mode,
-              inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True, calc_depths=False, reader_source=None):
+              concat_mode=constants.default_concat_mode, inner_concat_mode=constants.default_inner_concat_mode,
+              expand_dict=True, calc_depths=False, reader_source=None, reader_source_args={}):
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
     # offsets of the parents
@@ -443,7 +443,9 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
         unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
     if reader_source is None:
-        reader_source = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], 0)
+        _reader_source = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], 0)
+    else:
+        _reader_source = reader_source(**reader_source_args)
 
     logging.debug('start read_data ...')
     sen_count = 0
@@ -471,7 +473,7 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
         if concat_mode:
             temp_roots.append(len(seq_data))
             seq_parents.append(0)
-            seq_data.append(mytools.getOrAdd(data_maps, reader_source.next(), unknown_default))
+            seq_data.append(mytools.getOrAdd(data_maps, _reader_source.next(), unknown_default))
 
         seq_parents, _ = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
 
