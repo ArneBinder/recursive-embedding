@@ -243,9 +243,9 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     if len(one_hot_ids) > vecs.shape[1]:
         logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
                         ' That overrides previously added one hot embeddings!' % vecs.shape[1])
-    for i, idx in enumerate(one_hot_ids):
-        vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
-        vecs[idx][i % vecs.shape[1]] = 1.0
+    #for i, idx in enumerate(one_hot_ids):
+    #    vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
+    #    vecs[idx][i % vecs.shape[1]] = 1.0
 
     n = len(scores)
     lex.write_dict(out_path, vecs=vecs, types=types)
@@ -277,11 +277,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         sims_correct.sort()
 
         logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
-        bar = Bar('Create negative samples', max=n)
-        pool = Pool()
-        _sampled_indices = pool.map(partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=bar),
-                                    range(n))
-        bar.finish()
+
+        _sampled_indices = mytools.parallel_process(range(n), partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=None))
         sampled_indices = np.concatenate(_sampled_indices)
 
         # load (un-blanked) data
