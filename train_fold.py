@@ -116,7 +116,8 @@ model_flags = {'train_data_path': ['DEFINE_string',
                              'opt'],
                'early_stop_queue': ['DEFINE_integer',
                                     50,
-                                    'If not 0, stop training when current test loss is smaller then last queued previous losses',
+                                    'If not 0, stop training when current test loss is smaller then last queued '
+                                    'previous losses',
                                     None],
                'keep_prob': ['DEFINE_float',
                              0.7,
@@ -127,6 +128,13 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                 #   True,
                                 'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
                                 'restore'],
+               'single_data': ['DEFINE_boolean',
+                               False,
+                               #   True,
+                               'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
+                               'entries to fixed dummy value (SOURCE_idx) for test data. Create a dedicated training '
+                               'and test models.',
+                               'single']
 
                }
 
@@ -147,7 +155,8 @@ tf.flags.DEFINE_string('logdir_pretrained',
                        None,
                        # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRUSIMPLIFIED',
                        # '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMAGGREGATE_treeembedderTREEEMBEDDINGFLATAVG2LEVELS',
-                       'Set this to fine tune a pre-trained model. The logdir_pretrained has to contain a types file with the filename "model.types"'
+                       'Set this to fine tune a pre-trained model. The logdir_pretrained has to contain a types file '
+                       'with the filename "model.types"'
                        )
 tf.flags.DEFINE_boolean('init_only',
                         False,
@@ -216,7 +225,6 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 
 
 def main(unused_argv):
-
     run_desc = []
     for flag in sorted(model_flags.keys()):
         # get real flag value
@@ -224,21 +232,23 @@ def main(unused_argv):
         model_flags[flag][1] = new_value
 
         # collect run description
-        # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
-        if len(model_flags[flag]) < 4 or model_flags[flag][3]:
-            if len(model_flags[flag]) >= 4:
-                flag_name = model_flags[flag][3]
-            else:
-                flag_name = flag
-            flag_name = flag_name.replace('_', '')
-            flag_value = str(new_value).replace('_', '')
-            # if flag_value is a path, take only the last two subfolders
-            flag_value = ''.join(flag_value.split(os.sep)[-2:])
-            run_desc.append(flag_name.lower() + flag_value.upper())
+        if 'run_description' not in model_flags:
+            # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
+            if len(model_flags[flag]) < 4 or model_flags[flag][3]:
+                if len(model_flags[flag]) >= 4:
+                    flag_name = model_flags[flag][3]
+                else:
+                    flag_name = flag
+                flag_name = flag_name.replace('_', '')
+                flag_value = str(new_value).replace('_', '')
+                # if flag_value is a path, take only the last two subfolders
+                flag_value = ''.join(flag_value.split(os.sep)[-2:])
+                run_desc.append(flag_name.lower() + flag_value.upper())
 
-    model_flags['run_description'] = ['DEFINE_string', '_'.join(run_desc),
-                                      'short string description of the current run', None]
-    logging.info('serialized run description: ' + model_flags['run_description'][1])
+    if 'run_description' not in model_flags:
+        model_flags['run_description'] = ['DEFINE_string', '_'.join(run_desc),
+                                          'short string description of the current run', None]
+        logging.info('serialized run description: ' + model_flags['run_description'][1])
 
     logdir = FLAGS.logdir_continue or os.path.join(FLAGS.logdir, model_flags['run_description'][1])
     if not os.path.isdir(logdir):
@@ -267,7 +277,7 @@ def main(unused_argv):
             SOURCE_idx = types.index(_SOURCE)
         else:
             SOURCE_idx = len(types)
-        # COMPATIBILITY END
+            # COMPATIBILITY END
     else:
         vecs, types = lex.create_or_read_dict(FLAGS.train_data_path)
         if FLAGS.logdir_pretrained:
@@ -286,8 +296,8 @@ def main(unused_argv):
         else:
             # add 'SOURCE'
             types.append(_SOURCE)
-            # add vecs of ones
-            vecs = np.concatenate([vecs, np.ones(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
+            # add 'SOURCE' embedding (zeros)
+            vecs = np.concatenate([vecs, np.zeros(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
             SOURCE_idx = len(vecs) - 1
         lex.write_dict(os.path.join(logdir, 'model'), types=types)
         lex_size = vecs.shape[0]
@@ -301,19 +311,23 @@ def main(unused_argv):
         test_result_writer.writeheader()
 
     logging.info('lex_size: %i' % lex_size)
+    logging.debug('SOURCE_idx: %i' % SOURCE_idx)
 
     # TRAINING and TEST DATA ###########################################################################################
 
-    # data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-    data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
-    #data_iterator_test = corpus_simtuple.iterate_sim_tuple_data
-
     # overwrite roots with SOURCE
-    def data_iterator_test(filenames):
+    def data_iterator_test_blanked(filenames):
         for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
             x['first']['head'] = SOURCE_idx
             x['second']['head'] = SOURCE_idx
             yield x
+
+    if FLAGS.single_data:
+        data_iterator_train = corpus_simtuple.iterate_scored_tree_data
+        data_iterator_test = data_iterator_test_blanked
+    else:
+        data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
+        data_iterator_test = corpus_simtuple.iterate_sim_tuple_data
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
@@ -356,15 +370,18 @@ def main(unused_argv):
                                                       root_fc_size=FLAGS.root_fc_size,
                                                       keep_prob=FLAGS.keep_prob)
 
+            # has to be created first #TODO: really?
+            if FLAGS.single_data:
+                model_train = model_fold.ScoredSequenceTreeModel(tree_model=model_tree,
+                                                                 learning_rate=FLAGS.learning_rate,
+                                                                 optimizer=optimizer)
+
             model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                      learning_rate=FLAGS.learning_rate,
                                                                      optimizer=optimizer,
-                                                                     sim_measure=sim_measure,
-                                                                     )
-            model_train = model_test
-            #model_train = model_fold.ScoredSequenceTreeModel(tree_model=model_tree,
-            #                                                 learning_rate=FLAGS.learning_rate,
-            #                                                 optimizer=optimizer)
+                                                                     sim_measure=sim_measure)
+            if not FLAGS.single_data:
+                model_train = model_test
 
             # PREPARE TRAINING #########################################################################################
 
@@ -374,7 +391,7 @@ def main(unused_argv):
                 lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON)
                 optimizer_vars = model_train.optimizer_vars() + [model_train.global_step] \
                                  + ((model_test.optimizer_vars() + [
-                    model_test.global_step]) if model_test != model_train else [])
+                    model_test.global_step]) if model_test is not None and model_test != model_train else [])
                 restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
                                 item not in lexicon_vars + optimizer_vars]
                 pre_train_saver = tf.train.Saver(restore_vars)
@@ -465,8 +482,8 @@ def main(unused_argv):
                     # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
                     loss_all += batch_loss * len(batch)
 
-                # print(np.concatenate(score_all).tolist())
-                # print(np.concatenate(score_all_gold).tolist())
+                # logging.debug(np.concatenate(score_all).tolist())
+                # logging.debug(np.concatenate(score_all_gold).tolist())
                 score_all_ = np.concatenate(score_all)
                 score_all_gold_ = np.concatenate(score_all_gold)
                 loss_all /= len(score_all_)
@@ -474,12 +491,13 @@ def main(unused_argv):
                 return step, loss_all, score_all_, score_all_gold_
 
             with model_train.compiler.multiprocessing_pool():
-                logging.info('create test data set ...')
-                test_set = list(model_test.compiler.build_loom_inputs(test_iterator))
-                logging.info('test data size: ' + str(len(test_set)))
-                if not train_iterator:
-                    do_epoch(model_test, test_set, 0, train=False, emit=False)
-                    return
+                if model_test is not None:
+                    logging.info('create test data set ...')
+                    test_set = list(model_test.compiler.build_loom_inputs(test_iterator))
+                    logging.info('test data size: ' + str(len(test_set)))
+                    if not train_iterator:
+                        do_epoch(model_test, test_set, 0, train=False, emit=False)
+                        return
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)
@@ -496,41 +514,45 @@ def main(unused_argv):
                     if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
                         step_train, _, _, _ = do_epoch(model_train, shuffled, epoch)
 
-                    # test
-                    step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch, train=False,
-                                                                           test_step=step_train)
+                    if model_test is not None:
+                        # test
+                        step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch, train=False,
+                                                                               test_step=step_train)
 
-                    # EARLY STOPPING ###################################################################################
+                        # EARLY STOPPING ###################################################################################
 
-                    # loss_test = round(loss_test, 6) #100000000
-                    p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
-                    p_r_dif = p_r - max(test_p_rs_sorted)
-                    # stop, if different previous test losses are smaller than current loss. The amount of regarded
-                    # previous values is set by FLAGS.early_stop_queue
-                    if p_r not in test_p_rs:
-                        test_p_rs.append(p_r)
-                        test_p_rs_sorted = sorted(test_p_rs, reverse=True)
-                    rank = test_p_rs_sorted.index(p_r)
+                        # loss_test = round(loss_test, 6) #100000000
+                        p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
+                        p_r_dif = p_r - max(test_p_rs_sorted)
+                        # stop, if different previous test losses are smaller than current loss. The amount of regarded
+                        # previous values is set by FLAGS.early_stop_queue
+                        if p_r not in test_p_rs:
+                            test_p_rs.append(p_r)
+                            test_p_rs_sorted = sorted(test_p_rs, reverse=True)
+                        rank = test_p_rs_sorted.index(p_r)
 
-                    logging.debug('pearson_r rank (of %i):\t%i\tdif: %f' % (len(test_p_rs), rank, round(p_r_dif, 6)))
-                    if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(
-                            test_p_rs) - 1:  # min(test_p_rs) == p_r :
-                        logging.info('last test pearsons_r: ' + str(test_p_rs))
-                        break
+                        logging.debug(
+                            'pearson_r rank (of %i):\t%i\tdif: %f' % (len(test_p_rs), rank, round(p_r_dif, 6)))
+                        if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(
+                                test_p_rs) - 1:  # min(test_p_rs) == p_r :
+                            logging.info('last test pearsons_r: ' + str(test_p_rs))
+                            break
 
-                    if len(test_p_rs) > FLAGS.early_stop_queue:
-                        if test_p_rs[0] == max(test_p_rs):
-                            logging.debug('warning: remove highest value (%f)' % test_p_rs[0])
-                        del test_p_rs[0]
+                        if len(test_p_rs) > FLAGS.early_stop_queue:
+                            if test_p_rs[0] == max(test_p_rs):
+                                logging.debug('warning: remove highest value (%f)' % test_p_rs[0])
+                            del test_p_rs[0]
 
-                    if rank > len(test_p_rs) * 0.05:
-                        # auto restore if no improvement on test data
-                        if FLAGS.auto_restore:
-                            supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                        if rank > len(test_p_rs) * 0.05:
+                            # auto restore if no improvement on test data
+                            if FLAGS.auto_restore:
+                                supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                        else:
+                            # don't save after first epoch if FLAGS.early_stop_queue > 0
+                            if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
+                                supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
                     else:
-                        # don't save after first epoch if FLAGS.early_stop_queue > 0
-                        if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
-                            supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
+                        supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
 
 if __name__ == '__main__':
