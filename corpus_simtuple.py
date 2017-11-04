@@ -243,9 +243,9 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     if len(one_hot_ids) > vecs.shape[1]:
         logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
                         ' That overrides previously added one hot embeddings!' % vecs.shape[1])
-    #for i, idx in enumerate(one_hot_ids):
-    #    vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
-    #    vecs[idx][i % vecs.shape[1]] = 1.0
+    for i, idx in enumerate(one_hot_ids):
+        vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
+        vecs[idx][i % vecs.shape[1]] = 1.0
 
     n = len(scores)
     lex.write_dict(out_path, vecs=vecs, types=types)
