@@ -279,18 +279,6 @@ def main(unused_argv):
             types_old = lex.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                           remove=False)
-            # save types file in log dir
-            #lex.write_dict(os.path.join(logdir, 'model'), types=types)
-        #else:
-            # save types file in log dir
-            #shutil.copyfile(FLAGS.train_data_path + '.type', os.path.join(logdir, 'model.type'))
-        lex_size = vecs.shape[0]
-        # write flags for current run
-        with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
-            json.dump(model_flags, outfile, indent=2, sort_keys=True)
-        # create test result writer
-        test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
-        test_result_writer.writeheader()
 
         _SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
         if _SOURCE in types:
@@ -302,6 +290,15 @@ def main(unused_argv):
             vecs = np.concatenate([vecs, np.ones(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
             SOURCE_idx = len(vecs) - 1
         lex.write_dict(os.path.join(logdir, 'model'), types=types)
+        lex_size = vecs.shape[0]
+
+        # write flags for current run
+        with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
+            json.dump(model_flags, outfile, indent=2, sort_keys=True)
+
+        # create test result writer
+        test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
+        test_result_writer.writeheader()
 
     logging.info('lex_size: %i' % lex_size)
 
