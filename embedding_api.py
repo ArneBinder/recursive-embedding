@@ -181,6 +181,9 @@ def parse_params(params, prev={}):
             v = ast.literal_eval(v_)
         except ValueError:
             v = v_
+        except SyntaxError:
+            v = v_
+            logging.warning('Syntax error while parsing "%s". Assume it is a string.' % v_)
         result[param] = v
     return result
 
@@ -199,6 +202,36 @@ def get_params(request):
 def get_or_calc_sequence_data(params):
     if 'data_sequences' in params:
         params['data_sequences'] = np.array(params['data_sequences'])
+    elif 'train_file' in params:
+        fn = '%s.%s' % (FLAGS.model_train_data_path, params['train_file'])
+        if os.path.isfile(fn):
+            # get sequence data from sim tuple file
+            params['data_sequences'] = []
+            params['scores_gold'] = []
+            start = params.get('start', 0)
+            end = params.get('end', -1)
+            if 'new_format' in params:
+                for i, sim_tuple in enumerate(corpus_simtuple.iterate_scored_tree_data([fn])):
+                    if i < start:
+                        continue
+                    if 0 <= end <= i:
+                        break
+
+                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['tree'])
+                    params['data_sequences'].append([data1, parent1])
+                    params['scores_gold'].append(sim_tuple['score'])
+            else:
+                for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data([fn])):
+                    if i < start:
+                        continue
+                    if 0 <= end <= i:
+                        break
+                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['first'])
+                    data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
+                    params['data_sequences'].append([data1 + data2, parent1 + parent2])
+                    params['scores_gold'].append(sim_tuple['similarity'])
+        else:
+            raise IOError('could not open "%s"' % fn)
     elif 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
         concat_mode = FLAGS.default_concat_mode
@@ -351,54 +384,26 @@ def norm():
 
 
 @app.route("/api/visualize", methods=['POST'])
-@app.route("/api/visualize/<simtuple_extension>", methods=['POST'])
+#@app.route("/api/visualize/<simtuple_extension>", methods=['POST'])
 def visualize(simtuple_extension=None):
     try:
         start = time.time()
         logging.info('Visualizations requested')
         params = get_params(request)
-        if not simtuple_extension:
-            get_or_calc_sequence_data(params)
-        elif os.path.isfile(FLAGS.model_train_data_path + '.' + simtuple_extension):
-            # get sequence data from sim tuple file
-            params['data_sequences'] = []
-            params['similarities'] = []
-            start = params.get('start', 0)
-            end = params.get('end', -1)
-            if 'new_format' in params:
-                for i, sim_tuple in enumerate(corpus_simtuple.iterate_scored_tree_data(
-                        [FLAGS.model_train_data_path + '.' + simtuple_extension])):
-                    if i < start:
-                        continue
-                    if 0 <= end <= i:
-                        break
+        if simtuple_extension:
+            params['train_file'] = simtuple_extension
 
-                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['tree'])
-                    params['data_sequences'].append([data1, parent1])
-                    params['similarities'].append(sim_tuple['score'])
-            else:
-                for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data(
-                        [FLAGS.model_train_data_path + '.' + simtuple_extension])):
-                    if i < start:
-                        continue
-                    if 0 <= end <= i:
-                        break
-                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['first'])
-                    data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
-                    params['data_sequences'].append([data1 + data2, parent1 + parent2])
-                    params['similarities'].append(sim_tuple['similarity'])
-        else:
-            raise IOError('could not open "%s"' % (FLAGS.model_train_data_path + '.' + simtuple_extension))
+        get_or_calc_sequence_data(params)
 
         mode = params.get('mode', 'image')
         if mode == 'image':
             vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
             result = send_file(vis.TEMP_FN)
         elif mode == 'text':
-            params['text'] = []
+            params['sequences'] = []
             for data, parents in params['data_sequences']:
                 texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), types)]
-                params['text'].append(texts)
+                params['sequences'].append(texts)
 
             result = json.dumps(filter_result(make_serializable(params)))
         else:
