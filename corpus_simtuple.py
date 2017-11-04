@@ -216,12 +216,11 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         # separate into subtrees (e.g. sentences)
         logging.debug('split into subtrees ...')
         subtrees = []
-        data_blanked = data
         for root in roots:
             # blank roots (e.g. SOURCE/...)
-            data_blanked[root] = len(types)
+            data[root] = len(types)
             descendant_indices = sequence_trees.get_descendant_indices(children, root)
-            new_subtree = zip(*[(data_blanked[idx], parents[idx]) for idx in sorted(descendant_indices)])
+            new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
             new_subtree = np.array(new_subtree, dtype=np.int32)
             # if new_subtree in subtrees:
             #    repl_roots.append(root)
@@ -274,6 +273,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
             bar.next()
 
         bar.finish()
+        # load (un-blanked) data
+        data = np.load(out_path + '.data')
 
     # debug
     #sims_jac = np.zeros(shape=n * (1 + FLAGS.neg_samples))
