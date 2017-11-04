@@ -216,9 +216,13 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         # separate into subtrees (e.g. sentences)
         logging.debug('split into subtrees ...')
         subtrees = []
+        data_blanked = data
         for root in roots:
+            # blank roots (e.g. SOURCE/...)
+            data_blanked[root] = len(types)
             descendant_indices = sequence_trees.get_descendant_indices(children, root)
-            new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
+            new_subtree = zip(*[(data_blanked[idx], parents[idx]) for idx in sorted(descendant_indices)])
+            new_subtree = np.array(new_subtree, dtype=np.int32)
             # if new_subtree in subtrees:
             #    repl_roots.append(root)
             subtrees.append(new_subtree)
@@ -243,15 +247,18 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
             sims_sorted = np.sort(sims)
             prob_map = continuous_binning(hist_src=sims_sorted, hist_dest=sims_correct)
 
-            # set probabilities according to prob_map, but set to 0.0
-            # if this is the original pair (can occur multiple times)
-            # or if the two subtrees are equal
+            # set probabilities according to prob_map ...
             p = [prob_map[d] for d in sims]
-            # p_0 = []
+            # ...  but set to 0.0 if this is the original pair (can occur multiple times)
+            # or if the two subtrees are equal
+            #c_debug = 0
             for j, d in enumerate(sims):
-                if (d == sim_original and (i == j or subtrees[2 * i + 1] == subtrees[2 * j + 1])) or (
-                                d == 1.0 and subtrees[2 * i] == subtrees[2 * j + 1]):
+                if (d == sim_original and (i == j or np.array_equal(subtrees[2 * i + 1], subtrees[2 * j + 1]))) \
+                        or (d == 1.0 and np.array_equal(subtrees[2 * i], subtrees[2 * j + 1])):
                     p[j] = 0.0
+                    #c_debug += 1
+            #if c_debug > 1:
+            #    logging.debug('%i:%i' % (i, c_debug))
 
             # normalize probs
             p = np.array(p)
@@ -278,6 +285,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     start = 0
     for idx, end in enumerate(np.cumsum(sizes)):
         current_sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(start, end)]
+        # add negative samples, but not for last train (aka test) file
         if FLAGS.neg_samples and (neg_sample_last or idx != len(sizes) - 1):
             neg_sample_tuples = [((i / FLAGS.neg_samples) * 2, sample_indices[i] * 2 + 1, 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
             current_sim_tuples.extend(neg_sample_tuples)
@@ -363,22 +371,32 @@ def write_sim_tuple_data_single(out_fn, sim_tuples, data, children, roots):
     :param roots        preprocessed root information (indices to roots in data), see preprocessing.children_and_roots
     """
 
+    # ensure every left sequence_tree occurs only once
+    scored_root_ids_collected = {}
+    for sim_tuple in sim_tuples:
+        scored_ids = scored_root_ids_collected.get(sim_tuple[0], [])
+        scored_ids.append((sim_tuple[1], sim_tuple[2]))
+        scored_root_ids_collected[sim_tuple[0]] = scored_ids
+
     logging.info('write data to: ' + out_fn + ' ...')
     with tf.python_io.TFRecordWriter(out_fn) as record_output:
-        for idx in range(len(sim_tuples)):
+        for root_idx in scored_root_ids_collected:
             scored_tree = scored_tree_pb2.ScoredTree()
             scored_tree.score = 1.0
-            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][0]], scored_tree.tree)
+            sequence_trees.build_sequence_tree(data, children, roots[root_idx], scored_tree.tree)
             record_output.write(scored_tree.SerializeToString())
 
-            scored_tree = scored_tree_pb2.ScoredTree()
-            scored_tree.score = sim_tuples[idx][2]
-            # set root of second to root of first (in case of negative samples)
-            data_root2 = data[roots[sim_tuples[idx][1]]]
-            data[roots[sim_tuples[idx][1]]] = data[roots[sim_tuples[idx][0]]]
-            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], scored_tree.tree)
-            data[roots[sim_tuples[idx][1]]] = data_root2
-            record_output.write(scored_tree.SerializeToString())
+            scored_ids = scored_root_ids_collected[root_idx]
+            for root_idx_target, score in scored_ids:
+                data_target_backup = data[roots[root_idx_target]]
+                data[roots[root_idx_target]] = data[roots[root_idx]]
+
+                scored_tree = scored_tree_pb2.ScoredTree()
+                scored_tree.score = score
+                sequence_trees.build_sequence_tree(data, children, roots[root_idx_target], scored_tree.tree)
+                record_output.write(scored_tree.SerializeToString())
+
+                data[roots[root_idx_target]] = data_target_backup
 
 
 def load_sim_tuple_indices(filename):
