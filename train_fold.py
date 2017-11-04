@@ -19,6 +19,7 @@ import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
 
+import constants
 import corpus_simtuple
 import lexicon as lex
 import model_fold
@@ -215,33 +216,6 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 
 
 def main(unused_argv):
-    #data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-    data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
-    data_iterator_test = corpus_simtuple.iterate_sim_tuple_data
-    parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
-    if not (FLAGS.test_only_file or FLAGS.init_only):
-        logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
-        train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.[0-9]*')
-        train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
-        assert len(train_fnames) > 0, 'no matching train data files found for ' + FLAGS.train_data_path
-        logging.info('found ' + str(len(train_fnames)) + ' train data files')
-        test_fname = train_fnames[FLAGS.test_file_index]
-        logging.info('use ' + test_fname + ' for testing')
-        del train_fnames[FLAGS.test_file_index]
-        # train_iterator = iterate_over_tf_record_protos(
-        #    train_fnames, similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
-        train_iterator = data_iterator_train(train_fnames)
-        test_iterator = data_iterator_test([test_fname])
-    elif FLAGS.test_only_file:
-        test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
-        test_iterator = data_iterator_test([test_fname])
-        train_iterator = None
-    else:
-        test_iterator = None
-        train_iterator = None
-
-    # test_iterator = iterate_over_tf_record_protos(
-    #    [test_fname], similarity_tree_tuple_pb2.SimilarityTreeTuple, multiple_epochs=False)
 
     run_desc = []
     for flag in sorted(model_flags.keys()):
@@ -269,6 +243,9 @@ def main(unused_argv):
     logdir = FLAGS.logdir_continue or os.path.join(FLAGS.logdir, model_flags['run_description'][1])
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
+
+    # GET CHECKPOINT or PREPARE LEXICON ################################################################################
+
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
     old_checkpoint_fn = None
     vecs = None
@@ -281,6 +258,16 @@ def main(unused_argv):
         lex_size = embed_shape[0]
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
+        types = lex.read_types(os.path.join(logdir, 'model'))
+
+        # SOURCE_idx = types.index(constants.vocab_manual[constants.SOURCE_EMBEDDING])
+        # COMPATIBILITY
+        _SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
+        if _SOURCE in types:
+            SOURCE_idx = types.index(_SOURCE)
+        else:
+            SOURCE_idx = len(types)
+        # COMPATIBILITY END
     else:
         vecs, types = lex.create_or_read_dict(FLAGS.train_data_path)
         if FLAGS.logdir_pretrained:
@@ -293,10 +280,10 @@ def main(unused_argv):
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                           remove=False)
             # save types file in log dir
-            lex.write_dict(os.path.join(logdir, 'model'), types=types)
-        else:
+            #lex.write_dict(os.path.join(logdir, 'model'), types=types)
+        #else:
             # save types file in log dir
-            shutil.copyfile(FLAGS.train_data_path + '.type', os.path.join(logdir, 'model.type'))
+            #shutil.copyfile(FLAGS.train_data_path + '.type', os.path.join(logdir, 'model.type'))
         lex_size = vecs.shape[0]
         # write flags for current run
         with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
@@ -305,7 +292,53 @@ def main(unused_argv):
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
         test_result_writer.writeheader()
 
+        _SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
+        if _SOURCE in types:
+            SOURCE_idx = types.index(_SOURCE)
+        else:
+            # add 'SOURCE'
+            types.append(_SOURCE)
+            # add vecs of ones
+            vecs = np.concatenate([vecs, np.ones(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
+            SOURCE_idx = len(vecs) - 1
+        lex.write_dict(os.path.join(logdir, 'model'), types=types)
+
     logging.info('lex_size: %i' % lex_size)
+
+    # TRAINING and TEST DATA ###########################################################################################
+
+    # data_iterator_train = corpus_simtuple.iterate_scored_tree_data
+    data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
+    #data_iterator_test = corpus_simtuple.iterate_sim_tuple_data
+
+    # overwrite roots with SOURCE
+    def data_iterator_test(filenames):
+        for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
+            x['first']['head'] = SOURCE_idx
+            x['second']['head'] = SOURCE_idx
+            yield x
+
+    parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
+    if not (FLAGS.test_only_file or FLAGS.init_only):
+        logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
+        train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.[0-9]*')
+        train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
+        assert len(train_fnames) > 0, 'no matching train data files found for ' + FLAGS.train_data_path
+        logging.info('found ' + str(len(train_fnames)) + ' train data files')
+        test_fname = train_fnames[FLAGS.test_file_index]
+        logging.info('use ' + test_fname + ' for testing')
+        del train_fnames[FLAGS.test_file_index]
+        train_iterator = data_iterator_train(train_fnames)
+        test_iterator = data_iterator_test([test_fname])
+    elif FLAGS.test_only_file:
+        test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
+        test_iterator = data_iterator_test([test_fname])
+        train_iterator = None
+    else:
+        test_iterator = None
+        train_iterator = None
+
+    # MODEL DEFINITION #################################################################################################
 
     optimizer = FLAGS.optimizer
     if FLAGS.optimizer:
@@ -335,6 +368,8 @@ def main(unused_argv):
             #model_train = model_fold.ScoredSequenceTreeModel(tree_model=model_tree,
             #                                                 learning_rate=FLAGS.learning_rate,
             #                                                 optimizer=optimizer)
+
+            # PREPARE TRAINING #########################################################################################
 
             if old_checkpoint_fn is not None:
                 logging.info(
@@ -374,6 +409,8 @@ def main(unused_argv):
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
                 return
 
+            # MEASUREMENT ##############################################################################################
+
             def collect_values(epoch, step, loss, sim, sim_gold, train, print_out=True, emit=True):
                 if train:
                     suffix = 'train'
@@ -404,6 +441,8 @@ def main(unused_argv):
                             'epoch=%d step=%d: loss_' + suffix + '=%f\tpearson_r_' + suffix + '=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
                             epoch, step, loss, p_r[0], np.average(sim),
                             np.average(sim_gold), np.var(sim_gold)))
+
+            # TRAINING #################################################################################################
 
             def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0):
 
@@ -463,6 +502,8 @@ def main(unused_argv):
                     # test
                     step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch, train=False,
                                                                            test_step=step_train)
+
+                    # EARLY STOPPING ###################################################################################
 
                     # loss_test = round(loss_test, 6) #100000000
                     p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
