@@ -443,7 +443,7 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
         unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
     if reader_source is None:
-        _reader_source = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], 0)
+        _reader_source = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], -1)
     else:
         _reader_source = reader_source(**reader_source_args)
 

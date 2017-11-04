@@ -6,6 +6,7 @@ import os
 import numpy as np
 import spacy
 
+import constants
 import lexicon as lex
 import preprocessing
 
@@ -201,12 +202,16 @@ def parse_texts_clustered(filename, reader, reader_clusters, sentence_processor,
 
 
 def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode, inner_concat_mode):
+    def reader_source_dummy():
+        yield constants.vocab_manual[constants.SOURCE_EMBEDDING]
+
     for s in sequences:
         seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
                                                            data_maps, reader_args={'content': s},
                                                            concat_mode=concat_mode,
                                                            inner_concat_mode=inner_concat_mode,
-                                                           expand_dict=False)
+                                                           expand_dict=False,
+                                                           reader_source=reader_source_dummy)
         yield np.array([seq_data, seq_parents])
 
 
