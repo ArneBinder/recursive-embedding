@@ -4,6 +4,8 @@ import ntpath
 import os
 import random
 from collections import Counter
+from multiprocessing import Pool
+from functools import partial
 
 import numpy as np
 import spacy
@@ -113,6 +115,46 @@ def continuous_binning(hist_src, hist_dest):
     process_probs()
 
     return prob_map
+
+
+def sample_indices(idx, subtrees, sims_correct, prog_bar=None):
+    #idx, subtrees, sims_correct = idx_subtrees_simscorrect
+    n = len(sims_correct)
+    # sample according to sims_correct probability distribution
+    sims = np.zeros(shape=n)
+    for j in range(n):
+        sims[j] = sim_jaccard(subtrees[idx * 2][0], subtrees[j * 2 + 1][0])
+    sim_original = sims[idx]
+    sims_sorted = np.sort(sims)
+    prob_map = continuous_binning(hist_src=sims_sorted, hist_dest=sims_correct)
+
+    # set probabilities according to prob_map ...
+    p = [prob_map[d] for d in sims]
+    # ...  but set to 0.0 if this is the original pair (can occur multiple times)
+    # or if the two subtrees are equal
+    # c_debug = 0
+    for j, d in enumerate(sims):
+        if (d == sim_original and (idx == j or np.array_equal(subtrees[2 * idx + 1], subtrees[2 * j + 1]))) \
+                or (d == 1.0 and np.array_equal(subtrees[2 * idx], subtrees[2 * j + 1])):
+            p[j] = 0.0
+            # c_debug += 1
+    # if c_debug > 1:
+    #    logging.debug('%i:%i' % (i, c_debug))
+
+    # normalize probs
+    p = np.array(p)
+    p = p / p.sum()
+    try:
+        new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=False)
+    except ValueError as e:
+        logging.warning(
+            'Error: "%s" (source tuple index: %i) Retry sampling with repeated elements allowed ...' % (
+                e.message, idx))
+        new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=True)
+    if prog_bar:
+        prog_bar.next()
+    return new_indices
+    #sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
 
 
 def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_source=None, neg_sample_last=True):
@@ -236,43 +278,12 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
         logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
         bar = Bar('Create negative samples', max=n)
-        sample_indices = np.zeros(shape=n * FLAGS.neg_samples, dtype=int)
-        for i in range(n):
-            # sample according to sims_correct probability distribution
-            sims = np.zeros(shape=n)
-            for j in range(n):
-                sims[j] = sim_jaccard(subtrees[i * 2][0], subtrees[j * 2 + 1][0])
-            sim_original = sims[i]
-            sims_sorted = np.sort(sims)
-            prob_map = continuous_binning(hist_src=sims_sorted, hist_dest=sims_correct)
-
-            # set probabilities according to prob_map ...
-            p = [prob_map[d] for d in sims]
-            # ...  but set to 0.0 if this is the original pair (can occur multiple times)
-            # or if the two subtrees are equal
-            #c_debug = 0
-            for j, d in enumerate(sims):
-                if (d == sim_original and (i == j or np.array_equal(subtrees[2 * i + 1], subtrees[2 * j + 1]))) \
-                        or (d == 1.0 and np.array_equal(subtrees[2 * i], subtrees[2 * j + 1])):
-                    p[j] = 0.0
-                    #c_debug += 1
-            #if c_debug > 1:
-            #    logging.debug('%i:%i' % (i, c_debug))
-
-            # normalize probs
-            p = np.array(p)
-            p = p / p.sum()
-            try:
-                new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=False)
-            except ValueError as e:
-                logging.warning(
-                    'Error: "%s" (source tuple index: %i) Retry sampling with repeated elements allowed ...' % (
-                    e.message, i))
-                new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=True)
-            sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
-            bar.next()
-
+        pool = Pool()
+        _sampled_indices = pool.map(partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=bar),
+                                    range(n))
         bar.finish()
+        sampled_indices = np.concatenate(_sampled_indices)
+
         # load (un-blanked) data
         data = np.load(out_path + '.data')
 
@@ -288,7 +299,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         current_sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(start, end)]
         # add negative samples, but not for last train (aka test) file
         if FLAGS.neg_samples and (neg_sample_last or idx != len(sizes) - 1):
-            neg_sample_tuples = [((i / FLAGS.neg_samples) * 2, sample_indices[i] * 2 + 1, 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
+            neg_sample_tuples = [((i / FLAGS.neg_samples) * 2, sampled_indices[i] * 2 + 1, 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
             current_sim_tuples.extend(neg_sample_tuples)
             # shuffle
             random.shuffle(current_sim_tuples)
