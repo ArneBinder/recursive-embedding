@@ -115,7 +115,7 @@ def continuous_binning(hist_src, hist_dest):
     return prob_map
 
 
-def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_source=None):
+def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_source=None, neg_sample_last=True):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
         * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
@@ -181,7 +181,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
     types = lex.revert_mapping_to_list(mapping)
     converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
-                                                                                            count_threshold=FLAGS.count_threshold)
+                                                                                         count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')
@@ -276,9 +276,9 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
     sim_tuples = []
     start = 0
-    for end in np.cumsum(sizes):
+    for idx, end in enumerate(np.cumsum(sizes)):
         current_sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(start, end)]
-        if FLAGS.neg_samples:
+        if FLAGS.neg_samples and (neg_sample_last or idx != len(sizes) - 1):
             neg_sample_tuples = [((i / FLAGS.neg_samples) * 2, sample_indices[i] * 2 + 1, 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
             current_sim_tuples.extend(neg_sample_tuples)
             # shuffle
