@@ -321,6 +321,7 @@ def main(unused_argv):
             set_head_neg(c)
 
     # overwrite roots with SOURCE
+    # and decrement all data (heads) by -lex_size to disable head-dropout
     def data_iterator_test_blanked(filenames):
         for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
             x['first']['head'] = SOURCE_idx

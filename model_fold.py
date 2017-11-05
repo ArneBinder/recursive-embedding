@@ -159,7 +159,7 @@ class TreeEmbedding(object):
 
     def embed(self):
         # get the head embedding from id
-        #return td.Function(lambda x: (tf.gather(self._lexicon, x) if (np.random.random() < self.keep_prob) else tf.zeros(shape=DIMENSION_EMBEDDINGS, dtype=self._lexicon.dtype)))
+        #return td.Function(lambda x: tf.gather(self._lexicon, x))
         return td.OneOf(key_fn=(lambda x: x >= 0),
                         case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
                                      False: td.Void() >> td.Zeros(DIMENSION_EMBEDDINGS)})
