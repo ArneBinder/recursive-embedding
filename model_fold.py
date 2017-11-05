@@ -125,9 +125,11 @@ def create_lexicon(lex_size, trainable=True):
 
 class TreeEmbedding(object):
     def __init__(self, name, lexicon_size, keep_prob_placeholder=None, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
-                 root_fc_size=0):
+                 root_fc_size=0, keep_prob_fixed=1.0):
+        self._lex_size = lexicon_size
         self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
                                                                                       trainable=lexicon_trainable)
+        self._keep_prob_fixed = keep_prob_fixed
         if keep_prob_placeholder is not None:
             self._keep_prob = keep_prob_placeholder
         else:
@@ -157,10 +159,22 @@ class TreeEmbedding(object):
 
     def embed(self):
         # get the head embedding from id
-        return td.Function(lambda x: tf.gather(self._lexicon, x))
+        #return td.Function(lambda x: (tf.gather(self._lexicon, x) if (np.random.random() < self.keep_prob) else tf.zeros(shape=DIMENSION_EMBEDDINGS, dtype=self._lexicon.dtype)))
+        return td.OneOf(key_fn=(lambda x: x >= 0),
+                        case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
+                                     False: td.Void() >> td.Zeros(DIMENSION_EMBEDDINGS)})
 
     def head(self, name='head_embed'):
-        return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
+        def helper(x, keep_prob):
+            if x < 0:
+                return x + self.lex_size
+            if np.random.random() < keep_prob:
+                return x
+            return -1
+
+        #return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
+        return td.Pipe(td.GetItem('head'), td.InputTransform(lambda x: helper(x, self.keep_prob_fixed)),
+                       self.embed(), name=name)
 
     def children(self, name='children'):
         return td.InputTransform(lambda x: x.get('children', []), name=name)
@@ -216,6 +230,14 @@ class TreeEmbedding(object):
     @property
     def keep_prob(self):
         return self._keep_prob
+
+    @property
+    def keep_prob_fixed(self):
+        return self._keep_prob_fixed
+
+    @property
+    def lex_size(self):
+        return self._lex_size
 
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):

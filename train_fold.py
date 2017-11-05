@@ -315,19 +315,27 @@ def main(unused_argv):
 
     # TRAINING and TEST DATA ###########################################################################################
 
+    def set_head_neg(tree):
+        tree['head'] -= lex_size
+        for c in tree['children']:
+            set_head_neg(c)
+
     # overwrite roots with SOURCE
     def data_iterator_test_blanked(filenames):
         for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
             x['first']['head'] = SOURCE_idx
+            set_head_neg(x['first'])
             x['second']['head'] = SOURCE_idx
+            set_head_neg(x['second'])
             yield x
 
     if FLAGS.single_data:
         data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-        data_iterator_test = data_iterator_test_blanked
+        #data_iterator_test = data_iterator_test_blanked
     else:
         data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
-        data_iterator_test = corpus_simtuple.iterate_sim_tuple_data
+
+    data_iterator_test = data_iterator_test_blanked#corpus_simtuple.iterate_sim_tuple_data
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
@@ -368,7 +376,9 @@ def main(unused_argv):
                                                       lexicon_trainable=FLAGS.lexicon_trainable,
                                                       leaf_fc_size=FLAGS.leaf_fc_size,
                                                       root_fc_size=FLAGS.root_fc_size,
-                                                      keep_prob=FLAGS.keep_prob)
+                                                      keep_prob=FLAGS.keep_prob,
+                                                      #keep_prob_fixed=FLAGS.keep_prob
+                                                      )
 
             # has to be created first #TODO: really?
             if FLAGS.single_data:
