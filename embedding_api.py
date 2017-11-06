@@ -230,8 +230,10 @@ def get_or_calc_sequence_data(params):
                         break
                     data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['first'])
                     data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
-                    params['data_sequences'].append([data1 + data2, parent1 + parent2])
+                    params['data_sequences'].append([data1, parent1])
+                    params['data_sequences'].append([data2, parent2])
                     params['scores_gold'].append(sim_tuple['similarity'])
+            params['scores_gold'] = np.array(params['scores_gold'])
         else:
             raise IOError('could not open "%s"' % fn)
     elif 'sequences' in params:
@@ -297,6 +299,12 @@ def embed():
         logging.info('Embeddings requested')
         params = get_params(request)
         get_or_calc_embeddings(params)
+
+        # debug
+        #params['embeddings'].dump('api_request_embeddings')
+        #if 'scores_gold' in params:
+        #    params['scores_gold'].dump('api_request_scores_gold')
+        # debug end
 
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
