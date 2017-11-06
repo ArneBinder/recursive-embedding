@@ -322,7 +322,7 @@ def main(unused_argv):
 
     # overwrite roots with SOURCE
     # and decrement all data (heads) by -lex_size to disable head-dropout
-    def data_iterator_test_blanked(filenames):
+    def data_iterator_tuple_blanked_neg(filenames):
         for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
             x['first']['head'] = SOURCE_idx
             set_head_neg(x['first'])
@@ -330,13 +330,20 @@ def main(unused_argv):
             set_head_neg(x['second'])
             yield x
 
+    def data_iterator_tuple_blanked(filenames):
+        for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
+            x['first']['head'] = SOURCE_idx
+            x['second']['head'] = SOURCE_idx
+            yield x
+
     if FLAGS.single_data:
         data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-        #data_iterator_test = data_iterator_test_blanked
+        #data_iterator_test = data_iterator_tuple_blanked_neg
     else:
-        data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
+        #data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
+        data_iterator_train = data_iterator_tuple_blanked
 
-    data_iterator_test = data_iterator_test_blanked#corpus_simtuple.iterate_sim_tuple_data
+    data_iterator_test = data_iterator_tuple_blanked_neg#corpus_simtuple.iterate_sim_tuple_data
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
