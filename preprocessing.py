@@ -8,6 +8,8 @@ import constants
 import mytools
 import sequence_trees
 
+MARKER_DEP_EDGE = 'DEP/'
+
 
 # unused
 def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
@@ -140,7 +142,7 @@ def process_sentence3_marked(sentence, parsed_data, data_maps, dict_unknown=None
         sen_data.append(mytools.getOrAdd(data_maps, token.orth_, dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
-        sen_data.append(mytools.getOrAdd(data_maps, 'DEP#' + token.dep_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, MARKER_DEP_EDGE + token.dep_, dict_unknown))
         sen_parents.append(-1)
 
     if concat_mode == 'aggregate':

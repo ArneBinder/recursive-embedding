@@ -4,14 +4,12 @@ import ntpath
 import os
 import random
 from collections import Counter
-from multiprocessing import Pool
 from functools import partial
 
 import numpy as np
 import spacy
 import tensorflow as tf
 import tensorflow_fold as td
-from progress.bar import Bar
 
 import corpus
 import lexicon as lex
@@ -68,6 +66,11 @@ tf.flags.DEFINE_integer(
     'neg_samples',
     0,
     'amount of negative samples to add'
+)
+tf.flags.DEFINE_boolean(
+    'one_hot_dep',
+    True,
+    'Whether to replace all dependence edge embeddings with one hot embeddings.'
 )
 
 FLAGS = tf.flags.FLAGS
@@ -188,11 +191,11 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
     assert FLAGS.concat_mode is not None and FLAGS.concat_mode != 'tree', \
         "concat_mode=None or concat_mode='tree' is NOT ALLOWED for similarity scored tuples! Use 'sequence' or 'aggregate'"
-    out_path = out_path + '_CM' + FLAGS.concat_mode
+    out_path = out_path + '_cm' + FLAGS.concat_mode
     if FLAGS.inner_concat_mode is not None:
-        out_path = out_path + '_ICM' + FLAGS.inner_concat_mode
+        out_path = out_path + '_icm' + FLAGS.inner_concat_mode
     if FLAGS.neg_samples:
-        out_path = out_path + '_NEGS' + str(FLAGS.neg_samples)
+        out_path = out_path + '_negs' + str(FLAGS.neg_samples)
 
     def read_data(file_name):
         return corpus.parse_texts_scored(filename=file_name,
@@ -225,30 +228,32 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
                                                                                          count_threshold=FLAGS.count_threshold)
     data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
+
+    if FLAGS.one_hot_dep:
+        out_path = out_path + '_onehotdep'
+        # one_hot_types = []
+        # one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
+        # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
+        # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
+        # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
+        # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
+        # u'DEP#']
+        one_hot_types = [t for t in types if t.startswith(preprocessing.MARKER_DEP_EDGE)]
+        mapping = lex.mapping_from_list(types)
+        one_hot_ids = [mapping[t] for t in one_hot_types]
+        if len(one_hot_ids) > vecs.shape[1]:
+            logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
+                            ' That overrides previously added one hot embeddings!' % vecs.shape[1])
+        for i, idx in enumerate(one_hot_ids):
+            vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
+            vecs[idx][i % vecs.shape[1]] = 1.0
+
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')
     parents.dump(out_path + '.parent')
     scores.dump(out_path + '.score')
-
-    # one_hot_types = []
-    # one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
-    # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
-    # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
-    # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
-    # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
-    # u'DEP#']
-    one_hot_types = [t for t in types if t.startswith('DEP#')]
-    mapping = lex.mapping_from_list(types)
-    one_hot_ids = [mapping[t] for t in one_hot_types]
-    if len(one_hot_ids) > vecs.shape[1]:
-        logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
-                        ' That overrides previously added one hot embeddings!' % vecs.shape[1])
-    for i, idx in enumerate(one_hot_ids):
-        vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
-        vecs[idx][i % vecs.shape[1]] = 1.0
-
-    n = len(scores)
     lex.write_dict(out_path, vecs=vecs, types=types)
+    n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
     logging.debug('calc roots ...')
     children, roots = sequence_trees.children_and_roots(parents)
