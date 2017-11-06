@@ -252,6 +252,7 @@ def main(unused_argv):
         logging.info('serialized run description: ' + model_flags['run_description'][1])
 
     logdir = FLAGS.logdir_continue or os.path.join(FLAGS.logdir, model_flags['run_description'][1])
+    logging.info('logdir: %s' % logdir)
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
 
