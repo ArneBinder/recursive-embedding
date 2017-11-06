@@ -649,6 +649,8 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         BaseTrainModel.__init__(self, compiler=compiler, optimizer=optimizer, learning_rate=learning_rate, scores=sim,
                                 scores_gold=gold_similarities, tree_model=tree_model)
 
+        self._tree_embeddings_all = tf.concat([self._tree_embeddings_1, self._tree_embeddings_2], axis=-1)
+
     @property
     def tree_embeddings_1(self):
         return self._tree_embeddings_1
@@ -664,6 +666,10 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     @property
     def id(self):
         return self._id
+
+    @property
+    def tree_embeddings_all(self):
+        return self._tree_embeddings_all
 
 
 class ScoredSequenceTreeModel(BaseTrainModel):
@@ -687,6 +693,10 @@ class ScoredSequenceTreeModel(BaseTrainModel):
 
     @property
     def tree_embeddings(self):
+        return self._tree_embeddings
+
+    @property
+    def tree_embeddings_all(self):
         return self._tree_embeddings
 
 

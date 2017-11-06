@@ -18,6 +18,7 @@ import tensorflow as tf
 import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
+from sklearn import linear_model
 
 import constants
 import corpus_simtuple
@@ -393,6 +394,7 @@ def main(unused_argv):
                 model_train = model_fold.ScoredSequenceTreeModel(tree_model=model_tree,
                                                                  learning_rate=FLAGS.learning_rate,
                                                                  optimizer=optimizer)
+                reg = linear_model.LinearRegression()
 
             model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                      learning_rate=FLAGS.learning_rate,
@@ -476,37 +478,46 @@ def main(unused_argv):
 
             # TRAINING #################################################################################################
 
-            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0):
+            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, return_embeddings=False):
 
-                score_all = []
-                score_all_gold = []
-                loss_all = 0.0
-                step = None
+                step = test_step
+                feed_dict = {}
+                execute_vars = {'loss': model.loss, 'scores': model.scores, 'scores_gold': model.scores_gold}
+                if train:
+                    execute_vars['train_op'] = model.train_op
+                    execute_vars['step'] = model.global_step
+                else:
+                    feed_dict[model.keep_prob] = 1.0
+                if return_embeddings:
+                    execute_vars['embeddings'] = model.tree_embeddings_all
+
+                _result_all = []
+
                 # for batch in td.group_by_batches(data_set, FLAGS.batch_size if train else len(test_set)):
                 for batch in td.group_by_batches(data_set, FLAGS.batch_size):
-                    if train:
-                        feed_dict = {model.compiler.loom_input_tensor: batch}
-                        _, step, batch_loss, score, score_gold = sess.run(
-                            [model.train_op, model.global_step, model.loss, model.scores, model.scores_gold],
-                            feed_dict)
-                    else:
-                        feed_dict = {model.compiler.loom_input_tensor: batch, model.keep_prob: 1.0}
-                        batch_loss, score, score_gold = sess.run(
-                            [model.loss, model.scores, model.scores_gold],
-                            feed_dict)
-                        step = test_step
-                    score_all.append(score)
-                    score_all_gold.append(score_gold)
-                    # multiply with current batch size (can abbreviate from FLAGS.batch_size at last batch)
-                    loss_all += batch_loss * len(batch)
+                    feed_dict[model.compiler.loom_input_tensor] = batch
+                    _result_all.append(sess.run(execute_vars, feed_dict))
 
+                # list of dicts to dict of lists
+                result_all = dict(zip(_result_all[0], zip(*[d.values() for d in _result_all])))
+
+                # if train, set step to last executed step
+                if train and len(_result_all) > 0:
+                    step = result_all['step'][-1]
+
+                loss_all = sum([result_all['loss'][i] * len(result_all['scores'][i]) for i in range(len(_result_all))])
+
+                if 'embeddings' in result_all:
+                    embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
+                else:
+                    embeddings_all = None
                 # logging.debug(np.concatenate(score_all).tolist())
                 # logging.debug(np.concatenate(score_all_gold).tolist())
-                score_all_ = np.concatenate(score_all)
-                score_all_gold_ = np.concatenate(score_all_gold)
+                score_all_ = np.concatenate(result_all['scores'])
+                score_all_gold_ = np.concatenate(result_all['scores_gold'])
                 loss_all /= len(score_all_)
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
-                return step, loss_all, score_all_, score_all_gold_
+                return step, loss_all, score_all_, score_all_gold_, embeddings_all
 
             with model_train.compiler.multiprocessing_pool():
                 if model_test is not None:
@@ -530,17 +541,26 @@ def main(unused_argv):
 
                     # train
                     if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch)
+                        step_train, _, _, _, _ = do_epoch(model_train, shuffled, epoch)
 
                     if model_test is not None:
                         # test
-                        step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch, train=False,
-                                                                               test_step=step_train)
+                        step_test, loss_test, sim_all, sim_all_gold, embeddings = do_epoch(model_test, test_set, epoch,
+                                                                                           train=False,
+                                                                                           test_step=step_train,
+                                                                                           return_embeddings=FLAGS.single_data)
 
-                        # EARLY STOPPING ###################################################################################
+                        # EARLY STOPPING ###############################################################################
+
+                        if FLAGS.single_data:
+                            reg.fit(embeddings, sim_all_gold)
+                            scores_linreg = np.matmul(embeddings, reg.coef_)
+                            p_r = pearsonr(scores_linreg, sim_all_gold)
+                        else:
+                            p_r = pearsonr(sim_all, sim_all_gold)
 
                         # loss_test = round(loss_test, 6) #100000000
-                        p_r = round(pearsonr(sim_all, sim_all_gold)[0], 6)
+                        p_r = round(p_r[0], 6)
                         p_r_dif = p_r - max(test_p_rs_sorted)
                         # stop, if different previous test losses are smaller than current loss. The amount of regarded
                         # previous values is set by FLAGS.early_stop_queue
