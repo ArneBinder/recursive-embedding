@@ -479,7 +479,7 @@ def main(unused_argv):
 
             # TRAINING #################################################################################################
 
-            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, return_embeddings=False):
+            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, apply_linreg=False):
 
                 step = test_step
                 feed_dict = {}
@@ -489,7 +489,7 @@ def main(unused_argv):
                     execute_vars['step'] = model.global_step
                 else:
                     feed_dict[model.keep_prob] = 1.0
-                if return_embeddings:
+                if apply_linreg:
                     execute_vars['embeddings'] = model.tree_embeddings_all
 
                 _result_all = []
@@ -508,17 +508,20 @@ def main(unused_argv):
 
                 loss_all = sum([result_all['loss'][i] * len(result_all['scores'][i]) for i in range(len(_result_all))])
 
-                if 'embeddings' in result_all:
-                    embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
-                else:
-                    embeddings_all = None
                 # logging.debug(np.concatenate(score_all).tolist())
                 # logging.debug(np.concatenate(score_all_gold).tolist())
-                score_all_ = np.concatenate(result_all['scores'])
+
                 score_all_gold_ = np.concatenate(result_all['scores_gold'])
+                if apply_linreg:
+                    embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
+                    reg.fit(embeddings_all, score_all_gold_)
+                    score_all_ = np.matmul(embeddings_all, reg.coef_)
+                else:
+                    score_all_ = np.concatenate(result_all['scores'])
                 loss_all /= len(score_all_)
+
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
-                return step, loss_all, score_all_, score_all_gold_, embeddings_all
+                return step, loss_all, score_all_, score_all_gold_
 
             with model_train.compiler.multiprocessing_pool():
                 if model_test is not None:
@@ -542,26 +545,20 @@ def main(unused_argv):
 
                     # train
                     if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, _, _, _, _ = do_epoch(model_train, shuffled, epoch)
+                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch)
 
                     if model_test is not None:
                         # test
-                        step_test, loss_test, sim_all, sim_all_gold, embeddings = do_epoch(model_test, test_set, epoch,
+                        step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch,
                                                                                            train=False,
                                                                                            test_step=step_train,
-                                                                                           return_embeddings=FLAGS.data_single)
+                                                                                           apply_linreg=FLAGS.data_single)
 
                         # EARLY STOPPING ###############################################################################
 
-                        if FLAGS.data_single:
-                            reg.fit(embeddings, sim_all_gold)
-                            scores_linreg = np.matmul(embeddings, reg.coef_)
-                            p_r = pearsonr(scores_linreg, sim_all_gold)
-                        else:
-                            p_r = pearsonr(sim_all, sim_all_gold)
-
                         # loss_test = round(loss_test, 6) #100000000
-                        p_r = round(p_r[0], 6)
+                        p_r = pearsonr(sim_all, sim_all_gold)[0]
+                        p_r = round(p_r, 6)
                         p_r_dif = p_r - max(test_p_rs_sorted)
                         # stop, if different previous test losses are smaller than current loss. The amount of regarded
                         # previous values is set by FLAGS.early_stop_queue
