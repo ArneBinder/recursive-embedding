@@ -14,7 +14,7 @@ import tensorflow_fold as td
 
 import mytools
 import sequence_trees
-from flask import Flask, request, send_file, jsonify
+from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
 from sklearn import metrics
 from sklearn.cluster import AgglomerativeClustering
@@ -195,6 +195,8 @@ def get_params(request):
         params = json.loads(data)
     params = parse_params(request.args, params)
     params = parse_params(request.form, params)
+    if request.headers.environ['HTTP_ACCEPT'] != '*/*':
+        params['HTTP_ACCEPT'] = request.headers.environ['HTTP_ACCEPT']
 
     return params
 
@@ -296,12 +298,13 @@ def embed():
         params = get_params(request)
         get_or_calc_embeddings(params)
 
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
-
-    return json_data
+    return response
 
 
 @app.route("/api/distance", methods=['POST'])
@@ -315,12 +318,14 @@ def distance():
         result = pairwise_distances(params['embeddings'],
                                     metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
         params['distances'] = result.tolist()
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
 
-    return json_data
+    return response
 
 
 @app.route("/api/similarity", methods=['POST'])
@@ -337,12 +342,14 @@ def sim():
                                    embedder.e2_placeholder: np.tile(params['embeddings'], (count, 1))})
 
         params['similarities'] = sims.reshape((count, count)).tolist()
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
 
-    return json_data
+    return response
 
 
 @app.route("/api/cluster", methods=['POST'])
@@ -357,11 +364,13 @@ def cluster():
         params['cluster_labels'] = labels
         params['meta_data'] = meta
         params['best_idx'] = best_idx
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
-    return json_data
+    return response
 
 
 @app.route("/api/norm", methods=['POST'])
@@ -375,43 +384,44 @@ def norm():
         _, norms = normalize(params['embeddings'], norm='l2', axis=1, copy=False, return_norm=True)
 
         params['norms'] = norms.tolist()
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
 
-    return json_data
+    return response
 
 
 @app.route("/api/visualize", methods=['POST'])
-#@app.route("/api/visualize/<simtuple_extension>", methods=['POST'])
-def visualize(simtuple_extension=None):
+def visualize():
     try:
         start = time.time()
         logging.info('Visualizations requested')
         params = get_params(request)
-        if simtuple_extension:
-            params['train_file'] = simtuple_extension
 
         get_or_calc_sequence_data(params)
 
         mode = params.get('mode', 'image')
         if mode == 'image':
             vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
-            result = send_file(vis.TEMP_FN)
+            response = send_file(vis.TEMP_FN)
         elif mode == 'text':
             params['sequences'] = []
             for data, parents in params['data_sequences']:
                 texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), types)]
                 params['sequences'].append(texts)
 
-            result = json.dumps(filter_result(make_serializable(params)))
+            return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+            json_data = json.dumps(filter_result(make_serializable(params)))
+            response = Response(json_data, mimetype=return_type)
         else:
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
-    return result
+    return response
 
 
 def get_cluster_ids(embeddings):
