@@ -129,7 +129,7 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                 #   True,
                                 'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
                                 'restore'],
-               'single_data': ['DEFINE_boolean',
+               'data_single': ['DEFINE_boolean',
                                False,
                                #   True,
                                'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
@@ -337,7 +337,7 @@ def main(unused_argv):
             x['second']['head'] = SOURCE_idx
             yield x
 
-    if FLAGS.single_data:
+    if FLAGS.data_single:
         data_iterator_train = corpus_simtuple.iterate_scored_tree_data
         #data_iterator_test = data_iterator_tuple_blanked_neg
     else:
@@ -390,7 +390,7 @@ def main(unused_argv):
                                                       )
 
             # has to be created first #TODO: really?
-            if FLAGS.single_data:
+            if FLAGS.data_single:
                 model_train = model_fold.ScoredSequenceTreeModel(tree_model=model_tree,
                                                                  learning_rate=FLAGS.learning_rate,
                                                                  optimizer=optimizer)
@@ -400,7 +400,7 @@ def main(unused_argv):
                                                                      learning_rate=FLAGS.learning_rate,
                                                                      optimizer=optimizer,
                                                                      sim_measure=sim_measure)
-            if not FLAGS.single_data:
+            if not FLAGS.data_single:
                 model_train = model_test
 
             # PREPARE TRAINING #########################################################################################
@@ -548,11 +548,11 @@ def main(unused_argv):
                         step_test, loss_test, sim_all, sim_all_gold, embeddings = do_epoch(model_test, test_set, epoch,
                                                                                            train=False,
                                                                                            test_step=step_train,
-                                                                                           return_embeddings=FLAGS.single_data)
+                                                                                           return_embeddings=FLAGS.data_single)
 
                         # EARLY STOPPING ###############################################################################
 
-                        if FLAGS.single_data:
+                        if FLAGS.data_single:
                             reg.fit(embeddings, sim_all_gold)
                             scores_linreg = np.matmul(embeddings, reg.coef_)
                             p_r = pearsonr(scores_linreg, sim_all_gold)
