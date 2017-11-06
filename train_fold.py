@@ -506,8 +506,6 @@ def main(unused_argv):
                 if train and len(_result_all) > 0:
                     step = result_all['step'][-1]
 
-                loss_all = sum([result_all['loss'][i] * len(result_all['scores'][i]) for i in range(len(_result_all))])
-
                 # logging.debug(np.concatenate(score_all).tolist())
                 # logging.debug(np.concatenate(score_all_gold).tolist())
 
@@ -516,9 +514,13 @@ def main(unused_argv):
                     embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
                     reg.fit(embeddings_all, score_all_gold_)
                     score_all_ = np.matmul(embeddings_all, reg.coef_)
+                    loss_all = np.mean((score_all_ - score_all_gold_)**2)
                 else:
                     score_all_ = np.concatenate(result_all['scores'])
-                loss_all /= len(score_all_)
+                    # sum batch losses weighted by individual batch size (can vary at last batch)
+                    loss_all = sum(
+                        [result_all['loss'][i] * len(result_all['scores'][i]) for i in range(len(_result_all))])
+                    loss_all /= len(score_all_)
 
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
