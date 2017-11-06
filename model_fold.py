@@ -281,7 +281,14 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
     def __init__(self, **kwargs):
         super(TreeEmbedding_HTU_GRU, self).__init__(name='HTU_GRU', **kwargs)
         with tf.variable_scope(self.scope):
-            self._grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=self._state_size), 'gru_cell')
+            self._grucell = td.ScopedLayer(tf.contrib.rnn.DropoutWrapper(
+                tf.contrib.rnn.GRUCell(num_units=self._state_size),
+                input_keep_prob=self.keep_prob,
+                output_keep_prob=self.keep_prob,
+                variational_recurrent=True,
+                dtype=tf.float32,
+                input_size=self.leaf_fc_size or DIMENSION_EMBEDDINGS),
+                'gru_cell')
 
     def __call__(self):
         #zero_state = td.Zeros(self._state_size)
