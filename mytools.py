@@ -7,6 +7,13 @@ import sys
 import logging
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import Pool
+
+
+def parallel_process_simple(input, func):
+    p = Pool()
+
+    return p.map(func, input)
 
 
 def parallel_process(array, function, n_jobs=4, use_kwargs=False, front_num=3):

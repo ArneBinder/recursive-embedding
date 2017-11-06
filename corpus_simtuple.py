@@ -191,9 +191,9 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
     assert FLAGS.concat_mode is not None and FLAGS.concat_mode != 'tree', \
         "concat_mode=None or concat_mode='tree' is NOT ALLOWED for similarity scored tuples! Use 'sequence' or 'aggregate'"
-    out_path = out_path + '_cm' + FLAGS.concat_mode
+    out_path = out_path + '_cm' + FLAGS.concat_mode.upper()
     if FLAGS.inner_concat_mode is not None:
-        out_path = out_path + '_icm' + FLAGS.inner_concat_mode
+        out_path = out_path + '_icm' + FLAGS.inner_concat_mode.upper()
     if FLAGS.neg_samples:
         out_path = out_path + '_negs' + str(FLAGS.neg_samples)
 
@@ -283,7 +283,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
         logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
 
-        _sampled_indices = mytools.parallel_process(range(n), partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=None))
+        #_sampled_indices = mytools.parallel_process(range(n), partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=None))
+        _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=None))
         sampled_indices = np.concatenate(_sampled_indices)
 
         # load (un-blanked) data
