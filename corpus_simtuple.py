@@ -239,7 +239,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
         # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
         # u'DEP#']
-        one_hot_types = [t for t in types if t.startswith(preprocessing.MARKER_DEP_EDGE)]
+        one_hot_types = [t for t in types if t.startswith(constants.vocab_manual[constants.DEPENDENCY_EMBEDDING] + constants.SEPARATOR)]
         mapping = lex.mapping_from_list(types)
         one_hot_ids = [mapping[t] for t in one_hot_types]
         if len(one_hot_ids) > vecs.shape[1]:
@@ -293,8 +293,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
         logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
 
-        #_sampled_indices = mytools.parallel_process(range(n), partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=None))
-        _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=subtrees, sims_correct=sims_correct, prog_bar=None))
+        _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=subtrees,
+                                                                             sims_correct=sims_correct, prog_bar=None))
         sampled_indices = np.concatenate(_sampled_indices)
 
         # load (un-blanked) data
@@ -309,10 +309,10 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     sim_tuples = []
     start = 0
     for idx, end in enumerate(np.cumsum(sizes)):
-        current_sim_tuples = [(i * 2, i * 2 + 1, scores[i]) for i in range(start, end)]
+        current_sim_tuples = [(roots[i * 2], roots[i * 2 + 1], scores[i]) for i in range(start, end)]
         # add negative samples, but not for last train (aka test) file
         if FLAGS.neg_samples and (neg_sample_last or idx != len(sizes) - 1):
-            neg_sample_tuples = [((i / FLAGS.neg_samples) * 2, sampled_indices[i] * 2 + 1, 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
+            neg_sample_tuples = [(roots[(i / FLAGS.neg_samples) * 2], roots[sampled_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
             current_sim_tuples.extend(neg_sample_tuples)
             # shuffle
             random.shuffle(current_sim_tuples)
@@ -333,8 +333,8 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     # debug end
 
     for i, _sim_tuples in enumerate(sim_tuples):
-        write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children, roots)
-        write_sim_tuple_data_single('%s.train.%i.single' % (out_path, i), _sim_tuples, data, children, roots)
+        write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children)
+        write_sim_tuple_data_single('%s.train.%i.single' % (out_path, i), _sim_tuples, data, children)
         np.array(_sim_tuples).dump('%s.idx.%i' % (out_path, i))
 
 
@@ -356,7 +356,7 @@ def iterate_scored_tree_data(paths):
             yield res
 
 
-def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
+def write_sim_tuple_data(out_fn, sim_tuples, data, children):
     """
     Write sim_tuple(s) to file.
 
@@ -373,17 +373,17 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children, roots):
     with tf.python_io.TFRecordWriter(out_fn) as record_output:
         for idx in range(len(sim_tuples)):
             sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][0]], sim_tree_tuple.first)
+            sequence_trees.build_sequence_tree(data, children, sim_tuples[idx][0], sim_tree_tuple.first)
             # set root of second to root of first (in case of negative samples)
-            data_root2 = data[roots[sim_tuples[idx][1]]]
-            data[roots[sim_tuples[idx][1]]] = data[roots[sim_tuples[idx][0]]]
-            sequence_trees.build_sequence_tree(data, children, roots[sim_tuples[idx][1]], sim_tree_tuple.second)
-            data[roots[sim_tuples[idx][1]]] = data_root2
+            data_root2 = data[sim_tuples[idx][1]]
+            data[sim_tuples[idx][1]] = data[sim_tuples[idx][0]]
+            sequence_trees.build_sequence_tree(data, children, sim_tuples[idx][1], sim_tree_tuple.second)
+            data[sim_tuples[idx][1]] = data_root2
             sim_tree_tuple.similarity = sim_tuples[idx][2]
             record_output.write(sim_tree_tuple.SerializeToString())
 
 
-def write_sim_tuple_data_single(out_fn, sim_tuples, data, children, roots):
+def write_sim_tuple_data_single(out_fn, sim_tuples, data, children):
     """
     Write sim_tuple(s) to file.
 
@@ -395,33 +395,37 @@ def write_sim_tuple_data_single(out_fn, sim_tuples, data, children, roots):
     :param children     preprocessed child information, see preprocessing.children_and_roots
     :param roots        preprocessed root information (indices to roots in data), see preprocessing.children_and_roots
     """
-
+    # TODO: check this!
     # ensure every left sequence_tree occurs only once
-    scored_root_ids_collected = {}
+    new_root_data_scored_collected = {}
     for sim_tuple in sim_tuples:
-        scored_ids = scored_root_ids_collected.get(sim_tuple[0], [])
-        scored_ids.append((sim_tuple[1], sim_tuple[2]))
-        scored_root_ids_collected[sim_tuple[0]] = scored_ids
+        new_root_data_scored = new_root_data_scored_collected.get(sim_tuple[0], set())
+        new_root_data_scored.add((data[sim_tuple[1]], sim_tuple[2]))
+        new_root_data_scored_collected[sim_tuple[0]] = new_root_data_scored
+
+        if sim_tuple[1] != sim_tuple[2]:
+            new_root_data_scored = new_root_data_scored_collected.get(sim_tuple[1], set())
+            new_root_data_scored.add((data[sim_tuple[0]], sim_tuple[2]))
+            new_root_data_scored_collected[sim_tuple[1]] = new_root_data_scored
 
     logging.info('write data to: ' + out_fn + ' ...')
     with tf.python_io.TFRecordWriter(out_fn) as record_output:
-        for root_idx in scored_root_ids_collected:
+        for root in new_root_data_scored_collected:
             scored_tree = scored_tree_pb2.ScoredTree()
             scored_tree.score = 1.0
-            sequence_trees.build_sequence_tree(data, children, roots[root_idx], scored_tree.tree)
+            sequence_trees.build_sequence_tree(data, children, root, scored_tree.tree)
             record_output.write(scored_tree.SerializeToString())
 
-            scored_ids = scored_root_ids_collected[root_idx]
-            for root_idx_target, score in scored_ids:
-                data_target_backup = data[roots[root_idx_target]]
-                data[roots[root_idx_target]] = data[roots[root_idx]]
-
+            data_target_backup = data[root]
+            new_root_data_scored = new_root_data_scored_collected[root]
+            for new_root_data, score in new_root_data_scored:
+                data[root] = new_root_data
                 scored_tree = scored_tree_pb2.ScoredTree()
                 scored_tree.score = score
-                sequence_trees.build_sequence_tree(data, children, roots[root_idx_target], scored_tree.tree)
+                sequence_trees.build_sequence_tree(data, children, root, scored_tree.tree)
                 record_output.write(scored_tree.SerializeToString())
 
-                data[roots[root_idx_target]] = data_target_backup
+            data[root] = data_target_backup
 
 
 def load_sim_tuple_indices(filename):
@@ -453,6 +457,6 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     indices2 = [load_sim_tuple_indices(os.path.join(dir2, fn)) for fn in indices2_fnames]
     children2, roots2 = sequence_trees.children_and_roots(parents2)
     for i, sim_tuples in enumerate(indices2):
-        write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2, roots2)
-        write_sim_tuple_data_single('%s.merged.train.%i.single' % (corpus_fn1, i), sim_tuples, data2_converted, children2, roots2)
+        write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
+        write_sim_tuple_data_single('%s.merged.train.%i.single' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
     lex.write_dict('%s.merged' % corpus_fn1, vecs=vecs, types=types)

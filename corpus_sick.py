@@ -16,8 +16,14 @@ def sentence_reader(filename):
     with open(filename, 'rb') as csvfile:
         reader = csv.DictReader(csvfile, delimiter='\t')
         for row in reader:
-            yield row['sentence_A'].decode('utf-8') + '.'
-            yield row['sentence_B'].decode('utf-8') + '.'
+            a = row['sentence_A'].decode('utf-8')
+            if a[-1] != u'.':
+                a += u'.'
+            b = row['sentence_B'].decode('utf-8')
+            if b[-1] != u'.':
+                b += u'.'
+            yield a
+            yield b
 
 
 def score_reader(filename):
@@ -33,8 +39,8 @@ def roots_reader(prefix):
     while True:
         #yield [ANNOT_str, '%s/%s/%i' % (ANNOT_str, prefix, lc)]
         #yield [ANNOT_str, '%s/%s/%i' % (ANNOT_str, prefix, lc)]
-        yield '%s/%s/%i' % (ANNOT_str, prefix, lc)
-        yield '%s/%s/%i' % (ANNOT_str, prefix, lc)
+        yield '%s/%s/%i/0' % (ANNOT_str, prefix, lc)
+        yield '%s/%s/%i/1' % (ANNOT_str, prefix, lc)
         lc += 1
 
 

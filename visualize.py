@@ -92,7 +92,7 @@ def visualize(filename, sequence_graph, types):
     graph.write_svg(filename)
 
 
-def get_text(sequence_graph, types):
+def get_text(sequence_graph, types, blacklist=None):
 
     data, parents = sequence_graph
     # copy, because we modify parent
@@ -112,9 +112,21 @@ def get_text(sequence_graph, types):
                 d = data[i]
                 #if d < len(types):
                 l = types[d]  # data_to_word(d, data_maps_rev, vocab, vocab_neg)
+
                 #else:
                 #    l = types[constants.UNKNOWN_EMBEDDING]
-                current_res.append(l)
+                if blacklist is not None:
+                    found = False
+                    for b in blacklist:
+                        if l.startswith(b + constants.SEPARATOR):
+                            found = True
+                            break
+                    if found:
+                        continue
+                    else:
+                        current_res.append(constants.SEPARATOR.join(l.split(constants.SEPARATOR)[1:]))
+                else:
+                    current_res.append(l)
             result.append(current_res)
 
 

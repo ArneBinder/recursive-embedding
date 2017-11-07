@@ -418,11 +418,16 @@ def visualize():
         elif mode == 'text':
             params['sequences'] = []
             for data, parents in params['data_sequences']:
-                texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), types)]
+                texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), types, params.get('prefix_blacklist', None))]
                 params['sequences'].append(texts)
 
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
             json_data = json.dumps(filter_result(make_serializable(params)))
+
+            ## DEBUG
+            #with open('temp_response.json', 'w') as f:
+            #    f.write(json_data)
+            ## DEBUG END
             response = Response(json_data, mimetype=return_type)
         else:
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
