@@ -219,7 +219,7 @@ def get_or_calc_sequence_data(params):
                     if 0 <= end <= i:
                         break
 
-                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['tree'])
+                    data1, parent1 = sequence_trees.sequence_node_to_sequence_trees(sim_tuple['tree'])
                     params['data_sequences'].append([data1, parent1])
                     params['scores_gold'].append(sim_tuple['score'])
             else:
@@ -228,8 +228,8 @@ def get_or_calc_sequence_data(params):
                         continue
                     if 0 <= end <= i:
                         break
-                    data1, parent1 = sequence_trees.sequence_node_to_arrays(sim_tuple['first'])
-                    data2, parent2 = sequence_trees.sequence_node_to_arrays(sim_tuple['second'])
+                    data1, parent1 = sequence_trees.sequence_node_to_sequence_trees(sim_tuple['first'])
+                    data2, parent2 = sequence_trees.sequence_node_to_sequence_trees(sim_tuple['second'])
                     params['data_sequences'].append([data1, parent1])
                     params['data_sequences'].append([data2, parent2])
                     params['scores_gold'].append(sim_tuple['similarity'])
@@ -460,7 +460,7 @@ def get_cluster_ids(embeddings):
     return labels, meta, best_idx
 
 
-# unused
+# unused # deprecated
 def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_concat_mode):
     # pp = pprint.PrettyPrinter(indent=2)
     for s in sequences:

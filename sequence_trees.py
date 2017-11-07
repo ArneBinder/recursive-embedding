@@ -339,6 +339,7 @@ def identity_reader(content):
     yield content
 
 
+# unused
 def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, concat_mode=constants.default_concat_mode,
                                  inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True,
                                  seq_tree=None):
@@ -362,12 +363,12 @@ def build_sequence_tree_dict_from_parse(seq_graph, max_depth=9999):
     return build_sequence_tree_dict(seq_data, children, roots[0], max_depth)
 
 
-def sequence_node_to_arrays(seq_tree):
+def sequence_node_to_sequence_trees(seq_tree):
     current_data = []
     current_parents = []
     children_roots = []
     for child in seq_tree['children']:
-        child_data, child_parents = sequence_node_to_arrays(child)
+        child_data, child_parents = sequence_node_to_sequence_trees(child)
         current_data.extend(child_data)
         current_parents.extend(child_parents)
         children_roots.append(len(current_data) - 1)

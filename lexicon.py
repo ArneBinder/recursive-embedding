@@ -46,8 +46,8 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
         if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
             logging.debug('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
             new_idx_unknown = new_idx
-        # keep pre-initialized vecs (count==0), but skip other vecs with count < threshold
-        elif counts[old_idx] < count_threshold:
+        # skip vecs with count < threshold, but keep vecs from vocab_manual
+        elif counts[old_idx] < count_threshold and types[old_idx] not in constants.vocab_manual.values():
             continue
         if old_idx < vecs.shape[0]:
             new_vecs[new_idx] = vecs[old_idx]
@@ -83,6 +83,22 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     new_types = new_types[:new_idx]
 
     return converter, new_vecs, new_types, new_counts, new_idx_unknown
+
+
+def add_and_get_idx(vecs, types, new_type, new_vec=None, overwrite=False):
+    if new_vec is None and overwrite:
+        vecs_mean = np.mean(vecs, axis=0)
+        vecs_variance = np.var(vecs, axis=0)
+        new_vec = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
+    if new_type in types:
+        idx = types.index(new_type)
+    else:
+        types.append(new_type)
+        vecs = np.concatenate([vecs, np.zeros(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
+        idx = len(types) - 1
+    if overwrite:
+        vecs[idx] = new_vec
+    return vecs, types, idx
 
 
 def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):

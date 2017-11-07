@@ -112,7 +112,7 @@ if __name__ == '__main__':
                                                                            mapping=mapping,
                                                                            concat_mode=FLAGS.concat_mode,
                                                                            inner_concat_mode=FLAGS.inner_concat_mode,
-                                                                           reader_source=None)
+                                                                           reader_roots=None)
 
 
     data = data_train #np.concatenate((data_train, data_test))

@@ -130,7 +130,7 @@ def get_text(sequence_graph, types):
 
 def visualize_seq_node_list(seq_tree_list, types, file_name=TEMP_FN):
     for i, seq_tree in enumerate(seq_tree_list):
-        current_data, current_parents = sequence_trees.sequence_node_to_arrays(seq_tree)
+        current_data, current_parents = sequence_trees.sequence_node_to_sequence_trees(seq_tree)
         visualize(file_name + '.' + str(i), (current_data, current_parents), types)
     concat_visualizations_svg(file_name, len(seq_tree_list))
 

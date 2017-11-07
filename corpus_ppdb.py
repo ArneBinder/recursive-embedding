@@ -79,7 +79,7 @@ def main(args=None):
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
                                   output_suffix='_%i' % FLAGS.size,
-                                  reader_source=reader_source
+                                  reader_roots=reader_source
                                   )
 
 

@@ -163,15 +163,15 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
 
 
 def parse_texts_scored(filename, reader, reader_scores, sentence_processor, parser, mapping, concat_mode,
-                       inner_concat_mode, reader_source=None):
+                       inner_concat_mode, reader_roots=None):
     logging.info('convert texts scored ...')
     logging.debug('len(mapping)=' + str(len(mapping)))
     data, parents, _ = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
                                                parser=parser, reader_args={'filename': filename}, data_maps=mapping,
                                                batch_size=10000, concat_mode=concat_mode,
                                                inner_concat_mode=inner_concat_mode, expand_dict=True, calc_depths=False,
-                                               reader_source=reader_source,
-                                               reader_source_args={'prefix': os.path.basename(filename)})
+                                               reader_roots=reader_roots,
+                                               reader_roots_args={'prefix': os.path.basename(filename)})
     logging.debug('len(mapping)=' + str(len(mapping)) + '(after parsing)')
     roots = [idx for idx, parent in enumerate(parents) if parent == 0]
     logging.debug('len(roots)=' + str(len(roots)))
@@ -202,8 +202,8 @@ def parse_texts_clustered(filename, reader, reader_clusters, sentence_processor,
 
 
 def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode, inner_concat_mode):
-    def reader_source_dummy():
-        yield constants.vocab_manual[constants.SOURCE_EMBEDDING]
+    def reader_identity_dummy():
+        yield constants.vocab_manual[constants.IDENTITY_EMBEDDING]
 
     for s in sequences:
         seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
@@ -211,7 +211,7 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode
                                                            concat_mode=concat_mode,
                                                            inner_concat_mode=inner_concat_mode,
                                                            expand_dict=False,
-                                                           reader_source=reader_source_dummy)
+                                                           reader_roots=reader_identity_dummy)
         yield np.array([seq_data, seq_parents])
 
 

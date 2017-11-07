@@ -27,11 +27,14 @@ def score_reader(filename):
             yield (float(row['relatedness_score']) - 1.0) / 4.0
 
 
-def reader_source(prefix):
+def roots_reader(prefix):
     lc = 0
+    ANNOT_str = u'TUPLE'
     while True:
-        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
-        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
+        #yield [ANNOT_str, '%s/%s/%i' % (ANNOT_str, prefix, lc)]
+        #yield [ANNOT_str, '%s/%s/%i' % (ANNOT_str, prefix, lc)]
+        yield '%s/%s/%i' % (ANNOT_str, prefix, lc)
+        yield '%s/%s/%i' % (ANNOT_str, prefix, lc)
         lc += 1
 
 
@@ -43,7 +46,7 @@ def main(args=None):
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
-                                  reader_source=reader_source,
+                                  reader_roots=roots_reader,
                                   neg_sample_last=False
                                   )
 

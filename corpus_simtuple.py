@@ -11,6 +11,7 @@ import spacy
 import tensorflow as tf
 import tensorflow_fold as td
 
+import constants
 import corpus
 import lexicon as lex
 import preprocessing
@@ -160,7 +161,7 @@ def sample_indices(idx, subtrees, sims_correct, prog_bar=None):
     #sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
 
 
-def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_source=None, neg_sample_last=True):
+def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_roots=None, neg_sample_last=True):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
         * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
@@ -206,7 +207,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
                                          mapping=mapping,
                                          concat_mode=FLAGS.concat_mode,
                                          inner_concat_mode=FLAGS.inner_concat_mode,
-                                         reader_source=reader_source)
+                                         reader_roots=reader_roots)
 
     file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
 
@@ -252,6 +253,15 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     data.dump(out_path + '.data')
     parents.dump(out_path + '.parent')
     scores.dump(out_path + '.score')
+
+    # set identity embedding to zero vector
+    #if constants.vocab_manual[constants.IDENTITY_EMBEDDING] in types:
+    IDENTITY_idx = types.index(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+    vecs[IDENTITY_idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
+    #else:
+    #    types.append(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+    #    vecs = np.concatenate([vecs, np.zeros(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
+
     lex.write_dict(out_path, vecs=vecs, types=types)
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)

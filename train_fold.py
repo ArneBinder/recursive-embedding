@@ -10,7 +10,7 @@ import ntpath
 import os
 # import google3
 import shutil
-from functools import reduce
+from functools import reduce, partial
 
 import numpy as np
 import six
@@ -22,6 +22,7 @@ from sklearn import linear_model
 
 import constants
 import corpus_simtuple
+import lexicon
 import lexicon as lex
 import model_fold
 
@@ -133,7 +134,7 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                False,
                                #   True,
                                'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
-                               'entries to fixed dummy value (SOURCE_idx) for test data. Create a dedicated training '
+                               'entries to fixed dummy value (IDENTITY_idx) for test data. Create a dedicated training '
                                'and test models.',
                                'single']
 
@@ -274,12 +275,17 @@ def main(unused_argv):
 
         # SOURCE_idx = types.index(constants.vocab_manual[constants.SOURCE_EMBEDDING])
         # COMPATIBILITY
-        _SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
-        if _SOURCE in types:
-            SOURCE_idx = types.index(_SOURCE)
-        else:
-            SOURCE_idx = len(types)
-            # COMPATIBILITY END
+        vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types,
+                                                        new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
+        vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types,
+                                                            new_type=constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+        # COMPATIBILITY END
+        #_SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
+        #if _SOURCE in types:
+        #    SOURCE_idx = types.index(_SOURCE)
+        #else:
+        #    SOURCE_idx = len(types)
+        #    # COMPATIBILITY END
     else:
         vecs, types = lex.create_or_read_dict(FLAGS.train_data_path)
         if FLAGS.logdir_pretrained:
@@ -292,15 +298,9 @@ def main(unused_argv):
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                           remove=False)
 
-        _SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
-        if _SOURCE in types:
-            SOURCE_idx = types.index(_SOURCE)
-        else:
-            # add 'SOURCE'
-            types.append(_SOURCE)
-            # add 'SOURCE' embedding (zeros)
-            vecs = np.concatenate([vecs, np.zeros(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
-            SOURCE_idx = len(vecs) - 1
+        vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
+        vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+
         lex.write_dict(os.path.join(logdir, 'model'), types=types)
         lex_size = vecs.shape[0]
 
@@ -313,8 +313,10 @@ def main(unused_argv):
         test_result_writer.writeheader()
 
     logging.info('lex_size: %i' % lex_size)
-    logging.debug('SOURCE_idx: %i' % SOURCE_idx)
-
+    IDENTITY_idx = types.index(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+    logging.debug('IDENTITY_idx: %i' % IDENTITY_idx)
+    ROOT_idx = types.index(constants.vocab_manual[constants.ROOT_EMBEDDING])
+    logging.debug('ROOT_idx: %i' % ROOT_idx)
     # TRAINING and TEST DATA ###########################################################################################
 
     def set_head_neg(tree):
@@ -322,30 +324,28 @@ def main(unused_argv):
         for c in tree['children']:
             set_head_neg(c)
 
-    # overwrite roots with SOURCE
+    # overwrite roots with IDENTITY
     # and decrement all data (heads) by -lex_size to disable head-dropout
-    def data_iterator_tuple_blanked_neg(filenames):
+    def data_iterator_tuple_blanked_neg(filenames, replace_idx):
         for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
-            x['first']['head'] = SOURCE_idx
+            x['first']['head'] = replace_idx
             set_head_neg(x['first'])
-            x['second']['head'] = SOURCE_idx
+            x['second']['head'] = replace_idx
             set_head_neg(x['second'])
             yield x
 
-    def data_iterator_tuple_blanked(filenames):
+    def data_iterator_tuple_blanked(filenames, replace_idx):
         for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
-            x['first']['head'] = SOURCE_idx
-            x['second']['head'] = SOURCE_idx
+            x['first']['head'] = replace_idx
+            x['second']['head'] = replace_idx
             yield x
 
     if FLAGS.data_single:
         data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-        #data_iterator_test = data_iterator_tuple_blanked_neg
+        data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=IDENTITY_idx)
     else:
-        #data_iterator_train = corpus_simtuple.iterate_sim_tuple_data
-        data_iterator_train = data_iterator_tuple_blanked
-
-    data_iterator_test = data_iterator_tuple_blanked_neg#corpus_simtuple.iterate_sim_tuple_data
+        data_iterator_train = partial(data_iterator_tuple_blanked, replace_idx=ROOT_idx)
+        data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=ROOT_idx)
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
@@ -552,9 +552,9 @@ def main(unused_argv):
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch,
-                                                                                           train=False,
-                                                                                           test_step=step_train,
-                                                                                           apply_linreg=FLAGS.data_single)
+                                                                               train=False, test_step=step_train,
+                                                                               #apply_linreg=FLAGS.data_single
+                                                                               )
 
                         # EARLY STOPPING ###############################################################################
 

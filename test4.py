@@ -77,7 +77,7 @@ class Tester(unittest.TestCase):
         pp.pprint(seq_tree_c)
         tree_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNode', seq_tree_c.SerializeToString())
 
-        new_data, new_parents = sequence_trees.sequence_node_to_arrays(tree_)
+        new_data, new_parents = sequence_trees.sequence_node_to_sequence_trees(tree_)
         print(new_data)
         print(new_parents)
 

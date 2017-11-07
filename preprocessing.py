@@ -425,7 +425,7 @@ def identity_reader(content):
 
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode, inner_concat_mode=constants.default_inner_concat_mode,
-              expand_dict=True, calc_depths=False, reader_source=None, reader_source_args={}):
+              expand_dict=True, calc_depths=False, reader_roots=None, reader_roots_args={}):
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
     # offsets of the parents
@@ -444,10 +444,10 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
     else:
         unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
-    if reader_source is None:
-        _reader_source = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], -1)
+    if reader_roots is None:
+        _reader_root = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], -1)
     else:
-        _reader_source = reader_source(**reader_source_args)
+        _reader_root = reader_roots(**reader_roots_args)
 
     logging.debug('start read_data ...')
     sen_count = 0
@@ -471,11 +471,18 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
 
             sen_count += 1
 
-        # add source node, if concat_mod is not None:
+        # add source node(s), if concat_mode is not None:
         if concat_mode:
-            temp_roots.append(len(seq_data))
-            seq_parents.append(0)
-            seq_data.append(mytools.getOrAdd(data_maps, _reader_source.next(), unknown_default))
+            root_data_list = _reader_root.next()
+            if type(root_data_list) != list:
+                root_data_list = [root_data_list]
+            root_temp_roots = []
+            for i, root_data in enumerate(root_data_list):
+                root_temp_roots.append(len(seq_parents))
+                seq_parents.append(0)
+                seq_data.append(mytools.getOrAdd(data_maps, root_data, unknown_default))
+            seq_parents, new_roots = concat_roots(seq_parents, root_temp_roots, concat_mode='aggregate')
+            temp_roots.extend(new_roots)
 
         seq_parents, _ = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
 
@@ -497,6 +504,7 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
     return data, parents, np.concatenate(depth_list)
 
 
+#unused #deprecated
 def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, concat_mode=constants.default_concat_mode,
                                  inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True,
                                  seq_tree=None):
