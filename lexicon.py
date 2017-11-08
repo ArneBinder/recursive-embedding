@@ -7,12 +7,6 @@ import logging
 import os
 
 
-def load_data_and_parents(fn):
-    data = np.load('%s.data' % fn)
-    parents = np.load('%s.parent' % fn)
-    return data, parents
-
-
 def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     logging.info('sort, cut and fill embeddings ...')
     new_max_size = len(types)
@@ -180,14 +174,15 @@ def get_dict_from_vocab(vocab):
     # i = 1
     i = len(constants.vocab_manual)
     for lexeme in vocab:
+        l = constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR + lexeme.orth_
         # exclude entities which are in vocab_manual to avoid collisions
-        if lexeme.orth_ in manual_vocab_reverted:
+        if l in manual_vocab_reverted:
             logging.warn(
-                'found token in parser vocab with orth_="' + lexeme.orth_ + '", which was already added from manual vocab: "' + ', '.join(
+                'found token in parser vocab with orth_="' + l + '", which was already added from manual vocab: "' + ', '.join(
                     manual_vocab_reverted) + '", skip!')
             continue
         vecs[i] = lexeme.vector
-        types.append(lexeme.orth_)
+        types.append(l)
         i += 1
     # constants.UNKNOWN_IDX=0
     vecs[0] = np.mean(vecs[1:i], axis=0)
@@ -238,7 +233,7 @@ def revert_mapping_to_np(mapping):
     return temp
 
 
-def read_dict(fn):
+def load(fn):
     logging.debug('load vecs from file: ' + fn + '.vec ...')
     v = np.load(fn + '.vec')
     t = read_types(fn)
@@ -246,11 +241,15 @@ def read_dict(fn):
     return v, t
 
 
+def exist(filename):
+    return os.path.isfile('%s.vec' % filename) and os.path.isfile('%s.type' % filename)
+
+
 def create_or_read_dict(fn, vocab=None, dont_read=False):
     if os.path.isfile(fn + '.vec') and os.path.isfile(fn + '.type'):
         if dont_read:
             return
-        v, t = read_dict(fn)
+        v, t = load(fn)
     else:
         logging.debug('extract word embeddings from spaCy ...')
         v, t = get_dict_from_vocab(vocab)

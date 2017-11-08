@@ -44,11 +44,11 @@ nlp.pipeline = [nlp.tagger, nlp.parser]
 
 vecs, mapping, human_mapping = get_word_embeddings(nlp.vocab)
 # for processing parser output
-data_embedding_maps = {constants.TOKEN_EMBEDDING: mapping}
+data_embedding_maps = {constants.LEXEME_EMBEDDING: mapping}
 # for displaying human readable tokens etc.
-data_embedding_maps_human = {constants.TOKEN_EMBEDDING: human_mapping}
+data_embedding_maps_human = {constants.LEXEME_EMBEDDING: human_mapping}
 # data vectors
-data_vecs = {constants.TOKEN_EMBEDDING: vecs}
+data_vecs = {constants.LEXEME_EMBEDDING: vecs}
 
 data_dir = '/home/arne/devel/ML/data/'
 # create data arrays
