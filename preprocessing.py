@@ -362,7 +362,7 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None, conca
                                          + constants.SEPARATOR + token.dep_, dict_unknown))
         sen_parents.append(root_offset - len(sen_parents))
         # add edge type type embedding
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.EDGE_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.DEPENDENCY_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
         # add pos-tag type embedding
         sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEMMA_EMBEDDING]
@@ -447,14 +447,14 @@ def identity_reader(content):
 
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode, inner_concat_mode=constants.default_inner_concat_mode,
-              expand_dict=True, calc_depths=False, reader_roots=None, reader_roots_args={}):
+              expand_dict=True, reader_roots=None, reader_roots_args={}):
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
     # offsets of the parents
     seq_parents = list()
 
     # init as list containing an empty dummy array with dtype=int16 to allow numpy concatenation even if empty
-    depth_list = [np.ndarray(shape=(0,), dtype=np.int16)]
+    #depth_list = [np.ndarray(shape=(0,), dtype=np.int16)]
 
     assert concat_mode in constants.concat_modes, 'unknown concat_mode="' + concat_mode + '". Please use one of: ' + ', '.join(
         [str(s) for s in constants.concat_modes])
@@ -476,7 +476,7 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
     for parsed_data in parser.pipe(reader(**reader_args), n_threads=4, batch_size=batch_size):
         # prev_root = None
         temp_roots = []
-        start_idx = len(seq_data)
+        #start_idx = len(seq_data)
         for sentence in parsed_data.sents:
             processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default, inner_concat_mode)
             # skip not processed sentences (see process_sentence)
@@ -508,29 +508,18 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
 
         seq_parents, _ = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
 
-        if calc_depths:
-            # get current parents
-            current_seq_parents = np.array(seq_parents[start_idx:])
-
-            # logging.info('calc children and roots ...')
-            children, roots = sequence_trees.children_and_roots(current_seq_parents)
-            # calc depth for every position
-            # logging.info('calc depths ...')
-            depth = sequence_trees.calc_seq_depth(children, roots, current_seq_parents)
-            depth_list.append(depth)
-
     logging.debug('sentences read: ' + str(sen_count))
     data = np.array(seq_data)
     parents = np.array(seq_parents)
 
-    return data, parents, np.concatenate(depth_list)
+    return data, parents
 
 
 #unused #deprecated
 def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, concat_mode=constants.default_concat_mode,
                                  inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True,
                                  seq_tree=None):
-    seq_data, seq_parents, _ = read_data(identity_reader, sentence_processor, parser, data_maps,
+    seq_data, seq_parents = read_data(identity_reader, sentence_processor, parser, data_maps,
                                                        reader_args={'content': str_}, concat_mode=concat_mode,
                                                        inner_concat_mode=inner_concat_mode, expand_dict=expand_dict)
     children, roots = sequence_trees.children_and_roots(seq_parents)

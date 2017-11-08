@@ -299,22 +299,18 @@ def has_vocab_prefix(s, man_vocab_id):
 class Lexicon(object):
     def __init__(self, filename=None, vecs=None, types=None, nlp_vocab=None):
         self._filename = filename
+        self._mapping = None
+        self._dumped_vecs = False
+        self._dumped_types = False
         if filename is not None:
-            self._mapping = None
             self._vecs, self._types = load(filename)
             self._dumped_vecs = True
             self._dumped_types = True
         elif vecs is not None and types is not None:
             self._vecs = vecs
             self._types = types
-            self._mapping = None
-            self._dumped_vecs = False
-            self._dumped_types = True
         elif nlp_vocab is not None:
             self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
-            self._mapping = None
-            self._dumped_vecs = False
-            self._dumped_types = True
         else:
             raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
 

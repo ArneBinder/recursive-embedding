@@ -39,8 +39,10 @@ def roots_reader(prefix):
     while True:
         #yield [ANNOT_str, '%s/%s/%i' % (ANNOT_str, prefix, lc)]
         #yield [ANNOT_str, '%s/%s/%i' % (ANNOT_str, prefix, lc)]
-        yield '%s/%s/%i/0' % (ANNOT_str, prefix, lc)
-        yield '%s/%s/%i/1' % (ANNOT_str, prefix, lc)
+        #yield '%s/%s/%i/0' % (ANNOT_str, prefix, lc)
+        #yield '%s/%s/%i/1' % (ANNOT_str, prefix, lc)
+        yield '%s/0' % ANNOT_str
+        yield '%s/1' % ANNOT_str
         lc += 1
 
 

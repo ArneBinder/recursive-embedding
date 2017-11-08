@@ -143,7 +143,8 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
                 'skip': offset + article_offset
             }
             current_reader_args.update(add_reader_args)
-            current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
+            #current_seq_data, current_seq_parents, current_seq_depths = preprocessing.read_data(
+            current_seq_data, current_seq_parents = preprocessing.read_data(
                 reader=reader,
                 sentence_processor=sentence_processor,
                 parser=parser,
@@ -153,7 +154,7 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
                 batch_size=batch_size,
                 concat_mode=concat_mode,
                 inner_concat_mode=inner_concat_mode,
-                calc_depths=True,
+                #calc_depths=True,
                 # child_idx_offset=child_idx_offset
             )
             lex.dump(out_filename, types=lex.revert_mapping_to_list(mapping))
@@ -167,10 +168,10 @@ def parse_texts_scored(filename, reader, reader_scores, sentence_processor, pars
                        inner_concat_mode, reader_roots=None):
     logging.info('convert texts scored ...')
     logging.debug('len(mapping)=' + str(len(mapping)))
-    data, parents, _ = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
+    data, parents = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
                                                parser=parser, reader_args={'filename': filename}, data_maps=mapping,
                                                batch_size=10000, concat_mode=concat_mode,
-                                               inner_concat_mode=inner_concat_mode, expand_dict=True, calc_depths=False,
+                                               inner_concat_mode=inner_concat_mode, expand_dict=True,
                                                reader_roots=reader_roots,
                                                reader_roots_args={'prefix': os.path.basename(filename)})
     logging.debug('len(mapping)=' + str(len(mapping)) + '(after parsing)')
@@ -188,10 +189,10 @@ def parse_texts_clustered(filename, reader, reader_clusters, sentence_processor,
                           inner_concat_mode):
     logging.info('convert texts scored ...')
     logging.debug('len(mapping)=' + str(len(mapping)))
-    data, parents, _ = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
+    data, parents = preprocessing.read_data(reader=reader, sentence_processor=sentence_processor,
                                                parser=parser, reader_args={'filename': filename}, data_maps=mapping,
                                                batch_size=10000, concat_mode=concat_mode,
-                                               inner_concat_mode=inner_concat_mode, expand_dict=True, calc_depths=False)
+                                               inner_concat_mode=inner_concat_mode, expand_dict=True)
     logging.debug('len(mapping)=' + str(len(mapping)) + '(after parsing)')
     roots = [idx for idx, parent in enumerate(parents) if parent == 0]
     logging.debug('len(roots)=' + str(len(roots)))
@@ -207,7 +208,7 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps, concat_mode
         yield constants.vocab_manual[constants.IDENTITY_EMBEDDING]
 
     for s in sequences:
-        seq_data, seq_parents, _ = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
+        seq_data, seq_parents = preprocessing.read_data(preprocessing.identity_reader, sentence_processor, parser,
                                                            data_maps, reader_args={'content': s},
                                                            concat_mode=concat_mode,
                                                            inner_concat_mode=inner_concat_mode,
