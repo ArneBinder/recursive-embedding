@@ -8,6 +8,7 @@ import json
 import logging
 import ntpath
 import os
+import re
 # import google3
 import shutil
 from functools import reduce, partial
@@ -28,6 +29,7 @@ import model_fold
 
 # model flags (saved in flags.json)
 import mytools
+import sequence_trees
 
 model_flags = {'train_data_path': ['DEFINE_string',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
@@ -59,7 +61,7 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                    'test_file_i'],
                'lexicon_trainable': ['DEFINE_boolean',
                                      #   False,
-                                     True,
+                                     False,
                                      'Iff enabled, fine tune the embeddings.',
                                      'lex_train'],
                'sim_measure': ['DEFINE_string',
@@ -324,44 +326,56 @@ def main(unused_argv):
         for c in tree['children']:
             set_head_neg(c)
 
-    # overwrite roots with IDENTITY
-    # and decrement all data (heads) by -lex_size to disable head-dropout
-    def data_iterator_tuple_blanked_neg(filenames, replace_idx):
-        for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
-            x['first']['head'] = replace_idx
-            set_head_neg(x['first'])
-            x['second']['head'] = replace_idx
-            set_head_neg(x['second'])
-            yield x
-
-    def data_iterator_tuple_blanked(filenames, replace_idx):
-        for x in corpus_simtuple.iterate_sim_tuple_data(filenames):
-            x['first']['head'] = replace_idx
-            x['second']['head'] = replace_idx
-            yield x
+    def tuple_data_iterator(sim_index_files, data, children, replace_idx=None, set_neg=False):
+        for sim_index_file in sim_index_files:
+            sim_index_tuples = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
+            for sim_index_tuple in sim_index_tuples:
+                x = {'first': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[0]),
+                     'second': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[1]),
+                     'similarity': sim_index_tuple[2]}
+                if replace_idx:
+                    x['first']['head'] = replace_idx
+                    x['second']['head'] = replace_idx
+                else:
+                    x['second']['head'] = x['first']['head']
+                if set_neg:
+                    set_head_neg(x['first'])
+                    set_head_neg(x['second'])
+                yield x
 
     if FLAGS.data_single:
         data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-        data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=IDENTITY_idx)
+        #data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=IDENTITY_idx)
+        data_iterator_test = partial(tuple_data_iterator, replace_idx=IDENTITY_idx, set_neg=True)
     else:
-        data_iterator_train = partial(data_iterator_tuple_blanked, replace_idx=ROOT_idx)
-        data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=ROOT_idx)
+        #data_iterator_train = partial(data_iterator_tuple_blanked, replace_idx=ROOT_idx)
+        data_iterator_train = partial(tuple_data_iterator, replace_idx=ROOT_idx)
+        #data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=ROOT_idx)
+        data_iterator_test = partial(tuple_data_iterator, replace_idx=ROOT_idx, set_neg=True)
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
-        train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.train.[0-9]*')
-        train_fnames = [os.path.join(parent_dir, fn) for fn in train_fnames]
+        #train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.idx.[0-9]')
+        regex = re.compile(r'%s\.idx\.\d+' % ntpath.basename(FLAGS.train_data_path))
+        train_fnames = filter(regex.search, os.listdir(parent_dir))
+        regex = re.compile(r'%s\.idx\.\d+\.negs\d+' % ntpath.basename(FLAGS.train_data_path))
+        train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
+        #TODO: use train_fnames_negs
+        train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
         assert len(train_fnames) > 0, 'no matching train data files found for ' + FLAGS.train_data_path
         logging.info('found ' + str(len(train_fnames)) + ' train data files')
         test_fname = train_fnames[FLAGS.test_file_index]
         logging.info('use ' + test_fname + ' for testing')
         del train_fnames[FLAGS.test_file_index]
-        train_iterator = data_iterator_train(train_fnames)
-        test_iterator = data_iterator_test([test_fname])
+        train_iterator = partial(data_iterator_train, sim_index_files=train_fnames)
+        #train_iterator = data_iterator_train(train_fnames)
+        test_iterator = partial(data_iterator_test, sim_index_files=[test_fname])
+        #test_iterator = data_iterator_test([test_fname])
     elif FLAGS.test_only_file:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
-        test_iterator = data_iterator_test([test_fname])
+        #test_iterator = data_iterator_test([test_fname])
+        test_iterator = partial(data_iterator_test, sim_index_files=[test_fname])
         train_iterator = None
     else:
         test_iterator = None
@@ -525,10 +539,12 @@ def main(unused_argv):
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
+            data, parents = sequence_trees.load(FLAGS.train_data_path)
+            children, roots = sequence_trees.children_and_roots(parents)
             with model_train.compiler.multiprocessing_pool():
                 if model_test is not None:
                     logging.info('create test data set ...')
-                    test_set = list(model_test.compiler.build_loom_inputs(test_iterator))
+                    test_set = list(model_test.compiler.build_loom_inputs(test_iterator(data=data, children=children)))
                     logging.info('test data size: ' + str(len(test_set)))
                     if not train_iterator:
                         do_epoch(model_test, test_set, 0, train=False, emit=False)
@@ -536,7 +552,7 @@ def main(unused_argv):
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)
-                train_set = model_train.compiler.build_loom_inputs(train_iterator)
+                train_set = model_train.compiler.build_loom_inputs(train_iterator(data=data, children=children))
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')

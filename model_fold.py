@@ -637,13 +637,13 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         model = td.AllOf(td.InputTransform(get_jaccard_sim) >> td.Scalar(),
                          td.GetItem('first') >> tree_model.embedder(),
                          td.GetItem('second') >> tree_model.embedder(),
-                         gold_similarity,
-                         td.GetItem('id') >> td.Scalar(dtype='int32')
+                         gold_similarity#,
+                         #td.GetItem('id') >> td.Scalar(dtype='int32')
                          )
 
         # fold model output
         compiler = td.Compiler.create(model)
-        (self._sim_jaccard, self._tree_embeddings_1, self._tree_embeddings_2, gold_similarities, self._id) = compiler.output_tensors
+        (self._sim_jaccard, self._tree_embeddings_1, self._tree_embeddings_2, gold_similarities) = compiler.output_tensors
         sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
         BaseTrainModel.__init__(self, compiler=compiler, optimizer=optimizer, learning_rate=learning_rate, scores=sim,
@@ -663,9 +663,9 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     def sim_jaccard(self):
         return self._sim_jaccard
 
-    @property
-    def id(self):
-        return self._id
+    #@property
+    #def id(self):
+    #    return self._id
 
     @property
     def tree_embeddings_all(self):
