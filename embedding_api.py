@@ -232,6 +232,9 @@ def get_or_calc_sequence_data(params):
                     data1, parent1 = sequence_trees.sequence_node_to_sequence_trees(sim_tuple['tree'])
                     params['data_sequences'].append([data1, parent1])
                     params['scores_gold'].append(sim_tuple['score'])
+                if start < 0 and end < 0:
+                    params['data_sequences'] = params['data_sequences'][start:]
+                    params['scores_gold'] = params['scores_gold'][start:]
             else:
                 for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data([fn])):
                     if i < start:
@@ -243,6 +246,9 @@ def get_or_calc_sequence_data(params):
                     params['data_sequences'].append([data1, parent1])
                     params['data_sequences'].append([data2, parent2])
                     params['scores_gold'].append(sim_tuple['similarity'])
+                if start < 0 and end < 0:
+                    params['data_sequences'] = params['data_sequences'][start * 2:]
+                    params['scores_gold'] = params['scores_gold'][start:]
             params['scores_gold'] = np.array(params['scores_gold'])
         else:
             raise IOError('could not open "%s"' % fn)
@@ -251,13 +257,11 @@ def get_or_calc_sequence_data(params):
         if os.path.isfile(fn):
             params['data_sequences'] = []
             params['scores_gold'] = []
+
+            indices_list = corpus_simtuple.load_sim_tuple_indices(fn)
             start = params.get('start', 0)
-            end = params.get('end', -1)
-            for i, sim_tuple_indices in enumerate(corpus_simtuple.load_sim_tuple_indices(fn)):
-                if i < start:
-                    continue
-                if 0 <= end <= i:
-                    break
+            end = params.get('end', len(indices_list))
+            for sim_tuple_indices in indices_list[start: end]:
                 params['data_sequences'].append(get_data_sequences_from_idx(sim_tuple_indices[0]))
                 params['data_sequences'].append(get_data_sequences_from_idx(sim_tuple_indices[1]))
                 params['scores_gold'].append(sim_tuple_indices[2])
