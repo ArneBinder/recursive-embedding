@@ -345,18 +345,14 @@ def main(unused_argv):
 
     if FLAGS.data_single:
         data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-        #data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=IDENTITY_idx)
         data_iterator_test = partial(tuple_data_iterator, replace_idx=IDENTITY_idx, set_neg=True)
     else:
-        #data_iterator_train = partial(data_iterator_tuple_blanked, replace_idx=ROOT_idx)
         data_iterator_train = partial(tuple_data_iterator, replace_idx=ROOT_idx)
-        #data_iterator_test = partial(data_iterator_tuple_blanked_neg, replace_idx=ROOT_idx)
         data_iterator_test = partial(tuple_data_iterator, replace_idx=ROOT_idx, set_neg=True)
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
-        #train_fnames = fnmatch.filter(os.listdir(parent_dir), ntpath.basename(FLAGS.train_data_path) + '.idx.[0-9]')
         regex = re.compile(r'%s\.idx\.\d+' % ntpath.basename(FLAGS.train_data_path))
         train_fnames = filter(regex.search, os.listdir(parent_dir))
         regex = re.compile(r'%s\.idx\.\d+\.negs\d+' % ntpath.basename(FLAGS.train_data_path))
@@ -369,12 +365,9 @@ def main(unused_argv):
         logging.info('use ' + test_fname + ' for testing')
         del train_fnames[FLAGS.test_file_index]
         train_iterator = partial(data_iterator_train, sim_index_files=train_fnames)
-        #train_iterator = data_iterator_train(train_fnames)
         test_iterator = partial(data_iterator_test, sim_index_files=[test_fname])
-        #test_iterator = data_iterator_test([test_fname])
     elif FLAGS.test_only_file:
         test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
-        #test_iterator = data_iterator_test([test_fname])
         test_iterator = partial(data_iterator_test, sim_index_files=[test_fname])
         train_iterator = None
     else:
@@ -401,7 +394,7 @@ def main(unused_argv):
                                                       leaf_fc_size=FLAGS.leaf_fc_size,
                                                       root_fc_size=FLAGS.root_fc_size,
                                                       keep_prob=FLAGS.keep_prob,
-                                                      #keep_prob_fixed=FLAGS.keep_prob
+                                                      #keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
                                                       )
 
             # has to be created first #TODO: really?
@@ -524,11 +517,14 @@ def main(unused_argv):
                 # logging.debug(np.concatenate(score_all_gold).tolist())
 
                 score_all_gold_ = np.concatenate(result_all['scores_gold'])
+
                 if apply_linreg:
+                    # EXPERIMENTAL
                     embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
                     reg.fit(embeddings_all, score_all_gold_)
                     score_all_ = np.matmul(embeddings_all, reg.coef_)
                     loss_all = np.mean((score_all_ - score_all_gold_)**2)
+                    # EXPERIMENTAL end
                 else:
                     score_all_ = np.concatenate(result_all['scores'])
                     # sum batch losses weighted by individual batch size (can vary at last batch)

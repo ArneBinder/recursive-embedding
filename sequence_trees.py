@@ -32,7 +32,6 @@ def children_and_roots(seq_parents):
     # assume, all parents are inside this array!
     # collect children
     # children = [[] for _ in xrange(len(seq_parents))]
-    logging.debug('calc children and roots ...')
     children = {}
     roots = []
     for i, p in enumerate(seq_parents):
