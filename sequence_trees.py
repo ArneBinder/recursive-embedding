@@ -1,4 +1,6 @@
 import numpy as np
+import logging
+import os
 
 import preprocessing
 import sequence_node_candidates_pb2
@@ -6,6 +8,17 @@ import sequence_node_pb2
 import sequence_node_sequence_pb2
 
 import constants
+
+
+def load(fn):
+    logging.debug('load data and parents ...')
+    data = np.load('%s.data' % fn)
+    parents = np.load('%s.parent' % fn)
+    return data, parents
+
+
+def exist(fn):
+    return os.path.isfile('%s.data' % fn) and os.path.isfile('%s.parent' % fn)
 
 
 def get_root(parents, idx):
@@ -19,6 +32,7 @@ def children_and_roots(seq_parents):
     # assume, all parents are inside this array!
     # collect children
     # children = [[] for _ in xrange(len(seq_parents))]
+    logging.debug('calc children and roots ...')
     children = {}
     roots = []
     for i, p in enumerate(seq_parents):
@@ -160,7 +174,6 @@ def calc_depth_rec(children, depth, idx):
         depth[idx] = max_depth + 1
 
 
-# unused
 def calc_depth(children, parents, depth, start):
     idx = start
     children_idx = list()

@@ -9,6 +9,7 @@ import spacy
 import constants
 import lexicon as lex
 import preprocessing
+import sequence_trees
 
 
 def convert_data(seq_data, converter, lex_size, new_idx_unknown):
@@ -24,6 +25,16 @@ def convert_data(seq_data, converter, lex_size, new_idx_unknown):
             count_unknown += 1
     logging.info('set ' + str(count_unknown) + ' of ' + str(len(seq_data)) + ' data points to UNKNOWN')
     return seq_data
+
+
+def load(filename):
+    vecs, types = lex.load(filename)
+    data, parents = sequence_trees.load(filename)
+    return vecs, types, data, parents
+
+
+def exist(filename):
+    return os.path.isfile('%s.data' % filename) and os.path.isfile('%s.data' % filename) and lex.exist(filename)
 
 
 #@mytools.fn_timer

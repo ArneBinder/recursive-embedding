@@ -524,7 +524,7 @@ def main(unused_argv):
 
     if FLAGS.external_lexicon:
         logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
-        external_vecs, external_types = lex.read_dict(FLAGS.external_lexicon)
+        external_vecs, external_types = lex.load(FLAGS.external_lexicon)
         lexicon_np, types = lex.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
     if FLAGS.merge_nlp_lexicon:
         logging.info('extract nlp embeddings and types ...')
