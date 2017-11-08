@@ -105,6 +105,10 @@ embedder = None
 data_maps = None
 types = None
 nlp = None
+data = None
+parents = None
+children = None
+roots = None
 
 ##################################################
 # API part
@@ -201,6 +205,12 @@ def get_params(request):
     return params
 
 
+def get_data_sequences_from_idx(idx):
+    init_sequence_trees()
+    descandant_indices = sorted(sequence_trees.get_descendant_indices(children, idx))
+    return [map(lambda x: data[x], descandant_indices), map(lambda x: parents[x], descandant_indices)]
+
+
 def get_or_calc_sequence_data(params):
     if 'data_sequences' in params:
         params['data_sequences'] = np.array(params['data_sequences'])
@@ -236,6 +246,25 @@ def get_or_calc_sequence_data(params):
             params['scores_gold'] = np.array(params['scores_gold'])
         else:
             raise IOError('could not open "%s"' % fn)
+    elif 'idx_tuple_file' in params:
+        fn = '%s.%s' % (FLAGS.model_train_data_path, params['idx_tuple_file'])
+        if os.path.isfile(fn):
+            params['data_sequences'] = []
+            params['scores_gold'] = []
+            start = params.get('start', 0)
+            end = params.get('end', -1)
+            for i, sim_tuple_indices in enumerate(corpus_simtuple.load_sim_tuple_indices(fn)):
+                if i < start:
+                    continue
+                if 0 <= end <= i:
+                    break
+                params['data_sequences'].append(get_data_sequences_from_idx(sim_tuple_indices[0]))
+                params['data_sequences'].append(get_data_sequences_from_idx(sim_tuple_indices[1]))
+                params['scores_gold'].append(sim_tuple_indices[2])
+            params['scores_gold'] = np.array(params['scores_gold'])
+        else:
+            raise IOError('could not open "%s"' % fn)
+
     elif 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
         concat_mode = FLAGS.default_concat_mode
@@ -487,6 +516,17 @@ def init_nlp():
         logging.info('load spacy ...')
         nlp = spacy.load('en')
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+
+
+def init_sequence_trees():
+    global data, parents, children, roots
+    if data is None or parents is None:
+        if sequence_trees.exist(FLAGS.model_train_data_path):
+            data, parents = sequence_trees.load(FLAGS.model_train_data_path)
+        else:
+            raise IOError('could not load sequence_trees from "%s"' % FLAGS.model_train_data_path)
+    if children is None or roots is None:
+        children, roots = sequence_trees.children_and_roots(parents)
 
 
 def main(unused_argv):
