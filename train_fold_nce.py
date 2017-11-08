@@ -153,8 +153,8 @@ def parse_iterator_candidates(sequences, parser, sentence_processor, data_maps):
         seq_tree_seq.idx_correct = 0
         for candidate_idx in candidate_indices:
             sequence_trees.build_sequence_tree_with_candidate(seq_data, children, roots[0], insert_idx, max_depth,
-                                                             max_dandidate_depth, candidate_idx,
-                                                             seq_tree=seq_tree_seq.trees.add())
+                                                              max_dandidate_depth, candidate_idx,
+                                                              seq_tree=seq_tree_seq.subtrees.add())
         pp.pprint(seq_tree_seq)
         yield td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNodeSequence',
                                                         seq_tree_seq.SerializeToString())

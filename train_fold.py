@@ -304,7 +304,7 @@ def main(unused_argv):
         vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
         vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[constants.IDENTITY_EMBEDDING])
 
-        lex.write_dict(os.path.join(logdir, 'model'), types=types)
+        lex.dump(os.path.join(logdir, 'model'), types=types)
         lex_size = vecs.shape[0]
 
         # write flags for current run

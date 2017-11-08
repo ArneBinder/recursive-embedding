@@ -17,6 +17,15 @@ def load(fn):
     return data, parents
 
 
+def dump(fn, data=None, parents=None):
+    if data is not None:
+        logging.debug('dump data ...')
+        data.dump('%s.data' % fn)
+    if parents is not None:
+        logging.debug('dump parents ...')
+        parents.dump('%s.parent' % fn)
+
+
 def exist(fn):
     return os.path.isfile('%s.data' % fn) and os.path.isfile('%s.parent' % fn)
 
@@ -264,13 +273,13 @@ def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count
     # add correct tree
     build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
                                        candidate_idx=idx_child, max_depth=max_depth,
-                                       max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
+                                       max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.subtrees.add())
     # add samples
     for _ in range(sample_count):
         candidate_idx = np.random.choice(all_depths_collected[max_candidate_depth])
         build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
                                            candidate_idx=candidate_idx, max_depth=max_depth,
-                                           max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
+                                           max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.subtrees.add())
     # pp.pprint(seq_tree_seq)
     # print('')
     return seq_tree_seq
@@ -391,3 +400,86 @@ def sequence_node_to_sequence_trees(seq_tree):
     current_parents.append(0)
 
     return current_data, current_parents
+
+
+def convert_data(data, converter, lex_size, new_idx_unknown):
+    logging.info('convert data ...')
+    count_unknown = 0
+    for i, d in enumerate(data):
+        new_idx = converter[d]
+        if 0 <= new_idx < lex_size:
+            data[i] = new_idx
+        # set to UNKNOWN
+        else:
+            data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
+            count_unknown += 1
+    logging.info('set ' + str(count_unknown) + ' of ' + str(len(data)) + ' data points to UNKNOWN')
+    return data
+
+
+class SequenceTrees(object):
+    def __init__(self, filename=None, data=None, parents=None, trees=None):
+        self._filename = filename
+        if filename:
+            self._data, self._parents = load(filename)
+        elif data is not None and parents is not None:
+            assert len(data) == len(parents), 'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
+            self._data = data
+            self._parents = parents
+        elif trees:
+            if type(trees) == np.ndarray:
+                assert trees.shape[1] == 2, 'Wrong shape: %s. Trees array has to contain exactly the parents and data arrays: shape=(None, 2)' % str(trees.shape)
+            else:
+                assert len(trees) == 2, 'Wrong shape: %s. Trees array has to contain exactly the parents and data arrays: shape=(None, 2)' % str(
+                    trees.shape)
+                assert len(trees[0]) == len(trees[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(trees[0]), len(trees[1]))
+                trees = np.array(trees, dtype=np.int32)
+            self._data = trees[0]
+            self._parents = trees[1]
+        else:
+            raise ValueError(
+                'Not enouth arguments to instantiate SequenceTrees object. Please provide a filename or data and parent arrays.')
+        self._children = None
+        self._roots = None
+
+    def dump(self, filename):
+        dump(fn=filename, data=self.data, parents=self.parents)
+        self._filename = filename
+
+    def reload(self):
+        assert self._filename is not None, 'no filename set'
+        self._data, self._parents = load(self._filename)
+
+    def convert_data(self, converter, lex_size, new_idx_unknown):
+        convert_data(data=self.data, converter=converter, lex_size=lex_size, new_idx_unknown=new_idx_unknown)
+
+    def indices_to_sequences(self, indices):
+        return np.array(map(lambda idx: [self.data[idx], self.parents[idx]], indices), dtype=np.int32).T
+
+    def subtrees(self, root_indices=None):
+        if not root_indices:
+            root_indices = self.roots
+        for i in root_indices:
+            descendant_indices = sorted(get_descendant_indices(self.children, i))
+            # new_subtree = zip(*[(data[idx], parents[idx]) for idx in descendant_indices])
+            yield self.indices_to_sequences(descendant_indices)
+
+    @property
+    def data(self):
+        return self._data
+
+    @property
+    def parents(self):
+        return self._parents
+
+    @property
+    def children(self):
+        if not self._children:
+            self._children, self._roots = children_and_roots(self._parents)
+        return self._children
+
+    @property
+    def roots(self):
+        if not self._children:
+            self._children, self._roots = children_and_roots(self._parents)
+        return self._roots

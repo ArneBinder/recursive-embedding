@@ -9,32 +9,22 @@ import spacy
 import constants
 import lexicon as lex
 import preprocessing
-import sequence_trees
-
-
-def convert_data(seq_data, converter, lex_size, new_idx_unknown):
-    logging.info('convert data ...')
-    count_unknown = 0
-    for i, d in enumerate(seq_data):
-        new_idx = converter[d]
-        if 0 <= new_idx < lex_size:
-            seq_data[i] = new_idx
-        # set to UNKNOWN
-        else:
-            seq_data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
-            count_unknown += 1
-    logging.info('set ' + str(count_unknown) + ' of ' + str(len(seq_data)) + ' data points to UNKNOWN')
-    return seq_data
+import sequence_trees as sequ_trees
 
 
 def load(filename):
     vecs, types = lex.load(filename)
-    data, parents = sequence_trees.load(filename)
+    data, parents = sequ_trees.load(filename)
     return vecs, types, data, parents
 
 
+def dump(filename, vecs=None, types=None, data=None, parents=None):
+    lex.dump(filename, vecs, types)
+    sequ_trees.dump(filename, data, parents)
+
+
 def exist(filename):
-    return os.path.isfile('%s.data' % filename) and os.path.isfile('%s.data' % filename) and lex.exist(filename)
+    return sequ_trees.exist(filename) and lex.exist(filename)
 
 
 #@mytools.fn_timer
@@ -55,7 +45,7 @@ def convert_texts(in_filename, out_filename, init_dict_filename, sentence_proces
         # get vecs and types and save it at out_filename
         if init_dict_filename:
             vecs, types = lex.create_or_read_dict(init_dict_filename)
-            lex.write_dict(out_filename, vecs=vecs, types=types)
+            lex.dump(out_filename, vecs=vecs, types=types)
         else:
             lex.create_or_read_dict(out_filename, vocab=parser.vocab, dont_read=True)
 
@@ -86,7 +76,7 @@ def convert_texts(in_filename, out_filename, init_dict_filename, sentence_proces
         converter, vecs, types, counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(seq_data, vecs, types,
                                                                                      count_threshold=count_threshold)
         # write out vecs, mapping and tsv containing strings
-        lex.write_dict(out_filename, vecs=vecs, types=types, counts=counts)
+        lex.dump(out_filename, vecs=vecs, types=types, counts=counts)
         logging.debug('dump converter to: ' + out_filename + '.converter ...')
         converter.dump(out_filename + '.converter')
         logging.debug('dump new_idx_unknown to: ' + out_filename + '.new_idx_unknown ...')
@@ -102,7 +92,7 @@ def convert_texts(in_filename, out_filename, init_dict_filename, sentence_proces
         logging.debug('load lex_size from file: ' + out_filename + '.lex_size ...')
         lex_size = np.load(out_filename + '.lex_size')
         logging.debug('lex_size=' + str(lex_size))
-        seq_data = convert_data(seq_data, converter, lex_size, new_idx_unknown)
+        seq_data = sequ_trees.convert_data(seq_data, converter, lex_size, new_idx_unknown)
         logging.debug('dump data to: ' + out_filename + '.data ...')
         seq_data.dump(out_filename + '.data')
         logging.debug('delete converter, new_idx_unknown and lex_size ...')
@@ -166,7 +156,7 @@ def parse_texts(out_filename, in_filename, reader, parser, sentence_processor, m
                 calc_depths=True,
                 # child_idx_offset=child_idx_offset
             )
-            lex.write_dict(out_filename, types=lex.revert_mapping_to_list(mapping))
+            lex.dump(out_filename, types=lex.revert_mapping_to_list(mapping))
             logging.info('dump data, parents and depths ...')
             current_seq_data.dump(out_filename + '.data.batch' + str(offset))
             current_seq_parents.dump(out_filename + '.parent.batch' + str(offset))
@@ -359,3 +349,51 @@ def collected_shuffled_child_indices(out_filename, max_depth, dump=False):
         else:
             collected_child_indices = np.load(out_filename + '.children.depth' + str(current_depth) + '.collected')
     return collected_child_indices
+
+
+class Corpus(object):
+    def __init__(self, filename=None, lexicon=None, sequence_trees=None, vecs=None, types=None, data=None, parents=None):
+        if filename:
+            self.load(filename)
+        else:
+            if lexicon:
+                self._lexicon = lexicon
+            else:
+                self._lexicon = lex.Lexicon(vecs=vecs, types=types)
+
+            if sequence_trees:
+                self._sequence_trees = sequence_trees
+            else:
+                self._sequence_trees = sequ_trees.SequenceTrees(data=data, parents=parents)
+
+    def load(self, filename):
+        self._lexicon = lex.Lexicon(filename=filename)
+        self._sequence_trees = sequ_trees.SequenceTrees(filename=filename)
+
+    def dump(self, filename):
+        self._lexicon.dump(filename)
+        self._sequence_trees.dump(filename)
+
+    @property
+    def lexicon(self):
+        return self._lexicon
+
+    @property
+    def sequence_trees(self):
+        return self._sequence_trees
+
+    @property
+    def vecs(self):
+        return self._lexicon.vecs
+
+    @property
+    def types(self):
+        return self._lexicon.types
+
+    @property
+    def data(self):
+        return self._sequence_trees.data
+
+    @property
+    def parents(self):
+        return self._sequence_trees.parents

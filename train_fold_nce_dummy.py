@@ -40,7 +40,7 @@ def parse_iterator(sequences, parser, sentence_processor, data_maps):
         seq_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
         seq_tree_seq.idx_correct = idx_correct
         for s2 in s:
-            new_tree = seq_tree_seq.trees.add()
+            new_tree = seq_tree_seq.subtrees.add()
             sequence_trees.build_sequence_tree_from_str(str_=s2, sentence_processor=sentence_processor, parser=parser,
                                                        data_maps=data_maps, seq_tree=new_tree)
         #pp.pprint(seq_tree_seq)

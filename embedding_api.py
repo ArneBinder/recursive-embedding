@@ -636,7 +636,7 @@ def main(unused_argv):
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
                     saver_final = tf.train.Saver()
                     saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
-                    lex.write_dict(FLAGS.save_final_model_path, types=types)
+                    lex.dump(FLAGS.save_final_model_path, types=types)
 
     logging.info('Starting the API')
     app.run()

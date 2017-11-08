@@ -94,7 +94,8 @@ def visualize(filename, sequence_graph, types):
 
 def get_text(sequence_graph, types, blacklist=None):
 
-    data, parents = sequence_graph
+    data = sequence_graph[0]
+    parents = sequence_graph[1]
     # copy, because we modify parent
     parents = copy.copy(parents)
     for i, p in enumerate(parents):

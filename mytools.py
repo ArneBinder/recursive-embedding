@@ -129,6 +129,20 @@ def getOrAdd(d, idx, idx_alt=None):
     return res
 
 
+def getOrAdd2(mapping, types, type, type_alt=None):
+    try:
+        res = mapping[type]
+    # word doesnt occur in dictionary
+    except KeyError:
+        # return alternative index, if alternative type is given
+        if type_alt is not None:
+            return mapping[type_alt]
+        res = len(mapping)
+        mapping[type] = res
+        types.append(type)
+    return res
+
+
 def incOrAdd(d, e):
     try:
         d[e] += 1

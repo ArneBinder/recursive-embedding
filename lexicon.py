@@ -79,6 +79,22 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     return converter, new_vecs, new_types, new_counts, new_idx_unknown
 
 
+def fill_vecs(vecs, new_size):
+    if len(vecs) == new_size:
+        return None
+    elif len(vecs) < new_size:
+        # take mean and variance from previous vectors
+        vecs_mean = np.mean(vecs, axis=0)
+        vecs_variance = np.var(vecs, axis=0)
+        new_vecs = np.zeros(shape=(new_size - len(vecs), vecs.shape[1]), dtype=vecs.dtype)
+        for i in range(len(new_vecs)):
+            new_vecs[i] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
+        vecs = np.concatenate([vecs, new_vecs])
+        return vecs
+    else:
+        raise IndexError('new_size=%i < len(vecs)=%i' % (new_size, len(vecs)))
+
+
 def add_and_get_idx(vecs, types, new_type, new_vec=None, overwrite=False):
     if new_vec is None and overwrite:
         vecs_mean = np.mean(vecs, axis=0)
@@ -253,11 +269,11 @@ def create_or_read_dict(fn, vocab=None, dont_read=False):
     else:
         logging.debug('extract word embeddings from spaCy ...')
         v, t = get_dict_from_vocab(vocab)
-        write_dict(fn, vecs=v, types=t)
+        dump(fn, vecs=v, types=t)
     return v, t
 
 
-def write_dict(out_path, vecs=None, types=None, counts=None):
+def dump(out_path, vecs=None, types=None, counts=None):
     if vecs is not None:
         logging.debug('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
         vecs.dump(out_path + '.vec')
@@ -270,3 +286,143 @@ def write_dict(out_path, vecs=None, types=None, counts=None):
     if counts is not None:
         logging.debug('dump counts (len=' + str(len(counts)) + ') to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
+
+
+def vocab_prefix(man_vocab_id):
+    return constants.vocab_manual[man_vocab_id] + constants.SEPARATOR
+
+
+def has_vocab_prefix(s, man_vocab_id):
+    return s.startswith(vocab_prefix(man_vocab_id))
+
+
+class Lexicon(object):
+    def __init__(self, filename=None, vecs=None, types=None, nlp_vocab=None):
+        self._filename = filename
+        if filename is not None:
+            self._mapping = None
+            self._vecs, self._types = load(filename)
+            self._dumped_vecs = True
+            self._dumped_types = True
+        elif vecs is not None and types is not None:
+            self._vecs = vecs
+            self._types = types
+            self._mapping = None
+            self._dumped_vecs = False
+            self._dumped_types = True
+        elif nlp_vocab is not None:
+            self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
+            self._mapping = None
+            self._dumped_vecs = False
+            self._dumped_types = True
+        else:
+            raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
+
+    def dump(self, filename):
+        dump(filename,
+             vecs=self.vecs if not self._dumped_vecs or filename != self._filename else None,
+             types=self.types if not self._dumped_types or filename != self._filename else None)
+        self._dumped_vecs = True
+        self._dumped_types = True
+        self._filename = filename
+
+    # compatibility
+    def set_types_with_mapping(self, mapping):
+        self._types = revert_mapping_to_list(mapping)
+        self._dumped_types = False
+
+    def sort_and_cut_and_fill_dict(self, data, count_threshold=1):
+        converter, self._vecs, self._types, new_counts, new_idx_unknown = sort_and_cut_and_fill_dict(seq_data=data,
+                                                                                                     vecs=self._vecs,
+                                                                                                     types=self._types,
+                                                                                                     count_threshold=count_threshold)
+        self._mapping = None
+        self._dumped_vecs = False
+        self._dumped_types = False
+        return converter, new_counts, new_idx_unknown
+
+    def get_ids_for_prefix(self, prefix):
+        return [self[t] for t in self._types if t.startswith(prefix + constants.SEPARATOR)]
+
+    def set_to_zero(self, indices=None, prefix=None):
+        if not indices:
+            indices = self.get_ids_for_prefix(prefix)
+        for i in indices:
+            self._vecs[i] = np.zeros(self._vecs.shape[1], dtype=self._vecs.dtype)
+        if len(indices) > 0:
+            self._dumped_vecs = False
+
+    def set_to_onehot(self, indices=None, prefix=None):
+        if indices is None:
+            indices = self.get_ids_for_prefix(prefix)
+        self.set_to_zero(indices=indices)
+        for i, idx in enumerate(indices):
+            self._vecs[idx][i] = 1.0
+        if len(indices) > 0:
+            self._dumped_vecs = False
+
+    def set_man_vocab_vec(self, man_vocab_id, new_vec=None):
+        if new_vec is None:
+            new_vec = np.zeros(shape=self.vec_size, dtype=self._vecs.dtype)
+        idx = self[constants.vocab_manual[man_vocab_id]]
+        self._vecs[idx] = new_vec
+        self._dumped_vecs = False
+        return idx
+
+    def pad(self):
+        if len(self.vecs) == len(self):
+            pass
+        elif len(self.vecs) < len(self):
+            # take mean and variance from previous vectors
+            vecs_mean = np.mean(self.vecs, axis=0)
+            vecs_variance = np.var(self.vecs, axis=0)
+            new_vecs = np.zeros(shape=(len(self) - len(self.vecs), self.vec_size), dtype=self.vecs.dtype)
+            for i in range(len(new_vecs)):
+                new_vecs[i] = np.random.standard_normal(size=self.vec_size) * vecs_variance + vecs_mean
+            self._vecs = np.concatenate([self.vecs, new_vecs])
+            self._dumped_vecs = False
+        else:
+            raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
+
+    def __getitem__(self, item):
+        if type(item) == unicode or type(item) == str:
+            try:
+                res = self.mapping[item]
+            # word doesnt occur in dictionary
+            except KeyError:
+                res = len(self._types)
+                self._mapping[item] = res
+                self._types.append(item)
+            return res
+        else:
+            return self.types[item]
+
+    def __len__(self):
+        return len(self._types)
+
+    @property
+    def vec_size(self):
+        return self._vecs.shape[1]
+
+    @property
+    def vecs(self):
+        return self._vecs
+
+    @property
+    def types(self):
+        return self._types
+
+    @property
+    def mapping(self):
+        if self._mapping is None:
+            self._mapping = mapping_from_list(self._types)
+        return self._mapping
+
+
+
+# one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
+            # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
+            # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
+            # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
+            # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
+            # u'DEP#']

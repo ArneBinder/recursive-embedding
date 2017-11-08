@@ -16,13 +16,15 @@ import corpus
 import lexicon as lex
 import preprocessing
 import scored_tree_pb2
-import sequence_trees
+import sequence_trees as sequ_trees
 import similarity_tree_tuple_pb2
 import mytools
 
 #PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 #s_root = os.path.dirname(__file__)
 # Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
+import visualize
+
 td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
 td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
 td.proto_tools.import_proto_file('scored_tree.proto')
@@ -165,7 +167,7 @@ def sample_indices(idx, subtrees, sims_correct, prog_bar=None):
 def sample_all(data, parents, children, roots):
     # calc depths
     logging.debug('calc depths ...')
-    depths = sequence_trees.calc_seq_depth(children, roots, parents)
+    depths = sequ_trees.calc_seq_depth(children, roots, parents)
     max_depth = np.max(depths)
     logging.debug('max_depth: %i' % max_depth)
     sampled_sim_tuples = []
@@ -183,7 +185,7 @@ def sample_all(data, parents, children, roots):
 
         descendants = [None] * len(depth_indices)
         for i, d_i in enumerate(depth_indices):
-            descendants[i] = sorted(sequence_trees.get_descendant_indices(children, d_i))
+            descendants[i] = sorted(sequ_trees.get_descendant_indices(children, d_i))
             # blank "roots"
             data_temp[d_i] = -1
 
@@ -240,8 +242,9 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         nlp = spacy.load('en')
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
-        vecs, types = lex.get_dict_from_vocab(nlp.vocab)
-        mapping = lex.mapping_from_list(types)
+        lexicon = lex.Lexicon(nlp_vocab=nlp.vocab)
+
+        mapping = lexicon.mapping
 
         def read_data(file_name):
             return corpus.parse_texts_scored(filename=file_name,
@@ -267,101 +270,111 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
         logging.debug('sizes: %s' % str(sizes))
         np.array(sizes).dump(out_path + '.size')
-        data = np.concatenate(_data)
-        parents = np.concatenate(_parents)
+
+        sequence_trees = sequ_trees.SequenceTrees(data=np.concatenate(_data), parents=np.concatenate(_parents))
         scores = np.concatenate(_scores)
 
-        types = lex.revert_mapping_to_list(mapping)
-        converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
-                                                                                             count_threshold=FLAGS.count_threshold)
-        data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
+        lexicon.set_types_with_mapping(mapping)
+        converter, new_counts, new_idx_unknown = lexicon.sort_and_cut_and_fill_dict(data=sequence_trees.data,
+                                                                                    count_threshold=FLAGS.count_threshold)
+        sequence_trees.convert_data(converter=converter, lex_size=len(lexicon), new_idx_unknown=new_idx_unknown)
 
         if FLAGS.one_hot_dep:
-            # one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
-            # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
-            # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
-            # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
-            # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
-            # u'DEP#']
-            one_hot_types = [t for t in types if t.startswith(constants.vocab_manual[constants.DEPENDENCY_EMBEDDING] + constants.SEPARATOR)]
-            mapping = lex.mapping_from_list(types)
-            one_hot_ids = [mapping[t] for t in one_hot_types]
-            if len(one_hot_ids) > vecs.shape[1]:
-                logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
-                                ' That overrides previously added one hot embeddings!' % vecs.shape[1])
-            for i, idx in enumerate(one_hot_ids):
-                vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
-                vecs[idx][i % vecs.shape[1]] = 1.0
+            lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])
 
-        logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
-        data.dump(out_path + '.data')
-        parents.dump(out_path + '.parent')
+        sequence_trees.dump(out_path)
         scores.dump(out_path + '.score')
-
-        # set identity embedding to zero vector
-        #if constants.vocab_manual[constants.IDENTITY_EMBEDDING] in types:
-        IDENTITY_idx = types.index(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
-        vecs[IDENTITY_idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
-        #else:
-        #    types.append(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
-        #    vecs = np.concatenate([vecs, np.zeros(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
-
-        lex.write_dict(out_path, vecs=vecs, types=types)
+        lexicon.set_man_vocab_vec(man_vocab_id=constants.IDENTITY_EMBEDDING)
+        lexicon.dump(out_path)
     else:
-        vecs, types, data, parents = corpus.load(out_path)
+        lexicon = lex.Lexicon(filename=out_path)
+        sequence_trees = sequ_trees.SequenceTrees(filename=out_path)
         scores = np.load(out_path + '.score')
         sizes = np.load(out_path + '.size')
 
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
-    logging.debug('calc roots ...')
-    children, roots = sequence_trees.children_and_roots(parents)
-    logging.debug('len(roots)=%i' % len(roots))
+
+    collect_unique = False
+    if collect_unique:
+        if not corpus.exist(out_path+'.unique'):
+            # separate into root_trees (e.g. sentences)
+            logging.debug('split into root_trees ...')
+            root_trees = list(sequence_trees.subtrees())
+            assert n == len(root_trees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(root_trees) / 2, n)
+            id_unique = 0
+            #unique_collected = {}
+            #mapping = lex.mapping_from_list(types)
+            for i, i_root in enumerate(sequence_trees.roots):
+                print(i)
+                #data_root = data[i_root]
+                if not lex.has_vocab_prefix(lexicon[sequence_trees.data[i_root]], constants.UNIQUE_EMBEDDING):
+                    #data[i_root] = mytools.getOrAdd2(mapping, types, constants.vocab_manual[constants.UNIQUE_EMBEDDING]
+                    #                                 + constants.SEPARATOR + str(id_unique))
+                    sequence_trees.data[i_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
+                    #unique_collected[id_unique] = unique_collected.get(id_unique, []).append(i_root)
+                    for _j, j_root in enumerate(sequence_trees.roots[i:]):
+                        j = i + _j
+                        #if not types[data[j_root]].startswith(constants.vocab_manual[constants.UNIQUE_EMBEDDING] + constants.SEPARATOR):
+                        if not lex.has_vocab_prefix(lexicon[sequence_trees.data[j_root]], constants.UNIQUE_EMBEDDING):
+                            j_root_data_backup = sequence_trees.data[j_root]
+                            sequence_trees.data[j_root] = sequence_trees.data[i_root]
+                            if np.array_equal(root_trees[i], root_trees[j]):
+                                #data[j_root] = mytools.getOrAdd2(mapping, types, constants.vocab_manual[
+                                #    constants.UNIQUE_EMBEDDING] + constants.SEPARATOR + str(id_unique))
+                                sequence_trees.data[j_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
+                                #unique_collected[id_unique].append(j_root)
+                            else:
+                                #data[j_root] = j_root_data_backup
+                                sequence_trees.data[j_root] = j_root_data_backup
+                    id_unique += 1
+
+            logging.debug('unique collection finished')
+
+            #new_vecs = lex.fill_vecs(vecs, len(types))
+            lexicon.pad()
+            #corpus.dump(out_path+'.unique', data=data, vecs=new_vecs, types=types)
+            #if new_vecs:
+            #    vecs = new_vecs
+            lexicon.dump(out_path + '.unique')
+            sequence_trees.dump(out_path + '.unique')
+
+        else:
+            #lexicon = lex.Lexicon(filename=out_path + '.unique')
+            sequence_trees = sequ_trees.SequenceTrees(filename=out_path + '.unique')
 
     if FLAGS.neg_samples:
         if not os.path.isfile(out_path + '.idx.neg'):
-            # separate into subtrees (e.g. sentences)
-            logging.debug('split into subtrees ...')
-            subtrees = []
-            for root in roots:
-                # blank roots (e.g. SOURCE/...)
-                data[root] = len(types)
-                descendant_indices = sequence_trees.get_descendant_indices(children, root)
-                new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
-                new_subtree = np.array(new_subtree, dtype=np.int32)
-                # if new_subtree in subtrees:
-                #    repl_roots.append(root)
-                subtrees.append(new_subtree)
-                # TODO: check for replicates? (if yes, check successive tuples!)
-            assert n == len(subtrees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(subtrees) / 2, n)
+
             logging.debug('calc sims_correct ...')
+            # TODO: re-enable blanking?
             sims_correct = np.zeros(shape=n)
             for i in range(n):
-                sims_correct[i] = sim_jaccard(subtrees[i * 2][0], subtrees[i * 2 + 1][0])
+                sims_correct[i] = sim_jaccard(root_trees[i * 2][0], root_trees[i * 2 + 1][0])
 
             sims_correct.sort()
 
             logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
-            _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=subtrees,
+            _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=root_trees,
                                                                                  sims_correct=sims_correct, prog_bar=None))
             sampled_indices = np.concatenate(_sampled_indices)
 
             start = 0
             for idx, end in enumerate(np.cumsum(sizes)):
-                neg_sample_tuples = [(roots[(i / FLAGS.neg_samples) * 2], roots[sampled_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
+                neg_sample_tuples = [(sequence_trees.roots[(i / FLAGS.neg_samples) * 2], sequence_trees.roots[sampled_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
                 np.array(neg_sample_tuples).dump('%s.idx.%i.negs%i' % (out_path, idx, FLAGS.neg_samples))
                 start = end
 
             # load (un-blanked) data
-            data = np.load(out_path + '.data')
+            # TODO: re-enable?
+            #data = np.load(out_path + '.data')
 
         #sampled_all = sample_all(out_path, parents, children, roots)
 
     start = 0
     for idx, end in enumerate(np.cumsum(sizes)):
-        current_sim_tuples = [(roots[i * 2], roots[i * 2 + 1], scores[i]) for i in range(start, end)]
-        write_sim_tuple_data('%s.train.%i' % (out_path, idx), current_sim_tuples, data, children)
-        write_sim_tuple_data_single('%s.train.%i.single' % (out_path, idx), current_sim_tuples, data, children)
+        current_sim_tuples = [(sequence_trees.roots[i * 2], sequence_trees.roots[i * 2 + 1], scores[i]) for i in range(start, end)]
+        write_sim_tuple_data('%s.train.%i' % (out_path, idx), current_sim_tuples, sequence_trees.data, sequence_trees.children)
         np.array(current_sim_tuples).dump('%s.idx.%i' % (out_path, idx))
         start = end
 
@@ -401,11 +414,11 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children):
     with tf.python_io.TFRecordWriter(out_fn) as record_output:
         for idx in range(len(sim_tuples)):
             sim_tree_tuple = similarity_tree_tuple_pb2.SimilarityTreeTuple()
-            sequence_trees.build_sequence_tree(data, children, sim_tuples[idx][0], sim_tree_tuple.first)
+            sequ_trees.build_sequence_tree(data, children, sim_tuples[idx][0], sim_tree_tuple.first)
             # set root of second to root of first (in case of negative samples)
             data_root2 = data[sim_tuples[idx][1]]
             data[sim_tuples[idx][1]] = data[sim_tuples[idx][0]]
-            sequence_trees.build_sequence_tree(data, children, sim_tuples[idx][1], sim_tree_tuple.second)
+            sequ_trees.build_sequence_tree(data, children, sim_tuples[idx][1], sim_tree_tuple.second)
             data[sim_tuples[idx][1]] = data_root2
             sim_tree_tuple.similarity = sim_tuples[idx][2]
             record_output.write(sim_tree_tuple.SerializeToString())
@@ -441,7 +454,7 @@ def write_sim_tuple_data_single(out_fn, sim_tuples, data, children):
         for root in new_root_data_scored_collected:
             scored_tree = scored_tree_pb2.ScoredTree()
             scored_tree.score = 1.0
-            sequence_trees.build_sequence_tree(data, children, root, scored_tree.tree)
+            sequ_trees.build_sequence_tree(data, children, root, scored_tree.tree)
             record_output.write(scored_tree.SerializeToString())
 
             data_target_backup = data[root]
@@ -451,7 +464,7 @@ def write_sim_tuple_data_single(out_fn, sim_tuples, data, children):
                     data[root] = new_root_data
                     scored_tree = scored_tree_pb2.ScoredTree()
                     scored_tree.score = score
-                    sequence_trees.build_sequence_tree(data, children, root, scored_tree.tree)
+                    sequ_trees.build_sequence_tree(data, children, root, scored_tree.tree)
                     record_output.write(scored_tree.SerializeToString())
                 #else:
                 #    print(root)
@@ -479,15 +492,15 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     vecs, types = lex.load(corpus_fn1)
     vecs2, types2 = lex.load(corpus_fn2)
     vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
-    data2, parents2 = sequence_trees.load(corpus_fn2)
+    data2, parents2 = sequ_trees.load(corpus_fn2)
     m = lex.mapping_from_list(types)
     mapping = {i: m[t] for i, t in enumerate(types2)}
     data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)
     dir2 = os.path.abspath(os.path.join(corpus_fn2, os.pardir))
     indices2_fnames = fnmatch.filter(os.listdir(dir2), ntpath.basename(corpus_fn2) + '.idx.[0-9]*')
     indices2 = [load_sim_tuple_indices(os.path.join(dir2, fn)) for fn in indices2_fnames]
-    children2, roots2 = sequence_trees.children_and_roots(parents2)
+    children2, roots2 = sequ_trees.children_and_roots(parents2)
     for i, sim_tuples in enumerate(indices2):
         write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
         write_sim_tuple_data_single('%s.merged.train.%i.single' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
-    lex.write_dict('%s.merged' % corpus_fn1, vecs=vecs, types=types)
+    lex.dump('%s.merged' % corpus_fn1, vecs=vecs, types=types)

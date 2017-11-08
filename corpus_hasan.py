@@ -138,14 +138,14 @@ if __name__ == '__main__':
     types = lex.revert_mapping_to_list(mapping)
     converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
                                                                                             count_threshold=FLAGS.count_threshold)
-    data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
+    data = sequence_trees.convert_data(data, converter, len(types), new_idx_unknown)
     logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
     data.dump(out_path + '.data')
     parents.dump(out_path + '.parent')
     with open(out_path + '.cluster', 'wb') as cluster_file:
         pickle.dump(clusters, cluster_file)
     # scores.dump(out_path + '.score')
-    lex.write_dict(out_path, vecs=vecs, types=types)
+    lex.dump(out_path, vecs=vecs, types=types)
     children, roots = sequence_trees.children_and_roots(parents)
     logging.info('the dataset contains ' + str(len(clusters)) + ' clustered texts')
 
