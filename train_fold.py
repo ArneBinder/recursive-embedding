@@ -268,6 +268,7 @@ def main(unused_argv):
         logging.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
+        logging.debug(saved_shapes)
         logging.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
         embed_shape = saved_shapes[model_fold.VAR_NAME_LEXICON]
         lex_size = embed_shape[0]
@@ -289,7 +290,7 @@ def main(unused_argv):
         #    SOURCE_idx = len(types)
         #    # COMPATIBILITY END
     else:
-        vecs, types = lex.create_or_read_dict(FLAGS.train_data_path)
+        vecs, types = lex.load(FLAGS.train_data_path)
         if FLAGS.logdir_pretrained:
             logging.info('load lexicon from pre-trained model: %s' % FLAGS.logdir_pretrained)
             old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir_pretrained)
@@ -353,9 +354,9 @@ def main(unused_argv):
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
-        regex = re.compile(r'%s\.idx\.\d+' % ntpath.basename(FLAGS.train_data_path))
+        regex = re.compile(r'%s\.idx\.\d+$' % ntpath.basename(FLAGS.train_data_path))
         train_fnames = filter(regex.search, os.listdir(parent_dir))
-        regex = re.compile(r'%s\.idx\.\d+\.negs\d+' % ntpath.basename(FLAGS.train_data_path))
+        regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
         train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
         #TODO: use train_fnames_negs
         train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
