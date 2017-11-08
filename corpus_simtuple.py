@@ -161,7 +161,50 @@ def sample_indices(idx, subtrees, sims_correct, prog_bar=None):
     #sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
 
 
-def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_roots=None, neg_sample_last=True):
+# unused
+def sample_all(data, parents, children, roots):
+    # calc depths
+    logging.debug('calc depths ...')
+    depths = sequence_trees.calc_seq_depth(children, roots, parents)
+    max_depth = np.max(depths)
+    logging.debug('max_depth: %i' % max_depth)
+    sampled_sim_tuples = []
+    # sample for every depth only from trees with this depth
+    for depth in range(max_depth + 1):
+        data_temp = np.array(data, copy=True)
+        depth_indices = np.where(depths == depth)[0]
+        logging.debug('sample for depth=%i (%i indices) ...' % (depth, len(depth_indices)))
+        current_new_simtuples = []
+        if depth == 0:
+            for i, d_i in enumerate(depth_indices):
+                current_new_simtuples.append([d_i, d_i, 1.0])
+            sampled_sim_tuples.extend(current_new_simtuples)
+            continue
+
+        descendants = [None] * len(depth_indices)
+        for i, d_i in enumerate(depth_indices):
+            descendants[i] = sorted(sequence_trees.get_descendant_indices(children, d_i))
+            # blank "roots"
+            data_temp[d_i] = -1
+
+        for i, d_i in enumerate(depth_indices):
+            current_data = map(lambda x: data_temp[x], descendants[i])
+            probs = np.ones(len(depth_indices), dtype=np.float32)
+            probs[:i] = np.zeros(i, dtype=probs.dtype)
+            for _j, d_j in enumerate(depth_indices[i:]):
+                j = i + _j
+                if current_data == map(lambda x: data_temp[x], descendants[j]):
+                    probs[j] = 0.0
+            probs /= np.sum(probs)
+            new_indices = np.random.choice(depth_indices, size=FLAGS.neg_samples, p=probs)
+            current_new_simtuples.extend([(d_i, idx, 0.0) for idx in new_indices])
+
+        sampled_sim_tuples.extend(current_new_simtuples)
+    return sampled_sim_tuples
+
+
+def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_roots=None,
+                  overwrite=False):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
         * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
@@ -176,13 +219,6 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     :param output_suffix:
     """
 
-    logging.info('load spacy ...')
-    nlp = spacy.load('en')
-    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
-
-    vecs, types = lex.get_dict_from_vocab(nlp.vocab)
-    mapping = lex.mapping_from_list(types)
-
     sentence_processor = getattr(preprocessing, FLAGS.sentence_processor)
     out_dir = os.path.abspath(os.path.join(FLAGS.corpora_target_root, corpus_name, sentence_processor.func_name))
     if not os.path.isdir(out_dir):
@@ -195,74 +231,87 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     out_path = out_path + '_cm' + FLAGS.concat_mode.upper()
     if FLAGS.inner_concat_mode is not None:
         out_path = out_path + '_icm' + FLAGS.inner_concat_mode.upper()
-    if FLAGS.neg_samples:
-        out_path = out_path + '_negs' + str(FLAGS.neg_samples)
-
-    def read_data(file_name):
-        return corpus.parse_texts_scored(filename=file_name,
-                                         reader=reader_sentences,
-                                         reader_scores=reader_score,
-                                         sentence_processor=sentence_processor,
-                                         parser=nlp,
-                                         mapping=mapping,
-                                         concat_mode=FLAGS.concat_mode,
-                                         inner_concat_mode=FLAGS.inner_concat_mode,
-                                         reader_roots=reader_roots)
-
-    file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
-
-    _data = [None] * len(file_names)
-    _parents = [None] * len(file_names)
-    _scores = [None] * len(file_names)
-
-    for i, fn in enumerate(file_names):
-        _data[i], _parents[i], _scores[i], _ = read_data(fn)
-
-    sizes = [len(s) for s in _scores]
-
-    logging.debug('sizes: %s' % str(sizes))
-    data = np.concatenate(_data)
-    parents = np.concatenate(_parents)
-    scores = np.concatenate(_scores)
-
-    types = lex.revert_mapping_to_list(mapping)
-    converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
-                                                                                         count_threshold=FLAGS.count_threshold)
-    data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
 
     if FLAGS.one_hot_dep:
         out_path = out_path + '_onehotdep'
-        # one_hot_types = []
-        # one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
-        # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
-        # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
-        # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
-        # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
-        # u'DEP#']
-        one_hot_types = [t for t in types if t.startswith(constants.vocab_manual[constants.DEPENDENCY_EMBEDDING] + constants.SEPARATOR)]
+
+    if (not corpus.exist(out_path) and not os.path.isfile(out_path + '.score')) or overwrite:
+        logging.info('load spacy ...')
+        nlp = spacy.load('en')
+        nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+
+        vecs, types = lex.get_dict_from_vocab(nlp.vocab)
         mapping = lex.mapping_from_list(types)
-        one_hot_ids = [mapping[t] for t in one_hot_types]
-        if len(one_hot_ids) > vecs.shape[1]:
-            logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
-                            ' That overrides previously added one hot embeddings!' % vecs.shape[1])
-        for i, idx in enumerate(one_hot_ids):
-            vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
-            vecs[idx][i % vecs.shape[1]] = 1.0
 
-    logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
-    data.dump(out_path + '.data')
-    parents.dump(out_path + '.parent')
-    scores.dump(out_path + '.score')
+        def read_data(file_name):
+            return corpus.parse_texts_scored(filename=file_name,
+                                             reader=reader_sentences,
+                                             reader_scores=reader_score,
+                                             sentence_processor=sentence_processor,
+                                             parser=nlp,
+                                             mapping=mapping,
+                                             concat_mode=FLAGS.concat_mode,
+                                             inner_concat_mode=FLAGS.inner_concat_mode,
+                                             reader_roots=reader_roots)
 
-    # set identity embedding to zero vector
-    #if constants.vocab_manual[constants.IDENTITY_EMBEDDING] in types:
-    IDENTITY_idx = types.index(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
-    vecs[IDENTITY_idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
-    #else:
-    #    types.append(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
-    #    vecs = np.concatenate([vecs, np.zeros(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
+        file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
 
-    lex.write_dict(out_path, vecs=vecs, types=types)
+        _data = [None] * len(file_names)
+        _parents = [None] * len(file_names)
+        _scores = [None] * len(file_names)
+
+        for i, fn in enumerate(file_names):
+            _data[i], _parents[i], _scores[i], _ = read_data(fn)
+
+        sizes = [len(s) for s in _scores]
+
+        logging.debug('sizes: %s' % str(sizes))
+        np.array(sizes).dump(out_path + '.size')
+        data = np.concatenate(_data)
+        parents = np.concatenate(_parents)
+        scores = np.concatenate(_scores)
+
+        types = lex.revert_mapping_to_list(mapping)
+        converter, vecs, types, new_counts, new_idx_unknown = lex.sort_and_cut_and_fill_dict(data, vecs, types,
+                                                                                             count_threshold=FLAGS.count_threshold)
+        data = corpus.convert_data(data, converter, len(types), new_idx_unknown)
+
+        if FLAGS.one_hot_dep:
+            # one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
+            # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
+            # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
+            # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
+            # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
+            # u'DEP#']
+            one_hot_types = [t for t in types if t.startswith(constants.vocab_manual[constants.DEPENDENCY_EMBEDDING] + constants.SEPARATOR)]
+            mapping = lex.mapping_from_list(types)
+            one_hot_ids = [mapping[t] for t in one_hot_types]
+            if len(one_hot_ids) > vecs.shape[1]:
+                logging.warning('Setting more then vecs-size=%i lex entries to one-hot encoding.'
+                                ' That overrides previously added one hot embeddings!' % vecs.shape[1])
+            for i, idx in enumerate(one_hot_ids):
+                vecs[idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
+                vecs[idx][i % vecs.shape[1]] = 1.0
+
+        logging.info('save data, parents, scores, vecs and types to: ' + out_path + ' ...')
+        data.dump(out_path + '.data')
+        parents.dump(out_path + '.parent')
+        scores.dump(out_path + '.score')
+
+        # set identity embedding to zero vector
+        #if constants.vocab_manual[constants.IDENTITY_EMBEDDING] in types:
+        IDENTITY_idx = types.index(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+        vecs[IDENTITY_idx] = np.zeros(shape=vecs.shape[1], dtype=vecs.dtype)
+        #else:
+        #    types.append(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+        #    vecs = np.concatenate([vecs, np.zeros(shape=(1, vecs.shape[1]), dtype=vecs.dtype)])
+
+        lex.write_dict(out_path, vecs=vecs, types=types)
+    else:
+        vecs, types, data, parents = corpus.load(out_path)
+        scores = np.load(out_path + '.score')
+        sizes = np.load(out_path + '.size')
+
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
     logging.debug('calc roots ...')
@@ -270,72 +319,51 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
     logging.debug('len(roots)=%i' % len(roots))
 
     if FLAGS.neg_samples:
-        # separate into subtrees (e.g. sentences)
-        logging.debug('split into subtrees ...')
-        subtrees = []
-        for root in roots:
-            # blank roots (e.g. SOURCE/...)
-            data[root] = len(types)
-            descendant_indices = sequence_trees.get_descendant_indices(children, root)
-            new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
-            new_subtree = np.array(new_subtree, dtype=np.int32)
-            # if new_subtree in subtrees:
-            #    repl_roots.append(root)
-            subtrees.append(new_subtree)
-            # TODO: check for replicates? (if yes, check successive tuples!)
-        assert n == len(subtrees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(subtrees) / 2, n)
-        logging.debug('calc sims_correct ...')
-        sims_correct = np.zeros(shape=n)
-        for i in range(n):
-            sims_correct[i] = sim_jaccard(subtrees[i * 2][0], subtrees[i * 2 + 1][0])
+        if not os.path.isfile(out_path + '.idx.neg'):
+            # separate into subtrees (e.g. sentences)
+            logging.debug('split into subtrees ...')
+            subtrees = []
+            for root in roots:
+                # blank roots (e.g. SOURCE/...)
+                data[root] = len(types)
+                descendant_indices = sequence_trees.get_descendant_indices(children, root)
+                new_subtree = zip(*[(data[idx], parents[idx]) for idx in sorted(descendant_indices)])
+                new_subtree = np.array(new_subtree, dtype=np.int32)
+                # if new_subtree in subtrees:
+                #    repl_roots.append(root)
+                subtrees.append(new_subtree)
+                # TODO: check for replicates? (if yes, check successive tuples!)
+            assert n == len(subtrees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(subtrees) / 2, n)
+            logging.debug('calc sims_correct ...')
+            sims_correct = np.zeros(shape=n)
+            for i in range(n):
+                sims_correct[i] = sim_jaccard(subtrees[i * 2][0], subtrees[i * 2 + 1][0])
 
-        sims_correct.sort()
+            sims_correct.sort()
 
-        logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
+            logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
+            _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=subtrees,
+                                                                                 sims_correct=sims_correct, prog_bar=None))
+            sampled_indices = np.concatenate(_sampled_indices)
 
-        _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=subtrees,
-                                                                             sims_correct=sims_correct, prog_bar=None))
-        sampled_indices = np.concatenate(_sampled_indices)
+            start = 0
+            for idx, end in enumerate(np.cumsum(sizes)):
+                neg_sample_tuples = [(roots[(i / FLAGS.neg_samples) * 2], roots[sampled_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
+                np.array(neg_sample_tuples).dump('%s.idx.%i.negs%i' % (out_path, idx, FLAGS.neg_samples))
+                start = end
 
-        # load (un-blanked) data
-        data = np.load(out_path + '.data')
+            # load (un-blanked) data
+            data = np.load(out_path + '.data')
 
-    # debug
-    #sims_jac = np.zeros(shape=n * (1 + FLAGS.neg_samples))
-    #sims_cor = np.zeros(shape=sims_jac.shape)
-    #offset = 0
-    # debug end
+        #sampled_all = sample_all(out_path, parents, children, roots)
 
-    sim_tuples = []
     start = 0
     for idx, end in enumerate(np.cumsum(sizes)):
         current_sim_tuples = [(roots[i * 2], roots[i * 2 + 1], scores[i]) for i in range(start, end)]
-        # add negative samples, but not for last train (aka test) file
-        if FLAGS.neg_samples and (neg_sample_last or idx != len(sizes) - 1):
-            neg_sample_tuples = [(roots[(i / FLAGS.neg_samples) * 2], roots[sampled_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
-            current_sim_tuples.extend(neg_sample_tuples)
-            # shuffle
-            random.shuffle(current_sim_tuples)
-        sim_tuples.append(current_sim_tuples)
+        write_sim_tuple_data('%s.train.%i' % (out_path, idx), current_sim_tuples, data, children)
+        write_sim_tuple_data_single('%s.train.%i.single' % (out_path, idx), current_sim_tuples, data, children)
+        np.array(current_sim_tuples).dump('%s.idx.%i' % (out_path, idx))
         start = end
-
-        # debug
-        #for i, st in enumerate(sim_tuples[-1]):
-        #    sims_jac[offset + i] = sim_jaccard(subtrees[st[0]][0], subtrees[st[1]][0])
-        #    sims_cor[offset + i] = st[2]
-
-        #offset += len(sim_tuples[-1])
-        # debug end
-
-    # debug
-    #sims_jac.dump('sims_jac')
-    #sims_cor.dump('sims_cor')
-    # debug end
-
-    for i, _sim_tuples in enumerate(sim_tuples):
-        write_sim_tuple_data('%s.train.%i' % (out_path, i), _sim_tuples, data, children)
-        write_sim_tuple_data_single('%s.train.%i.single' % (out_path, i), _sim_tuples, data, children)
-        np.array(_sim_tuples).dump('%s.idx.%i' % (out_path, i))
 
 
 def iterate_sim_tuple_data(paths):
@@ -419,11 +447,14 @@ def write_sim_tuple_data_single(out_fn, sim_tuples, data, children):
             data_target_backup = data[root]
             new_root_data_scored = new_root_data_scored_collected[root]
             for new_root_data, score in new_root_data_scored:
-                data[root] = new_root_data
-                scored_tree = scored_tree_pb2.ScoredTree()
-                scored_tree.score = score
-                sequence_trees.build_sequence_tree(data, children, root, scored_tree.tree)
-                record_output.write(scored_tree.SerializeToString())
+                if new_root_data != data[root]:
+                    data[root] = new_root_data
+                    scored_tree = scored_tree_pb2.ScoredTree()
+                    scored_tree.score = score
+                    sequence_trees.build_sequence_tree(data, children, root, scored_tree.tree)
+                    record_output.write(scored_tree.SerializeToString())
+                #else:
+                #    print(root)
 
             data[root] = data_target_backup
 
@@ -445,10 +476,10 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     :param corpus_fn2: file name of target corpus
     :return:
     """
-    vecs, types = lex.read_dict(corpus_fn1)
-    vecs2, types2 = lex.read_dict(corpus_fn2)
+    vecs, types = lex.load(corpus_fn1)
+    vecs2, types2 = lex.load(corpus_fn2)
     vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
-    data2, parents2 = lex.load_data_and_parents(corpus_fn2)
+    data2, parents2 = sequence_trees.load(corpus_fn2)
     m = lex.mapping_from_list(types)
     mapping = {i: m[t] for i, t in enumerate(types2)}
     data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)

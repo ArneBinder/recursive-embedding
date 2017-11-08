@@ -52,8 +52,7 @@ def main(args=None):
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
-                                  reader_roots=roots_reader,
-                                  neg_sample_last=False
+                                  reader_roots=roots_reader
                                   )
 
 
