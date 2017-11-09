@@ -303,7 +303,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     logging.info('the dataset contains %i scored text tuples' % n)
 
     if FLAGS.neg_samples:
-        if not corpus.exist(out_path+'.unique') or overwrite:
+        temp_path = out_path+'.unique'
+        if not corpus.exist(temp_path) or overwrite:
             # separate into root_trees (e.g. sentences)
             logging.debug('split into root_trees ...')
             root_trees = list(sequence_trees.subtrees())
@@ -331,51 +332,69 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             logging.debug('unique collection finished')
 
             lexicon.pad()
-            lexicon.dump(out_path + '.unique')
-            sequence_trees.dump(out_path + '.unique')
+            lexicon.dump(temp_path)
+            sequence_trees.dump(temp_path)
 
         else:
-            sequence_trees = sequ_trees.SequenceTrees(filename=out_path + '.unique')
+            sequence_trees = sequ_trees.SequenceTrees(filename=temp_path)
 
-            if not os.path.isfile('%s.idx.%i.negs%i' % (out_path, 0, FLAGS.neg_samples)) or overwrite:
-                #roots_collected = {}
-                #for root in sequence_trees.roots:
-                #    d = sequence_trees.data[root]
-                #    coll = roots_collected.get(d, [])
-                #    coll.append(root)
-                #    roots_collected[d] = coll
-                root_data = sequence_trees.indices_to_trees(sequence_trees.roots)[0]
-                root_trees = list(sequence_trees.subtrees())
-                logging.debug('calc sims_correct ...')
-                sims_correct = np.zeros(shape=n)
-                sims_unique = {}
-                for i in range(n):
-                    r1_data = root_data[i * 2]
-                    r2_data = root_data[i * 2 + 1]
-                    if (r1_data, r2_data) in sims_unique:
-                        sims_correct[i] = sims_unique[(r1_data, r2_data)]
-                    else:
-                        sims_correct[i] = sim_jaccard(root_trees[i * 2][0], root_trees[i * 2 + 1][0])
-                        sims_unique[(r1_data, r2_data)] = sims_correct[i]
-                        sims_unique[(r2_data, r1_data)] = sims_correct[i]
-                sims_correct.sort()
+        temp_path = '%s.unique.root_idx.negs%i' % (out_path, FLAGS.neg_samples)
+        if not os.path.isfile(temp_path) or overwrite:
+            #roots_collected = {}
+            #for root in sequence_trees.roots:
+            #    d = sequence_trees.data[root]
+            #    coll = roots_collected.get(d, [])
+            #    coll.append(root)
+            #    roots_collected[d] = coll
+            root_data = sequence_trees.indices_to_trees(sequence_trees.roots)[0]
+            root_trees = list(sequence_trees.subtrees())
+            logging.debug('calc sims_correct ...')
+            sims_correct = np.zeros(shape=n)
+            sims_unique = {}
+            for i in range(n):
+                r1_data = root_data[i * 2]
+                r2_data = root_data[i * 2 + 1]
+                if (r1_data, r2_data) in sims_unique:
+                    sims_correct[i] = sims_unique[(r1_data, r2_data)]
+                else:
+                    sims_correct[i] = sim_jaccard(root_trees[i * 2][0], root_trees[i * 2 + 1][0])
+                    sims_unique[(r1_data, r2_data)] = sims_correct[i]
+                    sims_unique[(r2_data, r1_data)] = sims_correct[i]
+            sims_correct.sort()
 
-                logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
-                # TODO: check, if still correct
-                _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=root_trees,
-                                                                                     root_data=root_data,
-                                                                                     sims_correct=sims_correct,
-                                                                                     prog_bar=None))
-                sampled_indices = np.concatenate(_sampled_indices)
+            logging.info('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
+            # TODO: check, if still correct
+            _sampled_root_indices = mytools.parallel_process_simple(range(n), partial(sample_indices,
+                                                                                      subtrees=root_trees,
+                                                                                      root_data=root_data,
+                                                                                      sims_correct=sims_correct,
+                                                                                      prog_bar=None))
+            sampled_root_indices = np.concatenate(_sampled_root_indices)
+            sampled_root_indices.dump(temp_path)
+        else:
+            sampled_root_indices = np.load(temp_path)
 
-                start = 0
-                for idx, end in enumerate(np.cumsum(sizes)):
-                    neg_sample_tuples = [(sequence_trees.roots[(i / FLAGS.neg_samples) * 2], sequence_trees.roots[sampled_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
-                    np.array(neg_sample_tuples).dump('%s.idx.%i.negs%i' % (out_path, idx, FLAGS.neg_samples))
-                    start = end
+        # TODO: check and use sequence_trees.write_tuple_idx_data(sizes, factor=FLAGS.neg_samples, out_path_prefix='negs%i' % FLAGS.neg_samples, index_converter=sampled_root_indices)
+        start = 0
+        for idx, end in enumerate(np.cumsum(sizes)):
+            neg_sample_tuples = [(sequence_trees.roots[(i / FLAGS.neg_samples) * 2], sequence_trees.roots[sampled_root_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
+            np.array(neg_sample_tuples).dump('%s.unique.idx.%i.negs%i' % (out_path, idx, FLAGS.neg_samples))
+            start = end
 
-            #sampled_all = sample_all(out_path, parents, children, roots)
+        # sampled_all = sample_all(out_path, parents, children, roots)
 
+        if sequ_trees.exist('%s.unique' % out_path):
+            # TODO: check and use sequence_trees.write_tuple_idx_data(sizes, scores=scores)
+            start = 0
+            for idx, end in enumerate(np.cumsum(sizes)):
+                current_sim_tuples = [
+                    (sequence_trees.roots[i * 2], sequence_trees.roots[i * 2 + 1], scores[i]) for i in
+                    range(start, end)]
+                logging.info('write sim_tuple_indices to: %s.unique.idx.%i ...' % (out_path, idx))
+                np.array(current_sim_tuples).dump('%s.unique.idx.%i' % (out_path, idx))
+                start = end
+
+    # TODO: check and use sequence_trees.write_tuple_idx_data(sizes, scores=scores)
     start = 0
     for idx, end in enumerate(np.cumsum(sizes)):
         current_sim_tuples = [(sequence_trees.roots[i * 2], sequence_trees.roots[i * 2 + 1], scores[i]) for i in range(start, end)]
