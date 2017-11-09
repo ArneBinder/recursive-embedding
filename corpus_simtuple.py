@@ -251,8 +251,9 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
                                                 parser=nlp, reader_args={'filename': file_name},
                                                 batch_size=10000, concat_mode=FLAGS.concat_mode,
                                                 inner_concat_mode=FLAGS.inner_concat_mode, expand_dict=True,
-                                                reader_roots=reader_roots,
-                                                reader_roots_args={'filename': os.path.basename(file_name)})
+                                                #reader_roots=reader_roots,
+                                                #reader_roots_args={'filename': os.path.basename(file_name)})
+                                                reader_roots_args = {'root_label': constants.vocab_manual[constants.ROOT_EMBEDDING]})
             logging.debug('len(lexicon)=%i (after parsing)' % len(lexicon))
             _s = np.fromiter(reader_scores(file_name), np.float)
             logging.info('scores read: %i' % len(_s))
@@ -292,7 +293,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
 
-    collect_unique = False
+    collect_unique = True
     if collect_unique:
         if not corpus.exist(out_path+'.unique'):
             # separate into root_trees (e.g. sentences)

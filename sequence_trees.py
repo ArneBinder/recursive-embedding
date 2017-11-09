@@ -440,7 +440,7 @@ class SequenceTrees(object):
         convert_data(data=self.data, converter=converter, lex_size=lex_size, new_idx_unknown=new_idx_unknown)
 
     def indices_to_trees(self, indices):
-        return np.array(map(lambda idx: self.trees[idx].T, indices), dtype=np.int32).T
+        return np.array(map(lambda idx: self.trees.T[idx], indices)).T
 
     def subtrees(self, root_indices=None):
         if not root_indices:
