@@ -436,6 +436,20 @@ class SequenceTrees(object):
         assert self._filename is not None, 'no filename set'
         self._trees = to_trees(*load(self._filename))
 
+    def write_tuple_idx_data(self, sizes, factor=1, out_path_prefix='', scores=None, index_converter=None):
+        if len(out_path_prefix) > 0:
+            out_path_prefix = '.' + out_path_prefix
+        if index_converter is None:
+            index_converter = range(sum(sizes) * factor)
+        start = 0
+        for idx, end in enumerate(np.cumsum(sizes)):
+            current_sim_tuples = [(self.roots[(i / factor) * 2],
+                                   self.roots[index_converter[i] * 2 + 1],
+                                   0.0 if scores is None else scores[i]) for i in range(start * factor, end * factor)]
+            logging.info('write sim_tuple_indices to: %s.idx.%i%s ...' % (self._filename, idx, out_path_prefix))
+            np.array(current_sim_tuples).dump('%s.idx.%i%s' % (self._filename, idx, out_path_prefix))
+            start = end
+
     def convert_data(self, converter, lex_size, new_idx_unknown):
         convert_data(data=self.data, converter=converter, lex_size=lex_size, new_idx_unknown=new_idx_unknown)
 

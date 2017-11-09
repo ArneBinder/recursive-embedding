@@ -374,34 +374,14 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         else:
             sampled_root_indices = np.load(temp_path)
 
-        # TODO: check and use sequence_trees.write_tuple_idx_data(sizes, factor=FLAGS.neg_samples, out_path_prefix='negs%i' % FLAGS.neg_samples, index_converter=sampled_root_indices)
-        start = 0
-        for idx, end in enumerate(np.cumsum(sizes)):
-            neg_sample_tuples = [(sequence_trees.roots[(i / FLAGS.neg_samples) * 2], sequence_trees.roots[sampled_root_indices[i] * 2 + 1], 0.0) for i in range(start * FLAGS.neg_samples, end * FLAGS.neg_samples)]
-            np.array(neg_sample_tuples).dump('%s.unique.idx.%i.negs%i' % (out_path, idx, FLAGS.neg_samples))
-            start = end
+        sequence_trees.write_tuple_idx_data(sizes, factor=FLAGS.neg_samples, out_path_prefix='negs%i' % FLAGS.neg_samples, index_converter=sampled_root_indices)
 
         # sampled_all = sample_all(out_path, parents, children, roots)
 
-        if sequ_trees.exist('%s.unique' % out_path):
-            # TODO: check and use sequence_trees.write_tuple_idx_data(sizes, scores=scores)
-            start = 0
-            for idx, end in enumerate(np.cumsum(sizes)):
-                current_sim_tuples = [
-                    (sequence_trees.roots[i * 2], sequence_trees.roots[i * 2 + 1], scores[i]) for i in
-                    range(start, end)]
-                logging.info('write sim_tuple_indices to: %s.unique.idx.%i ...' % (out_path, idx))
-                np.array(current_sim_tuples).dump('%s.unique.idx.%i' % (out_path, idx))
-                start = end
+        sequence_trees.write_tuple_idx_data(sizes, scores=scores)
 
-    # TODO: check and use sequence_trees.write_tuple_idx_data(sizes, scores=scores)
-    start = 0
-    for idx, end in enumerate(np.cumsum(sizes)):
-        current_sim_tuples = [(sequence_trees.roots[i * 2], sequence_trees.roots[i * 2 + 1], scores[i]) for i in range(start, end)]
-        #write_sim_tuple_data('%s.train.%i' % (out_path, idx), current_sim_tuples, sequence_trees.data, sequence_trees.children)
-        logging.info('write sim_tuple_indices to: %s.idx.%i ...' % (out_path, idx))
-        np.array(current_sim_tuples).dump('%s.idx.%i' % (out_path, idx))
-        start = end
+    sequence_trees = sequ_trees.SequenceTrees(out_path)
+    sequence_trees.write_tuple_idx_data(sizes, scores=scores)
 
 
 def iterate_sim_tuple_data(paths):
