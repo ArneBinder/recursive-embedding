@@ -123,25 +123,35 @@ def continuous_binning(hist_src, hist_dest):
     return prob_map
 
 
-def sample_indices(idx, subtrees, sims_correct, prog_bar=None):
-    #idx, subtrees, sims_correct = idx_subtrees_simscorrect
+def sample_indices(idx, subtrees, root_data, sims_correct, prog_bar=None):
     n = len(sims_correct)
     # sample according to sims_correct probability distribution
+    sims_unique = {}
     sims = np.zeros(shape=n)
     for j in range(n):
-        sims[j] = sim_jaccard(subtrees[idx * 2][0], subtrees[j * 2 + 1][0])
-    sim_original = sims[idx]
+        r1_data = root_data[idx * 2]
+        r2_data = root_data[j * 2 + 1]
+        if (r1_data, r2_data) in sims_unique:
+            sims[j] = sims_unique[(r1_data, r2_data)]
+        else:
+            sims[j] = sim_jaccard(subtrees[idx * 2][0], subtrees[j * 2 + 1][0])
+            sims_unique[(r1_data, r2_data)] = sims[j]
+            sims_unique[(r2_data, r1_data)] = sims[j]
+    #sim_original = sims[idx]
     sims_sorted = np.sort(sims)
     prob_map = continuous_binning(hist_src=sims_sorted, hist_dest=sims_correct)
 
     # set probabilities according to prob_map ...
-    p = [prob_map[d] for d in sims]
+    p = [prob_map[sim] for sim in sims]
     # ...  but set to 0.0 if this is the original pair (can occur multiple times)
     # or if the two subtrees are equal
     # c_debug = 0
-    for j, d in enumerate(sims):
-        if (d == sim_original and (idx == j or np.array_equal(subtrees[2 * idx + 1], subtrees[2 * j + 1]))) \
-                or (d == 1.0 and np.array_equal(subtrees[2 * idx], subtrees[2 * j + 1])):
+    for j, sim in enumerate(sims):
+
+        #if (sim == sim_original and (idx == j or np.array_equal(subtrees[2 * idx + 1], subtrees[2 * j + 1]))) \
+        #        or (sim == 1.0 and np.array_equal(subtrees[2 * idx], subtrees[2 * j + 1])):
+        if root_data[2 * idx + 1] == root_data[2 * j + 1] \
+                or root_data[2 * idx] == root_data[2 * j + 1]:
             p[j] = 0.0
             # c_debug += 1
     # if c_debug > 1:
@@ -205,8 +215,7 @@ def sample_all(data, parents, children, roots):
     return sampled_sim_tuples
 
 
-def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None,
-                  overwrite=False):
+def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, overwrite=False):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
         * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
@@ -329,17 +338,34 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             sequence_trees = sequ_trees.SequenceTrees(filename=out_path + '.unique')
 
             if not os.path.isfile('%s.idx.%i.negs%i' % (out_path, 0, FLAGS.neg_samples)) or overwrite:
+                #roots_collected = {}
+                #for root in sequence_trees.roots:
+                #    d = sequence_trees.data[root]
+                #    coll = roots_collected.get(d, [])
+                #    coll.append(root)
+                #    roots_collected[d] = coll
+                root_data = sequence_trees.indices_to_trees(sequence_trees.roots)[0]
                 root_trees = list(sequence_trees.subtrees())
                 logging.debug('calc sims_correct ...')
                 sims_correct = np.zeros(shape=n)
+                sims_unique = {}
                 for i in range(n):
-                    sims_correct[i] = sim_jaccard(root_trees[i * 2][0], root_trees[i * 2 + 1][0])
-
+                    r1_data = root_data[i * 2]
+                    r2_data = root_data[i * 2 + 1]
+                    if (r1_data, r2_data) in sims_unique:
+                        sims_correct[i] = sims_unique[(r1_data, r2_data)]
+                    else:
+                        sims_correct[i] = sim_jaccard(root_trees[i * 2][0], root_trees[i * 2 + 1][0])
+                        sims_unique[(r1_data, r2_data)] = sims_correct[i]
+                        sims_unique[(r2_data, r1_data)] = sims_correct[i]
                 sims_correct.sort()
 
                 logging.debug('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
+                # TODO: check, if still correct
                 _sampled_indices = mytools.parallel_process_simple(range(n), partial(sample_indices, subtrees=root_trees,
-                                                                                     sims_correct=sims_correct, prog_bar=None))
+                                                                                     root_data=root_data,
+                                                                                     sims_correct=sims_correct,
+                                                                                     prog_bar=None))
                 sampled_indices = np.concatenate(_sampled_indices)
 
                 start = 0
