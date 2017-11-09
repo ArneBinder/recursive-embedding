@@ -75,11 +75,11 @@ def main(args=None):
         if f_id < FLAGS.file_count -1:
             logging.warning('not enough data to create %i files of size %i. Use only created (%i) files to create corpus.' % (FLAGS.file_count, FLAGS.size, f_id+1))
             file_names = file_names[:f_id+1]
-    corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_score=score_reader,
+    corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_scores=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
                                   output_suffix='_%i' % FLAGS.size,
-                                  reader_roots=reader_source
+                                  #reader_roots=reader_source
                                   )
 
 

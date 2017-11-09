@@ -53,8 +53,7 @@ def main(args=None):
         file_names = ['sick_train/SICK_train.txt', 'sick_test_annotated/SICK_test_annotated.txt']
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_scores=score_reader,
                                   corpus_name=FLAGS.corpus_name,
-                                  file_names=file_names,
-                                  reader_roots=roots_reader
+                                  file_names=file_names
                                   )
 
 

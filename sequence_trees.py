@@ -470,12 +470,12 @@ class SequenceTrees(object):
 
     @property
     def children(self):
-        if not self._children:
+        if self._children is None:
             self._children, self._roots = children_and_roots(self.parents)
         return self._children
 
     @property
     def roots(self):
-        if not self._children:
-            self._children, self._roots = children_and_roots(self.parents)
+        if self._roots is None:
+            self._roots = np.where(self.parents == 0)[0]
         return self._roots
