@@ -621,13 +621,24 @@ class BaseTrainModel(object):
 class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_cosine,):
+    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer,
+                 sim_measure=sim_cosine, idx_root=None):
+
+        if idx_root is None:
+            prepare = td.Identity()
+        else:
+            def prepare_sim_tuple(x):
+                x['second']['head'] = idx_root
+                x['first']['head'] = idx_root
+                return x
+
+            prepare = td.InputTransform(prepare_sim_tuple)
 
         # fold model definition
-        model = td.AllOf(td.GetItem('first') >> tree_model.embedder(),
-                         td.GetItem('second') >> tree_model.embedder(),
-                         td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
-                         )
+        model = prepare >> td.AllOf(td.GetItem('first') >> tree_model.embedder(),
+                                                                 td.GetItem('second') >> tree_model.embedder(),
+                                                                 td.GetItem('similarity') >> td.Scalar(dtype='float',
+                                                                                                       name='gold_similarity'))
 
         # fold model output
         compiler = td.Compiler.create(model)
@@ -660,33 +671,32 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         return self._scores
 
 
-def prepare_sim_tuple(x):
-    x['second']['head'] = x['first']['head']
-
-    # swap eventually
-    if np.random.random() < 0.5:
-        temp = x['second']
-        x['second'] = x['first']
-        x['first'] = temp
-        probs = np.array([x['similarity'], 1.0])
-    else:
-        probs = np.array([1.0, x['similarity']])
-    #probs /= np.sum(probs)
-    return x, probs
-
-
 class SimilaritySequenceTreeTupleModel2(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_cosine,):
 
+        def prepare_sim_tuple(x):
+            x['second']['head'] = x['first']['head']
+
+            # swap eventually
+            if np.random.random() < 0.5:
+                temp = x['second']
+                x['second'] = x['first']
+                x['first'] = temp
+                probs = np.array([x['similarity'], 1.0], dtype=np.float32)
+            else:
+                probs = np.array([1.0, x['similarity']], dtype=np.float32)
+            # probs /= np.sum(probs)
+            return x, probs
+
         # fold model definition
-        #gold_similarity = td.GetItem('similarity') >> td.Scalar(dtype='float', name='gold_similarity')
         model = td.InputTransform(prepare_sim_tuple) >> td.AllOf(td.GetItem(0) >> td.AllOf(td.GetItem('first')
                                                                                            >> tree_model.embedder(),
                                                                                            td.GetItem('second')
-                                                                                           >> tree_model.embedder(),),
-                                                                 td.GetItem(1))
+                                                                                           >> tree_model.embedder()
+                                                                                           ),
+                                                                 td.GetItem(1) >> td.Vector(2))
 
         # fold model output
         compiler = td.Compiler.create(model)
@@ -694,11 +704,11 @@ class SimilaritySequenceTreeTupleModel2(BaseTrainModel):
         #sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
         self._tree_embeddings_all = tf.concat([self._tree_embeddings_1, self._tree_embeddings_2], axis=-1)
-        self._prediction_logits = tf.contrib.layers.fully_connected(self._tree_embeddings_all, 2, activation=None)
-
+        self._prediction_logits = tf.contrib.layers.fully_connected(self._tree_embeddings_all, 2, activation_fn=None)
+        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self._probs_gold, logits=self._prediction_logits))
         BaseTrainModel.__init__(self, compiler=compiler, optimizer=optimizer, learning_rate=learning_rate,
                                 tree_model=tree_model,
-                                loss=tf.nn.sigmoid_cross_entropy_with_logits(labels=self._probs_gold, logits=self._prediction_logits))
+                                loss=loss)
 
     @property
     def tree_embeddings_1(self):

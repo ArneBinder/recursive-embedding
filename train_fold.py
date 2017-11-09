@@ -281,12 +281,13 @@ def main(unused_argv):
         vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types,
                                                         new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
         vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types,
-                                                            new_type=constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+                                                            new_type=constants.vocab_manual[
+                                                                constants.IDENTITY_EMBEDDING])
         # COMPATIBILITY END
-        #_SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
-        #if _SOURCE in types:
+        # _SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
+        # if _SOURCE in types:
         #    SOURCE_idx = types.index(_SOURCE)
-        #else:
+        # else:
         #    SOURCE_idx = len(types)
         #    # COMPATIBILITY END
     else:
@@ -301,8 +302,10 @@ def main(unused_argv):
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                           remove=False)
 
-        vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
-        vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[constants.IDENTITY_EMBEDDING])
+        vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types,
+                                                        new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
+        vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[
+            constants.IDENTITY_EMBEDDING])
 
         lex.dump(os.path.join(logdir, 'model'), types=types)
         lex_size = vecs.shape[0]
@@ -320,6 +323,7 @@ def main(unused_argv):
     logging.debug('IDENTITY_idx: %i' % IDENTITY_idx)
     ROOT_idx = types.index(constants.vocab_manual[constants.ROOT_EMBEDDING])
     logging.debug('ROOT_idx: %i' % ROOT_idx)
+
     # TRAINING and TEST DATA ###########################################################################################
 
     def set_head_neg(tree):
@@ -327,6 +331,7 @@ def main(unused_argv):
         for c in tree['children']:
             set_head_neg(c)
 
+    # deprecated
     def tuple_data_iterator(sim_index_files, data, children, replace_idx=None, set_neg=False):
         for sim_index_file in sim_index_files:
             sim_index_tuples = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
@@ -344,12 +349,24 @@ def main(unused_argv):
                     set_head_neg(x['second'])
                 yield x
 
-    if FLAGS.data_single:
-        data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-        data_iterator_test = partial(tuple_data_iterator, replace_idx=IDENTITY_idx, set_neg=True)
-    else:
-        data_iterator_train = partial(tuple_data_iterator, replace_idx=ROOT_idx)
-        data_iterator_test = partial(tuple_data_iterator, replace_idx=ROOT_idx, set_neg=True)
+    def tuple_data_iterator_simpile(sim_index_files, data, children):
+        for sim_index_file in sim_index_files:
+            sim_index_tuples = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
+            for sim_index_tuple in sim_index_tuples:
+                x = {'first': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[0]),
+                     'second': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[1]),
+                     'similarity': sim_index_tuple[2]}
+                yield x
+
+    # if FLAGS.data_single:
+    # data_iterator_train = corpus_simtuple.iterate_scored_tree_data
+    # data_iterator_test = partial(tuple_data_iterator, replace_idx=IDENTITY_idx, set_neg=True)
+    # else:
+    # data_iterator_train = partial(tuple_data_iterator, replace_idx=ROOT_idx)
+    # data_iterator_test = partial(tuple_data_iterator, replace_idx=ROOT_idx, set_neg=True)
+
+    data_iterator_train = tuple_data_iterator_simpile
+    data_iterator_test = tuple_data_iterator_simpile
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
@@ -358,7 +375,7 @@ def main(unused_argv):
         train_fnames = filter(regex.search, os.listdir(parent_dir))
         regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
         train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
-        #TODO: use train_fnames_negs
+        # TODO: use train_fnames_negs
         train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
         assert len(train_fnames) > 0, 'no matching train data files found for ' + FLAGS.train_data_path
         logging.info('found ' + str(len(train_fnames)) + ' train data files')
@@ -395,20 +412,23 @@ def main(unused_argv):
                                                       leaf_fc_size=FLAGS.leaf_fc_size,
                                                       root_fc_size=FLAGS.root_fc_size,
                                                       keep_prob=FLAGS.keep_prob,
-                                                      #keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
+                                                      # keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
                                                       )
 
             # has to be created first #TODO: really?
             if FLAGS.data_single:
-                model_train = model_fold.ScoredSequenceTreeModel(tree_model=model_tree,
-                                                                 learning_rate=FLAGS.learning_rate,
-                                                                 optimizer=optimizer)
-                reg = linear_model.LinearRegression()
+                model_train = model_fold.SimilaritySequenceTreeTupleModel2(tree_model=model_tree,
+                                                                           learning_rate=FLAGS.learning_rate,
+                                                                           optimizer=optimizer,
+                                                                           sim_measure=sim_measure)
+                # reg = linear_model.LinearRegression()
 
             model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                      learning_rate=FLAGS.learning_rate,
                                                                      optimizer=optimizer,
-                                                                     sim_measure=sim_measure)
+                                                                     sim_measure=sim_measure,
+                                                                     idx_root=IDENTITY_idx if FLAGS.data_single else None
+                                                                     )
             if not FLAGS.data_single:
                 model_train = model_test
 
@@ -464,41 +484,42 @@ def main(unused_argv):
                     writer = test_writer
                     csv_writer = test_result_writer
 
-                p_r = pearsonr(sim, sim_gold)
-                s_r = spearmanr(sim, sim_gold)
-
+                emit_dict = {'loss': loss}
+                if sim is not None and sim_gold is not None:
+                    p_r = pearsonr(sim, sim_gold)
+                    s_r = spearmanr(sim, sim_gold)
+                    emit_dict.update({'pearson_r': p_r[0], 'pearson_r_p': p_r[1], 'spearman_r': s_r[0], 'spearman_r_p': s_r[1], 'sim_avg': np.average(sim)})
+                    info_string = (
+                            'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
+                            epoch, step, suffix, loss, suffix, p_r[0], np.average(sim),
+                            np.average(sim_gold), np.var(sim_gold))
+                else:
+                    info_string = (
+                            'epoch=%d step=%d: loss_%s=%f') % (epoch, step, suffix, loss)
                 if emit:
-                    emit_values(supervisor, sess, step,
-                                {'loss': loss,
-                                 'pearson_r': p_r[0],
-                                 'pearson_r_p': p_r[1],
-                                 'spearman_r': s_r[0],
-                                 'spearman_r_p': s_r[1],
-                                 'sim_avg': np.average(sim)
-                                 },
-                                writer=writer,
-                                csv_writer=csv_writer)
+                    emit_values(supervisor, sess, step, emit_dict, writer=writer, csv_writer=csv_writer)
                 if print_out:
-                    logging.info(
-                        (
-                            'epoch=%d step=%d: loss_' + suffix + '=%f\tpearson_r_' + suffix + '=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
-                            epoch, step, loss, p_r[0], np.average(sim),
-                            np.average(sim_gold), np.var(sim_gold)))
+                    logging.info(info_string)
 
             # TRAINING #################################################################################################
 
-            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, apply_linreg=False):
+            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, new_model=False):
 
                 step = test_step
                 feed_dict = {}
-                execute_vars = {'loss': model.loss, 'scores': model.scores, 'scores_gold': model.scores_gold}
+                execute_vars = {'loss': model.loss}
+                if new_model:
+                    execute_vars['probs_gold'] = model.probs_gold
+                else:
+                    execute_vars['scores'] = model.scores
+                    execute_vars['scores_gold'] = model.scores_gold
                 if train:
                     execute_vars['train_op'] = model.train_op
                     execute_vars['step'] = model.global_step
                 else:
                     feed_dict[model.keep_prob] = 1.0
-                if apply_linreg:
-                    execute_vars['embeddings'] = model.tree_embeddings_all
+                #if apply_linreg:
+                #    execute_vars['embeddings'] = model.tree_embeddings_all
 
                 _result_all = []
 
@@ -517,21 +538,27 @@ def main(unused_argv):
                 # logging.debug(np.concatenate(score_all).tolist())
                 # logging.debug(np.concatenate(score_all_gold).tolist())
 
-                score_all_gold_ = np.concatenate(result_all['scores_gold'])
 
-                if apply_linreg:
-                    # EXPERIMENTAL
-                    embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
-                    reg.fit(embeddings_all, score_all_gold_)
-                    score_all_ = np.matmul(embeddings_all, reg.coef_)
-                    loss_all = np.mean((score_all_ - score_all_gold_)**2)
-                    # EXPERIMENTAL end
+
+                #if apply_linreg:
+                #    # EXPERIMENTAL
+                #    embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
+                #    reg.fit(embeddings_all, score_all_gold_)
+                #    score_all_ = np.matmul(embeddings_all, reg.coef_)
+                #    loss_all = np.mean((score_all_ - score_all_gold_) ** 2)
+                #    # EXPERIMENTAL end
+                #else:
+                if new_model:
+                    sizes = [len(result_all['probs_gold'][i]) for i in range(len(_result_all))]
+                    score_all_ = None
+                    score_all_gold_ = None
                 else:
+                    sizes = [len(result_all['scores_gold'][i]) for i in range(len(_result_all))]
+                    score_all_gold_ = np.concatenate(result_all['scores_gold'])
                     score_all_ = np.concatenate(result_all['scores'])
-                    # sum batch losses weighted by individual batch size (can vary at last batch)
-                    loss_all = sum(
-                        [result_all['loss'][i] * len(result_all['scores'][i]) for i in range(len(_result_all))])
-                    loss_all /= len(score_all_)
+                # sum batch losses weighted by individual batch size (can vary at last batch)
+                loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
+                loss_all /= sum(sizes)
 
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
@@ -560,13 +587,13 @@ def main(unused_argv):
 
                     # train
                     if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch)
+                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch, new_model=FLAGS.data_single)
 
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch,
                                                                                train=False, test_step=step_train,
-                                                                               #apply_linreg=FLAGS.data_single
+                                                                               # apply_linreg=FLAGS.data_single
                                                                                )
 
                         # EARLY STOPPING ###############################################################################
