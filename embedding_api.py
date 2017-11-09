@@ -13,7 +13,7 @@ import tensorflow as tf
 import tensorflow_fold as td
 
 import mytools
-import sequence_trees
+import sequence_trees as sequ_trees
 from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
 from sklearn import metrics
@@ -102,13 +102,9 @@ else:
 
 sess = None
 embedder = None
-data_maps = None
-types = None
+lexicon = None
 nlp = None
-data = None
-parents = None
-children = None
-roots = None
+sequence_trees = None
 
 ##################################################
 # API part
@@ -205,10 +201,18 @@ def get_params(request):
     return params
 
 
-def get_data_sequences_from_idx(idx):
-    init_sequence_trees()
-    descandant_indices = sorted(sequence_trees.get_descendant_indices(children, idx))
-    return [map(lambda x: data[x], descandant_indices), map(lambda x: parents[x], descandant_indices)]
+def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode):
+    init_nlp()
+    for s in sequences:
+        sequence_trees = lexicon.read_data(reader=preprocessing.identity_reader,
+                                           sentence_processor=sentence_processor,
+                                           parser=nlp,
+                                           reader_args={'content': s},
+                                           concat_mode=concat_mode,
+                                           inner_concat_mode=inner_concat_mode,
+                                           expand_dict=False,
+                                           reader_roots_args={'root_label': constants.vocab_manual[constants.IDENTITY_EMBEDDING]})
+        yield sequence_trees.trees
 
 
 def get_or_calc_sequence_data(params):
@@ -229,7 +233,7 @@ def get_or_calc_sequence_data(params):
                     if 0 <= end <= i:
                         break
 
-                    data1, parent1 = sequence_trees.sequence_node_to_sequence_trees(sim_tuple['tree'])
+                    data1, parent1 = sequ_trees.sequence_node_to_sequence_trees(sim_tuple['tree'])
                     params['data_sequences'].append([data1, parent1])
                     params['scores_gold'].append(sim_tuple['score'])
                 if start < 0 and end < 0:
@@ -241,8 +245,8 @@ def get_or_calc_sequence_data(params):
                         continue
                     if 0 <= end <= i:
                         break
-                    data1, parent1 = sequence_trees.sequence_node_to_sequence_trees(sim_tuple['first'])
-                    data2, parent2 = sequence_trees.sequence_node_to_sequence_trees(sim_tuple['second'])
+                    data1, parent1 = sequ_trees.sequence_node_to_sequence_trees(sim_tuple['first'])
+                    data2, parent2 = sequ_trees.sequence_node_to_sequence_trees(sim_tuple['second'])
                     params['data_sequences'].append([data1, parent1])
                     params['data_sequences'].append([data2, parent2])
                     params['scores_gold'].append(sim_tuple['similarity'])
@@ -257,13 +261,13 @@ def get_or_calc_sequence_data(params):
         if os.path.isfile(fn):
             params['data_sequences'] = []
             params['scores_gold'] = []
-
+            init_sequence_trees()
             indices_list = corpus_simtuple.load_sim_tuple_indices(fn)
             start = params.get('start', 0)
             end = params.get('end', len(indices_list))
             for sim_tuple_indices in indices_list[start: end]:
-                params['data_sequences'].append(get_data_sequences_from_idx(sim_tuple_indices[0]))
-                params['data_sequences'].append(get_data_sequences_from_idx(sim_tuple_indices[1]))
+                params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[0]]).next())
+                params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[1]]).next())
                 params['scores_gold'].append(sim_tuple_indices[2])
             params['scores_gold'] = np.array(params['scores_gold'])
         else:
@@ -287,9 +291,7 @@ def get_or_calc_sequence_data(params):
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=%s' % sentence_processor.__name__)
 
-        init_nlp()
-        params['data_sequences'] = list(
-            corpus.parse_iterator(sequences, nlp, sentence_processor, data_maps, concat_mode, inner_concat_mode))
+        params['data_sequences'] = list(parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode))
 
     else:
         raise ValueError('no sequences or data_sequences found in request')
@@ -307,7 +309,7 @@ def get_or_calc_embeddings(params):
             max_depth = int(params['max_depth'])
         # batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
         #         data_sequences]
-        batch = [sequence_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in
+        batch = [sequ_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in
                  data_sequences]
 
         if len(batch) > 0:
@@ -444,14 +446,14 @@ def visualize():
 
         get_or_calc_sequence_data(params)
 
-        mode = params.get('mode', 'image')
+        mode = params.get('vis_mode', 'image')
         if mode == 'image':
-            vis.visualize_list(params['data_sequences'], types, file_name=vis.TEMP_FN)
+            vis.visualize_list(params['data_sequences'], lexicon.types, file_name=vis.TEMP_FN)
             response = send_file(vis.TEMP_FN)
         elif mode == 'text':
             params['sequences'] = []
             for data, parents in params['data_sequences']:
-                texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), types, params.get('prefix_blacklist', None))]
+                texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), lexicon.types, params.get('prefix_blacklist', None))]
                 params['sequences'].append(texts)
 
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
@@ -523,18 +525,13 @@ def init_nlp():
 
 
 def init_sequence_trees():
-    global data, parents, children, roots
-    if data is None or parents is None:
-        if sequence_trees.exist(FLAGS.model_train_data_path):
-            data, parents = sequence_trees.load(FLAGS.model_train_data_path)
-        else:
-            raise IOError('could not load sequence_trees from "%s"' % FLAGS.model_train_data_path)
-    if children is None or roots is None:
-        children, roots = sequence_trees.children_and_roots(parents)
+    global sequence_trees
+    if sequence_trees is None:
+        sequence_trees = sequ_trees.SequenceTrees(filename=FLAGS.model_train_data_path)
 
 
 def main(unused_argv):
-    global sess, embedder, data_maps, types
+    global sess, embedder, lexicon
 
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -549,39 +546,29 @@ def main(unused_argv):
         logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % FLAGS.data_source)
         # use latest checkpoint in data_source
         input_checkpoint = checkpoint.model_checkpoint_path
-        types_fn = os.path.join(FLAGS.data_source, 'model')
-        # types_fn = os.path.join(os.path.dirname(input_checkpoint), 'model')
+        lexicon = lex.Lexicon(filename=os.path.join(FLAGS.data_source, 'model'))
         reader = tf.train.NewCheckpointReader(input_checkpoint)
-        # loaded_lex_size = saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
-        lexicon_np = reader.get_tensor(model_fold.VAR_NAME_LEXICON)
+        lexicon.init_vecs(reader.get_tensor(model_fold.VAR_NAME_LEXICON))
     # take data_source as corpus path
     else:
         logging.info('No model checkpoint found in "%s". Load train data corpus from: "%s"' % (
         FLAGS.data_source, FLAGS.model_train_data_path))
-        types_fn = FLAGS.model_train_data_path
-        logging.info('load embeddings from: ' + types_fn + '.vec ...')
-        lexicon_np = np.load(types_fn + '.vec')
-
-    logging.info('read types ...')
-    types = lex.read_types(types_fn)
+        lexicon = lex.Lexicon(filename=FLAGS.model_train_data_path)
 
     if FLAGS.external_lexicon:
         logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
-        external_vecs, external_types = lex.load(FLAGS.external_lexicon)
-        lexicon_np, types = lex.merge_dicts(lexicon_np, types, external_vecs, external_types, add=True, remove=False)
+        lexicon_external = lex.Lexicon(filename=FLAGS.external_lexicon)
+        lexicon.merge(lexicon_external, add=True, remove=False)
     if FLAGS.merge_nlp_lexicon:
         logging.info('extract nlp embeddings and types ...')
         init_nlp()
-        nlp_vecs, nlp_types = lex.get_dict_from_vocab(nlp.vocab)
+        lexicon_nlp = lex.Lexicon(nlp_vocab=nlp.vocab)
         logging.info('merge nlp embeddings into loaded embeddings ...')
-        lexicon_np, types = lex.merge_dicts(lexicon_np, types, nlp_vecs, nlp_types, add=True, remove=False)
-    lex_size = lexicon_np.shape[0]
+        lexicon.merge(lexicon_nlp, add=True, remove=False)
 
-    logging.info('dict size: ' + str(len(types)))
-    assert len(types) == lex_size, 'count of types (' + str(
-        len(types)) + ') does not match count of embedding vectors (' + str(lex_size) + ')'
-    data_maps = lex.mapping_from_list(types)
+    assert lexicon.filled, 'lexicon: not all vecs set for all types (len(types): %i, len(vecs): %i)' % \
+                           (len(lexicon), len(lexicon.vecs))
 
     # load model
     if checkpoint:
@@ -598,7 +585,7 @@ def main(unused_argv):
 
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-                tree_model = model_fold.SequenceTreeModel(lex_size=lex_size,
+                tree_model = model_fold.SequenceTreeModel(lex_size=len(lexicon),
                                                           tree_embedder=tree_embedder,
                                                           state_size=FLAGS.model_state_size,
                                                           lexicon_trainable=False,
@@ -630,13 +617,14 @@ def main(unused_argv):
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     logging.info('init embeddings with external vectors ...')
                     sess.run(embedder.tree_model.embedder.lexicon_init,
-                             feed_dict={embedder.tree_model.embedder.lexicon_placeholder: lexicon_np})
+                             feed_dict={embedder.tree_model.embedder.lexicon_placeholder: lexicon.vecs})
 
                 if FLAGS.save_final_model_path:
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
                     saver_final = tf.train.Saver()
                     saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
-                    lex.dump(FLAGS.save_final_model_path, types=types)
+                    lexicon.dump(FLAGS.save_final_model_path)
+                lexicon.empty_vecs()
 
     logging.info('Starting the API')
     app.run()

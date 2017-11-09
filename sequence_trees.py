@@ -356,28 +356,6 @@ def build_sequence_tree_with_candidates(seq_data, parents, children, root, inser
     return seq_tree
 
 
-def identity_reader(content):
-    yield content
-
-
-# unused
-def build_sequence_tree_from_str(str_, sentence_processor, parser, data_maps, concat_mode=constants.default_concat_mode,
-                                 inner_concat_mode=constants.default_inner_concat_mode, expand_dict=True,
-                                 seq_tree=None):
-    seq_data, seq_parents = preprocessing.read_data(identity_reader, sentence_processor, parser, data_maps,
-                                                    reader_args={'content': str_}, concat_mode=concat_mode,
-                                                    inner_concat_mode=inner_concat_mode, expand_dict=expand_dict)
-    children, roots = children_and_roots(seq_parents)
-    return build_sequence_tree(seq_data, children, roots[0], seq_tree)
-
-
-# unused
-def build_sequence_tree_from_parse(seq_graph, seq_tree=None):
-    seq_data, seq_parents = seq_graph
-    children, roots = children_and_roots(seq_parents)
-    return build_sequence_tree(seq_data, children, roots[0], seq_tree)
-
-
 def build_sequence_tree_dict_from_parse(seq_graph, max_depth=9999):
     seq_data, seq_parents = seq_graph
     children, roots = children_and_roots(seq_parents)
@@ -417,25 +395,33 @@ def convert_data(data, converter, lex_size, new_idx_unknown):
     return data
 
 
+def to_trees(data, parents):
+    return np.concatenate((data, parents)).reshape(2, len(data))
+
+
 class SequenceTrees(object):
     def __init__(self, filename=None, data=None, parents=None, trees=None):
         self._filename = filename
-        if filename:
-            self._data, self._parents = load(filename)
+        if filename is not None:
+            if exist(filename):
+                self._trees = to_trees(*load(filename))
+            else:
+                raise IOError('could not load sequence_trees from "%s"' % filename)
         elif data is not None and parents is not None:
             assert len(data) == len(parents), 'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
-            self._data = data
-            self._parents = parents
-        elif trees:
+            self._trees = to_trees(data, parents)
+        elif trees is not None:
             if type(trees) == np.ndarray:
-                assert trees.shape[1] == 2, 'Wrong shape: %s. Trees array has to contain exactly the parents and data arrays: shape=(None, 2)' % str(trees.shape)
+                assert trees.shape[0] == 2, 'Wrong shape: %s. trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(trees.shape)
+                self._trees = trees
             else:
-                assert len(trees) == 2, 'Wrong shape: %s. Trees array has to contain exactly the parents and data arrays: shape=(None, 2)' % str(
-                    trees.shape)
-                assert len(trees[0]) == len(trees[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(trees[0]), len(trees[1]))
-                trees = np.array(trees, dtype=np.int32)
-            self._data = trees[0]
-            self._parents = trees[1]
+                raise TypeError('trees has to be a numpy.ndarray')
+                #assert len(trees) == 2, 'Wrong shape: %i. Trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(
+                #    trees.shape)
+                #assert len(trees[0]) == len(trees[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(trees[0]), len(trees[1]))
+                #self._trees = np.array(trees, dtype=np.int32)
+            #self._data = trees[0]
+            #self._parents = trees[1]
         else:
             raise ValueError(
                 'Not enouth arguments to instantiate SequenceTrees object. Please provide a filename or data and parent arrays.')
@@ -448,13 +434,13 @@ class SequenceTrees(object):
 
     def reload(self):
         assert self._filename is not None, 'no filename set'
-        self._data, self._parents = load(self._filename)
+        self._trees = to_trees(*load(self._filename))
 
     def convert_data(self, converter, lex_size, new_idx_unknown):
         convert_data(data=self.data, converter=converter, lex_size=lex_size, new_idx_unknown=new_idx_unknown)
 
-    def indices_to_sequences(self, indices):
-        return np.array(map(lambda idx: [self.data[idx], self.parents[idx]], indices), dtype=np.int32).T
+    def indices_to_trees(self, indices):
+        return np.array(map(lambda idx: self.trees[idx].T, indices), dtype=np.int32).T
 
     def subtrees(self, root_indices=None):
         if not root_indices:
@@ -462,24 +448,34 @@ class SequenceTrees(object):
         for i in root_indices:
             descendant_indices = sorted(get_descendant_indices(self.children, i))
             # new_subtree = zip(*[(data[idx], parents[idx]) for idx in descendant_indices])
-            yield self.indices_to_sequences(descendant_indices)
+            yield self.indices_to_trees(descendant_indices)
+
+    def descendant_indices(self, root):
+        return get_descendant_indices(self.children, root)
+
+    def __str__(self):
+        return self._trees.__str__()
 
     @property
     def data(self):
-        return self._data
+        return self._trees[0]
 
     @property
     def parents(self):
-        return self._parents
+        return self._trees[1]
+
+    @property
+    def trees(self):
+        return self._trees
 
     @property
     def children(self):
         if not self._children:
-            self._children, self._roots = children_and_roots(self._parents)
+            self._children, self._roots = children_and_roots(self.parents)
         return self._children
 
     @property
     def roots(self):
         if not self._children:
-            self._children, self._roots = children_and_roots(self._parents)
+            self._children, self._roots = children_and_roots(self.parents)
         return self._roots

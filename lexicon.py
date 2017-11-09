@@ -6,6 +6,9 @@ import constants
 import logging
 import os
 
+import preprocessing
+import sequence_trees as sequ_trees
+
 
 def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     logging.info('sort, cut and fill embeddings ...')
@@ -127,12 +130,12 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
     :param add: if add=True add the embeddings from vecs2, which are not already in vecs1
     :return: the modified embeddings and types
     """
-    assert vecs1.shape[0] == len(types1), 'count of embeddings in vecs1 = ' + vecs1.shape[0] + \
-                                          ' does not equal length of types1 = ' + str(len(types1))
-    assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = ' + vecs2.shape[0] + \
-                                          ' does not equal length of types2 = ' + str(len(types2))
-    logging.info('size of dict1: ' + str(len(types1)))
-    logging.info('size of dict2: ' + str(len(types2)))
+    assert vecs1.shape[0] == len(types1), 'count of embeddings in vecs1 = %i does not equal length of types1 = %i' \
+                                          % (vecs1.shape[0], len(types1))
+    assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = %i does not equal length of types2 = %i' \
+                                          % (vecs2.shape[0], len(types2))
+    logging.info('size of dict1: %i' % len(types1))
+    logging.info('size of dict2: %i' % len(types2))
     mapping2 = mapping_from_list(types2)
     logging.debug(len(mapping2))
     logging.debug(np.array_equal(vecs1, vecs2))
@@ -158,7 +161,7 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
             del types1[idx]
 
         vecs1 = np.delete(vecs1, indices_delete, axis=0)
-        logging.info('removed ' + str(len(indices_delete)) + ' entries from dict1')
+        logging.info('removed %i entries from dict1' % len(indices_delete))
 
     if add:
         indices_types2 = sorted(range(len(types2)))
@@ -171,8 +174,8 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
         types2_indices_add = list(indices_types2_set.difference(indices2_added))
 
         types1.extend([types2[idx] for idx in types2_indices_add])
-        vecs1 = np.append(vecs1, vecs2[types2_indices_add], axis=0)
-        logging.info('added ' + str(len(types2_indices_add)) + ' entries to dict1')
+        vecs1 = np.concatenate((vecs1, vecs2[types2_indices_add]), axis=0)
+        logging.info('added %i entries to dict1' % len(types2_indices_add))
     return vecs1, types1
 
 
@@ -298,21 +301,44 @@ def has_vocab_prefix(s, man_vocab_id):
 
 class Lexicon(object):
     def __init__(self, filename=None, vecs=None, types=None, nlp_vocab=None):
+        self._dummy_vec_size = 300
         self._filename = filename
         self._mapping = None
         self._dumped_vecs = False
         self._dumped_types = False
         if filename is not None:
-            self._vecs, self._types = load(filename)
-            self._dumped_vecs = True
+            #self._vecs, self._types = load(filename)
+            self._types = read_types(filename)
             self._dumped_types = True
-        elif vecs is not None and types is not None:
-            self._vecs = vecs
+            self._dumped_vecs = True
+            if os.path.isfile('%s.vec' % filename):
+                self._vecs = np.load('%s.vec' % filename)
+            else:
+                # set dummy vecs
+                self._vecs = np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32)
+        elif types is not None:
             self._types = types
+            if vecs is not None:
+                self._vecs = vecs
+            else:
+                # set dummy vecs
+                self._vecs = np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32)
+                self._dumped_vecs = True
         elif nlp_vocab is not None:
             self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
+            print(self.filled)
         else:
             raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
+
+    def init_vecs(self, new_vecs):
+        if not self._dumped_vecs:
+            logging.warning('overwrite unsaved vecs')
+        assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' % (len(new_vecs), len(self))
+        self._vecs = new_vecs
+        self._dumped_vecs = False
+
+    def empty_vecs(self):
+        self.init_vecs(np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32))
 
     def dump(self, filename):
         dump(filename,
@@ -370,8 +396,12 @@ class Lexicon(object):
             pass
         elif len(self.vecs) < len(self):
             # take mean and variance from previous vectors
-            vecs_mean = np.mean(self.vecs, axis=0)
-            vecs_variance = np.var(self.vecs, axis=0)
+            if len(self.vecs) > 0:
+                vecs_mean = np.mean(self.vecs, axis=0)
+                vecs_variance = np.var(self.vecs, axis=0)
+            else:
+                vecs_mean = 0.0
+                vecs_variance = 1.0
             new_vecs = np.zeros(shape=(len(self) - len(self.vecs), self.vec_size), dtype=self.vecs.dtype)
             for i in range(len(new_vecs)):
                 new_vecs[i] = np.random.standard_normal(size=self.vec_size) * vecs_variance + vecs_mean
@@ -379,6 +409,15 @@ class Lexicon(object):
             self._dumped_vecs = False
         else:
             raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
+
+    def merge(self, other, add=True, remove=True):
+        self._vecs, self._types = merge_dicts(vecs1=self._vecs, types1=self._types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
+
+    def read_data(self, *args, **kwargs):
+        data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
+        self._types = revert_mapping_to_list(self.mapping)
+        self._dumped_types = False
+        return sequ_trees.SequenceTrees(data=data, parents=parents)
 
     def __getitem__(self, item):
         if type(item) == unicode or type(item) == str:
@@ -413,6 +452,10 @@ class Lexicon(object):
         if self._mapping is None:
             self._mapping = mapping_from_list(self._types)
         return self._mapping
+
+    @property
+    def filled(self):
+        return len(self) == len(self.vecs)
 
 
 

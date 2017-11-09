@@ -205,7 +205,7 @@ def sample_all(data, parents, children, roots):
     return sampled_sim_tuples
 
 
-def create_corpus(reader_sentences, reader_score, corpus_name, file_names, output_suffix=None, reader_roots=None,
+def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, reader_roots=None,
                   overwrite=False):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
@@ -215,7 +215,7 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
         * .vec:                         embedding vectors (indexed by types mapping)
     :param reader_sentences: a file reader that yields sentences of the tuples where every two succinct sentences come
                             from the same tuple: (sentence0, sentence1), (sentence2, sentence3), ...
-    :param reader_score: a file reader that yields similarity scores in the range of [0.0..1.0]
+    :param reader_scores: a file reader that yields similarity scores in the range of [0.0..1.0]
     :param corpus_name: name of the corpus. This is taken for input- and output folder names
     :param file_names: the input file names
     :param output_suffix:
@@ -244,37 +244,34 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
 
         lexicon = lex.Lexicon(nlp_vocab=nlp.vocab)
 
-        mapping = lexicon.mapping
-
         def read_data(file_name):
-            return corpus.parse_texts_scored(filename=file_name,
-                                             reader=reader_sentences,
-                                             reader_scores=reader_score,
-                                             sentence_processor=sentence_processor,
-                                             parser=nlp,
-                                             mapping=mapping,
-                                             concat_mode=FLAGS.concat_mode,
-                                             inner_concat_mode=FLAGS.inner_concat_mode,
-                                             reader_roots=reader_roots)
+            logging.info('convert texts scored ...')
+            logging.debug('len(lexicon)=%i' % len(lexicon))
+            _sequence_trees = lexicon.read_data(reader=reader_sentences, sentence_processor=sentence_processor,
+                                                parser=nlp, reader_args={'filename': file_name},
+                                                batch_size=10000, concat_mode=FLAGS.concat_mode,
+                                                inner_concat_mode=FLAGS.inner_concat_mode, expand_dict=True,
+                                                reader_roots=reader_roots,
+                                                reader_roots_args={'filename': os.path.basename(file_name)})
+            logging.debug('len(lexicon)=%i (after parsing)' % len(lexicon))
+            _s = np.fromiter(reader_scores(file_name), np.float)
+            logging.info('scores read: %i' % len(_s))
+            assert 2 * len(_s) == len(_sequence_trees.roots), 'len(roots): %i != 2 * len(scores): %i' % (
+                2 * len(_s), len(_sequence_trees.roots))
+            return _sequence_trees.trees, _s
 
         file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
 
-        _data = [None] * len(file_names)
-        _parents = [None] * len(file_names)
-        _scores = [None] * len(file_names)
-
-        for i, fn in enumerate(file_names):
-            _data[i], _parents[i], _scores[i], _ = read_data(fn)
+        _trees, _scores = zip(*[read_data(fn) for fn in file_names])
 
         sizes = [len(s) for s in _scores]
 
         logging.debug('sizes: %s' % str(sizes))
         np.array(sizes).dump(out_path + '.size')
 
-        sequence_trees = sequ_trees.SequenceTrees(data=np.concatenate(_data), parents=np.concatenate(_parents))
+        sequence_trees = sequ_trees.SequenceTrees(trees=np.concatenate(_trees, axis=1))
         scores = np.concatenate(_scores)
 
-        lexicon.set_types_with_mapping(mapping)
         converter, new_counts, new_idx_unknown = lexicon.sort_and_cut_and_fill_dict(data=sequence_trees.data,
                                                                                     count_threshold=FLAGS.count_threshold)
         sequence_trees.convert_data(converter=converter, lex_size=len(lexicon), new_idx_unknown=new_idx_unknown)
@@ -304,43 +301,30 @@ def create_corpus(reader_sentences, reader_score, corpus_name, file_names, outpu
             assert n == len(root_trees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(root_trees) / 2, n)
             id_unique = 0
             #unique_collected = {}
-            #mapping = lex.mapping_from_list(types)
             for i, i_root in enumerate(sequence_trees.roots):
                 print(i)
-                #data_root = data[i_root]
                 if not lex.has_vocab_prefix(lexicon[sequence_trees.data[i_root]], constants.UNIQUE_EMBEDDING):
-                    #data[i_root] = mytools.getOrAdd2(mapping, types, constants.vocab_manual[constants.UNIQUE_EMBEDDING]
-                    #                                 + constants.SEPARATOR + str(id_unique))
                     sequence_trees.data[i_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
                     #unique_collected[id_unique] = unique_collected.get(id_unique, []).append(i_root)
                     for _j, j_root in enumerate(sequence_trees.roots[i:]):
                         j = i + _j
-                        #if not types[data[j_root]].startswith(constants.vocab_manual[constants.UNIQUE_EMBEDDING] + constants.SEPARATOR):
                         if not lex.has_vocab_prefix(lexicon[sequence_trees.data[j_root]], constants.UNIQUE_EMBEDDING):
                             j_root_data_backup = sequence_trees.data[j_root]
                             sequence_trees.data[j_root] = sequence_trees.data[i_root]
                             if np.array_equal(root_trees[i], root_trees[j]):
-                                #data[j_root] = mytools.getOrAdd2(mapping, types, constants.vocab_manual[
-                                #    constants.UNIQUE_EMBEDDING] + constants.SEPARATOR + str(id_unique))
                                 sequence_trees.data[j_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
                                 #unique_collected[id_unique].append(j_root)
                             else:
-                                #data[j_root] = j_root_data_backup
                                 sequence_trees.data[j_root] = j_root_data_backup
                     id_unique += 1
 
             logging.debug('unique collection finished')
 
-            #new_vecs = lex.fill_vecs(vecs, len(types))
             lexicon.pad()
-            #corpus.dump(out_path+'.unique', data=data, vecs=new_vecs, types=types)
-            #if new_vecs:
-            #    vecs = new_vecs
             lexicon.dump(out_path + '.unique')
             sequence_trees.dump(out_path + '.unique')
 
         else:
-            #lexicon = lex.Lexicon(filename=out_path + '.unique')
             sequence_trees = sequ_trees.SequenceTrees(filename=out_path + '.unique')
 
     if FLAGS.neg_samples:

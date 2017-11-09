@@ -467,7 +467,11 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
         unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
     if reader_roots is None:
-        _reader_root = iter(lambda: constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], -1)
+        if 'root_label' in reader_roots_args:
+            root_label = reader_roots_args['root_label']
+        else:
+            root_label = constants.vocab_manual[constants.AGGREGATOR_EMBEDDING]
+        _reader_root = iter(lambda: root_label, -1)
     else:
         _reader_root = reader_roots(**reader_roots_args)
 
