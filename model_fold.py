@@ -671,52 +671,66 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         return self._scores
 
 
+class SequenceToTuple(td.Block):
+    """A Python function, lifted to a block."""
+
+    def __init__(self, T, N, name=None):
+        py_fn = (lambda x: tuple(x))
+        if not callable(py_fn):
+            raise TypeError('py_fn is not callable: %s' % str(py_fn))
+        self._py_fn = py_fn
+        super(SequenceToTuple, self).__init__(
+            [], input_type=td.SequenceType(T), output_type=td.TupleType(*([T] * N)),
+            name=name)
+
+    def _repr_kwargs(self):
+        return dict(py_fn=self.py_fn)
+
+    @property
+    def py_fn(self):
+        return self._py_fn
+
+    def _evaluate(self, _, x):
+        return self._py_fn(x)
+
+
 class SimilaritySequenceTreeTupleModel2(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, sim_measure=sim_cosine,):
-
+    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, tree_count=2):
+        # TODO: do this in train_fold
         def prepare_sim_tuple(x):
-            x['second']['head'] = x['first']['head']
+            a = [x['first'], x['second']]
+            probs = np.array([1.0, x['similarity']], dtype=np.float32)
+            return a, probs
 
-            # swap eventually
-            if np.random.random() < 0.5:
-                temp = x['second']
-                x['second'] = x['first']
-                x['first'] = temp
-                probs = np.array([x['similarity'], 1.0], dtype=np.float32)
-            else:
-                probs = np.array([1.0, x['similarity']], dtype=np.float32)
-            # probs /= np.sum(probs)
-            return x, probs
+        def prepare((a, probs)):
+            # assert len(a) == tree_count, 'wrong amount of trees: %i. expected: %i' % (len(a), tree_count)
+            # assert len(probs) == tree_count, 'wrong amount of probabilities: %i. expected: %i' % (len(probs), tree_count)
 
-        # fold model definition
-        model = td.InputTransform(prepare_sim_tuple) >> td.AllOf(td.GetItem(0) >> td.AllOf(td.GetItem('first')
-                                                                                           >> tree_model.embedder(),
-                                                                                           td.GetItem('second')
-                                                                                           >> tree_model.embedder()
-                                                                                           ),
-                                                                 td.GetItem(1) >> td.Vector(2))
+            # shuffle
+            perm = np.random.permutation(tree_count)
+            a = [a[idx] for idx in perm]
+            probs = [probs[idx] for idx in perm]
+            return a, probs
+
+        embed_tree = tree_model.embedder()
+        model = td.InputTransform(prepare_sim_tuple) \
+                >> td.InputTransform(prepare) >> td.AllOf(td.GetItem(0) >> td.Map(embed_tree)
+                                                            >> SequenceToTuple(embed_tree.output_type, tree_count)
+                                                            >> td.Concat(),
+                                                       td.GetItem(1) >> td.Vector(tree_count))
 
         # fold model output
         compiler = td.Compiler.create(model)
-        (self._tree_embeddings_1, self._tree_embeddings_2, self._probs_gold) = compiler.output_tensors
-        #sim = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
+        (self._tree_embeddings_all, self._probs_gold) = compiler.output_tensors
 
-        self._tree_embeddings_all = tf.concat([self._tree_embeddings_1, self._tree_embeddings_2], axis=-1)
-        self._prediction_logits = tf.contrib.layers.fully_connected(self._tree_embeddings_all, 2, activation_fn=None)
-        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self._probs_gold, logits=self._prediction_logits))
+        self._prediction_logits = tf.contrib.layers.fully_connected(self._tree_embeddings_all, tree_count,
+                                                                    activation_fn=None)
+        loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(labels=self._probs_gold, logits=self._prediction_logits))
         BaseTrainModel.__init__(self, compiler=compiler, optimizer=optimizer, learning_rate=learning_rate,
-                                tree_model=tree_model,
-                                loss=loss)
-
-    @property
-    def tree_embeddings_1(self):
-        return self._tree_embeddings_1
-
-    @property
-    def tree_embeddings_2(self):
-        return self._tree_embeddings_2
+                                tree_model=tree_model, loss=loss)
 
     @property
     def tree_embeddings_all(self):

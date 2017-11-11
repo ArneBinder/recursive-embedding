@@ -420,7 +420,7 @@ def main(unused_argv):
                 model_train = model_fold.SimilaritySequenceTreeTupleModel2(tree_model=model_tree,
                                                                            learning_rate=FLAGS.learning_rate,
                                                                            optimizer=optimizer,
-                                                                           sim_measure=sim_measure)
+                                                                           tree_count=2)
                 # reg = linear_model.LinearRegression()
 
             model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
