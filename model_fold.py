@@ -4,6 +4,7 @@ from __future__ import print_function
 # import google3
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
+from tensorflow_fold.blocks import result_types as tdt
 import numpy as np
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
@@ -124,8 +125,8 @@ def create_lexicon(lex_size, trainable=True):
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, lexicon_size, keep_prob_placeholder=None, lexicon_trainable=True, state_size=None, leaf_fc_size=0,
-                 root_fc_size=0, keep_prob_fixed=1.0):
+    def __init__(self, name, lexicon_size, keep_prob_placeholder=None, lexicon_trainable=True, state_size=None,
+                 leaf_fc_size=0, root_fc_size=0, keep_prob_fixed=1.0):
         self._lex_size = lexicon_size
         self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
                                                                                       trainable=lexicon_trainable)
@@ -142,6 +143,7 @@ class TreeEmbedding(object):
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
+        self._root_fc_size = root_fc_size
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._leaf_fc_size:
@@ -187,10 +189,6 @@ class TreeEmbedding(object):
     def lexicon(self):
         return self._lexicon
 
-    #@property
-    #def apply_leaf_fc(self):
-    #    return self._apply_leaf_fc
-
     @property
     def name(self):
         return self._name
@@ -206,6 +204,10 @@ class TreeEmbedding(object):
     @property
     def leaf_fc_size(self):
         return self._leaf_fc_size or 0
+
+    @property
+    def root_fc_size(self):
+        return self._root_fc_size or 0
 
     @property
     def root_fc(self):
@@ -388,11 +390,17 @@ class TreeEmbedding_FLAT(TreeEmbedding):
 
     def __call__(self):
         model = self.sequence() >> self.aggregate() >> self.root_fc
+        if model.output_type is None:
+            model.set_output_type(tdt.TensorType(shape=(self.output_size,), dtype='float32'))
         return model
 
     @property
     def element_size(self):
         return self.leaf_fc_size or DIMENSION_EMBEDDINGS
+
+    @property
+    def output_size(self):
+        raise NotImplementedError("Please Implement this method")
 
 
 class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
@@ -419,6 +427,10 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
         # an aggregation function which doesn't take the order of the inputs into account
         return td.Mean(name)
 
+    @property
+    def output_size(self):
+        return self.root_fc_size or self.element_size
+
 
 class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT_2levels):
     def __init__(self, name=None, **kwargs):
@@ -432,6 +444,10 @@ class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
     def aggregate(self, name='aggregate'):
         # an aggregation function which doesn't take the order of the inputs into account
         return td.Sum(name)
+
+    @property
+    def output_size(self):
+        return self.root_fc_size or self.element_size
 
 
 class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT_2levels):
@@ -456,6 +472,10 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT):
     def aggregate(self, name='aggregate'):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
         return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
+
+    @property
+    def output_size(self):
+        return self.root_fc_size or self.state_size
 
 
 # compatibility
@@ -656,125 +676,6 @@ class BaseTrainModel_new(object):
         return self._tree_model
 
 
-class BaseTrainModel(object):
-    def __init__(self, compiler, optimizer, learning_rate, tree_model, loss):#, scores=None, scores_gold=None):
-
-        #self._scores = scores
-        #self._scores_gold = scores_gold
-        #self._mse = tf.square(self._scores - self._scores_gold)
-
-        #self._loss = tf.reduce_mean(self._mse)
-        self._loss = loss
-
-        self._compiler = compiler
-        self._tree_model = tree_model
-
-        self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
-        self._optimizer = optimizer(learning_rate=learning_rate)
-
-        # gradient manipulation
-        gradients, variables = zip(*self._optimizer.compute_gradients(self._loss))
-        # reversal gradient integration
-        # gradients_rev, _ = zip(*self._optimizer.compute_gradients(self._loss_rev))
-        # gradients = list(gradients)
-        # for grads_idx, grads in enumerate(gradients):
-        #    if isinstance(grads, tf.Tensor):
-        #        gradients[grads_idx] = gradients[grads_idx] - gradients_rev[grads_idx]
-        # gradient clipping
-        gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
-        self._train_op = self._optimizer.apply_gradients(grads_and_vars=zip(gradients, variables),
-                                                         global_step=self._global_step)
-
-    @property
-    def loss(self):
-        return self._loss
-
-    @property
-    def train_op(self):
-        return self._train_op
-
-    @property
-    def global_step(self):
-        return self._global_step
-
-    @property
-    def tree_model(self):
-        return self._tree_model
-
-    @property
-    def keep_prob(self):
-        return self._tree_model.keep_prob
-
-    @property
-    def compiler(self):
-        return self._compiler
-
-    def optimizer_vars(self):
-        slot_names = self._optimizer.get_slot_names()
-        all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-        opt_vars = []
-        for slot_name in slot_names:
-            opt_vars.extend([self._optimizer.get_slot(var=v, name=slot_name) for v in all_vars if
-                             self._optimizer.get_slot(var=v, name=slot_name)])
-        return opt_vars
-
-    def build_feed_dict(self, data):
-        return self._compiler.build_feed_dict(data)
-
-
-class SimilaritySequenceTreeTupleModel(BaseTrainModel):
-    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
-
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer,
-                 sim_measure=sim_cosine, idx_root=None):
-
-        if idx_root is None:
-            prepare = td.Identity()
-        else:
-            def prepare_sim_tuple(x):
-                x['second']['head'] = idx_root
-                x['first']['head'] = idx_root
-                return x
-
-            prepare = td.InputTransform(prepare_sim_tuple)
-
-        # fold model definition
-        model = prepare >> td.AllOf(td.GetItem('first') >> tree_model.embedder(),
-                                                                 td.GetItem('second') >> tree_model.embedder(),
-                                                                 td.GetItem('similarity') >> td.Scalar(dtype='float',
-                                                                                                       name='gold_similarity'))
-
-        # fold model output
-        compiler = td.Compiler.create(model)
-        (self._tree_embeddings_1, self._tree_embeddings_2, self._scores_gold) = compiler.output_tensors
-        self._scores = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
-
-        BaseTrainModel.__init__(self, compiler=compiler, optimizer=optimizer, learning_rate=learning_rate,
-                                tree_model=tree_model, loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)))
-
-        self._tree_embeddings_all = tf.concat([self._tree_embeddings_1, self._tree_embeddings_2], axis=-1)
-
-    @property
-    def tree_embeddings_1(self):
-        return self._tree_embeddings_1
-
-    @property
-    def tree_embeddings_2(self):
-        return self._tree_embeddings_2
-
-    @property
-    def tree_embeddings_all(self):
-        return self._tree_embeddings_all
-
-    @property
-    def scores_gold(self):
-        return self._scores_gold
-
-    @property
-    def scores(self):
-        return self._scores
-
-
 class SimilaritySequenceTreeTupleModel_new(BaseTrainModel_new):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
@@ -836,53 +737,6 @@ class SequenceToTuple(td.Block):
         return self._py_fn(x)
 
 
-class SimilaritySequenceTreeTupleModel2(BaseTrainModel):
-    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
-
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, tree_count=2):
-        # TODO: do this in train_fold
-        def prepare_sim_tuple(x):
-            a = [x['first'], x['second']]
-            probs = np.array([1.0, x['similarity']], dtype=np.float32)
-            return a, probs
-
-        def prepare((a, probs)):
-            # assert len(a) == tree_count, 'wrong amount of trees: %i. expected: %i' % (len(a), tree_count)
-            # assert len(probs) == tree_count, 'wrong amount of probabilities: %i. expected: %i' % (len(probs), tree_count)
-
-            # shuffle
-            perm = np.random.permutation(tree_count)
-            a = [a[idx] for idx in perm]
-            probs = [probs[idx] for idx in perm]
-            return a, probs
-
-        embed_tree = tree_model.embedder()
-        model = td.InputTransform(prepare_sim_tuple) \
-                >> td.InputTransform(prepare) >> td.AllOf(td.GetItem(0) >> td.Map(embed_tree)
-                                                            >> SequenceToTuple(embed_tree.output_type, tree_count)
-                                                            >> td.Concat(),
-                                                       td.GetItem(1) >> td.Vector(tree_count))
-
-        # fold model output
-        compiler = td.Compiler.create(model)
-        (self._tree_embeddings_all, self._probs_gold) = compiler.output_tensors
-
-        self._prediction_logits = tf.contrib.layers.fully_connected(self._tree_embeddings_all, tree_count,
-                                                                    activation_fn=None)
-        loss = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(labels=self._probs_gold, logits=self._prediction_logits))
-        BaseTrainModel.__init__(self, compiler=compiler, optimizer=optimizer, learning_rate=learning_rate,
-                                tree_model=tree_model, loss=loss)
-
-    @property
-    def tree_embeddings_all(self):
-        return self._tree_embeddings_all
-
-    @property
-    def probs_gold(self):
-        return self._probs_gold
-
-
 class SimilaritySequenceTreeTupleModel2_new(BaseTrainModel_new):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
@@ -897,42 +751,7 @@ class SimilaritySequenceTreeTupleModel2_new(BaseTrainModel_new):
         BaseTrainModel_new.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer, learning_rate=learning_rate)
 
 
-class ScoredSequenceTreeModel(BaseTrainModel):
-
-    def __init__(self, tree_model, optimizer, learning_rate):
-
-        # This layer maps a sequence tree embedding to an 'integrity' score
-        with tf.variable_scope(DEFAULT_SCOPE_SCORING) as scoring_sc:
-            scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(lambda x: tf.squeeze(x, [1]))
-
-        score_gold = td.GetItem('score') >> td.Scalar(dtype='float', name='score_gold')
-
-        model = td.AllOf(td.GetItem('tree') >> tree_model.embedder() >> td.AllOf(td.Identity(), scoring_fc), score_gold)
-        compiler = td.Compiler.create(model)
-
-        # Get the tensorflow tensors that correspond to the outputs of model.
-        (self._tree_embeddings, self._scores, self._scores_gold) = compiler.output_tensors
-
-        BaseTrainModel.__init__(self, compiler=compiler, optimizer=optimizer, learning_rate=learning_rate,
-                                tree_model=tree_model, loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)))
-
-    @property
-    def tree_embeddings(self):
-        return self._tree_embeddings
-
-    @property
-    def tree_embeddings_all(self):
-        return self._tree_embeddings
-
-    @property
-    def scores_gold(self):
-        return self._scores_gold
-
-    @property
-    def scores(self):
-        return self._scores
-
-
+# DEPRECATED
 class SequenceTreeEmbedding(object):
     def __init__(self, tree_model, sim_measure=sim_cosine, scoring_enabled=True, scoring_scope=DEFAULT_SCOPE_SCORING):
 
