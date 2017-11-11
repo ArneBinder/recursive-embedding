@@ -101,7 +101,7 @@ else:
 # PROTO_CLASS = 'SequenceNode'
 
 sess = None
-embedder = None
+model_tree = None
 lexicon = None
 nlp = None
 sequence_trees = None
@@ -309,15 +309,15 @@ def get_or_calc_embeddings(params):
             max_depth = int(params['max_depth'])
         # batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
         #         data_sequences]
-        batch = [sequ_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth) for parsed_data in
+        batch = [[[sequ_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth)], []] for parsed_data in
                  data_sequences]
 
         if len(batch) > 0:
-            fdict = embedder.build_feed_dict(batch)
-            embeddings = sess.run(embedder.tree_embeddings, feed_dict=fdict)
-            if embedder.scoring_enabled:
-                fdict_scoring = embedder.build_scoring_feed_dict(embeddings)
-                params['scores'] = sess.run(embedder.scores, feed_dict=fdict_scoring)
+            fdict = model_tree.build_feed_dict(batch)
+            embeddings = sess.run(model_tree.embeddings_all, feed_dict=fdict)
+            #if embedder.scoring_enabled:
+            #    fdict_scoring = embedder.build_scoring_feed_dict(embeddings)
+            #    params['scores'] = sess.run(embedder.scores, feed_dict=fdict_scoring)
         else:
             embeddings = np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
             scores = np.zeros(shape=(0,), dtype=np.float32)
@@ -371,6 +371,7 @@ def distance():
     return response
 
 
+# DEPRECATED
 @app.route("/api/similarity", methods=['POST'])
 def sim():
     try:
@@ -531,7 +532,7 @@ def init_sequence_trees():
 
 
 def main(unused_argv):
-    global sess, embedder, lexicon
+    global sess, model_tree, lexicon
 
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
     ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -581,26 +582,23 @@ def main(unused_argv):
         else:
             logging.info('no scoring vars found. Disable scoring functionality.')
 
-        sim_measure = getattr(model_fold, FLAGS.model_sim_measure)
+        #sim_measure = getattr(model_fold, FLAGS.model_sim_measure)
 
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-                tree_model = model_fold.SequenceTreeModel(lex_size=len(lexicon),
-                                                          tree_embedder=tree_embedder,
-                                                          state_size=FLAGS.model_state_size,
-                                                          lexicon_trainable=False,
-                                                          leaf_fc_size=FLAGS.model_leaf_fc_size,
-                                                          root_fc_size=FLAGS.model_root_fc_size,
-                                                          keep_prob=1.0)
-
-                embedder = model_fold.SequenceTreeEmbedding(tree_model=tree_model,
-                                                            sim_measure=sim_measure,
-                                                            scoring_enabled=len(scoring_var_names) > 0
-                                                            )
+                model_tree = model_fold.SequenceTreeModel_new(lex_size=len(lexicon),
+                                                              tree_embedder=tree_embedder,
+                                                              state_size=FLAGS.model_state_size,
+                                                              lexicon_trainable=False,
+                                                              leaf_fc_size=FLAGS.model_leaf_fc_size,
+                                                              root_fc_size=FLAGS.model_root_fc_size,
+                                                              keep_prob=1.0,
+                                                              tree_count=1,
+                                                              prob_count=0)
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                    vars_without_embed = [v for v in vars_all if v != tree_model.embedder.lexicon_var]
+                    vars_without_embed = [v for v in vars_all if v != model_tree.embedder.lexicon_var]
                     if len(vars_without_embed) > 0:
                         saver = tf.train.Saver(var_list=vars_without_embed)
                     else:
@@ -616,8 +614,8 @@ def main(unused_argv):
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     logging.info('init embeddings with external vectors ...')
-                    sess.run(embedder.tree_model.embedder.lexicon_init,
-                             feed_dict={embedder.tree_model.embedder.lexicon_placeholder: lexicon.vecs})
+                    sess.run(model_tree.embedder.lexicon_init,
+                             feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs})
 
                 if FLAGS.save_final_model_path:
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')

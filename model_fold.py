@@ -552,6 +552,110 @@ class SequenceTreeModel(object):
         return self._tree_embed
 
 
+class SequenceTreeModel_new(object):
+    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, lexicon_trainable=True, keep_prob=1.0,
+                 tree_count=2, prob_count=None, **kwargs):
+        if prob_count is None:
+            prob_count = tree_count
+
+        self._tree_count = tree_count
+        self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
+
+        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable,
+                                         keep_prob_placeholder=self._keep_prob, **kwargs)
+
+        embed_tree = self._tree_embed()
+        model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, tree_count) >> td.Concat(),
+                         td.GetItem(1) >> td.Vector(prob_count))
+
+        # fold model output
+        self._compiler = td.Compiler.create(model)
+        (self._tree_embeddings_all, self._probs_gold) = self._compiler.output_tensors
+
+    def build_feed_dict(self, data):
+        return self._compiler.build_feed_dict(data)
+
+    @property
+    def keep_prob(self):
+        return self._keep_prob
+
+    @property
+    def embedder(self):
+        return self._tree_embed
+
+    @property
+    def embeddings_all(self):
+        return self._tree_embeddings_all
+
+    @property
+    def probs_gold(self):
+        return self._probs_gold
+
+    @property
+    def compiler(self):
+        return self._compiler
+
+    @property
+    def tree_count(self):
+        return self._tree_count
+
+    @property
+    def tree_output_size(self):
+        return int(self._tree_embeddings_all.get_shape().as_list()[1] / self.tree_count)
+
+
+class BaseTrainModel_new(object):
+    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1):
+
+        self._loss = loss
+        self._tree_model = tree_model
+
+        self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
+
+        if optimizer is not None:
+            self._optimizer = optimizer(learning_rate=learning_rate)
+
+            # gradient manipulation
+            gradients, variables = zip(*self._optimizer.compute_gradients(self._loss))
+            # reversal gradient integration
+            # gradients_rev, _ = zip(*self._optimizer.compute_gradients(self._loss_rev))
+            # gradients = list(gradients)
+            # for grads_idx, grads in enumerate(gradients):
+            #    if isinstance(grads, tf.Tensor):
+            #        gradients[grads_idx] = gradients[grads_idx] - gradients_rev[grads_idx]
+            # gradient clipping
+            gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
+            self._train_op = self._optimizer.apply_gradients(grads_and_vars=zip(gradients, variables),
+                                                             global_step=self._global_step)
+        else:
+            self._train_op = None
+
+    def optimizer_vars(self):
+        slot_names = self._optimizer.get_slot_names()
+        all_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+        opt_vars = []
+        for slot_name in slot_names:
+            opt_vars.extend([self._optimizer.get_slot(var=v, name=slot_name) for v in all_vars if
+                             self._optimizer.get_slot(var=v, name=slot_name)])
+        return opt_vars
+
+    @property
+    def train_op(self):
+        return self._train_op
+
+    @property
+    def loss(self):
+        return self._loss
+
+    @property
+    def global_step(self):
+        return self._global_step
+
+    @property
+    def tree_model(self):
+        return self._tree_model
+
+
 class BaseTrainModel(object):
     def __init__(self, compiler, optimizer, learning_rate, tree_model, loss):#, scores=None, scores_gold=None):
 
@@ -671,6 +775,44 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         return self._scores
 
 
+class SimilaritySequenceTreeTupleModel_new(BaseTrainModel_new):
+    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
+
+    def __init__(self, tree_model, learning_rate=0.01, optimizer=None, sim_measure=sim_cosine):
+        # fixed probs_count
+        #probs_count = 1
+        #self._probs = tf.placeholder(tf.float32, [None, probs_count])
+        # unpack scores_gold
+        self._scores_gold = tree_model.probs_gold[:, 1]
+
+        tree_size = tree_model.tree_output_size
+
+        self._tree_embeddings_1 = tree_model.embeddings_all[:, :tree_size]
+        self._tree_embeddings_2 = tree_model.embeddings_all[:, tree_size:tree_size * 2]
+        self._scores = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
+
+        BaseTrainModel_new.__init__(self, optimizer=optimizer, learning_rate=learning_rate,
+                                    tree_model=tree_model, loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)))
+
+        #self._tree_embeddings_all = tf.concat([self._tree_embeddings_1, self._tree_embeddings_2], axis=-1)
+
+    @property
+    def tree_embeddings_1(self):
+        return self._tree_embeddings_1
+
+    @property
+    def tree_embeddings_2(self):
+        return self._tree_embeddings_2
+
+    @property
+    def scores_gold(self):
+        return self._scores_gold
+
+    @property
+    def scores(self):
+        return self._scores
+
+
 class SequenceToTuple(td.Block):
     """A Python function, lifted to a block."""
 
@@ -739,6 +881,20 @@ class SimilaritySequenceTreeTupleModel2(BaseTrainModel):
     @property
     def probs_gold(self):
         return self._probs_gold
+
+
+class SimilaritySequenceTreeTupleModel2_new(BaseTrainModel_new):
+    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
+
+    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, probs_count=2):
+        #self._probs_gold = tf.placeholder(tf.float32, [None, probs_count])
+
+        self._prediction_logits = tf.contrib.layers.fully_connected(tree_model.embeddings_all, probs_count,
+                                                                    activation_fn=None, scope=DEFAULT_SCOPE_SCORING)
+        loss = tf.reduce_mean(
+            tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.probs_gold, logits=self._prediction_logits))
+
+        BaseTrainModel_new.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer, learning_rate=learning_rate)
 
 
 class ScoredSequenceTreeModel(BaseTrainModel):
@@ -840,9 +996,9 @@ class SequenceTreeEmbedding(object):
 
 class SequenceTreeEmbeddingSequence(object):
     """ A Fold model for training sequence tree embeddings using negative sampling.
-        The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object 
+        The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object
         containing a sequence of sequence trees (see SequenceNode) assuming the first is the correct one.
-        It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum 
+        It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum
         entropy loss with regard to the correct tree.
     """
 
@@ -1030,9 +1186,9 @@ def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
 
 class SequenceTreeEmbeddingWithCandidates(object):
     """ A Fold model for training sequence tree embeddings using NCE.
-        The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object 
+        The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object
         containing a sequence of sequence trees (see SequenceNode) and an index of the correct tree.
-        It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum 
+        It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum
         entropy loss with regard to the correct tree.
     """
 

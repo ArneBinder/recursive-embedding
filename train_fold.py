@@ -331,42 +331,33 @@ def main(unused_argv):
         for c in tree['children']:
             set_head_neg(c)
 
-    # deprecated
-    def tuple_data_iterator(sim_index_files, data, children, replace_idx=None, set_neg=False):
+    def tuple_data_iterator_simple_single(sim_index_files, data, children, root_idx=None, shuffle=False):
         for sim_index_file in sim_index_files:
             sim_index_tuples = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
             for sim_index_tuple in sim_index_tuples:
-                x = {'first': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[0]),
-                     'second': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[1]),
-                     'similarity': sim_index_tuple[2]}
-                if replace_idx:
-                    x['first']['head'] = replace_idx
-                    x['second']['head'] = replace_idx
+                _trees = [sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[0]),
+                          sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[1])]
+                if root_idx is not None:
+                    _trees[0]['head'] = root_idx
+                # unify heads
+                _trees[1]['head'] = _trees[0]['head']
+                # second entry holds the gold sim value (second head was overwritten with first head)
+                _probs = [1.0, sim_index_tuple[2]]
+                if shuffle:
+                    perm = np.random.permutation(2)
+                    yield [[_trees[i] for i in perm], np.array([_probs[i] for i in perm])]
                 else:
-                    x['second']['head'] = x['first']['head']
-                if set_neg:
-                    set_head_neg(x['first'])
-                    set_head_neg(x['second'])
-                yield x
+                    yield [_trees, np.array(_probs)]
 
-    def tuple_data_iterator_simpile(sim_index_files, data, children):
-        for sim_index_file in sim_index_files:
-            sim_index_tuples = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
-            for sim_index_tuple in sim_index_tuples:
-                x = {'first': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[0]),
-                     'second': sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[1]),
-                     'similarity': sim_index_tuple[2]}
-                yield x
+    if FLAGS.data_single:
+        data_iterator_train = partial(tuple_data_iterator_simple_single, shuffle=True)
+        data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=IDENTITY_idx)
+    else:
+        data_iterator_train = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
+        data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
 
-    # if FLAGS.data_single:
-    # data_iterator_train = corpus_simtuple.iterate_scored_tree_data
-    # data_iterator_test = partial(tuple_data_iterator, replace_idx=IDENTITY_idx, set_neg=True)
-    # else:
-    # data_iterator_train = partial(tuple_data_iterator, replace_idx=ROOT_idx)
-    # data_iterator_test = partial(tuple_data_iterator, replace_idx=ROOT_idx, set_neg=True)
-
-    data_iterator_train = tuple_data_iterator_simpile
-    data_iterator_test = tuple_data_iterator_simpile
+    #data_iterator_train = tuple_data_iterator_simple
+    #data_iterator_test = tuple_data_iterator_simple
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
@@ -405,31 +396,32 @@ def main(unused_argv):
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             # Build the graph.
-            model_tree = model_fold.SequenceTreeModel(lex_size=lex_size,
-                                                      tree_embedder=tree_embedder,
-                                                      state_size=FLAGS.state_size,
-                                                      lexicon_trainable=FLAGS.lexicon_trainable,
-                                                      leaf_fc_size=FLAGS.leaf_fc_size,
-                                                      root_fc_size=FLAGS.root_fc_size,
-                                                      keep_prob=FLAGS.keep_prob,
+            model_tree = model_fold.SequenceTreeModel_new(lex_size=lex_size,
+                                                          tree_embedder=tree_embedder,
+                                                          state_size=FLAGS.state_size,
+                                                          lexicon_trainable=FLAGS.lexicon_trainable,
+                                                          leaf_fc_size=FLAGS.leaf_fc_size,
+                                                          root_fc_size=FLAGS.root_fc_size,
+                                                          keep_prob=FLAGS.keep_prob,
+                                                          tree_count=2
                                                       # keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
                                                       )
 
             # has to be created first #TODO: really?
             if FLAGS.data_single:
-                model_train = model_fold.SimilaritySequenceTreeTupleModel2(tree_model=model_tree,
-                                                                           learning_rate=FLAGS.learning_rate,
-                                                                           optimizer=optimizer,
-                                                                           tree_count=2)
-                # reg = linear_model.LinearRegression()
-
-            model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                                                                     learning_rate=FLAGS.learning_rate,
-                                                                     optimizer=optimizer,
-                                                                     sim_measure=sim_measure,
-                                                                     idx_root=IDENTITY_idx if FLAGS.data_single else None
-                                                                     )
-            if not FLAGS.data_single:
+                model_train = model_fold.SimilaritySequenceTreeTupleModel2_new(tree_model=model_tree,
+                                                                               optimizer=optimizer,
+                                                                               learning_rate=FLAGS.learning_rate,
+                                                                               probs_count=2)
+                model_test = model_fold.SimilaritySequenceTreeTupleModel_new(tree_model=model_tree,
+                                                                             optimizer=None,
+                                                                             learning_rate=FLAGS.learning_rate,
+                                                                             sim_measure=sim_measure)
+            else:
+                model_test = model_fold.SimilaritySequenceTreeTupleModel_new(tree_model=model_tree,
+                                                                             optimizer=optimizer,
+                                                                             learning_rate=FLAGS.learning_rate,
+                                                                             sim_measure=sim_measure)
                 model_train = model_test
 
             # PREPARE TRAINING #########################################################################################
@@ -509,7 +501,7 @@ def main(unused_argv):
                 feed_dict = {}
                 execute_vars = {'loss': model.loss}
                 if new_model:
-                    execute_vars['probs_gold'] = model.probs_gold
+                    execute_vars['probs_gold'] = model.tree_model.probs_gold
                 else:
                     execute_vars['scores'] = model.scores
                     execute_vars['scores_gold'] = model.scores_gold
@@ -517,15 +509,13 @@ def main(unused_argv):
                     execute_vars['train_op'] = model.train_op
                     execute_vars['step'] = model.global_step
                 else:
-                    feed_dict[model.keep_prob] = 1.0
-                #if apply_linreg:
-                #    execute_vars['embeddings'] = model.tree_embeddings_all
+                    feed_dict[model.tree_model.keep_prob] = 1.0
 
                 _result_all = []
 
                 # for batch in td.group_by_batches(data_set, FLAGS.batch_size if train else len(test_set)):
                 for batch in td.group_by_batches(data_set, FLAGS.batch_size):
-                    feed_dict[model.compiler.loom_input_tensor] = batch
+                    feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
                     _result_all.append(sess.run(execute_vars, feed_dict))
 
                 # list of dicts to dict of lists
@@ -538,16 +528,6 @@ def main(unused_argv):
                 # logging.debug(np.concatenate(score_all).tolist())
                 # logging.debug(np.concatenate(score_all_gold).tolist())
 
-
-
-                #if apply_linreg:
-                #    # EXPERIMENTAL
-                #    embeddings_all = np.concatenate(result_all['embeddings'], axis=0)
-                #    reg.fit(embeddings_all, score_all_gold_)
-                #    score_all_ = np.matmul(embeddings_all, reg.coef_)
-                #    loss_all = np.mean((score_all_ - score_all_gold_) ** 2)
-                #    # EXPERIMENTAL end
-                #else:
                 if new_model:
                     sizes = [len(result_all['probs_gold'][i]) for i in range(len(_result_all))]
                     score_all_ = None
@@ -565,10 +545,11 @@ def main(unused_argv):
 
             data, parents = sequence_trees.load(FLAGS.train_data_path)
             children, roots = sequence_trees.children_and_roots(parents)
-            with model_train.compiler.multiprocessing_pool():
+            with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
                     logging.info('create test data set ...')
-                    test_set = list(model_test.compiler.build_loom_inputs(test_iterator(data=data, children=children)))
+                    dummy = model_test.tree_model.compiler.build_loom_inputs(test_iterator(data=data, children=children))
+                    test_set = list(dummy)
                     logging.info('test data size: ' + str(len(test_set)))
                     if not train_iterator:
                         do_epoch(model_test, test_set, 0, train=False, emit=False)
@@ -576,7 +557,7 @@ def main(unused_argv):
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)
-                train_set = model_train.compiler.build_loom_inputs(train_iterator(data=data, children=children))
+                train_set = model_tree.compiler.build_loom_inputs(train_iterator(data=data, children=children))
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
@@ -592,9 +573,7 @@ def main(unused_argv):
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch,
-                                                                               train=False, test_step=step_train,
-                                                                               # apply_linreg=FLAGS.data_single
-                                                                               )
+                                                                               train=False, test_step=step_train)
 
                         # EARLY STOPPING ###############################################################################
 
@@ -617,7 +596,7 @@ def main(unused_argv):
                             break
 
                         if len(test_p_rs) > FLAGS.early_stop_queue:
-                            if test_p_rs[0] == max(test_p_rs):
+                            if test_p_rs[0] == max(test_p_rs) and FLAGS.early_stop_queue:
                                 logging.debug('warning: remove highest value (%f)' % test_p_rs[0])
                             del test_p_rs[0]
 
