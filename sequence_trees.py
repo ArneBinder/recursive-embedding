@@ -401,6 +401,10 @@ def to_trees(data, parents):
 
 class SequenceTrees(object):
     def __init__(self, filename=None, data=None, parents=None, trees=None):
+        self._children = None
+        self._roots = None
+        self._depths = None
+        self._depths_collected = None
         self._filename = filename
         if filename is not None:
             if exist(filename):
@@ -425,8 +429,6 @@ class SequenceTrees(object):
         else:
             raise ValueError(
                 'Not enouth arguments to instantiate SequenceTrees object. Please provide a filename or data and parent arrays.')
-        self._children = None
-        self._roots = None
 
     def dump(self, filename):
         dump(fn=filename, data=self.data, parents=self.parents)
@@ -435,6 +437,10 @@ class SequenceTrees(object):
     def reload(self):
         assert self._filename is not None, 'no filename set'
         self._trees = to_trees(*load(self._filename))
+        self._depths = None
+        self._depths_collected = None
+        self._children = None
+        self._roots = None
 
     def write_tuple_idx_data(self, sizes, factor=1, out_path_prefix='', scores=None, index_converter=None):
         if len(out_path_prefix) > 0:
@@ -467,6 +473,16 @@ class SequenceTrees(object):
     def descendant_indices(self, root):
         return get_descendant_indices(self.children, root)
 
+    def _set_depths(self, indices, current_depth, child_offset=0):
+        for i in indices:
+            idx = i + child_offset
+            self._depths[i] = current_depth
+            self._set_depths(self._children[idx], current_depth+1, idx)
+
+    def subtrees_equal(self, root1, root2):
+        # TODO: implement!
+        raise NotImplementedError
+
     def __str__(self):
         return self._trees.__str__()
 
@@ -493,3 +509,22 @@ class SequenceTrees(object):
         if self._roots is None:
             self._roots = np.where(self.parents == 0)[0]
         return self._roots
+
+    # TODO: check!
+    @property
+    def depths(self):
+        if self._depths is None:
+            self._depths = np.zeros(shape=self.data.shape, dtype=np.int32)
+            self._set_depths(self.roots, 0)
+            self._depths_collected = None
+        return self._depths
+
+    # TODO: check!
+    @property
+    def depths_collected(self):
+        if self._depths_collected is None:
+            self._depths_collected = []
+            m = np.max(self.depths)
+            for depth in range(m + 1):
+                self._depths_collected.append(np.where(self.depths == depth)[0])
+        return self._depths_collected
