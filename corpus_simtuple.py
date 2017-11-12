@@ -174,45 +174,35 @@ def sample_indices(idx, subtrees, root_data, sims_correct, prog_bar=None):
 
 
 # unused
-def sample_all(data, parents, children, roots):
-    # calc depths
-    logging.debug('calc depths ...')
-    depths = sequ_trees.calc_seq_depth(children, roots, parents)
-    max_depth = np.max(depths)
-    logging.debug('max_depth: %i' % max_depth)
+# TODO: check!
+def sample_all(sequence_trees, sample_count=1, retry_count=10):
     sampled_sim_tuples = []
+    max_depth = np.max(sequence_trees.depths)
     # sample for every depth only from trees with this depth
-    for depth in range(max_depth + 1):
-        data_temp = np.array(data, copy=True)
-        depth_indices = np.where(depths == depth)[0]
-        logging.debug('sample for depth=%i (%i indices) ...' % (depth, len(depth_indices)))
+    for current_depth, indices in enumerate(sequence_trees.depths_collected):
         current_new_simtuples = []
-        if depth == 0:
-            for i, d_i in enumerate(depth_indices):
-                current_new_simtuples.append([d_i, d_i, 1.0])
+        if current_depth == max_depth:
+            # add all leafs
+            for idx in indices:
+                current_new_simtuples.append([idx] * sample_count)
             sampled_sim_tuples.extend(current_new_simtuples)
             continue
 
-        descendants = [None] * len(depth_indices)
-        for i, d_i in enumerate(depth_indices):
-            descendants[i] = sorted(sequ_trees.get_descendant_indices(children, d_i))
-            # blank "roots"
-            data_temp[d_i] = -1
-
-        for i, d_i in enumerate(depth_indices):
-            current_data = map(lambda x: data_temp[x], descendants[i])
-            probs = np.ones(len(depth_indices), dtype=np.float32)
-            probs[:i] = np.zeros(i, dtype=probs.dtype)
-            for _j, d_j in enumerate(depth_indices[i:]):
-                j = i + _j
-                if current_data == map(lambda x: data_temp[x], descendants[j]):
-                    probs[j] = 0.0
-            probs /= np.sum(probs)
-            new_indices = np.random.choice(depth_indices, size=FLAGS.neg_samples, p=probs)
-            current_new_simtuples.extend([(d_i, idx, 0.0) for idx in new_indices])
-
-        sampled_sim_tuples.extend(current_new_simtuples)
-    return sampled_sim_tuples
+        for idx in indices:
+            idx_data = sequence_trees.data[idx]
+            current_sampled_indices = [idx]
+            for _ in range(retry_count):
+                candidate_indices = np.random.choice(indices, 100 * sample_count)
+                for candidate_idx in candidate_indices:
+                    if idx_data != sequence_trees.data[candidate_idx] and sequence_trees.subtrees_equal(idx, candidate_idx):
+                        current_sampled_indices.append(candidate_idx)
+                    if len(current_sampled_indices) > sample_count:
+                        break
+                if len(current_sampled_indices) > sample_count:
+                    break
+            if len(current_sampled_indices) <= sample_count:
+                logging.warning('sampled less candidates (%i) than sample_count (%i)' % (len(current_sampled_indices) - 1, sample_count))
+            current_new_simtuples.extend(current_sampled_indices)
 
 
 def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, overwrite=False):
