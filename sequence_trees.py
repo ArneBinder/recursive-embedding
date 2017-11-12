@@ -473,7 +473,9 @@ class SequenceTrees(object):
     def descendant_indices(self, root):
         return get_descendant_indices(self.children, root)
 
+    # TODO: check!
     def _set_depths(self, indices, current_depth, child_offset=0):
+        # depths are counted starting from roots!
         for i in indices:
             idx = i + child_offset
             self._depths[i] = current_depth
@@ -482,6 +484,37 @@ class SequenceTrees(object):
     def subtrees_equal(self, root1, root2):
         # TODO: implement!
         raise NotImplementedError
+
+    # TODO: check!
+    def sample_all(self, sample_count=1, retry_count=10):
+        sampled_sim_tuples = []
+        max_depth = np.max(self.depths)
+        # sample for every depth only from trees with this depth
+        for current_depth, indices in enumerate(self.depths_collected):
+            if current_depth == max_depth:
+                # add all leafs
+                for idx in indices:
+                    # pad to (sample_count + 1)
+                    sampled_sim_tuples.append([idx] * (sample_count + 1))
+                continue
+
+            for idx in indices:
+                idx_data = self.data[idx]
+                current_sampled_indices = [idx]
+                for _ in range(retry_count):
+                    candidate_indices = np.random.choice(indices, 100 * sample_count)
+                    for candidate_idx in candidate_indices:
+                        if idx_data != self.data[candidate_idx] and self.subtrees_equal(idx, candidate_idx):
+                            current_sampled_indices.append(candidate_idx)
+                        if len(current_sampled_indices) > sample_count:
+                            break
+                    if len(current_sampled_indices) > sample_count:
+                        break
+                if len(current_sampled_indices) <= sample_count:
+                    logging.warning('sampled less candidates (%i) than sample_count (%i)'
+                                    % (len(current_sampled_indices) - 1, sample_count))
+                sampled_sim_tuples.extend(current_sampled_indices)
+        return sampled_sim_tuples
 
     def __str__(self):
         return self._trees.__str__()

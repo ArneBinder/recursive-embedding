@@ -173,38 +173,6 @@ def sample_indices(idx, subtrees, root_data, sims_correct, prog_bar=None):
     #sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
 
 
-# unused
-# TODO: check!
-def sample_all(sequence_trees, sample_count=1, retry_count=10):
-    sampled_sim_tuples = []
-    max_depth = np.max(sequence_trees.depths)
-    # sample for every depth only from trees with this depth
-    for current_depth, indices in enumerate(sequence_trees.depths_collected):
-        current_new_simtuples = []
-        if current_depth == max_depth:
-            # add all leafs
-            for idx in indices:
-                current_new_simtuples.append([idx] * sample_count)
-            sampled_sim_tuples.extend(current_new_simtuples)
-            continue
-
-        for idx in indices:
-            idx_data = sequence_trees.data[idx]
-            current_sampled_indices = [idx]
-            for _ in range(retry_count):
-                candidate_indices = np.random.choice(indices, 100 * sample_count)
-                for candidate_idx in candidate_indices:
-                    if idx_data != sequence_trees.data[candidate_idx] and sequence_trees.subtrees_equal(idx, candidate_idx):
-                        current_sampled_indices.append(candidate_idx)
-                    if len(current_sampled_indices) > sample_count:
-                        break
-                if len(current_sampled_indices) > sample_count:
-                    break
-            if len(current_sampled_indices) <= sample_count:
-                logging.warning('sampled less candidates (%i) than sample_count (%i)' % (len(current_sampled_indices) - 1, sample_count))
-            current_new_simtuples.extend(current_sampled_indices)
-
-
 def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, overwrite=False):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
