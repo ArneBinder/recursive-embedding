@@ -750,7 +750,8 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         input_layer = tf.reshape(trees, [-1, count, tree_model.tree_output_size, 1])
 
         conv = tf.layers.conv2d(inputs=input_layer, filters=1,
-                                kernel_size=[1, tree_model.tree_output_size], activation=None)
+                                kernel_size=[1, tree_model.tree_output_size], activation=None,
+                                name=DEFAULT_SCOPE_SCORING)
         self._prediction_logits = tf.reshape(conv, shape=[-1, count])
         loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
 
