@@ -34,6 +34,29 @@ def SeqToTuple(T, N):
             .set_output_type(td.TupleType(*([T] * N))))
 
 
+class SequenceToTuple(td.Block):
+    """A Python function, lifted to a block."""
+
+    def __init__(self, T, N, name=None):
+        py_fn = (lambda x: tuple(x))
+        if not callable(py_fn):
+            raise TypeError('py_fn is not callable: %s' % str(py_fn))
+        self._py_fn = py_fn
+        super(SequenceToTuple, self).__init__(
+            [], input_type=td.SequenceType(T), output_type=td.TupleType(*([T] * N)),
+            name=name)
+
+    def _repr_kwargs(self):
+        return dict(py_fn=self.py_fn)
+
+    @property
+    def py_fn(self):
+        return self._py_fn
+
+    def _evaluate(self, _, x):
+        return self._py_fn(x)
+
+
 def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu, keep_prob=None):
     def fc_(inputs, scope):
         if keep_prob is None:
@@ -555,24 +578,6 @@ def get_jaccard_sim(tree_tuple):
 
 
 class SequenceTreeModel(object):
-    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM,
-                 lexicon_trainable=True, keep_prob=1.0, **kwargs):
-
-        self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
-
-        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable,
-                                         keep_prob_placeholder=self._keep_prob, **kwargs)
-
-    @property
-    def keep_prob(self):
-        return self._keep_prob
-
-    @property
-    def embedder(self):
-        return self._tree_embed
-
-
-class SequenceTreeModel_new(object):
     def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, lexicon_trainable=True, keep_prob=1.0,
                  tree_count=2, prob_count=None, **kwargs):
         if prob_count is None:
@@ -624,7 +629,7 @@ class SequenceTreeModel_new(object):
         return int(self._tree_embeddings_all.get_shape().as_list()[1] / self.tree_count)
 
 
-class BaseTrainModel_new(object):
+class BaseTrainModel(object):
     def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1):
 
         self._loss = loss
@@ -676,7 +681,7 @@ class BaseTrainModel_new(object):
         return self._tree_model
 
 
-class SimilaritySequenceTreeTupleModel_new(BaseTrainModel_new):
+class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, learning_rate=0.01, optimizer=None, sim_measure=sim_cosine):
@@ -690,8 +695,8 @@ class SimilaritySequenceTreeTupleModel_new(BaseTrainModel_new):
         self._tree_embeddings_2 = tree_model.embeddings_all[:, tree_size:tree_size * 2]
         self._scores = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
-        BaseTrainModel_new.__init__(self, optimizer=optimizer, learning_rate=learning_rate,
-                                    tree_model=tree_model, loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)))
+        BaseTrainModel.__init__(self, optimizer=optimizer, learning_rate=learning_rate,
+                                tree_model=tree_model, loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)))
 
     @property
     def tree_embeddings_1(self):
@@ -710,30 +715,7 @@ class SimilaritySequenceTreeTupleModel_new(BaseTrainModel_new):
         return self._scores
 
 
-class SequenceToTuple(td.Block):
-    """A Python function, lifted to a block."""
-
-    def __init__(self, T, N, name=None):
-        py_fn = (lambda x: tuple(x))
-        if not callable(py_fn):
-            raise TypeError('py_fn is not callable: %s' % str(py_fn))
-        self._py_fn = py_fn
-        super(SequenceToTuple, self).__init__(
-            [], input_type=td.SequenceType(T), output_type=td.TupleType(*([T] * N)),
-            name=name)
-
-    def _repr_kwargs(self):
-        return dict(py_fn=self.py_fn)
-
-    @property
-    def py_fn(self):
-        return self._py_fn
-
-    def _evaluate(self, _, x):
-        return self._py_fn(x)
-
-
-class SimilaritySequenceTreeTupleModel2_new(BaseTrainModel_new):
+class ScoredSequenceTreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, probs_count=2):
@@ -743,7 +725,7 @@ class SimilaritySequenceTreeTupleModel2_new(BaseTrainModel_new):
         loss = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.probs_gold, logits=self._prediction_logits))
 
-        BaseTrainModel_new.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer, learning_rate=learning_rate)
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer, learning_rate=learning_rate)
 
 
 # DEPRECATED

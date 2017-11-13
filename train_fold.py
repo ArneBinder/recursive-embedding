@@ -332,10 +332,10 @@ def main(unused_argv):
         for c in tree['children']:
             set_head_neg(c)
 
-    def tuple_data_iterator_simple_single(sim_index_files, data, children, root_idx=None, shuffle=False):
+    def tuple_data_iterator_simple_single(sim_index_files, data, children, root_idx=None, shuffle=False, extensions=None):
         n_last = None
         for sim_index_file in sim_index_files:
-            indices, probs = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
+            indices, probs = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
             n = len(indices[0])
             assert n_last is None or n_last == n, 'all index tuple files have to contain the same amount of tuple ' \
                                                   'entries, but entries in %s (%i) deviate (from %i)' \
@@ -363,11 +363,13 @@ def main(unused_argv):
                     yield [_trees, _probs]
 
     if FLAGS.data_single:
-        data_iterator_train = partial(tuple_data_iterator_simple_single, shuffle=True)
-        data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=IDENTITY_idx)
+        data_iterator_train = partial(tuple_data_iterator_simple_single, shuffle=True, extensions=['', '.negs1'])
+        data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=IDENTITY_idx, extensions=['', '.negs1'])
+        tuple_size = 3
     else:
         data_iterator_train = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
         data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
+        tuple_size = 2
 
     #data_iterator_train = tuple_data_iterator_simple
     #data_iterator_test = tuple_data_iterator_simple
@@ -409,32 +411,32 @@ def main(unused_argv):
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             # Build the graph.
-            model_tree = model_fold.SequenceTreeModel_new(lex_size=lex_size,
-                                                          tree_embedder=tree_embedder,
-                                                          state_size=FLAGS.state_size,
-                                                          lexicon_trainable=FLAGS.lexicon_trainable,
-                                                          leaf_fc_size=FLAGS.leaf_fc_size,
-                                                          root_fc_size=FLAGS.root_fc_size,
-                                                          keep_prob=FLAGS.keep_prob,
-                                                          tree_count=2
+            model_tree = model_fold.SequenceTreeModel(lex_size=lex_size,
+                                                      tree_embedder=tree_embedder,
+                                                      state_size=FLAGS.state_size,
+                                                      lexicon_trainable=FLAGS.lexicon_trainable,
+                                                      leaf_fc_size=FLAGS.leaf_fc_size,
+                                                      root_fc_size=FLAGS.root_fc_size,
+                                                      keep_prob=FLAGS.keep_prob,
+                                                      tree_count=tuple_size
                                                       # keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
                                                       )
 
             # has to be created first #TODO: really?
             if FLAGS.data_single:
-                model_train = model_fold.SimilaritySequenceTreeTupleModel2_new(tree_model=model_tree,
-                                                                               optimizer=optimizer,
-                                                                               learning_rate=FLAGS.learning_rate,
-                                                                               probs_count=2)
-                model_test = model_fold.SimilaritySequenceTreeTupleModel_new(tree_model=model_tree,
-                                                                             optimizer=None,
-                                                                             learning_rate=FLAGS.learning_rate,
-                                                                             sim_measure=sim_measure)
+                model_train = model_fold.ScoredSequenceTreeTupleModel(tree_model=model_tree,
+                                                                      optimizer=optimizer,
+                                                                      learning_rate=FLAGS.learning_rate,
+                                                                      probs_count=tuple_size)
+                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                                                                         optimizer=None,
+                                                                         learning_rate=FLAGS.learning_rate,
+                                                                         sim_measure=sim_measure)
             else:
-                model_test = model_fold.SimilaritySequenceTreeTupleModel_new(tree_model=model_tree,
-                                                                             optimizer=optimizer,
-                                                                             learning_rate=FLAGS.learning_rate,
-                                                                             sim_measure=sim_measure)
+                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                                                                         optimizer=optimizer,
+                                                                         learning_rate=FLAGS.learning_rate,
+                                                                         sim_measure=sim_measure)
                 model_train = model_test
 
             # PREPARE TRAINING #########################################################################################
