@@ -516,9 +516,9 @@ class SequenceTrees(object):
         for current_depth, indices in enumerate(self.depths_collected):
             if current_depth == max_depth:
                 # add all leafs
-                for idx in indices:
-                    # pad to (sample_count + 1)
-                    sampled_sim_tuples.append([idx] * (sample_count + 1))
+                #for idx in indices:
+                #    # pad to (sample_count + 1)
+                #    sampled_sim_tuples.append([idx] * (sample_count + 1))
                 continue
 
             for idx in indices:
