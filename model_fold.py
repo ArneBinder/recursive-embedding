@@ -599,10 +599,6 @@ class SequenceTreeModel(object):
         self._compiler = td.Compiler.create(model)
         (self._tree_embeddings_all, self._probs_gold) = self._compiler.output_tensors
 
-        ## TODO: doesn't work as expected!
-        #self._probs_gold_flattened = tf.concat(self._probs_gold, axis=0)
-        #self._tree_embeddings_all_flattened = tf.concat(self._tree_embeddings_all, axis=0)
-
     def build_feed_dict(self, data):
         return self._compiler.build_feed_dict(data)
 
@@ -618,19 +614,9 @@ class SequenceTreeModel(object):
     def embeddings_all(self):
         return self._tree_embeddings_all
 
-    ## TODO: doesn't work as expected!
-    #@property
-    #def embeddings_all_flattened(self):
-    #    return self._tree_embeddings_all_flattened
-
     @property
     def probs_gold(self):
         return self._probs_gold
-
-    ## TODO: doesn't work as expected!
-    #@property
-    #def probs_gold_flattened(self):
-    #    return self._probs_gold_flattened
 
     @property
     def compiler(self):
@@ -748,18 +734,25 @@ class ScoredSequenceTreeTupleModel(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer, learning_rate=learning_rate)
 
 
-# TODO: not implemented yet
 class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, probs_count=2):
+    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, count=None):
+        if count is None:
+            count = tree_model.tree_count
+        assert tree_model.prob_count >= count, 'tree_model produces %i prob values per batch entry, but count=%i ' \
+                                                'requested' % (tree_model.prob_count, count)
+        assert tree_model.tree_count >= count, 'tree_model produces %i tree embeddings per batch entry, but count=%i ' \
+                                               'requested' % (tree_model.tree_count, count)
+        # cut inputs to 'count'
+        probs = tree_model.probs_gold[:, :count]
+        trees = tree_model.embeddings_all[:, :count * tree_model.tree_output_size]
+        input_layer = tf.reshape(trees, [-1, count, tree_model.tree_output_size, 1])
 
-
-
-        self._prediction_logits = tf.contrib.layers.fully_connected(tree_model.embeddings_all, probs_count,
-                                                                    activation_fn=None, scope=DEFAULT_SCOPE_SCORING)
-        loss = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.probs_gold, logits=self._prediction_logits))
+        conv = tf.layers.conv2d(inputs=input_layer, filters=1,
+                                kernel_size=[1, tree_model.tree_output_size], activation=None)
+        self._prediction_logits = tf.reshape(conv, shape=[-1, count])
+        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer,
                                 learning_rate=learning_rate)

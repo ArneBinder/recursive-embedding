@@ -350,12 +350,6 @@ def main(unused_argv):
                 for i in range(1, n):
                     _trees[i]['head'] = _trees[0]['head']
                 _probs = probs[idx]
-                #_probs = [1.0, index_tuple[2]]
-                #_probs = np.zeros(n)
-                #_probs[0] = 1.0
-                ## second entry holds the gold sim value (second head was overwritten with first head)
-                #if sims is not None:
-                #    _probs[1] = sims[idx]
                 if shuffle:
                     perm = np.random.permutation(n)
                     yield [[_trees[i] for i in perm], np.array([_probs[i] for i in perm])]
@@ -365,14 +359,11 @@ def main(unused_argv):
     if FLAGS.data_single:
         data_iterator_train = partial(tuple_data_iterator_simple_single, shuffle=True, extensions=['', '.negs1'])
         data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=IDENTITY_idx, extensions=['', '.negs1'])
-        tuple_size = 3
+        tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
     else:
         data_iterator_train = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
         data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
-        tuple_size = 2
-
-    #data_iterator_train = tuple_data_iterator_simple
-    #data_iterator_test = tuple_data_iterator_simple
+        tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
     if not (FLAGS.test_only_file or FLAGS.init_only):
@@ -424,10 +415,9 @@ def main(unused_argv):
 
             # has to be created first #TODO: really?
             if FLAGS.data_single:
-                model_train = model_fold.ScoredSequenceTreeTupleModel(tree_model=model_tree,
-                                                                      optimizer=optimizer,
-                                                                      learning_rate=FLAGS.learning_rate,
-                                                                      probs_count=tuple_size)
+                model_train = model_fold.ScoredSequenceTreeTupleModel_independent(tree_model=model_tree,
+                                                                                  optimizer=optimizer,
+                                                                                  learning_rate=FLAGS.learning_rate)
                 model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                          optimizer=None,
                                                                          learning_rate=FLAGS.learning_rate,
