@@ -520,6 +520,10 @@ def main(unused_argv):
                 else:
                     execute_vars['scores'] = model.scores
                     execute_vars['scores_gold'] = model.scores_gold
+                    #execute_vars['probs_gold'] = model.tree_model.probs_gold
+                    #execute_vars['probs_gold_flattened'] = model.tree_model.probs_gold_flattened
+                    #execute_vars['embeddings_all'] = model.tree_model.embeddings_all
+                    #execute_vars['embeddings_all_flattened'] = model.tree_model.embeddings_all_flattened
                 if train:
                     execute_vars['train_op'] = model.train_op
                     execute_vars['step'] = model.global_step
