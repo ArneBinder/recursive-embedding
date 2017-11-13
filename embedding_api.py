@@ -262,13 +262,18 @@ def get_or_calc_sequence_data(params):
             params['data_sequences'] = []
             params['scores_gold'] = []
             init_sequence_trees()
-            indices_list = corpus_simtuple.load_sim_tuple_indices(fn)
+            indices, sims = corpus_simtuple.load_sim_tuple_indices(fn)
             start = params.get('start', 0)
-            end = params.get('end', len(indices_list))
-            for sim_tuple_indices in indices_list[start: end]:
-                params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[0]]).next())
-                params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[1]]).next())
-                params['scores_gold'].append(sim_tuple_indices[2])
+            end = params.get('end', len(indices))
+            for i, sim_tuple_indices in enumerate(indices[start: end]):
+                #params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[0]]).next())
+                #params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[1]]).next())
+                for idx in sim_tuple_indices:
+                    params['data_sequences'].append(sequence_trees.subtrees([idx]).next())
+                #params['scores_gold'].append(sim_tuple_indices[2])
+                if sims is not None:
+                    params['scores_gold'].append(sims[i + start])
+
             params['scores_gold'] = np.array(params['scores_gold'])
         else:
             raise IOError('could not open "%s"' % fn)

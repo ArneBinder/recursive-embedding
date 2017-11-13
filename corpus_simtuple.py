@@ -75,6 +75,11 @@ tf.flags.DEFINE_boolean(
     True,
     'Whether to replace all dependence edge embeddings with one hot embeddings.'
 )
+tf.flags.DEFINE_boolean(
+    'sample_all',
+    True,
+    'Whether to create negative samples for every data point in the tree sequence.'
+)
 
 FLAGS = tf.flags.FLAGS
 mytools.logging_init()
@@ -171,6 +176,14 @@ def sample_indices(idx, subtrees, root_data, sims_correct, prog_bar=None):
         prog_bar.next()
     return new_indices
     #sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
+
+
+def write_sim_tuple_indices(path, sim_tuple_indices, sizes, path_suffix=''):
+    start = 0
+    for idx, end in enumerate(np.cumsum(sizes)):
+        logging.info('write sim_tuple_indices to: %s.idx.%i%s ...' % (path, idx, path_suffix))
+        np.array(sim_tuple_indices[start:end]).dump('%s.idx.%i%s' % (path, idx, path_suffix))
+        start = end
 
 
 def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, overwrite=False):
@@ -296,6 +309,11 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         else:
             sequence_trees = sequ_trees.SequenceTrees(filename=temp_path)
 
+        # write out unique
+        sim_tuples = [[sequence_trees.roots[tuple_idx * 2], sequence_trees.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
+                      for tuple_idx in range(len(scores))]
+        write_sim_tuple_indices(path='%s.unique' % out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
+
         temp_path = '%s.unique.root_idx.negs%i' % (out_path, FLAGS.neg_samples)
         if not os.path.isfile(temp_path) or overwrite:
             #roots_collected = {}
@@ -332,14 +350,26 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         else:
             sampled_root_indices = np.load(temp_path)
 
-        sequence_trees.write_tuple_idx_data(sizes, factor=FLAGS.neg_samples, out_path_prefix='negs%i' % FLAGS.neg_samples, index_converter=sampled_root_indices)
+        # write out tuple samples
+        sampled_tuples = []
+        for tuple_idx in range(len(scores)):
+            current_samples = [sequence_trees.roots[i * 2 + 1] for i in
+                               sampled_root_indices[tuple_idx * FLAGS.neg_samples:(tuple_idx + 1) * FLAGS.neg_samples]]
+            sampled_tuples.append([sequence_trees.roots[tuple_idx * 2]] + current_samples)
+        write_sim_tuple_indices(path='%s.unique' % out_path, sim_tuple_indices=sampled_tuples, sizes=sizes,
+                                path_suffix='.negs%i' % FLAGS.neg_samples)
 
+        if FLAGS.sample_all:
+            all_samples = sequence_trees.sample_all(sample_count=FLAGS.neg_samples)
+            logging.info('write sim_tuple_indices to: %s.unique.idx.negs%i' % (out_path, FLAGS.neg_samples))
+            np.array(all_samples).dump('%s.unique.idx.negs%i' % (out_path, FLAGS.neg_samples))
         # sampled_all = sample_all(out_path, parents, children, roots)
 
-        sequence_trees.write_tuple_idx_data(sizes, scores=scores)
 
-    sequence_trees = sequ_trees.SequenceTrees(out_path)
-    sequence_trees.write_tuple_idx_data(sizes, scores=scores)
+    else:
+        sim_tuples = [[sequence_trees.roots[tuple_idx * 2], sequence_trees.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
+                      for tuple_idx in range(len(scores))]
+        write_sim_tuple_indices(path='%s' % out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
 
 
 def iterate_sim_tuple_data(paths):
@@ -437,10 +467,15 @@ def write_sim_tuple_data_single(out_fn, sim_tuples, data, children):
 
 def load_sim_tuple_indices(filename):
     _loaded = np.load(filename).T
-    ids1 = _loaded[0].astype(int)
-    ids2 = _loaded[1].astype(int)
-    loaded = zip(ids1, ids2, _loaded[2])
-    return loaded
+    if _loaded.dtype.kind == 'f':
+        indices = _loaded[:-1].astype(int).T
+        sims = _loaded[-1]
+    else:
+        indices = _loaded.T
+        sims = None
+    #loaded = zip(ids1, ids2, _loaded[2])
+    #return loaded
+    return indices, sims
 
 
 def merge_into_corpus(corpus_fn1, corpus_fn2):

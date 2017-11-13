@@ -326,25 +326,37 @@ def main(unused_argv):
 
     # TRAINING and TEST DATA ###########################################################################################
 
+    # unused
     def set_head_neg(tree):
         tree['head'] -= lex_size
         for c in tree['children']:
             set_head_neg(c)
 
     def tuple_data_iterator_simple_single(sim_index_files, data, children, root_idx=None, shuffle=False):
+        n_last = None
         for sim_index_file in sim_index_files:
-            sim_index_tuples = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
-            for sim_index_tuple in sim_index_tuples:
-                _trees = [sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[0]),
-                          sequence_trees.build_sequence_tree_dict(data, children, sim_index_tuple[1])]
+            indices, sims = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
+            n = len(indices[0])
+            assert n_last is None or n_last == n, 'all index tuple files have to contain the same amount of tuple ' \
+                                                  'entries, but entries in %s (%i) deviate (from %i)' \
+                                                  % (sim_index_file, n, n_last)
+            n_last = n
+            for idx in range(len(indices)):
+                index_tuple = indices[idx]
+                _trees = [sequence_trees.build_sequence_tree_dict(data, children, i) for i in index_tuple]
                 if root_idx is not None:
                     _trees[0]['head'] = root_idx
                 # unify heads
-                _trees[1]['head'] = _trees[0]['head']
+                for i in range(1, n):
+                    _trees[i]['head'] = _trees[0]['head']
+                #_probs = [1.0, index_tuple[2]]
+                _probs = np.zeros(n)
+                _probs[0] = 1.0
                 # second entry holds the gold sim value (second head was overwritten with first head)
-                _probs = [1.0, sim_index_tuple[2]]
+                if sims is not None:
+                    _probs[1] = sims[idx]
                 if shuffle:
-                    perm = np.random.permutation(2)
+                    perm = np.random.permutation(n)
                     yield [[_trees[i] for i in perm], np.array([_probs[i] for i in perm])]
                 else:
                     yield [_trees, np.array(_probs)]

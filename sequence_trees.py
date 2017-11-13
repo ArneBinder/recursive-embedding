@@ -463,16 +463,17 @@ class SequenceTrees(object):
         self._children = None
         self._roots = None
 
-    def write_tuple_idx_data(self, sizes, factor=1, out_path_prefix='', scores=None, index_converter=None):
+    # deprecated
+    def write_tuple_idx_data(self, sizes, factor=1, out_path_prefix='', root_scores=None, root_index_converter=None):
         if len(out_path_prefix) > 0:
             out_path_prefix = '.' + out_path_prefix
-        if index_converter is None:
-            index_converter = range(sum(sizes) * factor)
+        if root_index_converter is None:
+            root_index_converter = range(sum(sizes) * factor)
         start = 0
         for idx, end in enumerate(np.cumsum(sizes)):
             current_sim_tuples = [(self.roots[(i / factor) * 2],
-                                   self.roots[index_converter[i] * 2 + 1],
-                                   0.0 if scores is None else scores[i]) for i in range(start * factor, end * factor)]
+                                   self.roots[root_index_converter[i] * 2 + 1],
+                                   0.0 if root_scores is None else root_scores[i]) for i in range(start * factor, end * factor)]
             logging.info('write sim_tuple_indices to: %s.idx.%i%s ...' % (self._filename, idx, out_path_prefix))
             np.array(current_sim_tuples).dump('%s.idx.%i%s' % (self._filename, idx, out_path_prefix))
             start = end
@@ -508,6 +509,7 @@ class SequenceTrees(object):
 
     # TODO: check!
     def sample_all(self, sample_count=1, retry_count=10):
+        logging.info('create negative samples for all data points ...')
         sampled_sim_tuples = []
         max_depth = np.max(self.depths)
         # sample for every depth only from trees with this depth
