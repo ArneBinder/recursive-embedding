@@ -77,7 +77,7 @@ tf.flags.DEFINE_boolean(
 )
 tf.flags.DEFINE_boolean(
     'sample_all',
-    True,
+    False,
     'Whether to create negative samples for every data point in the tree sequence.'
 )
 
@@ -498,6 +498,7 @@ def load_sim_tuple_indices(filename, extensions=None):
     return np.concatenate(indices).T, np.concatenate(probs).T
 
 
+# TODO: check changes
 def merge_into_corpus(corpus_fn1, corpus_fn2):
     """
     Merges corpus2 into corpus1 e.g. merges types and vecs and converts data2 according to new types dict and writes
@@ -507,18 +508,27 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     :param corpus_fn2: file name of target corpus
     :return:
     """
-    vecs, types = lex.load(corpus_fn1)
-    vecs2, types2 = lex.load(corpus_fn2)
-    vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
-    data2, parents2 = sequ_trees.load(corpus_fn2)
-    m = lex.mapping_from_list(types)
-    mapping = {i: m[t] for i, t in enumerate(types2)}
-    data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)
-    dir2 = os.path.abspath(os.path.join(corpus_fn2, os.pardir))
-    indices2_fnames = fnmatch.filter(os.listdir(dir2), ntpath.basename(corpus_fn2) + '.idx.[0-9]*')
-    indices2 = [load_sim_tuple_indices(os.path.join(dir2, fn)) for fn in indices2_fnames]
-    children2, roots2 = sequ_trees.children_and_roots(parents2)
-    for i, sim_tuples in enumerate(indices2):
-        write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
-        write_sim_tuple_data_single('%s.merged.train.%i.single' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
-    lex.dump('%s.merged' % corpus_fn1, vecs=vecs, types=types)
+    #vecs, types = lex.load(corpus_fn1)
+    lexicon1 = lex.Lexicon(filename=corpus_fn1)
+    #vecs2, types2 = lex.load(corpus_fn2)
+    lexicon2 = lex.Lexicon(filename=corpus_fn2)
+    #vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
+    data_converter = lexicon1.merge(lexicon2, add=True, remove=False)
+    #data2, parents2 = sequ_trees.load(corpus_fn2)
+    sequence_trees2 = sequ_trees.SequenceTrees(filename=corpus_fn2)
+    #m = lex.mapping_from_list(types)
+    #mapping = {i: m[t] for i, t in enumerate(types2)}
+    #converter = [m[t] for t in types2]
+    #data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)
+    sequence_trees2.convert_data(converter=data_converter, lex_size=len(lexicon1.types),
+                                 new_idx_unknown=lexicon1[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]])
+    #dir2 = os.path.abspath(os.path.join(corpus_fn2, os.pardir))
+    #indices2_fnames = fnmatch.filter(os.listdir(dir2), ntpath.basename(corpus_fn2) + '.idx.[0-9]*')
+    #indices2 = [load_sim_tuple_indices(os.path.join(dir2, fn)) for fn in indices2_fnames]
+    #children2, roots2 = sequ_trees.children_and_roots(parents2)
+    #for i, sim_tuples in enumerate(indices2):
+    #    write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
+    #    write_sim_tuple_data_single('%s.merged.train.%i.single' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
+    #lex.dump('%s.merged' % corpus_fn1, vecs=vecs, types=types)
+    sequence_trees2.dump('%s.merged' % corpus_fn1)
+    lexicon1.dump('%s.merged' % corpus_fn1)
