@@ -221,7 +221,7 @@ def get_or_calc_sequence_data(params):
     elif 'train_file' in params:
         fn = '%s.%s' % (FLAGS.model_train_data_path, params['train_file'])
         if os.path.isfile(fn):
-            # get sequence data from sim tuple file
+            # get sequence data from prob tuple file
             params['data_sequences'] = []
             params['scores_gold'] = []
             start = params.get('start', 0)
@@ -262,7 +262,7 @@ def get_or_calc_sequence_data(params):
             params['data_sequences'] = []
             params['scores_gold'] = []
             init_sequence_trees()
-            indices, sims = corpus_simtuple.load_sim_tuple_indices(fn)
+            indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
             start = params.get('start', 0)
             end = params.get('end', len(indices))
             for i, sim_tuple_indices in enumerate(indices[start: end]):
@@ -271,8 +271,9 @@ def get_or_calc_sequence_data(params):
                 for idx in sim_tuple_indices:
                     params['data_sequences'].append(sequence_trees.subtrees([idx]).next())
                 #params['scores_gold'].append(sim_tuple_indices[2])
-                if sims is not None:
-                    params['scores_gold'].append(sims[i + start])
+                for prob in probs[i]:
+                #if probs is not None:
+                    params['scores_gold'].append(prob)
 
             params['scores_gold'] = np.array(params['scores_gold'])
         else:

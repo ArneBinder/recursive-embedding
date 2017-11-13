@@ -680,22 +680,18 @@ class SimilaritySequenceTreeTupleModel_new(BaseTrainModel_new):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, learning_rate=0.01, optimizer=None, sim_measure=sim_cosine):
-        # fixed probs_count
-        #probs_count = 1
-        #self._probs = tf.placeholder(tf.float32, [None, probs_count])
-        # unpack scores_gold
+
+        # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
         self._scores_gold = tree_model.probs_gold[:, 1]
 
+        # get first two tree embeddings
         tree_size = tree_model.tree_output_size
-
         self._tree_embeddings_1 = tree_model.embeddings_all[:, :tree_size]
         self._tree_embeddings_2 = tree_model.embeddings_all[:, tree_size:tree_size * 2]
         self._scores = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
         BaseTrainModel_new.__init__(self, optimizer=optimizer, learning_rate=learning_rate,
                                     tree_model=tree_model, loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)))
-
-        #self._tree_embeddings_all = tf.concat([self._tree_embeddings_1, self._tree_embeddings_2], axis=-1)
 
     @property
     def tree_embeddings_1(self):
@@ -741,7 +737,6 @@ class SimilaritySequenceTreeTupleModel2_new(BaseTrainModel_new):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, probs_count=2):
-        #self._probs_gold = tf.placeholder(tf.float32, [None, probs_count])
 
         self._prediction_logits = tf.contrib.layers.fully_connected(tree_model.embeddings_all, probs_count,
                                                                     activation_fn=None, scope=DEFAULT_SCOPE_SCORING)

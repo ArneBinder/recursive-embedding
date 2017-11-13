@@ -465,17 +465,37 @@ def write_sim_tuple_data_single(out_fn, sim_tuples, data, children):
             data[root] = data_target_backup
 
 
-def load_sim_tuple_indices(filename):
-    _loaded = np.load(filename).T
-    if _loaded.dtype.kind == 'f':
-        indices = _loaded[:-1].astype(int).T
-        sims = _loaded[-1]
-    else:
-        indices = _loaded.T
-        sims = None
+def load_sim_tuple_indices(filename, extensions=None):
+    if extensions is None:
+        extensions = ['']
+    probs = []
+    indices = []
+    for ext in extensions:
+        if not os.path.isfile(filename + ext):
+            raise IOError('file not found: %s' % filename + ext)
+        _loaded = np.load(filename + ext).T
+        if _loaded.dtype.kind == 'f':
+            n = (len(_loaded) - 1) / 2
+            _correct = _loaded[0].astype(int)
+            _indices = _loaded[1:-n].astype(int)
+            _probs = _loaded[-n:]
+        else:
+            n = (len(_loaded) - 1)
+            _correct = _loaded[0]
+            _indices = _loaded[1:]
+            _probs = np.zeros(shape=(n, len(_correct)), dtype=np.float32)
+        if len(indices) > 0:
+            if not np.array_equal(indices[0][0], _correct):
+                raise ValueError
+        else:
+            indices.append(_correct.reshape((1, len(_correct))))
+            probs.append(np.ones(shape=(1, len(_correct)), dtype=np.float32))
+        probs.append(_probs)
+        indices.append(_indices)
+
     #loaded = zip(ids1, ids2, _loaded[2])
     #return loaded
-    return indices, sims
+    return np.concatenate(indices).T, np.concatenate(probs).T
 
 
 def merge_into_corpus(corpus_fn1, corpus_fn2):

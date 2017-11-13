@@ -335,7 +335,7 @@ def main(unused_argv):
     def tuple_data_iterator_simple_single(sim_index_files, data, children, root_idx=None, shuffle=False):
         n_last = None
         for sim_index_file in sim_index_files:
-            indices, sims = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
+            indices, probs = corpus_simtuple.load_sim_tuple_indices(sim_index_file)
             n = len(indices[0])
             assert n_last is None or n_last == n, 'all index tuple files have to contain the same amount of tuple ' \
                                                   'entries, but entries in %s (%i) deviate (from %i)' \
@@ -349,17 +349,18 @@ def main(unused_argv):
                 # unify heads
                 for i in range(1, n):
                     _trees[i]['head'] = _trees[0]['head']
+                _probs = probs[idx]
                 #_probs = [1.0, index_tuple[2]]
-                _probs = np.zeros(n)
-                _probs[0] = 1.0
-                # second entry holds the gold sim value (second head was overwritten with first head)
-                if sims is not None:
-                    _probs[1] = sims[idx]
+                #_probs = np.zeros(n)
+                #_probs[0] = 1.0
+                ## second entry holds the gold sim value (second head was overwritten with first head)
+                #if sims is not None:
+                #    _probs[1] = sims[idx]
                 if shuffle:
                     perm = np.random.permutation(n)
                     yield [[_trees[i] for i in perm], np.array([_probs[i] for i in perm])]
                 else:
-                    yield [_trees, np.array(_probs)]
+                    yield [_trees, _probs]
 
     if FLAGS.data_single:
         data_iterator_train = partial(tuple_data_iterator_simple_single, shuffle=True)
