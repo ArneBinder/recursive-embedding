@@ -275,21 +275,6 @@ def main(unused_argv):
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
         types = lex.read_types(os.path.join(logdir, 'model'))
-
-        # SOURCE_idx = types.index(constants.vocab_manual[constants.SOURCE_EMBEDDING])
-        # COMPATIBILITY
-        vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types,
-                                                        new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
-        vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types,
-                                                            new_type=constants.vocab_manual[
-                                                                constants.IDENTITY_EMBEDDING])
-        # COMPATIBILITY END
-        # _SOURCE = constants.vocab_manual[constants.SOURCE_EMBEDDING]
-        # if _SOURCE in types:
-        #    SOURCE_idx = types.index(_SOURCE)
-        # else:
-        #    SOURCE_idx = len(types)
-        #    # COMPATIBILITY END
     else:
         vecs, types = lex.load(FLAGS.train_data_path)
         if FLAGS.logdir_pretrained:
