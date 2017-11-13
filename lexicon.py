@@ -412,6 +412,9 @@ class Lexicon(object):
 
     def merge(self, other, add=True, remove=True):
         self._vecs, self._types = merge_dicts(vecs1=self._vecs, types1=self._types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
+        m = mapping_from_list(self.types)
+        converter = [m[t] for t in other.types]
+        return converter
 
     def read_data(self, *args, **kwargs):
         data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
