@@ -592,15 +592,15 @@ def main(unused_argv):
 
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-                model_tree = model_fold.SequenceTreeModel_new(lex_size=len(lexicon),
-                                                              tree_embedder=tree_embedder,
-                                                              state_size=FLAGS.model_state_size,
-                                                              lexicon_trainable=False,
-                                                              leaf_fc_size=FLAGS.model_leaf_fc_size,
-                                                              root_fc_size=FLAGS.model_root_fc_size,
-                                                              keep_prob=1.0,
-                                                              tree_count=1,
-                                                              prob_count=0)
+                model_tree = model_fold.SequenceTreeModel(lex_size=len(lexicon),
+                                                          tree_embedder=tree_embedder,
+                                                          state_size=FLAGS.model_state_size,
+                                                          lexicon_trainable=False,
+                                                          leaf_fc_size=FLAGS.model_leaf_fc_size,
+                                                          root_fc_size=FLAGS.model_root_fc_size,
+                                                          keep_prob=1.0,
+                                                          tree_count=1,
+                                                          prob_count=0)
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
