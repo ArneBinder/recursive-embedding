@@ -480,6 +480,7 @@ class SequenceTrees(object):
 
     def convert_data(self, converter, lex_size, new_idx_unknown):
         convert_data(data=self.data, converter=converter, lex_size=lex_size, new_idx_unknown=new_idx_unknown)
+        self._dicts = None
 
     def indices_to_trees(self, indices):
         return np.array(map(lambda idx: self.trees.T[idx], indices)).T
