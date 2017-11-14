@@ -29,7 +29,7 @@ import model_fold
 
 # model flags (saved in flags.json)
 import mytools
-import sequence_trees
+import sequence_trees as sqt
 
 model_flags = {'train_data_path': ['DEFINE_string',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
@@ -317,18 +317,19 @@ def main(unused_argv):
         for c in tree['children']:
             set_head_neg(c)
 
-    def tuple_data_iterator_simple_single(sim_index_files, data, children, root_idx=None, shuffle=False, extensions=None):
+    def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False):
         n_last = None
         for sim_index_file in sim_index_files:
             indices, probs = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
             n = len(indices[0])
-            assert n_last is None or n_last == n, 'all index tuple files have to contain the same amount of tuple ' \
-                                                  'entries, but entries in %s (%i) deviate (from %i)' \
-                                                  % (sim_index_file, n, n_last)
+            assert n_last is None or n_last == n, 'all (eventually merged) index tuple files have to contain the ' \
+                                                  'same amount of tuple entries, but entries in %s ' \
+                                                  '(with extensions=%s) deviate with %i from %i' \
+                                                  % (sim_index_file, str(extensions), n, n_last)
             n_last = n
             for idx in range(len(indices)):
                 index_tuple = indices[idx]
-                _trees = [sequence_trees.build_sequence_tree_dict(data, children, i) for i in index_tuple]
+                _trees = [sequence_trees.get_subtree_dict_unsorted(i) for i in index_tuple]
                 if root_idx is not None:
                     _trees[0]['head'] = root_idx
                 # unify heads
@@ -337,17 +338,20 @@ def main(unused_argv):
                 _probs = probs[idx]
                 if shuffle:
                     perm = np.random.permutation(n)
-                    yield [[_trees[i] for i in perm], np.array([_probs[i] for i in perm])]
+                    [_trees, _probs] = [[_trees[i] for i in perm], np.array([_probs[i] for i in perm])]
+                if split:
+                    for i in range(1, n):
+                        yield [[_trees[0], _trees[i]], np.array([_probs[0], _probs[i]])]
                 else:
                     yield [_trees, _probs]
 
     if FLAGS.data_single:
-        data_iterator_train = partial(tuple_data_iterator_simple_single, shuffle=True, extensions=['', '.negs1'])
-        data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=IDENTITY_idx, extensions=['', '.negs1'])
+        data_iterator_train = partial(data_tuple_iterator, shuffle=True, extensions=['', '.negs1'])
+        data_iterator_test = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=['', '.negs1'])
         tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
     else:
-        data_iterator_train = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
-        data_iterator_test = partial(tuple_data_iterator_simple_single, root_idx=ROOT_idx)
+        data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True)
+        data_iterator_test = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
@@ -537,12 +541,13 @@ def main(unused_argv):
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
-            data, parents = sequence_trees.load(FLAGS.train_data_path)
-            children, roots = sequence_trees.children_and_roots(parents)
+            #data, parents = sqt.load(FLAGS.train_data_path)
+            #children, roots = sqt.children_and_roots(parents)
+            sqt_data = sqt.SequenceTrees(filename=FLAGS.train_data_path)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
                     logging.info('create test data set ...')
-                    dummy = model_test.tree_model.compiler.build_loom_inputs(test_iterator(data=data, children=children))
+                    dummy = model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data))
                     test_set = list(dummy)
                     logging.info('test data size: ' + str(len(test_set)))
                     if not train_iterator:
@@ -551,7 +556,7 @@ def main(unused_argv):
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)
-                train_set = model_tree.compiler.build_loom_inputs(train_iterator(data=data, children=children))
+                train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=sqt_data))
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
