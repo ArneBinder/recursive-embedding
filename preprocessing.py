@@ -95,6 +95,38 @@ def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None,
     return sen_data, sen_parents, root_offsets
 
 
+# embeddings for:
+# word, word embedding
+def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None,
+                      concat_mode=constants.default_inner_concat_mode):
+    sen_data = []
+    sen_parents = []
+    root_offsets = []
+    root_parents = []
+    for i in range(sentence.start, sentence.end):
+        # get current token
+        token = parsed_data[i]
+        parent_offset = token.head.i - i
+        root_parents.append(parent_offset)
+        # save root offset
+        root_offsets.append(len(sen_parents))
+        # add word embedding
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEXEME_EMBEDDING]
+                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_parents.append(0)
+        # add word embedding embedding
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEXEME_EMBEDDING], dict_unknown))
+        sen_parents.append(-1)
+
+    if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
+        sen_parents.append(0)
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
+
+    return sen_data, sen_parents, root_offsets
+
+
 # DEPRECATED
 # embeddings for:
 # word, edge
