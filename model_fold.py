@@ -400,6 +400,30 @@ class TreeEmbedding_HTU_GRU_dep(TreeEmbedding):
         return model
 
 
+class TreeEmbedding_HTU_FC(TreeEmbedding):
+    """Calculates an embedding over a (recursive) SequenceNode.
+
+    Args:
+        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
+        name_or_scope: A scope to share variables over instances of sequence_tree_block
+    """
+
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_FC, self).__init__(name='HTU_FC', **kwargs)
+
+    def __call__(self):
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
+
+        children = self.children() >> td.Map(embed_tree()) >> td.Sum()
+
+        cases = td.AllOf(self.head() >> self.leaf_fc, children) >> td.Concat() \
+                >> td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
+
+        embed_tree.resolve_to(cases)
+        model = cases >> self.root_fc
+        return model
+
+
 class TreeEmbedding_FLAT(TreeEmbedding):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_FLAT, self).__init__(name='FLAT_' + name, **kwargs)
