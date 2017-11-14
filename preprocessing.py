@@ -67,7 +67,7 @@ def concat_roots(parents, root_offsets, root_parents=None, concat_mode='tree'):
 
 # embeddings for:
 # word
-def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None,
+def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None,
                       concat_mode=constants.default_inner_concat_mode):
     sen_data = []
     sen_parents = []
