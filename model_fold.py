@@ -6,6 +6,7 @@ import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 from tensorflow_fold.blocks import result_types as tdt
 import numpy as np
+import logging
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
@@ -430,6 +431,18 @@ class TreeEmbedding_FLAT(TreeEmbedding):
 class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_FLAT_2levels, self).__init__(name=name, **kwargs)
+
+    def children(self, name='children'):
+        # return only children that have at least one child themselves
+        def get_children(x):
+            if 'children' not in x:
+                return []
+            res = [c for c in x['children'] if 'children' in c and len(c['children']) > 0]
+            if len(res) != len(x['children']):
+                # warn, if children have been removed
+                logging.warning('removed children: %i' % (len(x['children']) - len(res)))
+            return res
+        return td.InputTransform(get_children, name=name)
 
     def element(self, name='element'):
         # use word embedding and first child embedding
