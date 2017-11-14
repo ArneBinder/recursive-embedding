@@ -183,23 +183,24 @@ class TreeEmbedding(object):
                 self._root_fc = td.Identity()
 
     def embed(self):
-        # get the head embedding from id
-        #return td.Function(lambda x: tf.gather(self._lexicon, x))
-        return td.OneOf(key_fn=(lambda x: x >= 0),
-                        case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
-                                     False: td.Void() >> td.Zeros(DIMENSION_EMBEDDINGS)})
-
-    def head(self, name='head_embed'):
+        # negative values indicate enabled head dropout
         def helper(x, keep_prob):
-            if x < 0:
-                return x + self.lex_size
-            if np.random.random() < keep_prob:
+            if x >= 0:
                 return x
+            if np.random.random() < keep_prob:
+                return x + self.lex_size
             return -1
 
+        # get the head embedding from id
+        #return td.Function(lambda x: tf.gather(self._lexicon, x))
+        return td.InputTransform(lambda x: helper(x, self.keep_prob_fixed)) \
+               >> td.OneOf(key_fn=(lambda x: x >= 0),
+                           case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
+                                        False: td.Void() >> td.Zeros(DIMENSION_EMBEDDINGS)})
+
+    def head(self, name='head_embed'):
         #return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
-        return td.Pipe(td.GetItem('head'), td.InputTransform(lambda x: helper(x, self.keep_prob_fixed)),
-                       self.embed(), name=name)
+        return td.Pipe(td.GetItem('head'), self.embed(), name=name)
 
     def children(self, name='children'):
         return td.InputTransform(lambda x: x.get('children', []), name=name)
