@@ -186,7 +186,8 @@ def write_sim_tuple_indices(path, sim_tuple_indices, sizes, path_suffix=''):
         start = end
 
 
-def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, overwrite=False):
+def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, overwrite=False,
+                  reader_roots=None, reader_roots_args=None):
     """
     Creates a training corpus consisting of the following files (enumerated by file extension):
         * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
@@ -223,6 +224,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
         lexicon = lex.Lexicon(nlp_vocab=nlp.vocab)
+        if reader_roots_args is None:
+            reader_roots_args = {'root_label': constants.vocab_manual[constants.ROOT_EMBEDDING]}
 
         def read_data(file_name):
             logging.info('convert texts scored ...')
@@ -231,9 +234,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
                                                 parser=nlp, reader_args={'filename': file_name},
                                                 batch_size=10000, concat_mode=FLAGS.concat_mode,
                                                 inner_concat_mode=FLAGS.inner_concat_mode, expand_dict=True,
-                                                #reader_roots=reader_roots,
-                                                #reader_roots_args={'filename': os.path.basename(file_name)})
-                                                reader_roots_args = {'root_label': constants.vocab_manual[constants.ROOT_EMBEDDING]})
+                                                reader_roots=reader_roots,
+                                                reader_roots_args=reader_roots_args)
             logging.debug('len(lexicon)=%i (after parsing)' % len(lexicon))
             _s = np.fromiter(reader_scores(file_name), np.float)
             logging.info('scores read: %i' % len(_s))

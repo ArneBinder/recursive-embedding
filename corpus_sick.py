@@ -33,7 +33,7 @@ def score_reader(filename):
             yield (float(row['relatedness_score']) - 1.0) / 4.0
 
 
-def roots_reader(filename):
+def roots_reader():
     lc = 0
     ANNOT_str = u'TUPLE'
     while True:
@@ -41,8 +41,10 @@ def roots_reader(filename):
         #yield [ANNOT_str, '%s/%s/%i' % (ANNOT_str, prefix, lc)]
         #yield '%s/%s/%i/0' % (ANNOT_str, prefix, lc)
         #yield '%s/%s/%i/1' % (ANNOT_str, prefix, lc)
-        yield '%s/0' % ANNOT_str
-        yield '%s/1' % ANNOT_str
+        #yield '%s/0' % ANNOT_str
+        #yield '%s/1' % ANNOT_str
+        yield [ANNOT_str, '%s/0' % ANNOT_str]
+        yield [ANNOT_str, '%s/1' % ANNOT_str]
         lc += 1
 
 
@@ -53,7 +55,9 @@ def main(args=None):
         file_names = ['sick_train/SICK_train.txt', 'sick_test_annotated/SICK_test_annotated.txt']
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_scores=score_reader,
                                   corpus_name=FLAGS.corpus_name,
-                                  file_names=file_names
+                                  file_names=file_names,
+                                  reader_roots=roots_reader,
+                                  reader_roots_args={}
                                   )
 
 
