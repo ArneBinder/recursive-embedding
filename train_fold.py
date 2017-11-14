@@ -313,13 +313,14 @@ def main(unused_argv):
 
     # TRAINING and TEST DATA ###########################################################################################
 
-    # unused
+    # use this to enable full head dropout
     def set_head_neg(tree):
         tree['head'] -= lex_size
         for c in tree['children']:
             set_head_neg(c)
 
-    def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False):
+    def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False,
+                            head_dropout=False):
         n_last = None
         for sim_index_file in sim_index_files:
             indices, probs = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
@@ -337,6 +338,9 @@ def main(unused_argv):
                 # unify heads
                 for i in range(1, n):
                     _trees[i]['head'] = _trees[0]['head']
+                if head_dropout:
+                    for t in _trees:
+                        set_head_neg(t)
                 _probs = probs[idx]
                 if shuffle:
                     perm = np.random.permutation(n)
@@ -400,8 +404,8 @@ def main(unused_argv):
                                                       leaf_fc_size=FLAGS.leaf_fc_size,
                                                       root_fc_size=FLAGS.root_fc_size,
                                                       keep_prob=FLAGS.keep_prob,
-                                                      tree_count=tuple_size
-                                                      # keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
+                                                      tree_count=tuple_size,
+                                                      #keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
                                                       )
 
             # has to be created first #TODO: really?
