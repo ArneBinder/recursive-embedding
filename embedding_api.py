@@ -218,47 +218,10 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
 def get_or_calc_sequence_data(params):
     if 'data_sequences' in params:
         params['data_sequences'] = np.array(params['data_sequences'])
-    elif 'train_file' in params:
-        fn = '%s.%s' % (FLAGS.model_train_data_path, params['train_file'])
-        if os.path.isfile(fn):
-            # get sequence data from prob tuple file
-            params['data_sequences'] = []
-            params['scores_gold'] = []
-            start = params.get('start', 0)
-            end = params.get('end', -1)
-            if 'new_format' in params:
-                for i, sim_tuple in enumerate(corpus_simtuple.iterate_scored_tree_data([fn])):
-                    if i < start:
-                        continue
-                    if 0 <= end <= i:
-                        break
-
-                    data1, parent1 = sequ_trees.sequence_node_to_sequence_trees(sim_tuple['tree'])
-                    params['data_sequences'].append([data1, parent1])
-                    params['scores_gold'].append(sim_tuple['score'])
-                if start < 0 and end < 0:
-                    params['data_sequences'] = params['data_sequences'][start:]
-                    params['scores_gold'] = params['scores_gold'][start:]
-            else:
-                for i, sim_tuple in enumerate(corpus_simtuple.iterate_sim_tuple_data([fn])):
-                    if i < start:
-                        continue
-                    if 0 <= end <= i:
-                        break
-                    data1, parent1 = sequ_trees.sequence_node_to_sequence_trees(sim_tuple['first'])
-                    data2, parent2 = sequ_trees.sequence_node_to_sequence_trees(sim_tuple['second'])
-                    params['data_sequences'].append([data1, parent1])
-                    params['data_sequences'].append([data2, parent2])
-                    params['scores_gold'].append(sim_tuple['similarity'])
-                if start < 0 and end < 0:
-                    params['data_sequences'] = params['data_sequences'][start * 2:]
-                    params['scores_gold'] = params['scores_gold'][start:]
-            params['scores_gold'] = np.array(params['scores_gold'])
-        else:
-            raise IOError('could not open "%s"' % fn)
     elif 'idx_tuple_file' in params:
         fn = '%s.%s' % (FLAGS.model_train_data_path, params['idx_tuple_file'])
         if os.path.isfile(fn):
+            params['sequences'] = []
             params['data_sequences'] = []
             params['scores_gold'] = []
             init_sequence_trees()
@@ -266,16 +229,16 @@ def get_or_calc_sequence_data(params):
             start = params.get('start', 0)
             end = params.get('end', len(indices))
             for i, sim_tuple_indices in enumerate(indices[start: end]):
-                #params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[0]]).next())
-                #params['data_sequences'].append(sequence_trees.subtrees([sim_tuple_indices[1]]).next())
                 for idx in sim_tuple_indices:
                     params['data_sequences'].append(sequence_trees.subtrees([idx]).next())
-                #params['scores_gold'].append(sim_tuple_indices[2])
                 for prob in probs[i]:
-                #if probs is not None:
                     params['scores_gold'].append(prob)
 
             params['scores_gold'] = np.array(params['scores_gold'])
+            for data, parents in params['data_sequences']:
+                texts = [" ".join(t_list) for t_list in
+                         vis.get_text((data, parents), lexicon.types, params.get('prefix_blacklist', None))]
+                params['sequences'].append(texts)
         else:
             raise IOError('could not open "%s"' % fn)
 
@@ -313,10 +276,9 @@ def get_or_calc_embeddings(params):
         max_depth = 150
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
-        # batch = [json.loads(MessageToJson(preprocessing.build_sequence_tree_from_parse(parsed_data))) for parsed_data in
-        #         data_sequences]
-        batch = [[[sequ_trees.build_sequence_tree_dict_from_parse(parsed_data, max_depth)], []] for parsed_data in
-                 data_sequences]
+
+        batch = [[[sequ_trees.SequenceTrees(trees=parsed_data).get_subtree_dict_unsorted(max_depth=max_depth)], []]
+                 for parsed_data in data_sequences]
 
         if len(batch) > 0:
             fdict = model_tree.build_feed_dict(batch)
@@ -458,18 +420,8 @@ def visualize():
             vis.visualize_list(params['data_sequences'], lexicon.types, file_name=vis.TEMP_FN)
             response = send_file(vis.TEMP_FN)
         elif mode == 'text':
-            params['sequences'] = []
-            for data, parents in params['data_sequences']:
-                texts = [" ".join(t_list) for t_list in vis.get_text((data, parents), lexicon.types, params.get('prefix_blacklist', None))]
-                params['sequences'].append(texts)
-
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
             json_data = json.dumps(filter_result(make_serializable(params)))
-
-            ## DEBUG
-            #with open('temp_response.json', 'w') as f:
-            #    f.write(json_data)
-            ## DEBUG END
             response = Response(json_data, mimetype=return_type)
         else:
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
