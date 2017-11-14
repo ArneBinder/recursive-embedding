@@ -367,7 +367,8 @@ class Lexicon(object):
         return [self[t] for t in self._types if t.startswith(prefix + constants.SEPARATOR)]
 
     def set_to_zero(self, indices=None, prefix=None):
-        if not indices:
+        assert indices is not None or prefix is not None, 'please provide indices or a prefix'
+        if indices is None:
             indices = self.get_ids_for_prefix(prefix)
         for i in indices:
             self._vecs[i] = np.zeros(self._vecs.shape[1], dtype=self._vecs.dtype)
@@ -375,6 +376,7 @@ class Lexicon(object):
             self._dumped_vecs = False
 
     def set_to_onehot(self, indices=None, prefix=None):
+        assert indices is not None or prefix is not None, 'please provide indices or a prefix'
         if indices is None:
             indices = self.get_ids_for_prefix(prefix)
         self.set_to_zero(indices=indices)
