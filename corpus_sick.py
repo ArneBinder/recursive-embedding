@@ -33,6 +33,7 @@ def score_reader(filename):
             yield (float(row['relatedness_score']) - 1.0) / 4.0
 
 
+# unused # individual labels kills comparison to create UNIQUE labels
 def roots_reader():
     lc = 0
     ANNOT_str = u'TUPLE'
@@ -56,8 +57,7 @@ def main(args=None):
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_scores=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
-                                  reader_roots=roots_reader,
-                                  reader_roots_args={}
+                                  reader_roots_args={'root_labels': [u'TUPLE', constants.vocab_manual[constants.ROOT_EMBEDDING]]}
                                   )
 
 

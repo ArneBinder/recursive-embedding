@@ -225,7 +225,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
 
         lexicon = lex.Lexicon(nlp_vocab=nlp.vocab)
         if reader_roots_args is None:
-            reader_roots_args = {'root_label': constants.vocab_manual[constants.ROOT_EMBEDDING]}
+            reader_roots_args = {'root_labels': constants.vocab_manual[constants.ROOT_EMBEDDING]}
 
         def read_data(file_name):
             logging.info('convert texts scored ...')
