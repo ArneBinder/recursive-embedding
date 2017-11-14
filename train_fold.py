@@ -265,6 +265,8 @@ def main(unused_argv):
     old_checkpoint_fn = None
     vecs = None
     if checkpoint_fn:
+        if not checkpoint_fn.startswith(logdir):
+            raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
         logging.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
