@@ -364,7 +364,10 @@ class Lexicon(object):
         return converter, new_counts, new_idx_unknown
 
     def get_ids_for_prefix(self, prefix):
-        return [self[t] for t in self._types if t.startswith(prefix + constants.SEPARATOR)]
+        res = [self[t] for t in self._types if t.startswith(prefix + constants.SEPARATOR)]
+        if len(res) == 0:
+            logging.warning('no indices found for prefix=%s' % prefix)
+        return res
 
     def set_to_zero(self, indices=None, prefix=None):
         assert indices is not None or prefix is not None, 'please provide indices or a prefix'
