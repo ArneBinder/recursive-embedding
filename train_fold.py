@@ -23,7 +23,6 @@ from sklearn import linear_model
 
 import constants
 import corpus_simtuple
-import lexicon
 import lexicon as lex
 import model_fold
 
@@ -289,9 +288,9 @@ def main(unused_argv):
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                           remove=False)
 
-        vecs, types, ROOT_idx = lexicon.add_and_get_idx(vecs, types,
-                                                        new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
-        vecs, types, IDENTITY_idx = lexicon.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[
+        vecs, types, ROOT_idx = lex.add_and_get_idx(vecs, types,
+                                                    new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
+        vecs, types, IDENTITY_idx = lex.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[
             constants.IDENTITY_EMBEDDING])
 
         lex.dump(os.path.join(logdir, 'model'), types=types)
