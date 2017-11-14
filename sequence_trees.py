@@ -560,17 +560,19 @@ class SequenceTrees(object):
         return self._dicts[idx]
 
     # COMPATIBILITY: to maintain order for FLAT_LSTM models
-    def get_subtree_dict_unsorted(self, idx):
+    def get_subtree_dict_unsorted(self, idx=None, max_depth=9999):
         """
         Build a _sorted_ (children) dict version of the subtree of this sequence_tree rooted at idx.
         :param idx: root of the subtree
         :param max_depth: stop if this depth is exceeded
         :return: the dict version of the subtree
         """
+        if idx is None:
+            idx = self.roots[0]
         seq_node = {'head': self.data[idx], 'children': []}
-        if idx in self.children:
+        if idx in self.children and max_depth > 0:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_subtree_dict(idx + child_offset))
+                seq_node['children'].append(self.get_subtree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth-1))
         return seq_node
 
     def __str__(self):
