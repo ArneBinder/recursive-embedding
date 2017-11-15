@@ -176,7 +176,7 @@ def sample_indices(idx, trees, unique_root_data=None, sims_correct=None, prog_ba
     # ...  but set to 0.0 if this is the original pair (can occur multiple times)
     # or if the two subtrees are equal
     if check_equality:
-        c_debug = []
+        #c_debug = []
         if unique_roots:
             for j in range(n):
                 if unique_root_data[2 * idx + 1] == unique_root_data[2 * j + 1] or unique_root_data[2 * idx] == unique_root_data[2 * j + 1]:
@@ -186,9 +186,9 @@ def sample_indices(idx, trees, unique_root_data=None, sims_correct=None, prog_ba
                 if (((not adapt_distribution) or sims[j] == sim_original) and (idx == j or np.array_equal(trees[2 * idx + 1], trees[2 * j + 1]))) \
                         or (((not adapt_distribution) or sims[j] == 1.0) and np.array_equal(trees[2 * idx], trees[2 * j + 1])):
                     p[j] = 0.0
-                    c_debug.append(j)
-        if len(c_debug) > 1:
-           logging.debug('%i:%s' % (idx, str(c_debug)))
+        #            c_debug.append(j)
+        #if len(c_debug) > 1:
+        #   logging.debug('%i:%s' % (idx, str(c_debug)))
 
     # normalize probs
     p = p / p.sum()
@@ -352,7 +352,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             path_suffix += '.equal'
         if FLAGS.sample_adapt_distribution:
             path_suffix += '.adapt'
-        sampled_roots_fn = '%s.root_idx.negs%i%s' % (out_path, FLAGS.sample_count, path_suffix)
+        sampled_roots_fn = '%s.idx.negs%i%s' % (out_path, FLAGS.sample_count, path_suffix)
         if not os.path.isfile(sampled_roots_fn) or overwrite:
             trees = list(forest.trees())
             if FLAGS.create_unique:
