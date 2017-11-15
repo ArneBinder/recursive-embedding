@@ -308,7 +308,6 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     if FLAGS.create_unique:
         # use unique by now
         out_path += '.unique'
-        #temp_path = out_path+'.unique'
         if not corpus.exist(out_path) or overwrite:
             # separate into trees (e.g. sentences)
             logging.debug('split into trees ...')
@@ -348,15 +347,13 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         write_sim_tuple_indices(path=out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
 
     if FLAGS.sample_count:
-        temp_path = '%s.root_idx.negs%i' % (out_path, FLAGS.sample_count)
-        if not os.path.isfile(temp_path) or overwrite:
-            #roots_collected = {}
-            #for root in sequence_trees.roots:
-            #    d = sequence_trees.data[root]
-            #    coll = roots_collected.get(d, [])
-            #    coll.append(root)
-            #    roots_collected[d] = coll
-
+        path_suffix = ''
+        if FLAGS.sample_check_equality:
+            path_suffix += '.equal'
+        if FLAGS.sample_adapt_distribution:
+            path_suffix += '.adapt'
+        sampled_roots_fn = '%s.root_idx.negs%i%s' % (out_path, FLAGS.sample_count, path_suffix)
+        if not os.path.isfile(sampled_roots_fn) or overwrite:
             trees = list(forest.trees())
             if FLAGS.create_unique:
                 unique_root_data = forest.indices_to_forest(forest.roots)[0]
@@ -391,20 +388,22 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
                                                                                       sims_correct=sims_correct,
                                                                                       prog_bar=None,
                                                                                       check_equality=FLAGS.sample_check_equality))
-            sampled_root_indices = np.concatenate(_sampled_root_indices)
-            logging.debug('dump sampled root indices to: %s' % temp_path)
-            sampled_root_indices.dump(temp_path)
+            sampled_indices = np.concatenate(_sampled_root_indices)
+            root_indices_sampled = sampled_indices.reshape((n, FLAGS.sample_count)) * 2 + 1
+            logging.debug('dump sampled root indices to: %s' % sampled_roots_fn)
+            root_indices_sampled.dump(sampled_roots_fn)
         else:
-            sampled_root_indices = np.load(temp_path)
+            root_indices_sampled = np.load(sampled_roots_fn)
 
-        # write out tuple samples
+        root_indices_original = np.array(range(n)).reshape(n, 1) * 2
+        root_indices_all = np.concatenate([root_indices_original, root_indices_sampled], axis=1)
+        # convert root indices to roots (indices in forest)
         sampled_tuples = []
         for tuple_idx in range(len(scores)):
-            current_samples = [forest.roots[i * 2 + 1] for i in
-                               sampled_root_indices[tuple_idx * FLAGS.sample_count:(tuple_idx + 1) * FLAGS.sample_count]]
-            sampled_tuples.append([forest.roots[tuple_idx * 2]] + current_samples)
+            sampled_tuples.append([forest.roots[i] for i in root_indices_all[tuple_idx].tolist()])
+        # write out tuple samples
         write_sim_tuple_indices(path=out_path, sim_tuple_indices=sampled_tuples, sizes=sizes,
-                                path_suffix='.negs%i' % FLAGS.sample_count)
+                                path_suffix='.negs%i%s' % (FLAGS.sample_count, path_suffix))
 
     if FLAGS.sample_all and FLAGS.sample_count:
         all_samples = forest.sample_all(sample_count=FLAGS.sample_count)
