@@ -326,7 +326,7 @@ class Lexicon(object):
                 self._dumped_vecs = True
         elif nlp_vocab is not None:
             self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
-            print(self.filled)
+            #print(self.filled)
         else:
             raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
 
@@ -425,7 +425,7 @@ class Lexicon(object):
         data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
         self._types = revert_mapping_to_list(self.mapping)
         self._dumped_types = False
-        return sequ_trees.SequenceTrees(data=data, parents=parents)
+        return sequ_trees.Forest(data=data, parents=parents)
 
     def __getitem__(self, item):
         if type(item) == unicode or type(item) == str:

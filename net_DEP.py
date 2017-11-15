@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
-from forest import get_children
+from forest_dep import get_children
 import constants
 
 

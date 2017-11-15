@@ -104,7 +104,7 @@ sess = None
 model_tree = None
 lexicon = None
 nlp = None
-sequence_trees = None
+forest = None
 
 ##################################################
 # API part
@@ -204,7 +204,7 @@ def get_params(request):
 def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode):
     init_nlp()
     for s in sequences:
-        sequence_trees = lexicon.read_data(reader=preprocessing.identity_reader,
+        _forest = lexicon.read_data(reader=preprocessing.identity_reader,
                                            sentence_processor=sentence_processor,
                                            parser=nlp,
                                            reader_args={'content': s},
@@ -212,7 +212,7 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
                                            inner_concat_mode=inner_concat_mode,
                                            expand_dict=False,
                                            reader_roots_args={'root_label': constants.vocab_manual[constants.IDENTITY_EMBEDDING]})
-        yield sequence_trees.trees
+        yield _forest.forest
 
 
 def get_or_calc_sequence_data(params):
@@ -224,13 +224,13 @@ def get_or_calc_sequence_data(params):
             params['sequences'] = []
             params['data_sequences'] = []
             params['scores_gold'] = []
-            init_sequence_trees()
+            init_forest()
             indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
             start = params.get('start', 0)
             end = params.get('end', len(indices))
             for i, sim_tuple_indices in enumerate(indices[start: end]):
                 for idx in sim_tuple_indices:
-                    params['data_sequences'].append(sequence_trees.subtrees([idx]).next())
+                    params['data_sequences'].append(forest.trees([idx]).next())
                 for prob in probs[i]:
                     params['scores_gold'].append(prob)
 
@@ -277,7 +277,7 @@ def get_or_calc_embeddings(params):
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
 
-        batch = [[[sequ_trees.SequenceTrees(trees=parsed_data).get_subtree_dict_unsorted(max_depth=max_depth)], []]
+        batch = [[[sequ_trees.Forest(forest=parsed_data).get_tree_dict_unsorted(max_depth=max_depth)], []]
                  for parsed_data in data_sequences]
 
         if len(batch) > 0:
@@ -483,10 +483,10 @@ def init_nlp():
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
 
-def init_sequence_trees():
-    global sequence_trees
-    if sequence_trees is None:
-        sequence_trees = sequ_trees.SequenceTrees(filename=FLAGS.model_train_data_path)
+def init_forest():
+    global forest
+    if forest is None:
+        forest = sequ_trees.Forest(filename=FLAGS.model_train_data_path)
 
 
 def main(unused_argv):

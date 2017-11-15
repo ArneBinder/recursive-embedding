@@ -273,13 +273,13 @@ def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count
     # add correct tree
     build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
                                        candidate_idx=idx_child, max_depth=max_depth,
-                                       max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.subtrees.add())
+                                       max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
     # add samples
     for _ in range(sample_count):
         candidate_idx = np.random.choice(all_depths_collected[max_candidate_depth])
         build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
                                            candidate_idx=candidate_idx, max_depth=max_depth,
-                                           max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.subtrees.add())
+                                           max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
     # pp.pprint(seq_tree_seq)
     # print('')
     return seq_tree_seq
@@ -409,8 +409,8 @@ def _compare_tree_dicts(tree1, tree2):
     return 0
 
 
-class SequenceTrees(object):
-    def __init__(self, filename=None, data=None, parents=None, trees=None, tree_dict=None):
+class Forest(object):
+    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None):
         self._children = None
         self._roots = None
         self._depths = None
@@ -419,37 +419,37 @@ class SequenceTrees(object):
         self._filename = filename
         if filename is not None:
             if exist(filename):
-                self.set_trees(*load(filename))
+                self.set_forest(*load(filename))
             else:
                 raise IOError('could not load sequence_trees from "%s"' % filename)
         elif data is not None and parents is not None:
             assert len(data) == len(parents), 'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
-            self.set_trees(data, parents)
-        elif trees is not None:
-            if type(trees) == np.ndarray:
-                assert trees.shape[0] == 2, 'Wrong shape: %s. trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(trees.shape)
-                self._trees = trees
+            self.set_forest(data, parents)
+        elif forest is not None:
+            if type(forest) == np.ndarray:
+                assert forest.shape[0] == 2, 'Wrong shape: %s. trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(forest.shape)
+                self._forest = forest
             else:
-                assert len(trees) == 2, 'Wrong shape: %i. Trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(
-                    trees.shape)
-                assert len(trees[0]) == len(trees[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(trees[0]), len(trees[1]))
-                self._trees = np.array(trees, dtype=np.int32)
-                self._data = trees[0]
-                self._parents = trees[1]
+                assert len(forest) == 2, 'Wrong shape: %i. Trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(
+                    forest.shape)
+                assert len(forest[0]) == len(forest[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(forest[0]), len(forest[1]))
+                self._forest = np.array(forest, dtype=np.int32)
+                self._data = forest[0]
+                self._parents = forest[1]
                 #raise TypeError('trees has to be a numpy.ndarray')
         elif tree_dict is not None:
             _data, _parents = sequence_node_to_sequence_trees(tree_dict)
-            self.set_trees(data=np.array(_data), parents=np.array(_parents))
+            self.set_forest(data=np.array(_data), parents=np.array(_parents))
         else:
             raise ValueError(
                 'Not enouth arguments to instantiate SequenceTrees object. Please provide a filename or data and parent arrays.')
         #self._sorted = np.zeros(len(self), dtype=bool)
 
-    def set_trees(self, data, parents):
+    def set_forest(self, data, parents):
         # return np.concatenate((data, parents)).reshape(2, len(data))
-        self._trees = np.empty(shape=(2, len(data)), dtype=data.dtype)
-        self._trees[0] = data
-        self._trees[1] = parents
+        self._forest = np.empty(shape=(2, len(data)), dtype=data.dtype)
+        self._forest[0] = data
+        self._forest[1] = parents
 
     def dump(self, filename):
         dump(fn=filename, data=self.data, parents=self.parents)
@@ -457,7 +457,7 @@ class SequenceTrees(object):
 
     def reload(self):
         assert self._filename is not None, 'no filename set'
-        self.set_trees(*load(self._filename))
+        self.set_forest(*load(self._filename))
         self._depths = None
         self._depths_collected = None
         self._children = None
@@ -482,16 +482,16 @@ class SequenceTrees(object):
         convert_data(data=self.data, converter=converter, lex_size=lex_size, new_idx_unknown=new_idx_unknown)
         self._dicts = None
 
-    def indices_to_trees(self, indices):
-        return np.array(map(lambda idx: self.trees.T[idx], indices)).T
+    def indices_to_forest(self, indices):
+        return np.array(map(lambda idx: self.forest.T[idx], indices)).T
 
-    def subtrees(self, root_indices=None):
+    def trees(self, root_indices=None):
         if not root_indices:
             root_indices = self.roots
         for i in root_indices:
             descendant_indices = sorted(get_descendant_indices(self.children, i))
             # new_subtree = zip(*[(data[idx], parents[idx]) for idx in descendant_indices])
-            yield self.indices_to_trees(descendant_indices)
+            yield self.indices_to_forest(descendant_indices)
 
     def descendant_indices(self, root):
         return get_descendant_indices(self.children, root)
@@ -504,8 +504,8 @@ class SequenceTrees(object):
             if idx in self.children:
                 self._set_depths(self.children[idx], current_depth+1, idx)
 
-    def subtrees_equal(self, root1, root2):
-        _cmp = _compare_tree_dicts(self.get_subtree_dict(root1), self.get_subtree_dict(root2))
+    def trees_equal(self, root1, root2):
+        _cmp = _compare_tree_dicts(self.get_tree_dict(root1), self.get_tree_dict(root2))
         return _cmp == 0
 
     # TODO: check!
@@ -528,7 +528,7 @@ class SequenceTrees(object):
                 for _ in range(retry_count):
                     candidate_indices = np.random.choice(indices, 100 * sample_count)
                     for candidate_idx in candidate_indices:
-                        if idx_data != self.data[candidate_idx] and not self.subtrees_equal(idx, candidate_idx):
+                        if idx_data != self.data[candidate_idx] and not self.trees_equal(idx, candidate_idx):
                             current_sampled_indices.append(candidate_idx)
                         if len(current_sampled_indices) > sample_count:
                             break
@@ -541,7 +541,7 @@ class SequenceTrees(object):
                     sampled_sim_tuples.append(current_sampled_indices)
         return sampled_sim_tuples
 
-    def get_subtree_dict(self, idx):
+    def get_tree_dict(self, idx):
         """
         Build a _sorted_ (children) dict version of the subtree of this sequence_tree rooted at idx.
         :param idx: root of the subtree
@@ -553,14 +553,14 @@ class SequenceTrees(object):
         seq_node = {'head': self.data[idx], 'children': []}
         if idx in self.children:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_subtree_dict(idx + child_offset))
+                seq_node['children'].append(self.get_tree_dict(idx + child_offset))
         seq_node['children'].sort(cmp=_compare_tree_dicts)
 
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
     # COMPATIBILITY: to maintain order for FLAT_LSTM models
-    def get_subtree_dict_unsorted(self, idx=None, max_depth=9999):
+    def get_tree_dict_unsorted(self, idx=None, max_depth=9999):
         """
         Build a _sorted_ (children) dict version of the subtree of this sequence_tree rooted at idx.
         :param idx: root of the subtree
@@ -572,26 +572,26 @@ class SequenceTrees(object):
         seq_node = {'head': self.data[idx], 'children': []}
         if idx in self.children and max_depth > 0:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_subtree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth-1))
+                seq_node['children'].append(self.get_tree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth - 1))
         return seq_node
 
     def __str__(self):
-        return self._trees.__str__()
+        return self._forest.__str__()
 
     def __len__(self):
         return len(self.data)
 
     @property
     def data(self):
-        return self._trees[0]
+        return self._forest[0]
 
     @property
     def parents(self):
-        return self._trees[1]
+        return self._forest[1]
 
     @property
-    def trees(self):
-        return self._trees
+    def forest(self):
+        return self._forest
 
     @property
     def children(self):

@@ -330,11 +330,11 @@ class Corpus(object):
             if sequence_trees:
                 self._sequence_trees = sequence_trees
             else:
-                self._sequence_trees = sequ_trees.SequenceTrees(data=data, parents=parents)
+                self._sequence_trees = sequ_trees.Forest(data=data, parents=parents)
 
     def load(self, filename):
         self._lexicon = lex.Lexicon(filename=filename)
-        self._sequence_trees = sequ_trees.SequenceTrees(filename=filename)
+        self._sequence_trees = sequ_trees.Forest(filename=filename)
 
     def dump(self, filename):
         self._lexicon.dump(filename)

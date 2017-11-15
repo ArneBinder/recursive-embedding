@@ -66,7 +66,7 @@ tf.flags.DEFINE_integer(
     # TODO: check if less or equal-less
     'remove token which occur less then count_threshold times in the corpus')
 tf.flags.DEFINE_integer(
-    'neg_samples',
+    'sample_count',
     0,
     'amount of negative samples to add'
 )
@@ -85,11 +85,22 @@ tf.flags.DEFINE_boolean(
     False,
     'Whether to create unique tuple roots even if negative sampling is disabled.'
 )
+tf.flags.DEFINE_boolean(
+    'sample_adapt_distribution',
+    True,
+    'Adapt the distribution of the data for sampling negative examples.'
+)
+tf.flags.DEFINE_boolean(
+    'sample_check_equality',
+    True,
+    'Adapt the distribution of the data for sampling negative examples.'
+)
 
 FLAGS = tf.flags.FLAGS
 mytools.logging_init()
 
 
+# Does not consider multiple mentions! Use MultiSet instead?
 def sim_jaccard(ids1, ids2):
     ids1_set = set(ids1)
     ids2_set = set(ids2)
@@ -133,54 +144,64 @@ def continuous_binning(hist_src, hist_dest):
     return prob_map
 
 
-def sample_indices(idx, subtrees, root_data, sims_correct, prog_bar=None):
-    n = len(sims_correct)
-    # sample according to sims_correct probability distribution
-    sims_unique = {}
-    sims = np.zeros(shape=n)
-    for j in range(n):
-        r1_data = root_data[idx * 2]
-        r2_data = root_data[j * 2 + 1]
-        if (r1_data, r2_data) in sims_unique:
-            sims[j] = sims_unique[(r1_data, r2_data)]
+def sample_indices(idx, trees, unique_root_data=None, sims_correct=None, prog_bar=None, check_equality=True):
+    unique_roots = (unique_root_data is not None)
+    adapt_distribution = (sims_correct is not None)
+    n = len(trees) / 2
+    if adapt_distribution:
+        # sample according to sims_correct probability distribution
+        sims = np.zeros(shape=n)
+        if unique_roots:
+            sims_unique = {}
+            for j in range(n):
+                r1_data = unique_root_data[idx * 2]
+                r2_data = unique_root_data[j * 2 + 1]
+                if (r1_data, r2_data) in sims_unique:
+                    sims[j] = sims_unique[(r1_data, r2_data)]
+                else:
+                    sims[j] = sim_jaccard(trees[idx * 2][0], trees[j * 2 + 1][0])
+                    sims_unique[(r1_data, r2_data)] = sims[j]
+                    sims_unique[(r2_data, r1_data)] = sims[j]
         else:
-            sims[j] = sim_jaccard(subtrees[idx * 2][0], subtrees[j * 2 + 1][0])
-            sims_unique[(r1_data, r2_data)] = sims[j]
-            sims_unique[(r2_data, r1_data)] = sims[j]
-    #sim_original = sims[idx]
-    sims_sorted = np.sort(sims)
-    prob_map = continuous_binning(hist_src=sims_sorted, hist_dest=sims_correct)
+            for j in range(n):
+                sims[j] = sim_jaccard(trees[idx * 2][0], trees[j * 2 + 1][0])
+        sim_original = sims[idx]
+        sims_sorted = np.sort(sims)
+        prob_map = continuous_binning(hist_src=sims_sorted, hist_dest=sims_correct)
 
-    # set probabilities according to prob_map ...
-    p = [prob_map[sim] for sim in sims]
+        # set probabilities according to prob_map ...
+        p = np.array([prob_map[sim] for sim in sims])
+    else:
+        p = np.ones(n, dtype=np.float32)
     # ...  but set to 0.0 if this is the original pair (can occur multiple times)
     # or if the two subtrees are equal
-    # c_debug = 0
-    for j, sim in enumerate(sims):
-
-        #if (sim == sim_original and (idx == j or np.array_equal(subtrees[2 * idx + 1], subtrees[2 * j + 1]))) \
-        #        or (sim == 1.0 and np.array_equal(subtrees[2 * idx], subtrees[2 * j + 1])):
-        if root_data[2 * idx + 1] == root_data[2 * j + 1] \
-                or root_data[2 * idx] == root_data[2 * j + 1]:
-            p[j] = 0.0
-            # c_debug += 1
-    # if c_debug > 1:
-    #    logging.debug('%i:%i' % (i, c_debug))
+    if check_equality:
+        c_debug = []
+        if unique_roots:
+            for j in range(n):
+                if unique_root_data[2 * idx + 1] == unique_root_data[2 * j + 1] or unique_root_data[2 * idx] == unique_root_data[2 * j + 1]:
+                    p[j] = 0.0
+        else:
+            for j in range(n):
+                if (((not adapt_distribution) or sims[j] == sim_original) and (idx == j or np.array_equal(trees[2 * idx + 1], trees[2 * j + 1]))) \
+                        or (((not adapt_distribution) or sims[j] == 1.0) and np.array_equal(trees[2 * idx], trees[2 * j + 1])):
+                    p[j] = 0.0
+                    c_debug.append(j)
+        if len(c_debug) > 1:
+           logging.debug('%i:%s' % (idx, str(c_debug)))
 
     # normalize probs
-    p = np.array(p)
     p = p / p.sum()
     try:
-        new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=False)
+        new_indices = np.random.choice(n, size=FLAGS.sample_count, p=p, replace=False)
     except ValueError as e:
         logging.warning(
             'Error: "%s" (source tuple index: %i) Retry sampling with repeated elements allowed ...' % (
                 e.message, idx))
-        new_indices = np.random.choice(n, size=FLAGS.neg_samples, p=p, replace=True)
+        new_indices = np.random.choice(n, size=FLAGS.sample_count, p=p, replace=True)
     if prog_bar:
         prog_bar.next()
     return new_indices
-    #sample_indices[i * FLAGS.neg_samples:(i + 1) * FLAGS.neg_samples] = new_indices
 
 
 def write_sim_tuple_indices(path, sim_tuple_indices, sizes, path_suffix=''):
@@ -235,47 +256,51 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         def read_data(file_name):
             logging.info('convert texts scored ...')
             logging.debug('len(lexicon)=%i' % len(lexicon))
-            _sequence_trees = lexicon.read_data(reader=reader_sentences, sentence_processor=sentence_processor,
-                                                parser=nlp, reader_args={'filename': file_name},
-                                                batch_size=10000, concat_mode=FLAGS.concat_mode,
-                                                inner_concat_mode=FLAGS.inner_concat_mode, expand_dict=True,
-                                                reader_roots=reader_roots,
-                                                reader_roots_args=reader_roots_args)
+            _forest = lexicon.read_data(reader=reader_sentences, sentence_processor=sentence_processor,
+                                        parser=nlp, reader_args={'filename': file_name},
+                                        batch_size=10000, concat_mode=FLAGS.concat_mode,
+                                        inner_concat_mode=FLAGS.inner_concat_mode, expand_dict=True,
+                                        reader_roots=reader_roots,
+                                        reader_roots_args=reader_roots_args)
             logging.debug('len(lexicon)=%i (after parsing)' % len(lexicon))
             _s = np.fromiter(reader_scores(file_name), np.float)
             logging.info('scores read: %i' % len(_s))
-            assert 2 * len(_s) == len(_sequence_trees.roots), 'len(roots): %i != 2 * len(scores): %i' % (
-                2 * len(_s), len(_sequence_trees.roots))
-            return _sequence_trees.trees, _s
+            assert 2 * len(_s) == len(_forest.roots), 'len(roots): %i != 2 * len(scores): %i' % (
+                2 * len(_s), len(_forest.roots))
+            return _forest.forest, _s
 
         file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
 
-        _trees, _scores = zip(*[read_data(fn) for fn in file_names])
+        _forests, _scores = zip(*[read_data(fn) for fn in file_names])
 
         sizes = [len(s) for s in _scores]
 
         logging.debug('sizes: %s' % str(sizes))
         np.array(sizes).dump(out_path + '.size')
 
-        sequence_trees = sequ_trees.SequenceTrees(trees=np.concatenate(_trees, axis=1))
+        forest = sequ_trees.Forest(forest=np.concatenate(_forests, axis=1))
         scores = np.concatenate(_scores)
 
-        converter, new_counts, new_idx_unknown = lexicon.sort_and_cut_and_fill_dict(data=sequence_trees.data,
+        converter, new_counts, new_idx_unknown = lexicon.sort_and_cut_and_fill_dict(data=forest.data,
                                                                                     count_threshold=FLAGS.count_threshold)
-        sequence_trees.convert_data(converter=converter, lex_size=len(lexicon), new_idx_unknown=new_idx_unknown)
+        forest.convert_data(converter=converter, lex_size=len(lexicon), new_idx_unknown=new_idx_unknown)
 
         if FLAGS.one_hot_dep:
             lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])
 
-        sequence_trees.dump(out_path)
+        forest.dump(out_path)
         scores.dump(out_path + '.score')
         lexicon.set_man_vocab_vec(man_vocab_id=constants.IDENTITY_EMBEDDING)
         lexicon.dump(out_path)
     else:
         lexicon = lex.Lexicon(filename=out_path)
-        sequence_trees = sequ_trees.SequenceTrees(filename=out_path)
+        forest = sequ_trees.Forest(filename=out_path)
         scores = np.load(out_path + '.score')
         sizes = np.load(out_path + '.size')
+
+    sim_tuples = [[forest.roots[tuple_idx * 2], forest.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
+                  for tuple_idx in range(len(scores))]
+    write_sim_tuple_indices(path=out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
 
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
@@ -285,45 +310,45 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         out_path += '.unique'
         #temp_path = out_path+'.unique'
         if not corpus.exist(out_path) or overwrite:
-            # separate into root_trees (e.g. sentences)
-            logging.debug('split into root_trees ...')
-            root_trees = list(sequence_trees.subtrees())
-            assert n == len(root_trees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(root_trees) / 2, n)
+            # separate into trees (e.g. sentences)
+            logging.debug('split into trees ...')
+            trees = list(forest.trees())
+            assert n == len(trees) / 2, '(subtree_count / 2)=%i does not fit score_count=%i' % (len(trees) / 2, n)
             logging.info('collect unique ...')
             id_unique = 0
             #unique_collected = {}
-            for i, i_root in enumerate(sequence_trees.roots):
-                #print(i)
-                if not lex.has_vocab_prefix(lexicon[sequence_trees.data[i_root]], constants.UNIQUE_EMBEDDING):
-                    sequence_trees.data[i_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
+            for i, i_root in enumerate(forest.roots):
+                #logging.debug('i_root: %i' % i_root)
+                if not lex.has_vocab_prefix(lexicon[forest.data[i_root]], constants.UNIQUE_EMBEDDING):
+                    forest.data[i_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
                     #unique_collected[id_unique] = unique_collected.get(id_unique, []).append(i_root)
-                    for _j, j_root in enumerate(sequence_trees.roots[i:]):
+                    for _j, j_root in enumerate(forest.roots[i:]):
                         j = i + _j
-                        if not lex.has_vocab_prefix(lexicon[sequence_trees.data[j_root]], constants.UNIQUE_EMBEDDING):
-                            j_root_data_backup = sequence_trees.data[j_root]
-                            sequence_trees.data[j_root] = sequence_trees.data[i_root]
-                            if np.array_equal(root_trees[i], root_trees[j]):
-                                sequence_trees.data[j_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
+                        if not lex.has_vocab_prefix(lexicon[forest.data[j_root]], constants.UNIQUE_EMBEDDING):
+                            j_root_data_backup = forest.data[j_root]
+                            forest.data[j_root] = forest.data[i_root]
+                            if np.array_equal(trees[i], trees[j]):
+                                forest.data[j_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
                                 #unique_collected[id_unique].append(j_root)
                             else:
-                                sequence_trees.data[j_root] = j_root_data_backup
+                                forest.data[j_root] = j_root_data_backup
                     id_unique += 1
 
             logging.debug('unique collection finished')
 
             lexicon.pad()
             lexicon.dump(out_path)
-            sequence_trees.dump(out_path)
+            forest.dump(out_path)
         else:
-            sequence_trees = sequ_trees.SequenceTrees(filename=out_path)
+            forest = sequ_trees.Forest(filename=out_path)
 
         # write out unique
-        sim_tuples = [[sequence_trees.roots[tuple_idx * 2], sequence_trees.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
+        sim_tuples = [[forest.roots[tuple_idx * 2], forest.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
                       for tuple_idx in range(len(scores))]
         write_sim_tuple_indices(path=out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
 
-    if FLAGS.neg_samples:
-        temp_path = '%s.root_idx.negs%i' % (out_path, FLAGS.neg_samples)
+    if FLAGS.sample_count:
+        temp_path = '%s.root_idx.negs%i' % (out_path, FLAGS.sample_count)
         if not os.path.isfile(temp_path) or overwrite:
             #roots_collected = {}
             #for root in sequence_trees.roots:
@@ -331,30 +356,43 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             #    coll = roots_collected.get(d, [])
             #    coll.append(root)
             #    roots_collected[d] = coll
-            root_data = sequence_trees.indices_to_trees(sequence_trees.roots)[0]
-            root_trees = list(sequence_trees.subtrees())
-            logging.debug('calc sims_correct ...')
-            sims_correct = np.zeros(shape=n)
-            sims_unique = {}
-            for i in range(n):
-                r1_data = root_data[i * 2]
-                r2_data = root_data[i * 2 + 1]
-                if (r1_data, r2_data) in sims_unique:
-                    sims_correct[i] = sims_unique[(r1_data, r2_data)]
-                else:
-                    sims_correct[i] = sim_jaccard(root_trees[i * 2][0], root_trees[i * 2 + 1][0])
-                    sims_unique[(r1_data, r2_data)] = sims_correct[i]
-                    sims_unique[(r2_data, r1_data)] = sims_correct[i]
-            sims_correct.sort()
 
-            logging.info('start sampling with neg_samples=%i ...' % FLAGS.neg_samples)
-            # TODO: check, if still correct
+            trees = list(forest.trees())
+            if FLAGS.create_unique:
+                unique_root_data = forest.indices_to_forest(forest.roots)[0]
+            else:
+                unique_root_data = None
+            if FLAGS.sample_adapt_distribution:
+                logging.info('adapt distribution from data for sampling ...')
+                logging.debug('calc sims_correct ...')
+                sims_correct = np.zeros(shape=n)
+                if FLAGS.create_unique:
+                    sims_unique = {}
+                    for i in range(n):
+                        r1_data = unique_root_data[i * 2]
+                        r2_data = unique_root_data[i * 2 + 1]
+                        if (r1_data, r2_data) in sims_unique:
+                            sims_correct[i] = sims_unique[(r1_data, r2_data)]
+                        else:
+                            sims_correct[i] = sim_jaccard(trees[i * 2][0], trees[i * 2 + 1][0])
+                            sims_unique[(r1_data, r2_data)] = sims_correct[i]
+                            sims_unique[(r2_data, r1_data)] = sims_correct[i]
+                else:
+                    for i in range(n):
+                        sims_correct[i] = sim_jaccard(trees[i * 2][0], trees[i * 2 + 1][0])
+                sims_correct.sort()
+            else:
+                sims_correct = None
+
+            logging.info('start sampling with sample_count=%i ...' % FLAGS.sample_count)
             _sampled_root_indices = mytools.parallel_process_simple(range(n), partial(sample_indices,
-                                                                                      subtrees=root_trees,
-                                                                                      root_data=root_data,
+                                                                                      trees=trees,
+                                                                                      unique_root_data=unique_root_data,
                                                                                       sims_correct=sims_correct,
-                                                                                      prog_bar=None))
+                                                                                      prog_bar=None,
+                                                                                      check_equality=FLAGS.sample_check_equality))
             sampled_root_indices = np.concatenate(_sampled_root_indices)
+            logging.debug('dump sampled root indices to: %s' % temp_path)
             sampled_root_indices.dump(temp_path)
         else:
             sampled_root_indices = np.load(temp_path)
@@ -362,22 +400,16 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         # write out tuple samples
         sampled_tuples = []
         for tuple_idx in range(len(scores)):
-            current_samples = [sequence_trees.roots[i * 2 + 1] for i in
-                               sampled_root_indices[tuple_idx * FLAGS.neg_samples:(tuple_idx + 1) * FLAGS.neg_samples]]
-            sampled_tuples.append([sequence_trees.roots[tuple_idx * 2]] + current_samples)
+            current_samples = [forest.roots[i * 2 + 1] for i in
+                               sampled_root_indices[tuple_idx * FLAGS.sample_count:(tuple_idx + 1) * FLAGS.sample_count]]
+            sampled_tuples.append([forest.roots[tuple_idx * 2]] + current_samples)
         write_sim_tuple_indices(path=out_path, sim_tuple_indices=sampled_tuples, sizes=sizes,
-                                path_suffix='.negs%i' % FLAGS.neg_samples)
+                                path_suffix='.negs%i' % FLAGS.sample_count)
 
-        if FLAGS.sample_all:
-            all_samples = sequence_trees.sample_all(sample_count=FLAGS.neg_samples)
-            logging.info('write sim_tuple_indices to: %s.idx.negs%i' % (out_path, FLAGS.neg_samples))
-            np.array(all_samples).dump('%s.idx.negs%i' % (out_path, FLAGS.neg_samples))
-        # sampled_all = sample_all(out_path, parents, children, roots)
-
-    else:
-        sim_tuples = [[sequence_trees.roots[tuple_idx * 2], sequence_trees.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
-                      for tuple_idx in range(len(scores))]
-        write_sim_tuple_indices(path=out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
+    if FLAGS.sample_all and FLAGS.sample_count:
+        all_samples = forest.sample_all(sample_count=FLAGS.sample_count)
+        logging.info('write sim_tuple_indices to: %s.idx.negs%i' % (out_path, FLAGS.sample_count))
+        np.array(all_samples).dump('%s.idx.negs%i' % (out_path, FLAGS.sample_count))
 
 
 def iterate_sim_tuple_data(paths):
@@ -523,7 +555,7 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     #vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
     data_converter = lexicon1.merge(lexicon2, add=True, remove=False)
     #data2, parents2 = sequ_trees.load(corpus_fn2)
-    sequence_trees2 = sequ_trees.SequenceTrees(filename=corpus_fn2)
+    sequence_trees2 = sequ_trees.Forest(filename=corpus_fn2)
     #m = lex.mapping_from_list(types)
     #mapping = {i: m[t] for i, t in enumerate(types2)}
     #converter = [m[t] for t in types2]

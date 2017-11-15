@@ -1,6 +1,6 @@
 from __future__ import print_function
 from preprocessing import read_data, articles_from_csv_reader, dummy_str_reader, get_word_embeddings
-from forest import cut_subgraph, forest_candidates
+from forest_dep import cut_subgraph, forest_candidates
 import numpy as np
 import spacy
 import constants

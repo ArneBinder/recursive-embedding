@@ -331,7 +331,7 @@ def main(unused_argv):
             n_last = n
             for idx in range(len(indices)):
                 index_tuple = indices[idx]
-                _trees = [sequence_trees.get_subtree_dict_unsorted(i) for i in index_tuple]
+                _trees = [sequence_trees.get_tree_dict_unsorted(i) for i in index_tuple]
                 if root_idx is not None:
                     _trees[0]['head'] = root_idx
                 # unify heads
@@ -548,7 +548,7 @@ def main(unused_argv):
 
             #data, parents = sqt.load(FLAGS.train_data_path)
             #children, roots = sqt.children_and_roots(parents)
-            sqt_data = sqt.SequenceTrees(filename=FLAGS.train_data_path)
+            sqt_data = sqt.Forest(filename=FLAGS.train_data_path)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
                     logging.info('create test data set ...')
