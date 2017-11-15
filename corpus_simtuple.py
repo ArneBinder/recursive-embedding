@@ -80,6 +80,11 @@ tf.flags.DEFINE_boolean(
     False,
     'Whether to create negative samples for every data point in the tree sequence.'
 )
+tf.flags.DEFINE_boolean(
+    'create_unique',
+    False,
+    'Whether to create unique tuple roots even if negative sampling is disabled.'
+)
 
 FLAGS = tf.flags.FLAGS
 mytools.logging_init()
@@ -275,9 +280,11 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
 
-    if FLAGS.neg_samples:
-        temp_path = out_path+'.unique'
-        if not corpus.exist(temp_path) or overwrite:
+    if FLAGS.create_unique:
+        # use unique by now
+        out_path += '.unique'
+        #temp_path = out_path+'.unique'
+        if not corpus.exist(out_path) or overwrite:
             # separate into root_trees (e.g. sentences)
             logging.debug('split into root_trees ...')
             root_trees = list(sequence_trees.subtrees())
@@ -305,18 +312,18 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             logging.debug('unique collection finished')
 
             lexicon.pad()
-            lexicon.dump(temp_path)
-            sequence_trees.dump(temp_path)
-
+            lexicon.dump(out_path)
+            sequence_trees.dump(out_path)
         else:
-            sequence_trees = sequ_trees.SequenceTrees(filename=temp_path)
+            sequence_trees = sequ_trees.SequenceTrees(filename=out_path)
 
         # write out unique
         sim_tuples = [[sequence_trees.roots[tuple_idx * 2], sequence_trees.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
                       for tuple_idx in range(len(scores))]
-        write_sim_tuple_indices(path='%s.unique' % out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
+        write_sim_tuple_indices(path=out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
 
-        temp_path = '%s.unique.root_idx.negs%i' % (out_path, FLAGS.neg_samples)
+    if FLAGS.neg_samples:
+        temp_path = '%s.root_idx.negs%i' % (out_path, FLAGS.neg_samples)
         if not os.path.isfile(temp_path) or overwrite:
             #roots_collected = {}
             #for root in sequence_trees.roots:
@@ -358,20 +365,19 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             current_samples = [sequence_trees.roots[i * 2 + 1] for i in
                                sampled_root_indices[tuple_idx * FLAGS.neg_samples:(tuple_idx + 1) * FLAGS.neg_samples]]
             sampled_tuples.append([sequence_trees.roots[tuple_idx * 2]] + current_samples)
-        write_sim_tuple_indices(path='%s.unique' % out_path, sim_tuple_indices=sampled_tuples, sizes=sizes,
+        write_sim_tuple_indices(path=out_path, sim_tuple_indices=sampled_tuples, sizes=sizes,
                                 path_suffix='.negs%i' % FLAGS.neg_samples)
 
         if FLAGS.sample_all:
             all_samples = sequence_trees.sample_all(sample_count=FLAGS.neg_samples)
-            logging.info('write sim_tuple_indices to: %s.unique.idx.negs%i' % (out_path, FLAGS.neg_samples))
-            np.array(all_samples).dump('%s.unique.idx.negs%i' % (out_path, FLAGS.neg_samples))
+            logging.info('write sim_tuple_indices to: %s.idx.negs%i' % (out_path, FLAGS.neg_samples))
+            np.array(all_samples).dump('%s.idx.negs%i' % (out_path, FLAGS.neg_samples))
         # sampled_all = sample_all(out_path, parents, children, roots)
-
 
     else:
         sim_tuples = [[sequence_trees.roots[tuple_idx * 2], sequence_trees.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
                       for tuple_idx in range(len(scores))]
-        write_sim_tuple_indices(path='%s' % out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
+        write_sim_tuple_indices(path=out_path, sim_tuple_indices=sim_tuples, sizes=sizes)
 
 
 def iterate_sim_tuple_data(paths):
