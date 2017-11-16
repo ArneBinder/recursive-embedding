@@ -346,8 +346,8 @@ class Lexicon(object):
         dump(filename,
              vecs=self.vecs if dump_vecs else None,
              types=self.types if dump_types else None)
-        self._dumped_vecs = (self._dumped_vecs and filename == self._filename) or dump_vecs or len(self.vecs) == 0
-        self._dumped_types = (self._dumped_types and filename == self._filename) or dump_types
+        self._dumped_vecs = dump_vecs or len(self.vecs) == 0
+        self._dumped_types = True
         self._filename = filename
 
     # compatibility
