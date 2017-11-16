@@ -186,9 +186,11 @@ if FLAGS.logdir_continue:
 elif FLAGS.logdir_pretrained:
     logging.info('load flags from logdir_pretrained: %s', FLAGS.logdir_pretrained)
     new_train_data_path = model_flags['train_data_path']
+    new_extensions = model_flags['extensions']
     with open(os.path.join(FLAGS.logdir_pretrained, 'flags.json'), 'r') as infile:
         model_flags = json.load(infile)
     model_flags['train_data_path'] = new_train_data_path
+    model_flags['extensions'] = new_extensions
 
 for flag in model_flags:
     v = model_flags[flag]
@@ -289,6 +291,8 @@ def main(unused_argv):
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
             vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_LEXICON)
             types_old = lex.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
+            # TODO: check this! data conversion necessary??
+            raise NotImplementedError
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                           remove=False)
 
