@@ -340,12 +340,14 @@ class Lexicon(object):
         assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' % (len(new_vecs), len(self))
         self._vecs = new_vecs
 
-    def dump(self, filename):
+    def dump(self, filename, types_only=False):
+        dump_vecs = (not self._dumped_vecs or filename != self._filename) and not types_only
+        dump_types = not self._dumped_types or filename != self._filename
         dump(filename,
-             vecs=self.vecs if not self._dumped_vecs or filename != self._filename else None,
-             types=self.types if not self._dumped_types or filename != self._filename else None)
-        self._dumped_vecs = True
-        self._dumped_types = True
+             vecs=self.vecs if dump_vecs else None,
+             types=self.types if dump_types else None)
+        self._dumped_vecs = (self._dumped_vecs and filename == self._filename) or dump_vecs or len(self.vecs) == 0
+        self._dumped_types = (self._dumped_types and filename == self._filename) or dump_types
         self._filename = filename
 
     # compatibility
@@ -467,7 +469,7 @@ class Lexicon(object):
         return self._mapping
 
     @property
-    def filled(self):
+    def is_filled(self):
         return len(self) == len(self.vecs)
 
 

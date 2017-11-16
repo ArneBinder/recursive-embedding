@@ -526,8 +526,8 @@ def main(unused_argv):
         logging.info('merge nlp embeddings into loaded embeddings ...')
         lexicon.merge(lexicon_nlp, add=True, remove=False)
 
-    assert lexicon.filled, 'lexicon: not all vecs set for all types (len(types): %i, len(vecs): %i)' % \
-                           (len(lexicon), len(lexicon.vecs))
+    assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
+                              (len(lexicon), len(lexicon.vecs))
 
     # load model
     if checkpoint:
