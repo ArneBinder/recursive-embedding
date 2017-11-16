@@ -35,6 +35,7 @@ def score_reader(filename):
         yield 1.0
 
 
+# deprecated
 def reader_source(prefix):
     lc = 0
     while True:
@@ -75,10 +76,12 @@ def main(args=None):
         if f_id < FLAGS.file_count -1:
             logging.warning('not enough data to create %i files of size %i. Use only created (%i) files to create corpus.' % (FLAGS.file_count, FLAGS.size, f_id+1))
             file_names = file_names[:f_id+1]
-    corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_scores=score_reader,
+    corpus_simtuple.create_corpus(reader_sentences=sentence_reader,
+                                  reader_scores=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
                                   output_suffix='_%i' % FLAGS.size,
+                                  # TODO: add reader_roots_args=[u'PPDB', constants.vocab_manual[constants.ROOT_EMBEDDING]]
                                   #reader_roots=reader_source
                                   )
 
