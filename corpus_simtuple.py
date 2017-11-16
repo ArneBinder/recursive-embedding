@@ -512,6 +512,7 @@ def load_sim_tuple_indices(filename, extensions=None):
     for ext in extensions:
         if not os.path.isfile(filename + ext):
             raise IOError('file not found: %s' % filename + ext)
+        logging.debug('load idx file: %s' % filename + ext)
         _loaded = np.load(filename + ext).T
         if _loaded.dtype.kind == 'f':
             n = (len(_loaded) - 1) / 2

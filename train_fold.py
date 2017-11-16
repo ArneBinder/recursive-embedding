@@ -137,7 +137,11 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
                                'entries to fixed dummy value (IDENTITY_idx) for test data. Create a dedicated training '
                                'and test models.',
-                               'single']
+                               'single'],
+               'extensions': ['DEFINE_string',
+                              '',
+                              'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
+                              'ext'],
 
                }
 
@@ -243,7 +247,7 @@ def main(unused_argv):
                 else:
                     flag_name = flag
                 flag_name = flag_name.replace('_', '')
-                flag_value = str(new_value).replace('_', '')
+                flag_value = str(new_value).replace('_', '').replace(',', '-')
                 # if flag_value is a path, take only the last two subfolders
                 flag_value = ''.join(flag_value.split(os.sep)[-2:])
                 run_desc.append(flag_name.lower() + flag_value.upper())
@@ -350,13 +354,15 @@ def main(unused_argv):
                 else:
                     yield [_trees, _probs]
 
+    extensions = FLAGS.extensions.split(',')
     if FLAGS.data_single:
-        data_iterator_train = partial(data_tuple_iterator, shuffle=True, extensions=['', '.negs1'])
-        data_iterator_test = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=['', '.negs1'])
+        #extensions = ['', '.negs1']
+        data_iterator_train = partial(data_tuple_iterator, shuffle=True, extensions=extensions)
+        data_iterator_test = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=extensions)
         tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
     else:
-        data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True)
-        data_iterator_test = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True)
+        data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
+        data_iterator_test = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
