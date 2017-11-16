@@ -310,35 +310,35 @@ class Lexicon(object):
             #self._vecs, self._types = load(filename)
             self._types = read_types(filename)
             self._dumped_types = True
-            self._dumped_vecs = True
             if os.path.isfile('%s.vec' % filename):
                 self._vecs = np.load('%s.vec' % filename)
+                self._dumped_vecs = True
             else:
                 # set dummy vecs
-                self._vecs = np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32)
+                self.init_vecs()
         elif types is not None:
             self._types = types
             if vecs is not None:
                 self._vecs = vecs
             else:
                 # set dummy vecs
-                self._vecs = np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32)
-                self._dumped_vecs = True
+                self.init_vecs()
         elif nlp_vocab is not None:
             self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
             #print(self.filled)
         else:
             raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
 
-    def init_vecs(self, new_vecs):
+    def init_vecs(self, new_vecs=None):
+        if new_vecs is None:
+            new_vecs = np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32)
+            self._dumped_vecs = True
+        else:
+            self._dumped_vecs = False
         if not self._dumped_vecs:
             logging.warning('overwrite unsaved vecs')
         assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' % (len(new_vecs), len(self))
         self._vecs = new_vecs
-        self._dumped_vecs = False
-
-    def empty_vecs(self):
-        self.init_vecs(np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32))
 
     def dump(self, filename):
         dump(filename,
@@ -416,10 +416,15 @@ class Lexicon(object):
             raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
 
     def merge(self, other, add=True, remove=True):
-        self._vecs, self._types = merge_dicts(vecs1=self._vecs, types1=self._types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
-        m = mapping_from_list(self.types)
-        converter = [m[t] for t in other.types]
-        return converter
+        self._vecs, self._types = merge_dicts(vecs1=self.vecs, types1=self.types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
+        self._mapping = None
+        self._dumped_vecs = False
+        self._dumped_types = False
+        if add:
+            converter_other = [self.mapping[t] for t in other.types]
+        else:
+            converter_other = None
+        return converter_other
 
     def read_data(self, *args, **kwargs):
         data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
@@ -433,7 +438,7 @@ class Lexicon(object):
                 res = self.mapping[item]
             # word doesnt occur in dictionary
             except KeyError:
-                res = len(self._types)
+                res = len(self)
                 self._mapping[item] = res
                 self._types.append(item)
             return res
@@ -441,7 +446,7 @@ class Lexicon(object):
             return self.types[item]
 
     def __len__(self):
-        return len(self._types)
+        return len(self.types)
 
     @property
     def vec_size(self):

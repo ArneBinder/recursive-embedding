@@ -291,8 +291,6 @@ def main(unused_argv):
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
             vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_LEXICON)
             types_old = lex.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
-            # TODO: check this! data conversion necessary??
-            raise NotImplementedError
             vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
                                           remove=False)
 

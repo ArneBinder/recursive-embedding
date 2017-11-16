@@ -580,7 +580,7 @@ def main(unused_argv):
                     saver_final = tf.train.Saver()
                     saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
                     lexicon.dump(FLAGS.save_final_model_path)
-                lexicon.empty_vecs()
+                lexicon.init_vecs()
 
     logging.info('Starting the API')
     app.run()
