@@ -264,6 +264,13 @@ def main(unused_argv):
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
 
+    fh_debug = logging.FileHandler(os.path.join(logdir, 'train-debug.log'))
+    fh_debug.setLevel(logging.DEBUG)
+    logging.getLogger('').addHandler(fh_debug)
+    fh_info = logging.FileHandler(os.path.join(logdir, 'train-info.log'))
+    fh_info.setLevel(logging.INFO)
+    logging.getLogger('').addHandler(fh_info)
+
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
