@@ -274,8 +274,9 @@ def main(unused_argv):
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
+    if FLAGS.logdir_continue:
+        assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
     old_checkpoint_fn = None
-    #vecs = None
     lexicon = None
     if checkpoint_fn:
         if not checkpoint_fn.startswith(logdir):
@@ -285,41 +286,27 @@ def main(unused_argv):
         saved_shapes = reader.get_variable_to_shape_map()
         logging.debug(saved_shapes)
         logging.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
-        #embed_shape = saved_shapes[model_fold.VAR_NAME_LEXICON]
-        #lex_size = embed_shape[0]
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
-        #types = lex.read_types(os.path.join(logdir, 'model'))
         lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
         assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
     else:
-        #vecs, types = lex.load(FLAGS.train_data_path)
         lexicon = lex.Lexicon(filename=FLAGS.train_data_path)
         if FLAGS.logdir_pretrained:
             logging.info('load lexicon from pre-trained model: %s' % FLAGS.logdir_pretrained)
             old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir_pretrained)
             assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + FLAGS.logdir_pretrained
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-            #vecs_old = reader_old.get_tensor(model_fold.VAR_NAME_LEXICON)
-            #types_old = lex.read_types(os.path.join(FLAGS.logdir_pretrained, 'model'))
             lexicon_old = lex.Lexicon(filename=os.path.join(FLAGS.logdir_pretrained, 'model'))
             lexicon_old.init_vecs(reader_old.get_tensor(model_fold.VAR_NAME_LEXICON))
-            #vecs, types = lex.merge_dicts(vecs1=vecs, types1=types, vecs2=vecs_old, types2=types_old, add=False,
-            #                              remove=False)
             lexicon.merge(lexicon_old, add=False, remove=False)
 
-        #vecs, types, ROOT_idx = lex.add_and_get_idx(vecs, types,
-        #                                            new_type=constants.vocab_manual[constants.ROOT_EMBEDDING])
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
-        #vecs, types, IDENTITY_idx = lex.add_and_get_idx(vecs, types, new_type=constants.vocab_manual[
-        #    constants.IDENTITY_EMBEDDING])
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
 
-        #lex.dump(os.path.join(logdir, 'model'), types=types)
         lexicon.dump(filename=os.path.join(logdir, 'model'), types_only=True)
-        #lex_size = vecs.shape[0]
         assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
                                   (len(lexicon), len(lexicon.vecs))
         # write flags for current run
@@ -331,9 +318,7 @@ def main(unused_argv):
         test_result_writer.writeheader()
 
     logging.info('lexicon size: %i' % len(lexicon))
-    #IDENTITY_idx = types.index(constants.vocab_manual[constants.IDENTITY_EMBEDDING])
     logging.debug('IDENTITY_idx: %i' % IDENTITY_idx)
-    #ROOT_idx = types.index(constants.vocab_manual[constants.ROOT_EMBEDDING])
     logging.debug('ROOT_idx: %i' % ROOT_idx)
 
     # TRAINING and TEST DATA ###########################################################################################
