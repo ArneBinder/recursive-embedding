@@ -581,6 +581,7 @@ def main(unused_argv):
                 TEST_MIN_INIT = -1
                 test_p_rs = [TEST_MIN_INIT]
                 step_train = sess.run(model_train.global_step)
+                max_queue_length = 0
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=True), 1):
 
                     # train
@@ -602,12 +603,18 @@ def main(unused_argv):
                         # previous values is set by FLAGS.early_stop_queue
                         if p_r > prev_max:
                             test_p_rs = []
+                        else:
+                            if len(test_p_rs) >= max_queue_length:
+                                max_queue_length = len(test_p_rs) + 1
                         test_p_rs.append(p_r)
                         test_p_rs_sorted = sorted(test_p_rs, reverse=True)
                         rank = test_p_rs_sorted.index(p_r)
 
+                        # write out queue length
+                        emit_values(supervisor, sess, step_test, values={'queue_length': len(test_p_rs)}, writer=test_writer)
+
                         logging.debug(
-                            'pearson_r rank (of %i):\t%i\tdif: %f' % (len(test_p_rs), rank, round((p_r - prev_max), 6)))
+                            'pearson_r rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i' % (len(test_p_rs), rank, round((p_r - prev_max), 6), max_queue_length))
                         if 0 < FLAGS.early_stop_queue < len(test_p_rs):
                             logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
                             break
