@@ -462,9 +462,9 @@ class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
             if 'children' not in x:
                 return []
             res = [c for c in x['children'] if 'children' in c and len(c['children']) > 0]
-            if len(res) != len(x['children']):
+            #if len(res) != len(x['children']):
                 # warn, if children have been removed
-                logging.warning('removed children: %i' % (len(x['children']) - len(res)))
+                #logging.warning('removed children: %i' % (len(x['children']) - len(res)))
             return res
         return td.InputTransform(get_children, name=name)
 
