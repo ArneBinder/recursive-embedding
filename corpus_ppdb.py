@@ -81,8 +81,8 @@ def main(args=None):
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
                                   output_suffix='_%i' % FLAGS.size,
-                                  # TODO: add reader_roots_args=[u'PPDB', constants.vocab_manual[constants.ROOT_EMBEDDING]]
-                                  #reader_roots=reader_source
+                                  reader_roots_args={'root_labels': [u'PPDB_PHRASE',
+                                                                     constants.vocab_manual[constants.ROOT_EMBEDDING]]}
                                   )
 
 
