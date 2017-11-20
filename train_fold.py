@@ -20,6 +20,7 @@ import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
 from sklearn import linear_model
+from tensorflow.python.platform import flags
 
 import constants
 import corpus_simtuple
@@ -30,11 +31,11 @@ import model_fold
 import mytools
 import sequence_trees as sqt
 
-model_flags = {'train_data_path': ['DEFINE_string',
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
+default_config = {'train_data_path': ['DEFINE_string',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
                                    '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
-                                   # SICK default
+                                      # SICK default
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/ANNOPPDB/process_sentence3/ANNOPPDB_CMaggregate',   # ANNOPPDB default
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
@@ -45,25 +46,25 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                    # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
                                    #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
                                    'TF Record file containing the training dataset of sequence tuples.',
-                                   'data'],
-               'batch_size': ['DEFINE_integer',
+                                      'data'],
+                  'batch_size': ['DEFINE_integer',
                               100,
                               'How many samples to read per batch.',
                               'batchs'],
-               'epochs': ['DEFINE_integer',
+                  'epochs': ['DEFINE_integer',
                           1000000,
                           'The number of epochs.',
                           None],
-               'test_file_index': ['DEFINE_integer',
+                  'test_file_index': ['DEFINE_integer',
                                    0,
                                    'Which file of the train data files should be used as test data.',
                                    'test_file_i'],
-               'lexicon_trainable': ['DEFINE_boolean',
+                  'lexicon_trainable': ['DEFINE_boolean',
                                      #   False,
                                      False,
                                      'Iff enabled, fine tune the embeddings.',
                                      'lex_train'],
-               'sim_measure': ['DEFINE_string',
+                  'sim_measure': ['DEFINE_string',
                                'sim_cosine',
                                'similarity measure implementation (tensorflow) from model_fold for similarity score '
                                'calculation. Currently implemented:'
@@ -71,7 +72,7 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
                                '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
                                'sm'],
-               'tree_embedder': ['DEFINE_string',
+                  'tree_embedder': ['DEFINE_string',
                                  'TreeEmbedding_FLAT_AVG',
                                  'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
                                  'calling which accepts a sequence tree and produces an embedding. '
@@ -92,58 +93,58 @@ model_flags = {'train_data_path': ['DEFINE_string',
                                  '                                       (e.g. token embeddings)',
                                  'te'
                                  ],
-               'leaf_fc_size': ['DEFINE_integer',
+                  'leaf_fc_size': ['DEFINE_integer',
                                 # 0,
                                 50,
                                 'If not 0, apply a fully connected layer with this size before composition',
                                 'leaffc'
                                 ],
-               'root_fc_size': ['DEFINE_integer',
+                  'root_fc_size': ['DEFINE_integer',
                                 # 0,
                                 50,
                                 'If not 0, apply a fully connected layer with this size after composition',
                                 'rootfc'
                                 ],
-               'state_size': ['DEFINE_integer',
+                  'state_size': ['DEFINE_integer',
                               50,
                               'size of the composition layer',
                               'state'],
-               'learning_rate': ['DEFINE_float',
+                  'learning_rate': ['DEFINE_float',
                                  0.02,
                                  # 'tanh',
                                  'learning rate',
                                  'learning_r'],
-               'optimizer': ['DEFINE_string',
+                  'optimizer': ['DEFINE_string',
                              'AdadeltaOptimizer',
                              'optimizer',
                              'opt'],
-               'early_stop_queue': ['DEFINE_integer',
+                  'early_stop_queue': ['DEFINE_integer',
                                     50,
                                     'If not 0, stop training when current test loss is smaller then last queued '
                                     'previous losses',
                                     None],
-               'keep_prob': ['DEFINE_float',
+                  'keep_prob': ['DEFINE_float',
                              0.7,
                              'Keep probability for dropout layer'
                              ],
-               'auto_restore': ['DEFINE_boolean',
+                  'auto_restore': ['DEFINE_boolean',
                                 False,
                                 #   True,
                                 'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
                                 'restore'],
-               'data_single': ['DEFINE_boolean',
+                  'data_single': ['DEFINE_boolean',
                                False,
                                #   True,
                                'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
                                'entries to fixed dummy value (IDENTITY_idx) for test data. Create a dedicated training '
                                'and test models.',
                                'single'],
-               'extensions': ['DEFINE_string',
+                  'extensions': ['DEFINE_string',
                               '',
                               'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
                               'ext'],
 
-               }
+                  }
 
 # non-saveable flags
 tf.flags.DEFINE_string('logdir',
@@ -152,9 +153,12 @@ tf.flags.DEFINE_string('logdir',
                        #  '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
                        '/home/arne/ML_local/tf/supervised/log/SA/PRETRAINED',
                        'Directory in which to write event logs.')
-tf.flags.DEFINE_string('test_only_file',
+tf.flags.DEFINE_string('test_file',
                        None,
-                       'Set this to execute evaluation only.')
+                       'Set this to execute only.')
+tf.flags.DEFINE_boolean('test_only',
+                        False,
+                        'Enable to execute evaluation only.')
 tf.flags.DEFINE_string('logdir_continue',
                        None,
                        'continue training with config from flags.json')
@@ -177,24 +181,81 @@ tf.flags.DEFINE_integer('task', 0,
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
-mytools.logging_init()
 
-if FLAGS.logdir_continue:
-    logging.info('load flags from logdir: %s', FLAGS.logdir_continue)
-    with open(os.path.join(FLAGS.logdir_continue, 'flags.json'), 'r') as infile:
-        model_flags = json.load(infile)
-elif FLAGS.logdir_pretrained:
-    logging.info('load flags from logdir_pretrained: %s', FLAGS.logdir_pretrained)
-    new_train_data_path = model_flags['train_data_path']
-    new_extensions = model_flags['extensions']
-    with open(os.path.join(FLAGS.logdir_pretrained, 'flags.json'), 'r') as infile:
-        model_flags = json.load(infile)
-    model_flags['train_data_path'] = new_train_data_path
-    model_flags['extensions'] = new_extensions
 
-for flag in model_flags:
-    v = model_flags[flag]
-    getattr(tf.flags, v[0])(flag, v[1], v[2])
+class Config(object):
+    def __init__(self, logdir_continue=None, logdir_pretrained=None):
+        if logdir_continue is not None:
+            logging.info('load flags from logdir: %s', logdir_continue)
+            with open(os.path.join(logdir_continue, 'flags.json'), 'r') as infile:
+                self._values = json.load(infile)
+        elif logdir_pretrained is not None:
+            logging.info('load flags from logdir_pretrained: %s', logdir_pretrained)
+            # new_train_data_path = default_config['train_data_path']
+            # new_extensions = default_config['extensions']
+            with open(os.path.join(logdir_pretrained, 'flags.json'), 'r') as infile:
+                self._values = json.load(infile)
+            self._values['train_data_path'] = default_config['train_data_path']
+            self._values['extensions'] = default_config['extensions']
+        else:
+            self._values = default_config
+
+    def __getattr__(self, name):
+        """Retrieves the 'value' attribute of the flag --name."""
+
+        if name not in self._values:
+            raise AttributeError(name)
+        return self._values[name][1]
+
+    def dump(self, logdir):
+        # write flags for current run
+        filename = os.path.join(logdir, 'flags.json')
+        with open(filename, 'w') as outfile:
+            json.dump(self._values, outfile, indent=2, sort_keys=True)
+
+    def set_run_description(self):
+        if 'run_description' not in self._values:
+            run_desc = []
+            for flag in sorted(self._values.keys()):
+                # get real flag value
+                # new_value = getattr(FLAGS, flag)
+                # default_config[flag][1] = new_value
+                #value = config[flag][1]
+                value = getattr(self, flag)
+
+                # collect run description
+                # if 'run_description' not in config:
+                # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
+                if len(self._values[flag]) < 4 or self._values[flag][3]:
+                    if len(self._values[flag]) >= 4:
+                        flag_name = self._values[flag][3]
+                    else:
+                        flag_name = flag
+                    flag_name = flag_name.replace('_', '')
+                    flag_value = str(value).replace('_', '').replace(',', '-')
+                    # if flag_value is a path, take only the last two subfolders
+                    flag_value = ''.join(flag_value.split(os.sep)[-2:])
+                    run_desc.append(flag_name.lower() + flag_value.upper())
+            self._values['run_description'] = ['DEFINE_string',
+                                         '_'.join(run_desc),
+                                         'short string description of the current run',
+                                         None]
+            logging.debug('set run description: %s' % self.run_description)
+            # if 'run_description' not in config:
+            #    config['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
+            #    logging.info('serialized run description: ' + config['run_description'][1])
+
+    def update_with_flags(self, flags):
+        for flag in self._values.keys():
+            # get real flag value
+            if flag in flags.__dict__['__flags']:
+                new_value = getattr(flags, flag)
+                self._values[flag][1] = new_value
+
+    def init_flags(self):
+        for flag in self._values.keys():
+            v = self._values[flag]
+            getattr(tf.flags, v[0])(flag, v[1], v[2])
 
 
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
@@ -233,33 +294,10 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
     return count
 
 
-def main(unused_argv):
-    run_desc = []
-    for flag in sorted(model_flags.keys()):
-        # get real flag value
-        new_value = getattr(FLAGS, flag)
-        model_flags[flag][1] = new_value
+def execute_run(config):
+    config.set_run_description()
 
-        # collect run description
-        if 'run_description' not in model_flags:
-            # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
-            if len(model_flags[flag]) < 4 or model_flags[flag][3]:
-                if len(model_flags[flag]) >= 4:
-                    flag_name = model_flags[flag][3]
-                else:
-                    flag_name = flag
-                flag_name = flag_name.replace('_', '')
-                flag_value = str(new_value).replace('_', '').replace(',', '-')
-                # if flag_value is a path, take only the last two subfolders
-                flag_value = ''.join(flag_value.split(os.sep)[-2:])
-                run_desc.append(flag_name.lower() + flag_value.upper())
-
-    if 'run_description' not in model_flags:
-        model_flags['run_description'] = ['DEFINE_string', '_'.join(run_desc),
-                                          'short string description of the current run', None]
-        logging.info('serialized run description: ' + model_flags['run_description'][1])
-
-    logdir = FLAGS.logdir_continue or os.path.join(FLAGS.logdir, model_flags['run_description'][1])
+    logdir = FLAGS.logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
     logging.info('logdir: %s' % logdir)
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
@@ -309,9 +347,9 @@ def main(unused_argv):
         lexicon.dump(filename=os.path.join(logdir, 'model'), types_only=True)
         assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
                                   (len(lexicon), len(lexicon.vecs))
-        # write flags for current run
-        with open(os.path.join(logdir, 'flags.json'), 'w') as outfile:
-            json.dump(model_flags, outfile, indent=2, sort_keys=True)
+
+        # dump config
+        config.dump(logdir=logdir)
 
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
@@ -365,20 +403,25 @@ def main(unused_argv):
     if FLAGS.data_single:
         #extensions = ['', '.negs1']
         data_iterator_train = partial(data_tuple_iterator, shuffle=True, extensions=extensions)
-        data_iterator_test = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=extensions)
+        data_iterator_dev = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=extensions)
         tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
     else:
         data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
-        data_iterator_test = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
+        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
 
     parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
-    if not (FLAGS.test_only_file or FLAGS.init_only):
+    if FLAGS.test_file is not None:
+        test_fname = os.path.join(parent_dir, FLAGS.test_file)
+        test_iterator = partial(data_tuple_iterator, sim_index_files=[test_fname], root_idx=ROOT_idx, split=True)
+    else:
+        test_iterator = None
+    if not (FLAGS.test_only or FLAGS.init_only):
         logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
         regex = re.compile(r'%s\.idx\.\d+$' % ntpath.basename(FLAGS.train_data_path))
         train_fnames = filter(regex.search, os.listdir(parent_dir))
-        regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
-        train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
+        #regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
+        #train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
         # TODO: use train_fnames_negs
         train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
         assert len(train_fnames) > 0, 'no matching train data files found for ' + FLAGS.train_data_path
@@ -387,14 +430,15 @@ def main(unused_argv):
         logging.info('use ' + test_fname + ' for testing')
         del train_fnames[FLAGS.test_file_index]
         train_iterator = partial(data_iterator_train, sim_index_files=train_fnames)
-        test_iterator = partial(data_iterator_test, sim_index_files=[test_fname])
-    elif FLAGS.test_only_file:
-        test_fname = os.path.join(parent_dir, FLAGS.test_only_file)
-        test_iterator = partial(data_iterator_test, sim_index_files=[test_fname])
+        dev_iterator = partial(data_iterator_dev, sim_index_files=[test_fname])
+    elif FLAGS.test_only:
+        assert test_iterator is not None, 'flag "test_file" has to be set if flag "test_only" is enabled, but it is None'
         train_iterator = None
+        dev_iterator = None
     else:
-        test_iterator = None
+        dev_iterator = None
         train_iterator = None
+        test_iterator = None
 
     # MODEL DEFINITION #################################################################################################
 
@@ -564,13 +608,20 @@ def main(unused_argv):
             sqt_data = sqt.Forest(filename=FLAGS.train_data_path)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
-                    logging.info('create test data set ...')
-                    dummy = model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data))
-                    test_set = list(dummy)
-                    logging.info('test data size: ' + str(len(test_set)))
-                    if not train_iterator:
-                        do_epoch(model_test, test_set, 0, train=False, emit=False)
-                        return
+
+                    if test_iterator is not None:
+                        logging.info('create test data set ...')
+                        test_set = list(model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data)))
+                        logging.info('test data size: ' + str(len(test_set)))
+                        if train_iterator is None:
+                            step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False, emit=False)
+                            p_r = pearsonr(score_all, score_all_gold)[0]
+                            return p_r
+
+                    logging.info('create dev data set ...')
+                    dev_set = list(
+                        model_test.tree_model.compiler.build_loom_inputs(dev_iterator(sequence_trees=sqt_data)))
+                    logging.info('dev data size: ' + str(len(dev_set)))
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)
@@ -590,7 +641,7 @@ def main(unused_argv):
 
                     if model_test is not None:
                         # test
-                        step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, test_set, epoch,
+                        step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
                                                                                train=False, test_step=step_train)
 
                         # EARLY STOPPING ###############################################################################
@@ -611,13 +662,14 @@ def main(unused_argv):
                         rank = test_p_rs_sorted.index(p_r)
 
                         # write out queue length
-                        emit_values(supervisor, sess, step_test, values={'queue_length': len(test_p_rs)}, writer=test_writer)
+                        emit_values(supervisor, sess, step_test, values={'queue_length': len(test_p_rs), 'rank': rank},
+                                    writer=test_writer)
 
                         logging.debug(
                             'pearson_r rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i' % (len(test_p_rs), rank, round((p_r - prev_max), 6), max_queue_length))
                         if 0 < FLAGS.early_stop_queue < len(test_p_rs):
                             logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
-                            break
+                            return test_p_rs_sorted[0]
 
                         # do not save, if score was not the best
                         #if rank > len(test_p_rs) * 0.05:
@@ -633,5 +685,18 @@ def main(unused_argv):
                         supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
 
+#def main(unused_argv):
+#    execute_run()
+
+
 if __name__ == '__main__':
-    tf.app.run()
+    mytools.logging_init()
+    #tf.app.run()
+    config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
+    config.init_flags()
+    # pylint: disable=protected-access
+    FLAGS._parse_flags(args=None)
+    # pylint: enable=protected-access
+    #update_config_with_flags(config, FLAGS)
+    config.update_with_flags(FLAGS)
+    execute_run(config)
