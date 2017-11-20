@@ -55,7 +55,7 @@ model_flags = {'train_data_path': ['DEFINE_string',
                           'The number of epochs.',
                           None],
                'test_file_index': ['DEFINE_integer',
-                                   1,
+                                   0,
                                    'Which file of the train data files should be used as test data.',
                                    'test_file_i'],
                'lexicon_trainable': ['DEFINE_boolean',
@@ -578,8 +578,8 @@ def main(unused_argv):
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
-                test_p_rs = []
-                test_p_rs_sorted = [0]
+                TEST_MIN_INIT = -1
+                test_p_rs = [TEST_MIN_INIT]
                 step_train = sess.run(model_train.global_step)
                 for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=True), 1):
 
@@ -597,33 +597,30 @@ def main(unused_argv):
                         # loss_test = round(loss_test, 6) #100000000
                         p_r = pearsonr(sim_all, sim_all_gold)[0]
                         p_r = round(p_r, 6)
-                        p_r_dif = p_r - max(test_p_rs_sorted)
-                        # stop, if different previous test losses are smaller than current loss. The amount of regarded
+                        prev_max = max(test_p_rs)
+                        # stop, if current test pearson r is not bigger than previous values. The amount of regarded
                         # previous values is set by FLAGS.early_stop_queue
-                        if p_r not in test_p_rs:
-                            test_p_rs.append(p_r)
-                            test_p_rs_sorted = sorted(test_p_rs, reverse=True)
+                        if p_r > prev_max:
+                            test_p_rs = []
+                        test_p_rs.append(p_r)
+                        test_p_rs_sorted = sorted(test_p_rs, reverse=True)
                         rank = test_p_rs_sorted.index(p_r)
 
                         logging.debug(
-                            'pearson_r rank (of %i):\t%i\tdif: %f' % (len(test_p_rs), rank, round(p_r_dif, 6)))
-                        if FLAGS.early_stop_queue and len(test_p_rs) > FLAGS.early_stop_queue and rank == len(
-                                test_p_rs) - 1:  # min(test_p_rs) == p_r :
-                            logging.info('last test pearsons_r: ' + str(test_p_rs))
+                            'pearson_r rank (of %i):\t%i\tdif: %f' % (len(test_p_rs), rank, round((p_r - prev_max), 6)))
+                        if 0 < FLAGS.early_stop_queue < len(test_p_rs):
+                            logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
                             break
 
-                        if len(test_p_rs) > FLAGS.early_stop_queue:
-                            if test_p_rs[0] == max(test_p_rs) and FLAGS.early_stop_queue:
-                                logging.debug('warning: remove highest value (%f)' % test_p_rs[0])
-                            del test_p_rs[0]
-
-                        if rank > len(test_p_rs) * 0.05:
-                            # auto restore if no improvement on test data
+                        # do not save, if score was not the best
+                        #if rank > len(test_p_rs) * 0.05:
+                        if len(test_p_rs) > 1:
+                            # auto restore if enabled
                             if FLAGS.auto_restore:
                                 supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
                         else:
                             # don't save after first epoch if FLAGS.early_stop_queue > 0
-                            if len(test_p_rs) > 1 or not FLAGS.early_stop_queue:
+                            if prev_max > TEST_MIN_INIT or not FLAGS.early_stop_queue:
                                 supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
                     else:
                         supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
