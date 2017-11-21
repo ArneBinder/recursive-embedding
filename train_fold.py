@@ -753,6 +753,9 @@ if __name__ == '__main__':
                 logging.info('start run ==============================================================================')
                 c.set_run_description()
                 logdir = os.path.join(FLAGS.logdir, c.run_description)
+                # skip already processed
+                if os.path.isdir(logdir):
+                    continue
                 d['score_dev_best'] = execute_run(c)
                 logging.info('best dev score: %f' % d['score_dev_best'])
                 d['score_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
