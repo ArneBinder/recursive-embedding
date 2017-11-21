@@ -734,33 +734,52 @@ if __name__ == '__main__':
     # pylint: enable=protected-access
     config.update_with_flags(FLAGS)
     if FLAGS.grid_config_file is not None:
-        logging.info('load grid parameters from: %s' % FLAGS.grid_config_file)
-        with open(FLAGS.grid_config_file, 'r') as infile:
+
+        parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
+        logging.info('load grid parameters from: %s' % parameters_fn)
+        with open(parameters_fn, 'r') as infile:
             grid_parameters = json.load(infile)
+
         train_data_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
         test_fname = os.path.join(train_data_dir, FLAGS.test_file)
         assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
 
         scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
+        if os.path.isfile(scores_fn):
+            file_mode = 'a'
+            with open(scores_fn, 'r') as csvfile:
+                scores_done_reader = csv.DictReader(csvfile, delimiter='\t')
+                scores_done = list(scores_done_reader)
+            run_descriptions_done = [s_d['run_description'] for s_d in scores_done]
+            logging.debug('already finished: %s' % ', '.join(run_descriptions_done))
+        else:
+            file_mode = 'w'
+            run_descriptions_done = []
         logging.info('write scores to: %s' % scores_fn)
-        mytools.make_parent_dir(scores_fn)
-        with open(scores_fn, 'w') as csvfile:
-            fieldnames = grid_parameters.keys() + ['score_dev_best', 'score_test']
+
+        #mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
+        with open(scores_fn, file_mode) as csvfile:
+            fieldnames = grid_parameters.keys() + ['score_dev_best', 'score_test', 'run_description']
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
-            score_writer.writeheader()
+            if file_mode == 'w':
+                score_writer.writeheader()
 
             for c, d in config.explode(grid_parameters):
                 logging.info('start run ==============================================================================')
                 c.set_run_description()
                 logdir = os.path.join(FLAGS.logdir, c.run_description)
+
                 # skip already processed
-                if os.path.isdir(logdir):
+                if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
                     logging.debug('skip config for logdir: %s' % logdir)
                     continue
+
+                d['run_description'] = c.run_description
                 d['score_dev_best'] = execute_run(c)
                 logging.info('best dev score: %f' % d['score_dev_best'])
                 d['score_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
                 logging.info('test score: %f' % d['score_test'])
+
                 score_writer.writerow(d)
                 csvfile.flush()
 
