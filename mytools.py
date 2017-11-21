@@ -8,6 +8,7 @@ import logging
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import Pool
+from itertools import product
 
 
 def parallel_process_simple(input, func):
@@ -176,3 +177,14 @@ def make_parent_dir(fn):
     out_dir = os.path.abspath(os.path.join(fn, os.pardir))
     if not os.path.isdir(out_dir):
         os.makedirs(out_dir)
+
+
+def dict_product(dicts):
+    """
+    # >>> list(dict_product(dict(number=[1,2], character='ab')))
+    [{'character': 'a', 'number': 1},
+     {'character': 'a', 'number': 2},
+     {'character': 'b', 'number': 1},
+     {'character': 'b', 'number': 2}]
+    """
+    return (dict(zip(dicts, x)) for x in product(*dicts.values()))

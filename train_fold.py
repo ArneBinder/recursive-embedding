@@ -12,6 +12,7 @@ import re
 # import google3
 import shutil
 from functools import reduce, partial
+import copy
 
 import numpy as np
 import six
@@ -55,7 +56,7 @@ default_config = {'train_data_path': ['DEFINE_string',
                           1000000,
                           'The number of epochs.',
                           None],
-                  'test_file_index': ['DEFINE_integer',
+                  'dev_file_index': ['DEFINE_integer',
                                    0,
                                    'Which file of the train data files should be used as test data.',
                                    'test_file_i'],
@@ -172,6 +173,9 @@ tf.flags.DEFINE_string('logdir_pretrained',
 tf.flags.DEFINE_boolean('init_only',
                         False,
                         'If True, save the model without training and exit')
+tf.flags.DEFINE_string('grid_config_file',
+                       None,
+                       'read config parameter dict from this file and execute multiple runs')
 
 # flags which are not logged in logdir/flags.json
 tf.flags.DEFINE_string('master', '',
@@ -184,51 +188,64 @@ FLAGS = tf.flags.FLAGS
 
 
 class Config(object):
-    def __init__(self, logdir_continue=None, logdir_pretrained=None):
+    def __init__(self, logdir_continue=None, logdir_pretrained=None, values=None):
         if logdir_continue is not None:
             logging.info('load flags from logdir: %s', logdir_continue)
             with open(os.path.join(logdir_continue, 'flags.json'), 'r') as infile:
-                self._values = json.load(infile)
+                self.__dict__['__values'] = json.load(infile)
         elif logdir_pretrained is not None:
             logging.info('load flags from logdir_pretrained: %s', logdir_pretrained)
             # new_train_data_path = default_config['train_data_path']
             # new_extensions = default_config['extensions']
             with open(os.path.join(logdir_pretrained, 'flags.json'), 'r') as infile:
                 self._values = json.load(infile)
-            self._values['train_data_path'] = default_config['train_data_path']
-            self._values['extensions'] = default_config['extensions']
+            self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
+            self.__dict__['__values']['extensions'] = default_config['extensions']
+        elif values is not None:
+            self.__dict__['__values'] = values
         else:
-            self._values = default_config
+            self.__dict__['__values'] = default_config
 
     def __getattr__(self, name):
-        """Retrieves the 'value' attribute of the flag --name."""
+        """Retrieves the 'value' attribute of the entry name."""
 
-        if name not in self._values:
+        if name not in self.__dict__['__values']:
             raise AttributeError(name)
-        return self._values[name][1]
+        return self.__dict__['__values'][name][1]
+
+    def __setattr__(self, key, value):
+        """Sets the 'value' attribute of the entry name."""
+
+        if key not in self.__dict__['__values']:
+            raise AttributeError(key)
+        self.__dict__['__values'][key][1] = value
+
+    def __iter__(self):
+        return iter(self.__dict__['__values'])
 
     def dump(self, logdir):
         # write flags for current run
         filename = os.path.join(logdir, 'flags.json')
         with open(filename, 'w') as outfile:
-            json.dump(self._values, outfile, indent=2, sort_keys=True)
+            json.dump(self.__dict__['__values'], outfile, indent=2, sort_keys=True)
 
     def set_run_description(self):
-        if 'run_description' not in self._values:
+        if 'run_description' not in self.__dict__['__values']:
             run_desc = []
-            for flag in sorted(self._values.keys()):
+            for flag in sorted(self.__dict__['__values'].keys()):
                 # get real flag value
                 # new_value = getattr(FLAGS, flag)
                 # default_config[flag][1] = new_value
                 #value = config[flag][1]
                 value = getattr(self, flag)
+                entry_values = self.__dict__['__values'][flag]
 
                 # collect run description
                 # if 'run_description' not in config:
                 # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
-                if len(self._values[flag]) < 4 or self._values[flag][3]:
-                    if len(self._values[flag]) >= 4:
-                        flag_name = self._values[flag][3]
+                if len(entry_values) < 4 or entry_values[3]:
+                    if len(entry_values) >= 4:
+                        flag_name = entry_values[3]
                     else:
                         flag_name = flag
                     flag_name = flag_name.replace('_', '')
@@ -236,26 +253,37 @@ class Config(object):
                     # if flag_value is a path, take only the last two subfolders
                     flag_value = ''.join(flag_value.split(os.sep)[-2:])
                     run_desc.append(flag_name.lower() + flag_value.upper())
-            self._values['run_description'] = ['DEFINE_string',
-                                         '_'.join(run_desc),
-                                         'short string description of the current run',
-                                         None]
+                self.__dict__['__values']['run_description'] = ['DEFINE_string',
+                                                                '_'.join(run_desc),
+                                                                'short string description of the current run',
+                                                                None]
             logging.debug('set run description: %s' % self.run_description)
             # if 'run_description' not in config:
             #    config['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
             #    logging.info('serialized run description: ' + config['run_description'][1])
 
     def update_with_flags(self, flags):
-        for flag in self._values.keys():
+        for flag in self:
             # get real flag value
             if flag in flags.__dict__['__flags']:
                 new_value = getattr(flags, flag)
-                self._values[flag][1] = new_value
+                self.__setattr__(flag, new_value)
 
     def init_flags(self):
-        for flag in self._values.keys():
-            v = self._values[flag]
+        for flag in self.__dict__['__values'].keys():
+            v = self.__dict__['__values'][flag]
             getattr(tf.flags, v[0])(flag, v[1], v[2])
+
+    def __deepcopy__(self):
+        newone = type(self)(values=copy.deepcopy(self.__dict__['__values']))
+        return newone
+
+    def explode(self, value_dict):
+        for d in mytools.dict_product(value_dict):
+            temp = self.__deepcopy__()
+            for k in d.keys():
+                temp.__setattr__(key=k, value=d[k])
+            yield temp, d
 
 
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
@@ -294,25 +322,26 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
     return count
 
 
-def execute_run(config):
+def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None):
     config.set_run_description()
 
-    logdir = FLAGS.logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
+    logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
     logging.info('logdir: %s' % logdir)
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
 
+    logger = logging.getLogger('')
     fh_debug = logging.FileHandler(os.path.join(logdir, 'train-debug.log'))
     fh_debug.setLevel(logging.DEBUG)
-    logging.getLogger('').addHandler(fh_debug)
+    logger.addHandler(fh_debug)
     fh_info = logging.FileHandler(os.path.join(logdir, 'train-info.log'))
     fh_info.setLevel(logging.INFO)
-    logging.getLogger('').addHandler(fh_info)
+    logger.addHandler(fh_info)
 
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
-    if FLAGS.logdir_continue:
+    if logdir_continue:
         assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
     old_checkpoint_fn = None
     lexicon = None
@@ -331,13 +360,13 @@ def execute_run(config):
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
     else:
-        lexicon = lex.Lexicon(filename=FLAGS.train_data_path)
-        if FLAGS.logdir_pretrained:
-            logging.info('load lexicon from pre-trained model: %s' % FLAGS.logdir_pretrained)
-            old_checkpoint_fn = tf.train.latest_checkpoint(FLAGS.logdir_pretrained)
-            assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + FLAGS.logdir_pretrained
+        lexicon = lex.Lexicon(filename=config.train_data_path)
+        if logdir_pretrained:
+            logging.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
+            old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
+            assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-            lexicon_old = lex.Lexicon(filename=os.path.join(FLAGS.logdir_pretrained, 'model'))
+            lexicon_old = lex.Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
             lexicon_old.init_vecs(reader_old.get_tensor(model_fold.VAR_NAME_LEXICON))
             lexicon.merge(lexicon_old, add=False, remove=False)
 
@@ -399,8 +428,8 @@ def execute_run(config):
                 else:
                     yield [_trees, _probs]
 
-    extensions = FLAGS.extensions.split(',')
-    if FLAGS.data_single:
+    extensions = config.extensions.split(',')
+    if config.data_single:
         #extensions = ['', '.negs1']
         data_iterator_train = partial(data_tuple_iterator, shuffle=True, extensions=extensions)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=extensions)
@@ -410,28 +439,28 @@ def execute_run(config):
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
 
-    parent_dir = os.path.abspath(os.path.join(FLAGS.train_data_path, os.pardir))
-    if FLAGS.test_file is not None:
-        test_fname = os.path.join(parent_dir, FLAGS.test_file)
+    parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
+    if test_file is not None:
+        test_fname = os.path.join(parent_dir, test_file)
         test_iterator = partial(data_tuple_iterator, sim_index_files=[test_fname], root_idx=ROOT_idx, split=True)
     else:
         test_iterator = None
-    if not (FLAGS.test_only or FLAGS.init_only):
-        logging.info('collect train data from: ' + FLAGS.train_data_path + ' ...')
-        regex = re.compile(r'%s\.idx\.\d+$' % ntpath.basename(FLAGS.train_data_path))
+    if not (test_only or init_only):
+        logging.info('collect train data from: ' + config.train_data_path + ' ...')
+        regex = re.compile(r'%s\.idx\.\d+$' % ntpath.basename(config.train_data_path))
         train_fnames = filter(regex.search, os.listdir(parent_dir))
         #regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
         #train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
         # TODO: use train_fnames_negs
         train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
-        assert len(train_fnames) > 0, 'no matching train data files found for ' + FLAGS.train_data_path
+        assert len(train_fnames) > 0, 'no matching train data files found for ' + config.train_data_path
         logging.info('found ' + str(len(train_fnames)) + ' train data files')
-        test_fname = train_fnames[FLAGS.test_file_index]
+        test_fname = train_fnames[config.dev_file_index]
         logging.info('use ' + test_fname + ' for testing')
-        del train_fnames[FLAGS.test_file_index]
+        del train_fnames[config.dev_file_index]
         train_iterator = partial(data_iterator_train, sim_index_files=train_fnames)
         dev_iterator = partial(data_iterator_dev, sim_index_files=[test_fname])
-    elif FLAGS.test_only:
+    elif test_only:
         assert test_iterator is not None, 'flag "test_file" has to be set if flag "test_only" is enabled, but it is None'
         train_iterator = None
         dev_iterator = None
@@ -442,12 +471,12 @@ def execute_run(config):
 
     # MODEL DEFINITION #################################################################################################
 
-    optimizer = FLAGS.optimizer
-    if FLAGS.optimizer:
+    optimizer = config.optimizer
+    if optimizer is not None:
         optimizer = getattr(tf.train, optimizer)
 
-    sim_measure = getattr(model_fold, FLAGS.sim_measure)
-    tree_embedder = getattr(model_fold, FLAGS.tree_embedder)
+    sim_measure = getattr(model_fold, config.sim_measure)
+    tree_embedder = getattr(model_fold, config.tree_embedder)
 
     logging.info('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
@@ -455,28 +484,28 @@ def execute_run(config):
             # Build the graph.
             model_tree = model_fold.SequenceTreeModel(lex_size=len(lexicon),
                                                       tree_embedder=tree_embedder,
-                                                      state_size=FLAGS.state_size,
-                                                      lexicon_trainable=FLAGS.lexicon_trainable,
-                                                      leaf_fc_size=FLAGS.leaf_fc_size,
-                                                      root_fc_size=FLAGS.root_fc_size,
-                                                      keep_prob=FLAGS.keep_prob,
+                                                      state_size=config.state_size,
+                                                      lexicon_trainable=config.lexicon_trainable,
+                                                      leaf_fc_size=config.leaf_fc_size,
+                                                      root_fc_size=config.root_fc_size,
+                                                      keep_prob=config.keep_prob,
                                                       tree_count=tuple_size,
-                                                      #keep_prob_fixed=FLAGS.keep_prob # to enable full head dropout
+                                                      #keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                       )
 
             # has to be created first #TODO: really?
-            if FLAGS.data_single:
+            if config.data_single:
                 model_train = model_fold.ScoredSequenceTreeTupleModel_independent(tree_model=model_tree,
                                                                                   optimizer=optimizer,
-                                                                                  learning_rate=FLAGS.learning_rate)
+                                                                                  learning_rate=config.learning_rate)
                 model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                          optimizer=None,
-                                                                         learning_rate=FLAGS.learning_rate,
+                                                                         learning_rate=config.learning_rate,
                                                                          sim_measure=sim_measure)
             else:
                 model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                          optimizer=optimizer,
-                                                                         learning_rate=FLAGS.learning_rate,
+                                                                         learning_rate=config.learning_rate,
                                                                          sim_measure=sim_measure)
                 model_train = model_test
 
@@ -516,8 +545,10 @@ def execute_run(config):
                 sess.run(model_tree.embedder.lexicon_init,
                          feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs})
 
-            if FLAGS.init_only:
+            if init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
+                logger.removeHandler(fh_info)
+                logger.removeHandler(fh_debug)
                 return
 
             # MEASUREMENT ##############################################################################################
@@ -573,8 +604,8 @@ def execute_run(config):
 
                 _result_all = []
 
-                # for batch in td.group_by_batches(data_set, FLAGS.batch_size if train else len(test_set)):
-                for batch in td.group_by_batches(data_set, FLAGS.batch_size):
+                # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
+                for batch in td.group_by_batches(data_set, config.batch_size):
                     feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
                     _result_all.append(sess.run(execute_vars, feed_dict))
 
@@ -603,9 +634,9 @@ def execute_run(config):
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
-            #data, parents = sqt.load(FLAGS.train_data_path)
+            #data, parents = sqt.load(config.train_data_path)
             #children, roots = sqt.children_and_roots(parents)
-            sqt_data = sqt.Forest(filename=FLAGS.train_data_path)
+            sqt_data = sqt.Forest(filename=config.train_data_path)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
 
@@ -616,6 +647,8 @@ def execute_run(config):
                         if train_iterator is None:
                             step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False, emit=False)
                             p_r = pearsonr(score_all, score_all_gold)[0]
+                            logger.removeHandler(fh_info)
+                            logger.removeHandler(fh_debug)
                             return p_r
 
                     logging.info('create dev data set ...')
@@ -633,11 +666,11 @@ def execute_run(config):
                 test_p_rs = [TEST_MIN_INIT]
                 step_train = sess.run(model_train.global_step)
                 max_queue_length = 0
-                for epoch, shuffled in enumerate(td.epochs(train_set, FLAGS.epochs, shuffle=True), 1):
+                for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
 
                     # train
-                    if not FLAGS.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch, new_model=FLAGS.data_single)
+                    if not config.early_stop_queue or len(test_p_rs) > 0:
+                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch, new_model=config.data_single)
 
                     if model_test is not None:
                         # test
@@ -651,7 +684,7 @@ def execute_run(config):
                         p_r = round(p_r, 6)
                         prev_max = max(test_p_rs)
                         # stop, if current test pearson r is not bigger than previous values. The amount of regarded
-                        # previous values is set by FLAGS.early_stop_queue
+                        # previous values is set by config.early_stop_queue
                         if p_r > prev_max:
                             test_p_rs = []
                         else:
@@ -667,36 +700,65 @@ def execute_run(config):
 
                         logging.debug(
                             'pearson_r rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i' % (len(test_p_rs), rank, round((p_r - prev_max), 6), max_queue_length))
-                        if 0 < FLAGS.early_stop_queue < len(test_p_rs):
+                        if 0 < config.early_stop_queue < len(test_p_rs):
                             logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
+                            logger.removeHandler(fh_info)
+                            logger.removeHandler(fh_debug)
                             return test_p_rs_sorted[0]
 
                         # do not save, if score was not the best
                         #if rank > len(test_p_rs) * 0.05:
                         if len(test_p_rs) > 1:
                             # auto restore if enabled
-                            if FLAGS.auto_restore:
+                            if config.auto_restore:
                                 supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
                         else:
-                            # don't save after first epoch if FLAGS.early_stop_queue > 0
-                            if prev_max > TEST_MIN_INIT or not FLAGS.early_stop_queue:
+                            # don't save after first epoch if config.early_stop_queue > 0
+                            if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
                                 supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
                     else:
                         supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
-
-#def main(unused_argv):
-#    execute_run()
+                logger.removeHandler(fh_info)
+                logger.removeHandler(fh_debug)
 
 
 if __name__ == '__main__':
     mytools.logging_init()
+    logging.debug('test')
     #tf.app.run()
     config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
     config.init_flags()
     # pylint: disable=protected-access
-    FLAGS._parse_flags(args=None)
+    FLAGS._parse_flags()
     # pylint: enable=protected-access
-    #update_config_with_flags(config, FLAGS)
     config.update_with_flags(FLAGS)
-    execute_run(config)
+    if FLAGS.grid_config_file is not None:
+        logging.info('load grid parameters from: %s' % FLAGS.grid_config_file)
+        with open(FLAGS.grid_config_file, 'r') as infile:
+            grid_parameters = json.load(infile)
+        train_data_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
+        test_fname = os.path.join(train_data_dir, FLAGS.test_file)
+        assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
+
+        scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
+        logging.info('write scores to: %s' % scores_fn)
+        mytools.make_parent_dir(scores_fn)
+        with open(scores_fn, 'w') as csvfile:
+            fieldnames = grid_parameters.keys() + ['score_dev_best', 'score_test']
+            score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
+            score_writer.writeheader()
+
+            for c, d in config.explode(grid_parameters):
+                logging.info('start run =================================================================================')
+                c.set_run_description()
+                logdir = os.path.join(FLAGS.logdir, c.run_description)
+                d['score_dev_best'] = execute_run(c)
+                logging.info('best dev score: %f' % d['score_dev_best'])
+                d['score_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                logging.info('test score: %f' % d['score_test'])
+                score_writer.writerow(d)
+
+    else:
+        execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
+                    test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
