@@ -750,7 +750,7 @@ if __name__ == '__main__':
             score_writer.writeheader()
 
             for c, d in config.explode(grid_parameters):
-                logging.info('start run =================================================================================')
+                logging.info('start run ==============================================================================')
                 c.set_run_description()
                 logdir = os.path.join(FLAGS.logdir, c.run_description)
                 d['score_dev_best'] = execute_run(c)
@@ -758,6 +758,7 @@ if __name__ == '__main__':
                 d['score_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
                 logging.info('test score: %f' % d['score_test'])
                 score_writer.writerow(d)
+                csvfile.flush()
 
     else:
         execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
