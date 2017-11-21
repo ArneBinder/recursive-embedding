@@ -755,6 +755,7 @@ if __name__ == '__main__':
                 logdir = os.path.join(FLAGS.logdir, c.run_description)
                 # skip already processed
                 if os.path.isdir(logdir):
+                    logging.debug('skip config for logdir: %s' % logdir)
                     continue
                 d['score_dev_best'] = execute_run(c)
                 logging.info('best dev score: %f' % d['score_dev_best'])
