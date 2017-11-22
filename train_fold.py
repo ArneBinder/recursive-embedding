@@ -772,6 +772,7 @@ if __name__ == '__main__':
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
             if file_mode == 'w':
                 score_writer.writeheader()
+                csvfile.flush()
 
             for c, d in config.explode(grid_parameters):
                 c.set_run_description()
