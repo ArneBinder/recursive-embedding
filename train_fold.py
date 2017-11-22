@@ -436,7 +436,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     extensions = config.extensions.split(',')
     if config.data_single:
         # extensions = ['', '.negs1']
-        data_iterator_train = partial(data_tuple_iterator, shuffle=True, extensions=extensions)
+        data_iterator_train = partial(data_tuple_iterator, shuffle=False, extensions=extensions)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=extensions)
         tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
     else:
@@ -721,7 +721,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                         # do not save, if score was not the best
                         # if rank > len(test_p_rs) * 0.05:
-                        if len(test_p_rs) > 1:
+                        if len(test_p_rs) > 1 and config.early_stop_queue:
                             # auto restore if enabled
                             if config.auto_restore:
                                 supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
