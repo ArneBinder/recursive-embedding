@@ -57,11 +57,11 @@ default_config = {'train_data_path': ['DEFINE_string',
                           'The number of epochs.',
                           None],
                   'dev_file_index': ['DEFINE_integer',
-                                   0,
+                                   1,
                                    'Which file of the train data files should be used as test data.',
                                    'test_file_i'],
                   'lexicon_trainable': ['DEFINE_boolean',
-                                     #   False,
+                                     #   True,
                                      False,
                                      'Iff enabled, fine tune the embeddings.',
                                      'lex_train'],
@@ -95,14 +95,14 @@ default_config = {'train_data_path': ['DEFINE_string',
                                  'te'
                                  ],
                   'leaf_fc_size': ['DEFINE_integer',
-                                # 0,
-                                50,
+                                0,
+                                   # 50,
                                 'If not 0, apply a fully connected layer with this size before composition',
                                 'leaffc'
                                 ],
                   'root_fc_size': ['DEFINE_integer',
-                                # 0,
-                                50,
+                                0,
+                                #50,
                                 'If not 0, apply a fully connected layer with this size after composition',
                                 'rootfc'
                                 ],
@@ -176,6 +176,9 @@ tf.flags.DEFINE_boolean('init_only',
 tf.flags.DEFINE_string('grid_config_file',
                        None,
                        'read config parameter dict from this file and execute multiple runs')
+tf.flags.DEFINE_integer('run_count',
+                        1,
+                        'repeat each run this often')
 
 # flags which are not logged in logdir/flags.json
 tf.flags.DEFINE_string('master', '',
@@ -740,10 +743,6 @@ if __name__ == '__main__':
         with open(parameters_fn, 'r') as infile:
             grid_parameters = json.load(infile)
 
-        train_data_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
-        test_fname = os.path.join(train_data_dir, FLAGS.test_file)
-        assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
-
         scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
         if os.path.isfile(scores_fn):
             file_mode = 'a'
@@ -765,23 +764,30 @@ if __name__ == '__main__':
                 score_writer.writeheader()
 
             for c, d in config.explode(grid_parameters):
-                logging.info('start run ==============================================================================')
                 c.set_run_description()
-                logdir = os.path.join(FLAGS.logdir, c.run_description)
+                run_desc_backup = c.run_description
+                for i in range(FLAGS.run_count):
+                    logging.info('start run ==============================================================================')
+                    c.run_description = os.path.join(run_desc_backup, str(i))
+                    logdir = os.path.join(FLAGS.logdir, c.run_description)
 
-                # skip already processed
-                if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
-                    logging.debug('skip config for logdir: %s' % logdir)
-                    continue
+                    train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
+                    test_fname = os.path.join(train_data_dir, FLAGS.test_file)
+                    assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
 
-                d['run_description'] = c.run_description
-                d['score_dev_best'] = execute_run(c)
-                logging.info('best dev score: %f' % d['score_dev_best'])
-                d['score_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
-                logging.info('test score: %f' % d['score_test'])
+                    # skip already processed
+                    if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
+                        logging.debug('skip config for logdir: %s' % logdir)
+                        continue
 
-                score_writer.writerow(d)
-                csvfile.flush()
+                    d['score_dev_best'] = execute_run(c)
+                    logging.info('best dev score: %f' % d['score_dev_best'])
+                    d['score_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                    logging.info('test score: %f' % d['score_test'])
+                    d['run_description'] = c.run_description
+
+                    score_writer.writerow(d)
+                    csvfile.flush()
 
     else:
         execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
