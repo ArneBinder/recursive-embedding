@@ -20,8 +20,6 @@ import tensorflow as tf
 import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
-from sklearn import linear_model
-from tensorflow.python.platform import flags
 
 import constants
 import corpus_simtuple
@@ -34,116 +32,120 @@ import sequence_trees as sqt
 
 default_config = {'train_data_path': ['DEFINE_string',
                                       # '/media/arne/WIN/Users/Arne/ML/data/corpora/ppdb/process_sentence3_ns1/PPDB_CMaggregate',
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
-                                   '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_CMaggregate',
+                                      '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
                                       # SICK default
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/ANNOPPDB/process_sentence3/ANNOPPDB_CMaggregate',   # ANNOPPDB default
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate_NEGSAMPLES0',
-                                   # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
-                                   #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
-                                   'TF Record file containing the training dataset of sequence tuples.',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/STSBENCH/process_sentence3/STSBENCH_CMaggregate',	# STSbench default
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/ANNOPPDB/process_sentence3/ANNOPPDB_CMaggregate',   # ANNOPPDB default
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence2/SICK_tt_CMsequence_ICMtree',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence3/SICK_tt_CMsequence_ICMtree',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/sick/process_sentence4/SICK_tt_CMsequence_ICMtree',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMaggregate_NEGSAMPLES0',
+                                      # '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES0',
+                                      #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
+                                      'TF Record file containing the training dataset of sequence tuples.',
                                       'data'],
                   'batch_size': ['DEFINE_integer',
-                              100,
-                              'How many samples to read per batch.',
-                              'batchs'],
+                                 100,
+                                 'How many samples to read per batch.',
+                                 'batchs'],
                   'epochs': ['DEFINE_integer',
-                          1000000,
-                          'The number of epochs.',
-                          None],
+                             1000000,
+                             'The number of epochs.',
+                             None],
                   'dev_file_index': ['DEFINE_integer',
-                                   1,
-                                   'Which file of the train data files should be used as test data.',
-                                   'test_file_i'],
+                                     1,
+                                     'Which file of the train data files should be used as test data.',
+                                     'test_file_i'],
                   'lexicon_trainable': ['DEFINE_boolean',
-                                     #   True,
-                                     False,
-                                     'Iff enabled, fine tune the embeddings.',
-                                     'lex_train'],
+                                        #   True,
+                                        False,
+                                        'Iff enabled, fine tune the embeddings.',
+                                        'lex_train'],
                   'sim_measure': ['DEFINE_string',
-                               'sim_cosine',
-                               'similarity measure implementation (tensorflow) from model_fold for similarity score '
-                               'calculation. Currently implemented:'
-                               '"sim_cosine" -> cosine'
-                               '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
-                               '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
-                               'sm'],
+                                  'sim_cosine',
+                                  'similarity measure implementation (tensorflow) from model_fold for similarity score '
+                                  'calculation. Currently implemented:'
+                                  '"sim_cosine" -> cosine'
+                                  '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
+                                  '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
+                                  'sm'],
                   'tree_embedder': ['DEFINE_string',
-                                 'TreeEmbedding_FLAT_AVG',
-                                 'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
-                                 'calling which accepts a sequence tree and produces an embedding. '
-                                 'Currently implemented (see model_fold.py):'
-                                 '"TreeEmbedding_TREE_LSTM"           -> TreeLSTM'
-                                 '"TreeEmbedding_HTU_GRU"             -> Headed Tree Unit, using a GRU for order aware '
-                                 '                                       and summation for order unaware composition'
-                                 '"TreeEmbedding_FLAT_AVG"            -> Averaging applied to first level children '
-                                 '                                       (discarding the root)'
-                                 '"TreeEmbedding_FLAT_AVG_2levels"    -> Like TreeEmbedding_FLAT_AVG, but concatenating first'
-                                 '                                       second level children (e.g. dep-edge embedding) to '
-                                 '                                       the first level children (e.g. token embeddings)'
-                                 '"TreeEmbedding_FLAT_LSTM"           -> LSTM applied to first level children (discarding the'
-                                 '                                       root)'
-                                 '"TreeEmbedding_FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
-                                 '                                       first second level children (e.g. dependency-edge '
-                                 '                                       type embedding) to the first level children '
-                                 '                                       (e.g. token embeddings)',
-                                 'te'
-                                 ],
+                                    'TreeEmbedding_FLAT_AVG',
+                                    'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
+                                    'calling which accepts a sequence tree and produces an embedding. '
+                                    'Currently implemented (see model_fold.py):'
+                                    '"TreeEmbedding_TREE_LSTM"           -> TreeLSTM'
+                                    '"TreeEmbedding_HTU_GRU"             -> Headed Tree Unit, using a GRU for order aware '
+                                    '                                       and summation for order unaware composition'
+                                    '"TreeEmbedding_FLAT_AVG"            -> Averaging applied to first level children '
+                                    '                                       (discarding the root)'
+                                    '"TreeEmbedding_FLAT_AVG_2levels"    -> Like TreeEmbedding_FLAT_AVG, but concatenating first'
+                                    '                                       second level children (e.g. dep-edge embedding) to '
+                                    '                                       the first level children (e.g. token embeddings)'
+                                    '"TreeEmbedding_FLAT_LSTM"           -> LSTM applied to first level children (discarding the'
+                                    '                                       root)'
+                                    '"TreeEmbedding_FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
+                                    '                                       first second level children (e.g. dependency-edge '
+                                    '                                       type embedding) to the first level children '
+                                    '                                       (e.g. token embeddings)',
+                                    'te'
+                                    ],
                   'leaf_fc_size': ['DEFINE_integer',
-                                0,
+                                   0,
                                    # 50,
-                                'If not 0, apply a fully connected layer with this size before composition',
-                                'leaffc'
-                                ],
+                                   'If not 0, apply a fully connected layer with this size before composition',
+                                   'leaffc'
+                                   ],
                   'root_fc_size': ['DEFINE_integer',
-                                0,
-                                #50,
-                                'If not 0, apply a fully connected layer with this size after composition',
-                                'rootfc'
-                                ],
+                                   0,
+                                   # 50,
+                                   'If not 0, apply a fully connected layer with this size after composition',
+                                   'rootfc'
+                                   ],
                   'state_size': ['DEFINE_integer',
-                              50,
-                              'size of the composition layer',
-                              'state'],
+                                 50,
+                                 'size of the composition layer',
+                                 'state'],
                   'learning_rate': ['DEFINE_float',
-                                 0.02,
-                                 # 'tanh',
-                                 'learning rate',
-                                 'learning_r'],
+                                    0.02,
+                                    # 'tanh',
+                                    'learning rate',
+                                    'learning_r'],
                   'optimizer': ['DEFINE_string',
-                             'AdadeltaOptimizer',
-                             'optimizer',
-                             'opt'],
+                                'AdadeltaOptimizer',
+                                'optimizer',
+                                'opt'],
                   'early_stop_queue': ['DEFINE_integer',
-                                    50,
-                                    'If not 0, stop training when current test loss is smaller then last queued '
-                                    'previous losses',
-                                    None],
+                                       50,
+                                       'If not 0, stop training when current test loss is smaller then last queued '
+                                       'previous losses',
+                                       None],
                   'keep_prob': ['DEFINE_float',
-                             0.7,
-                             'Keep probability for dropout layer'
-                             ],
+                                0.7,
+                                'Keep probability for dropout layer'
+                                ],
                   'auto_restore': ['DEFINE_boolean',
-                                False,
-                                #   True,
-                                'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
-                                'restore'],
+                                   False,
+                                   #   True,
+                                   'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
+                                   'restore'],
                   'data_single': ['DEFINE_boolean',
-                               False,
-                               #   True,
-                               'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
-                               'entries to fixed dummy value (IDENTITY_idx) for test data. Create a dedicated training '
-                               'and test models.',
-                               'single'],
+                                  False,
+                                  #   True,
+                                  'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
+                                  'entries to fixed dummy value (IDENTITY_idx) for test data. Create a dedicated training '
+                                  'and test models.',
+                                  'single'],
                   'extensions': ['DEFINE_string',
-                              '',
-                              'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
-                              'ext'],
+                                 '',
+                                 'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
+                                 'ext'],
+                  'clipping': ['DEFINE_float',
+                               5.0,
+                               'global norm threshold for clipping gradients',
+                               'clip'],
 
                   }
 
@@ -239,7 +241,7 @@ class Config(object):
                 # get real flag value
                 # new_value = getattr(FLAGS, flag)
                 # default_config[flag][1] = new_value
-                #value = config[flag][1]
+                # value = config[flag][1]
                 value = getattr(self, flag)
                 entry_values = self.__dict__['__values'][flag]
 
@@ -433,7 +435,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     extensions = config.extensions.split(',')
     if config.data_single:
-        #extensions = ['', '.negs1']
+        # extensions = ['', '.negs1']
         data_iterator_train = partial(data_tuple_iterator, shuffle=True, extensions=extensions)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=extensions)
         tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
@@ -452,8 +454,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         logging.info('collect train data from: ' + config.train_data_path + ' ...')
         regex = re.compile(r'%s\.idx\.\d+$' % ntpath.basename(config.train_data_path))
         train_fnames = filter(regex.search, os.listdir(parent_dir))
-        #regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
-        #train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
+        # regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
+        # train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
         # TODO: use train_fnames_negs
         train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
         assert len(train_fnames) > 0, 'no matching train data files found for ' + config.train_data_path
@@ -492,24 +494,27 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                       leaf_fc_size=config.leaf_fc_size,
                                                       root_fc_size=config.root_fc_size,
                                                       keep_prob=config.keep_prob,
-                                                      tree_count=tuple_size,
-                                                      #keep_prob_fixed=config.keep_prob # to enable full head dropout
+                                                      tree_count=tuple_size
+                                                      # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                       )
 
-            # has to be created first #TODO: really?
             if config.data_single:
+                # has to be created first #TODO: really?
                 model_train = model_fold.ScoredSequenceTreeTupleModel_independent(tree_model=model_tree,
                                                                                   optimizer=optimizer,
-                                                                                  learning_rate=config.learning_rate)
+                                                                                  learning_rate=config.learning_rate,
+                                                                                  clipping_threshold=config.clipping)
                 model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                          optimizer=None,
                                                                          learning_rate=config.learning_rate,
-                                                                         sim_measure=sim_measure)
+                                                                         sim_measure=sim_measure,
+                                                                         clipping_threshold=config.clipping)
             else:
                 model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                          optimizer=optimizer,
                                                                          learning_rate=config.learning_rate,
-                                                                         sim_measure=sim_measure)
+                                                                         sim_measure=sim_measure,
+                                                                         clipping_threshold=config.clipping)
                 model_train = model_test
 
             # PREPARE TRAINING #########################################################################################
@@ -570,14 +575,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 if sim is not None and sim_gold is not None:
                     p_r = pearsonr(sim, sim_gold)
                     s_r = spearmanr(sim, sim_gold)
-                    emit_dict.update({'pearson_r': p_r[0], 'pearson_r_p': p_r[1], 'spearman_r': s_r[0], 'spearman_r_p': s_r[1], 'sim_avg': np.average(sim)})
+                    emit_dict.update(
+                        {'pearson_r': p_r[0], 'pearson_r_p': p_r[1], 'spearman_r': s_r[0], 'spearman_r_p': s_r[1],
+                         'sim_avg': np.average(sim)})
                     info_string = (
-                            'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
-                            epoch, step, suffix, loss, suffix, p_r[0], np.average(sim),
-                            np.average(sim_gold), np.var(sim_gold))
+                                      'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
+                                      epoch, step, suffix, loss, suffix, p_r[0], np.average(sim),
+                                      np.average(sim_gold), np.var(sim_gold))
                 else:
                     info_string = (
-                            'epoch=%d step=%d: loss_%s=%f') % (epoch, step, suffix, loss)
+                                      'epoch=%d step=%d: loss_%s=%f') % (epoch, step, suffix, loss)
                 if emit:
                     emit_values(supervisor, sess, step, emit_dict, writer=writer, csv_writer=csv_writer)
                 if print_out:
@@ -595,10 +602,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 else:
                     execute_vars['scores'] = model.scores
                     execute_vars['scores_gold'] = model.scores_gold
-                    #execute_vars['probs_gold'] = model.tree_model.probs_gold
-                    #execute_vars['probs_gold_flattened'] = model.tree_model.probs_gold_flattened
-                    #execute_vars['embeddings_all'] = model.tree_model.embeddings_all
-                    #execute_vars['embeddings_all_flattened'] = model.tree_model.embeddings_all_flattened
+                    # execute_vars['probs_gold'] = model.tree_model.probs_gold
+                    # execute_vars['probs_gold_flattened'] = model.tree_model.probs_gold_flattened
+                    # execute_vars['embeddings_all'] = model.tree_model.embeddings_all
+                    # execute_vars['embeddings_all_flattened'] = model.tree_model.embeddings_all_flattened
                 if train:
                     execute_vars['train_op'] = model.train_op
                     execute_vars['step'] = model.global_step
@@ -637,18 +644,20 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
-            #data, parents = sqt.load(config.train_data_path)
-            #children, roots = sqt.children_and_roots(parents)
+            # data, parents = sqt.load(config.train_data_path)
+            # children, roots = sqt.children_and_roots(parents)
             sqt_data = sqt.Forest(filename=config.train_data_path)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
 
                     if test_iterator is not None:
                         logging.info('create test data set ...')
-                        test_set = list(model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data)))
+                        test_set = list(
+                            model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data)))
                         logging.info('test data size: ' + str(len(test_set)))
                         if train_iterator is None:
-                            step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False, emit=False)
+                            step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False,
+                                                                                 emit=False)
                             p_r = pearsonr(score_all, score_all_gold)[0]
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
@@ -702,7 +711,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                     writer=test_writer)
 
                         logging.debug(
-                            'pearson_r rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i' % (len(test_p_rs), rank, round((p_r - prev_max), 6), max_queue_length))
+                            'pearson_r rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i' % (
+                            len(test_p_rs), rank, round((p_r - prev_max), 6), max_queue_length))
                         if 0 < config.early_stop_queue < len(test_p_rs):
                             logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
                             logger.removeHandler(fh_info)
@@ -710,7 +720,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             return test_p_rs_sorted[0]
 
                         # do not save, if score was not the best
-                        #if rank > len(test_p_rs) * 0.05:
+                        # if rank > len(test_p_rs) * 0.05:
                         if len(test_p_rs) > 1:
                             # auto restore if enabled
                             if config.auto_restore:
@@ -729,7 +739,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 if __name__ == '__main__':
     mytools.logging_init()
     logging.debug('test')
-    #tf.app.run()
+    # tf.app.run()
     config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
     config.init_flags()
     # pylint: disable=protected-access
@@ -756,7 +766,7 @@ if __name__ == '__main__':
             run_descriptions_done = []
         logging.info('write scores to: %s' % scores_fn)
 
-        #mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
+        # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
         with open(scores_fn, file_mode) as csvfile:
             fieldnames = grid_parameters.keys() + ['score_dev_best', 'score_test', 'run_description']
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
@@ -767,7 +777,8 @@ if __name__ == '__main__':
                 c.set_run_description()
                 run_desc_backup = c.run_description
                 for i in range(FLAGS.run_count):
-                    logging.info('start run ==============================================================================')
+                    logging.info(
+                        'start run ==============================================================================')
                     c.run_description = os.path.join(run_desc_backup, str(i))
                     logdir = os.path.join(FLAGS.logdir, c.run_description)
 

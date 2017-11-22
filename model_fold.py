@@ -674,7 +674,7 @@ class SequenceTreeModel(object):
 
 
 class BaseTrainModel(object):
-    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1):
+    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0):
 
         self._loss = loss
         self._tree_model = tree_model
@@ -693,7 +693,7 @@ class BaseTrainModel(object):
             #    if isinstance(grads, tf.Tensor):
             #        gradients[grads_idx] = gradients[grads_idx] - gradients_rev[grads_idx]
             # gradient clipping
-            gradients, _ = tf.clip_by_global_norm(gradients, 5.0)
+            gradients, _ = tf.clip_by_global_norm(gradients, clipping_threshold)
             self._train_op = self._optimizer.apply_gradients(grads_and_vars=zip(gradients, variables),
                                                              global_step=self._global_step)
         else:
@@ -728,7 +728,7 @@ class BaseTrainModel(object):
 class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=None, sim_measure=sim_cosine):
+    def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
 
         # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
         self._scores_gold = tree_model.probs_gold[:, 1]
@@ -739,8 +739,8 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         self._tree_embeddings_2 = tree_model.embeddings_all[:, tree_size:tree_size * 2]
         self._scores = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
 
-        BaseTrainModel.__init__(self, optimizer=optimizer, learning_rate=learning_rate,
-                                tree_model=tree_model, loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)))
+        BaseTrainModel.__init__(self, tree_model=tree_model,
+                                loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
 
     @property
     def tree_embeddings_1(self):
@@ -762,20 +762,20 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, probs_count=2):
+    def __init__(self, tree_model, probs_count=2, **kwargs):
 
         self._prediction_logits = tf.contrib.layers.fully_connected(tree_model.embeddings_all, probs_count,
                                                                     activation_fn=None, scope=DEFAULT_SCOPE_SCORING)
         loss = tf.reduce_mean(
             tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.probs_gold, logits=self._prediction_logits))
 
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer, learning_rate=learning_rate)
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
 
 class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, learning_rate=0.01, optimizer=tf.train.GradientDescentOptimizer, count=None):
+    def __init__(self, tree_model, count=None, **kwargs):
         if count is None:
             count = tree_model.tree_count
         assert tree_model.prob_count >= count, 'tree_model produces %i prob values per batch entry, but count=%i ' \
@@ -793,8 +793,7 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         self._prediction_logits = tf.reshape(conv, shape=[-1, count])
         loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
 
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, optimizer=optimizer,
-                                learning_rate=learning_rate)
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
 
 # DEPRECATED
