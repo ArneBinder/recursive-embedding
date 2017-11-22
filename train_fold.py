@@ -754,10 +754,12 @@ if __name__ == '__main__':
             grid_parameters = json.load(infile)
 
         scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
+        fieldnames_loaded = None
         if os.path.isfile(scores_fn):
             file_mode = 'a'
             with open(scores_fn, 'r') as csvfile:
                 scores_done_reader = csv.DictReader(csvfile, delimiter='\t')
+                fieldnames_loaded = scores_done_reader.fieldnames
                 scores_done = list(scores_done_reader)
             run_descriptions_done = [s_d['run_description'] for s_d in scores_done]
             logging.debug('already finished: %s' % ', '.join(run_descriptions_done))
@@ -767,8 +769,10 @@ if __name__ == '__main__':
         logging.info('write scores to: %s' % scores_fn)
 
         # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
+        fieldnames_expected = grid_parameters.keys() + ['score_dev_best', 'score_test', 'run_description']
+        assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
+        fieldnames = fieldnames_loaded or fieldnames_expected
         with open(scores_fn, file_mode) as csvfile:
-            fieldnames = grid_parameters.keys() + ['score_dev_best', 'score_test', 'run_description']
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
             if file_mode == 'w':
                 score_writer.writeheader()
