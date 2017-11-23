@@ -778,10 +778,11 @@ if __name__ == '__main__':
                 score_writer.writeheader()
                 csvfile.flush()
 
-            for c, d in config.explode(grid_parameters):
-                c.set_run_description()
-                run_desc_backup = c.run_description
-                for i in range(FLAGS.run_count):
+            for i in range(FLAGS.run_count):
+                for c, d in config.explode(grid_parameters):
+                    c.set_run_description()
+                    run_desc_backup = c.run_description
+
                     logging.info(
                         'start run ==============================================================================')
                     c.run_description = os.path.join(run_desc_backup, str(i))
@@ -794,6 +795,7 @@ if __name__ == '__main__':
                     # skip already processed
                     if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
                         logging.debug('skip config for logdir: %s' % logdir)
+                        c.run_description = run_desc_backup
                         continue
 
                     d['score_dev_best'] = execute_run(c)
@@ -802,6 +804,7 @@ if __name__ == '__main__':
                     logging.info('test score: %f' % d['score_test'])
                     d['run_description'] = c.run_description
 
+                    c.run_description = run_desc_backup
                     score_writer.writerow(d)
                     csvfile.flush()
 
