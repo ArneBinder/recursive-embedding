@@ -378,6 +378,7 @@ class Lexicon(object):
         for i in indices:
             self._vecs[i] = np.zeros(self._vecs.shape[1], dtype=self._vecs.dtype)
         if len(indices) > 0:
+            logging.info('set %i vecs to zero' % len(indices))
             self._dumped_vecs = False
 
     def set_to_onehot(self, indices=None, prefix=None):
@@ -388,6 +389,7 @@ class Lexicon(object):
         for i, idx in enumerate(indices):
             self._vecs[idx][i] = 1.0
         if len(indices) > 0:
+            logging.info('set %i vecs to one-hot' % len(indices))
             self._dumped_vecs = False
 
     def set_man_vocab_vec(self, man_vocab_id, new_vec=None):
