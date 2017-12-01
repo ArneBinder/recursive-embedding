@@ -98,14 +98,16 @@ RUN \
 #  ldconfig /usr/local/cuda/lib64
 
 
-#TF_MKL_ROOT=/usr/local/bin
 #ENV TF_NEED_CUDA=1
 ENV TF_NEED_CUDA=0
 ENV TF_NEED_GCP=0
-ENV TF_NEED_JEMALLOC=1
-ENV TF_NEED_HDFS=1
+#ENV TF_NEED_JEMALLOC=1
+ENV TF_NEED_JEMALLOC=0
+#ENV TF_NEED_HDFS=1
+ENV TF_NEED_HDFS=0
 ENV TF_NEED_OPENCL=0
-ENV TF_ENABLE_XLA=1
+#ENV TF_ENABLE_XLA=1
+ENV TF_ENABLE_XLA=0
 #ENV TF_CUDA_VERSION=8.0
 #ENV TF_CUDNN_VERSION=5
 #ENV CUDA_PATH="/usr/local/cuda"
@@ -149,11 +151,16 @@ ENV \
 ENV \
   TENSORFLOW_HOME=/root/fold/tensorflow
 
+ENV \
+  TENSORFLOW_FOLD_HOME=/root/fold
+
 RUN \
   cd $TENSORFLOW_HOME \
   && tensorflow/tools/ci_build/builds/configured CPU \
   && sed -i.bak 's/EXPECT_FALSE(isnan(value));/EXPECT_FALSE(0);/g' tensorflow/core/kernels/mfcc_test.cc \
   && bazel build -c opt \
+     --config=opt \
+     --cxxopt="-march=native" \
      --config=mkl \
 #     --config=cuda \
 #  && tensorflow/tools/ci_build/ci_build.sh CPU \
@@ -166,37 +173,55 @@ RUN \
      --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
 #     --run_under=//tensorflow/tools/ci_build/gpu_build:parallel_gpu_execute -- \
       //tensorflow/tools/pip_package:build_pip_package \
-      && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg \
-      && bazel clean --expunge \
-      && rm -rf /root/.cache
-
-
-########################
-# Build TensorFlow Fold
-########################
-ENV \
-  TENSORFLOW_FOLD_HOME=/root/fold
-
-RUN \
-  cd $TENSORFLOW_FOLD_HOME \
+  && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg \
+  #&& bazel clean --expunge \
+  #&& pip --no-cache-dir install /tmp/tensorflow_pkg/tensorflow-*.whl \
+  #&& rm -rf /tmp/tensorflow_pkg \
+  #&& rm -rf /root/.cache \
+  && cd $TENSORFLOW_FOLD_HOME \
   && bazel build -c opt \
+     --config=opt \
+     --cxxopt="-march=native" \
+     --config=mkl \
+     --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
      --jobs=${CPU_COUNT} \
      --verbose_failures \
      --test_timeout 300,450,1200,3600 \
      --test_output=errors \
       //tensorflow_fold/util:build_pip_package \
   && bazel-bin/tensorflow_fold/util/build_pip_package /tmp/fold_pkg \
+  && pip --no-cache-dir install /tmp/tensorflow_pkg/tensorflow-*.whl \
+  && pip --no-cache-dir install /tmp/fold_pkg/tensorflow_fold-*.whl \
   && bazel clean --expunge \
+  && cd $TENSORFLOW_HOME && bazel clean --expunge \
+  && rm -rf /tmp/fold_pkg \
+  && rm -rf /tmp/tensorflow_pkg \
   && rm -rf /root/.cache
 
 
-# todo: optimze (size increases by ~400mb. do directly after building)
-#######################################
-# Install Tensorflow & Tensorflow Fold
-#######################################
+########################
+# Build TensorFlow Fold
+########################
+#ENV \
+#  TENSORFLOW_FOLD_HOME=/root/fold
 
-RUN \
-  pip --no-cache-dir install /tmp/tensorflow_pkg/tensorflow-*.whl \
-  && pip --no-cache-dir install /tmp/fold_pkg/tensorflow_fold-*.whl \
-  && rm -rf /tmp/tensorflow_pkg \
-  && rm -rf /tmp/fold_pkg
+
+#RUN \
+#  cd $TENSORFLOW_HOME \
+#  && tensorflow/tools/ci_build/builds/configured CPU \
+#  && sed -i.bak 's/EXPECT_FALSE(isnan(value));/EXPECT_FALSE(0);/g' tensorflow/core/kernels/mfcc_test.cc \
+#  && cd $TENSORFLOW_FOLD_HOME \
+#  && bazel build -c opt \
+#     --cxxopt="-march=native" \
+#     --config=mkl \
+#     --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
+#     --jobs=${CPU_COUNT} \
+#     --verbose_failures \
+#     --test_timeout 300,450,1200,3600 \
+#     --test_output=errors \
+#      //tensorflow_fold/util:build_pip_package \
+#  && bazel-bin/tensorflow_fold/util/build_pip_package /tmp/fold_pkg \
+#  && bazel clean --expunge \
+#  && pip --no-cache-dir install /tmp/fold_pkg/tensorflow_fold-*.whl \
+#  && rm -rf /tmp/fold_pkg \
+#  && rm -rf /root/.cache
