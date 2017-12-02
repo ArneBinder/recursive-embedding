@@ -42,6 +42,24 @@ def separate_common_parents(elems):
     return common_parents, other_parents
 
 
+def handle_ids(token_ids, annot_ids, annots, parent_elements, doc):
+    # elem_end = end_pos(annots[annot_ids[-1]][0])
+    # if len(annot_ids) > 1 and len(token_ids) > 1:
+    #    print('(%i:%i), (%i:%i) INSERT %s FOR %s' % (annots[annot_ids[0]][0][0], end_pos(annots[annot_ids[-1]][0]), doc[token_ids[0]].idx, doc[token_ids[-1]].idx + len(doc[token_ids[-1]].string) ,str([texts[a_id] for a_id in annot_ids]), str([doc[t_id].string for t_id in token_ids])))
+    annot_elements = [annots[i][1] for i in annot_ids]
+    common_parents = get_common_parents([list(e.parents) for e in annot_elements])
+    # common_parents = list(common_parents)
+    for t_id in token_ids:
+        # tok = doc[t_id]
+        parent_elements[t_id] = common_parents
+        p = common_parents
+        p_tags = []
+        while p.parent is not None:
+            p_tags.append(p.name)
+            p = p.parent
+        print('%i:\t%s "%s"' % (t_id, str(list(reversed(p_tags))), doc[t_id].string))
+
+
 def text_element_to_annotated_tree(element, soup, nlp):
     offset = 0
     texts = []
@@ -65,7 +83,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
             t = t.replace('\n', ' ')
             #parents = list(e.parents)[:-1]
             texts.append(t)
-            annots.append(((offset, len(t)), e))
+            annots.append((offset, e))
             #print('%i\t%i' % (len(e.string),len(t)))
             #print('%s:%i' % (t, len(t)))
             offset += len(t)
@@ -100,37 +118,49 @@ def text_element_to_annotated_tree(element, soup, nlp):
     # align tokens to annots elements. assume, token can belong to only one text_annot element!
     def end_pos((idx, l)):
         return idx+l
+
     parent_elements = {}
     token_ids = []
     annot_ids = []
     annot_id = 0
+    # don't add leading whitespace elements
+    #add = False
     for token in doc:
+        #if token.pos_ == 'SPACE':
+        #    continue
         token_ids.append(token.i)
-        (elem_start, l), _ = annots[annot_id]
-        while elem_start < token.idx + len(token.string):
+        elem_start, _ = annots[annot_id]
+        # if elem_start < token.idx + len(token.string.rstrip()):
+        if elem_start < token.idx + len(token):
+            # if one none whitespace element is found, add remaining, even if they are whitespace elements
+            #if texts[annot_id].strip() != '':
+            #    add = True
+            #if add:
             annot_ids.append(annot_id)
-            if annot_id == len(annots) -1:
+            if annot_id == len(annots) - 1:
                 #print(annot_id)
                 break
             annot_id += 1
-            (elem_start, l), _ = annots[annot_id]
+            elem_start, _ = annots[annot_id]
 
         #if len(annot_ids) > 0:
         token_end = token.idx + len(token.string)
         #elem_end = elem_start + l
-        if len(annot_ids) > 0 and token_end >= end_pos(annots[annot_ids[-1]][0]):
-            #elem_end = end_pos(annots[annot_ids[-1]][0])
-            #if len(annot_ids) > 1 and len(token_ids) > 1:
-            #    print('(%i:%i), (%i:%i) INSERT %s FOR %s' % (annots[annot_ids[0]][0][0], end_pos(annots[annot_ids[-1]][0]), doc[token_ids[0]].idx, doc[token_ids[-1]].idx + len(doc[token_ids[-1]].string) ,str([texts[a_id] for a_id in annot_ids]), str([doc[t_id].string for t_id in token_ids])))
-            annot_elements = [annots[i][1] for i in annot_ids]
-            common_parents = get_common_parents([list(e.parents) for e in annot_elements])
-            #common_parents = list(common_parents)
-            for t_id in token_ids:
-                #tok = doc[t_id]
-                parent_elements[t_id] = common_parents
-                #print(tok)
+
+        # dont handle ids, if annots are exceeded, but tokens not
+        #  end_pos(annots[annot_ids[-1]][0]) and \
+        if len(annot_ids) > 0 and token_end >= annots[annot_ids[-1]][0] + len(texts[annot_ids[-1]]) and \
+                not (annot_id == len(annots) - 1 and token.i < len(doc) - 1):
+            handle_ids(token_ids, annot_ids, annots, parent_elements, doc)
             token_ids = []
             annot_ids = []
+            #add = False
+
+    # handle remaining token_ids/annot_ids
+    if len(annot_ids) > 0:
+        if len(token_ids) == 0:
+            raise Exception('empty token_ids, but annot_ids contains elements')
+        handle_ids(annot_ids, token_ids, annots, parent_elements, doc)
 
     recreated_parents = {}
     new_elem = soup.new_tag(element.name, **element.attrs)
@@ -145,6 +175,8 @@ def text_element_to_annotated_tree(element, soup, nlp):
             ref_str = elem_token.string
             ref_token = elem_token
             # add parents, eventually
+            #if token.i not in parent_elements:
+            #    return None
             p = parent_elements[token.i]
             #for p in parent_elements[token.i]:
             while p not in recreated_parents:
@@ -184,7 +216,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
 
 
 def annotate_nlp(soup, nlp):
-    text_block_tags = ['div', 'p']
+    text_block_tags = ['div', 'p', 'li']
     #text_block_tags = ['p']
     #block_tags = ['adress', 'article', 'aside', 'ausio', 'video', 'blockquote', 'canvas', 'dd', 'div', 'dl', 'fieldset',
     #              'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hgroup',
@@ -198,7 +230,7 @@ def annotate_nlp(soup, nlp):
     # add list item tag
     #inline_tags.append('li')
     # should not nest any other block element
-    text_block_elements = [elem for elem in soup.find_all(text_block_tags) if elem.find_all(block_tags) == []]
+    text_block_elements = [elem for elem in soup.find_all(text_block_tags) if elem.find_all(block_tags + text_block_tags) == []]
     inline_in_text_blocks = [elem for sublist in map(lambda x: x.find_all(inline_tags), text_block_elements) for elem in
                              sublist]
     # should not already be contained in text_block_elements
@@ -208,16 +240,16 @@ def annotate_nlp(soup, nlp):
     print('elements to modify: %i' % len(text_block_elements + text_inline_elements))
     for i, elem in enumerate(text_block_elements + text_inline_elements):
         print(repr(elem))
-        try:
+        #try:
             # append dummy element as marker to re-insert the modified one later at teh correct position
-            dummy = soup.new_tag('dummy')
-            elem.insert_after(dummy)
-            new_elem = text_element_to_annotated_tree(elem.extract(), soup, nlp)
-            dummy.insert_after(new_elem)
-            dummy.extract()
-        except Exception as e:
-            #print('%i could not modify element: %s' % (i, e))
-            print('%i: element failed: %s' % (i, repr(elem)))
+        dummy = soup.new_tag('dummy')
+        elem.insert_after(dummy)
+        new_elem = text_element_to_annotated_tree(elem.extract(), soup, nlp)
+        dummy.insert_after(new_elem)
+        dummy.extract()
+        #except Exception as e:
+        #    #print('%i could not modify element: %s' % (i, e))
+        #    print('%i: element failed: %s' % (i, repr(elem)))
         #    print(repr(elem))
 
 
