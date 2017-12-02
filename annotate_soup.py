@@ -52,15 +52,18 @@ def handle_ids(token_ids, annot_ids, annots, parent_elements, doc):
     for t_id in token_ids:
         # tok = doc[t_id]
         parent_elements[t_id] = common_parents
-        p = common_parents
-        p_tags = []
-        while p.parent is not None:
-            p_tags.append(p.name)
-            p = p.parent
-        print('%i:\t%s "%s"' % (t_id, str(list(reversed(p_tags))), doc[t_id].string))
+        #p = common_parents
+        #p_tags = []
+        #while p.parent is not None:
+        #    p_tags.append(p.name)
+        #    p = p.parent
+        #print('%i:\t%s "%s"' % (t_id, str(list(reversed(p_tags))), doc[t_id].string))
 
 
 def text_element_to_annotated_tree(element, soup, nlp):
+    if element.text.strip() == '':
+        return element
+
     offset = 0
     texts = []
     annots = []
@@ -130,8 +133,8 @@ def text_element_to_annotated_tree(element, soup, nlp):
         #    continue
         token_ids.append(token.i)
         elem_start, _ = annots[annot_id]
-        # if elem_start < token.idx + len(token.string.rstrip()):
-        if elem_start < token.idx + len(token):
+        # while elem_start < token.idx + len(token.string.rstrip()):
+        while elem_start < token.idx + len(token):
             # if one none whitespace element is found, add remaining, even if they are whitespace elements
             #if texts[annot_id].strip() != '':
             #    add = True
@@ -161,6 +164,8 @@ def text_element_to_annotated_tree(element, soup, nlp):
         if len(token_ids) == 0:
             raise Exception('empty token_ids, but annot_ids contains elements')
         handle_ids(annot_ids, token_ids, annots, parent_elements, doc)
+        token_ids = []
+        annot_ids = []
 
     recreated_parents = {}
     new_elem = soup.new_tag(element.name, **element.attrs)
@@ -210,7 +215,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
         #root_parents = get_common_parents(sent_parents)
 
         do_token(sent.root)
-        print(sent.string)
+        #print(sent.string)
         #prev_root = sent.root
     return new_elem
 
@@ -230,7 +235,7 @@ def annotate_nlp(soup, nlp):
     # add list item tag
     #inline_tags.append('li')
     # should not nest any other block element
-    text_block_elements = [elem for elem in soup.find_all(text_block_tags) if elem.find_all(block_tags + text_block_tags) == []]
+    text_block_elements = [elem for elem in soup.find_all(text_block_tags) if elem.find_all(set(block_tags + text_block_tags)) == []]
     inline_in_text_blocks = [elem for sublist in map(lambda x: x.find_all(inline_tags), text_block_elements) for elem in
                              sublist]
     # should not already be contained in text_block_elements
@@ -239,26 +244,28 @@ def annotate_nlp(soup, nlp):
     text_inline_elements = [elem for elem in text_inline_elements if len([p for p in elem.parents if p in text_inline_elements])==0]
     print('elements to modify: %i' % len(text_block_elements + text_inline_elements))
     for i, elem in enumerate(text_block_elements + text_inline_elements):
-        print(repr(elem))
-        #try:
-            # append dummy element as marker to re-insert the modified one later at teh correct position
+        #print(repr(elem))
+        # append dummy element as marker to re-insert the modified one later at teh correct position
         dummy = soup.new_tag('dummy')
         elem.insert_after(dummy)
-        new_elem = text_element_to_annotated_tree(elem.extract(), soup, nlp)
+        elem_backup = elem.extract()
+        try:
+            new_elem = text_element_to_annotated_tree(elem_backup, soup, nlp)
+        except Exception as e:
+        #    #print('%i could not modify element: %s' % (i, e))
+            print('%i: element failed, restore:: %s' % (i, repr(elem)))
+            new_elem = elem_backup
+        #    #print(repr(elem))
         dummy.insert_after(new_elem)
         dummy.extract()
-        #except Exception as e:
-        #    #print('%i could not modify element: %s' % (i, e))
-        #    print('%i: element failed: %s' % (i, repr(elem)))
-        #    print(repr(elem))
 
 
 if __name__ == "__main__":
     print('parse html/xml ...')
     #contents = '<?xml version="1.0" encoding="iso-8859-1"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" class="client-js" dir="ltr" lang="en" xml:lang="en"><body class="mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-Physics rootpage-Physics skin-vector action-view"><div role="note" class="hatnote navigation-not-searchable">This article is about the field of science. For other uses, see <a href="/wiki/Physics_(disambiguation)" class="mw-disambig" title="Physics (disambiguation)"><span style="font-weight:bold;">Physics<span> </span>(disambiguation)</span></a>.</div></body></html>'
     #soup = BeautifulSoup(contents, 'html.parser')
-    #with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.html', 'r') as contents:
-    with open('/home/arne/Downloads/test.html', 'r') as contents:
+    with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.html', 'r') as contents:
+    #with open('/home/arne/Downloads/test.html', 'r') as contents:
         soup = BeautifulSoup(contents, 'html.parser')
     # html_content = soup.find(class_='mw-parser-output')
     # text_elements = html_content.find_all('p') #+ html_content.find_all('span')
@@ -275,4 +282,4 @@ if __name__ == "__main__":
     xml = xml.dom.minidom.parseString(str(soup))  # or xml.dom.minidom.parseString(xml_string)
     pretty_xml_as_string = xml.toprettyxml()
 
-    print(pretty_xml_as_string)
+    #print(pretty_xml_as_string)
