@@ -29,12 +29,12 @@ def get_common_parents(parents):
         if equal:
             i += 1
 
-    common_parents = list(parents[0])[-(i+1):-1]
+    common_parents = list(parents[0])[-i]
     return common_parents
 
 
 def separate_common_parents(elems):
-    common_parents = get_common_parents([e.parents for e in elems])
+    common_parents = get_common_parents([list(e.parents) for e in elems])
     i = len(common_parents)
     other_parents = []
     for e in elems:
@@ -62,7 +62,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
             #if type(t) == str:
             t = unicode(t)
             # hack to fix spacy "bug": spacy replaces newlines by spaces
-            #t = t.replace('\n', ' ')
+            t = t.replace('\n', ' ')
             #parents = list(e.parents)[:-1]
             texts.append(t)
             annots.append(((offset, len(t)), e))
@@ -96,14 +96,11 @@ def text_element_to_annotated_tree(element, soup, nlp):
     # TODO: fix hack! (trailing whitespace removed by spacy)
     if text_doc[:min(len(text_doc), len(text))] != text[:min(len(text_doc), len(text))]:
         raise Exception('text after parsing is different: "%s" != "%s"' % (text, text_doc))
-    # align tokens to text_annot elements. assume, token can belong to only one text_annot element!
+
+    # align tokens to annots elements. assume, token can belong to only one text_annot element!
     def end_pos((idx, l)):
         return idx+l
-    token_start = 0
     parent_elements = {}
-    #token_elements = {}
-    #token_iter = doc.__iter__()
-    #token = next(token_iter, None)
     token_ids = []
     annot_ids = []
     annot_id = 0
@@ -122,7 +119,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
         token_end = token.idx + len(token.string)
         #elem_end = elem_start + l
         if len(annot_ids) > 0 and token_end >= end_pos(annots[annot_ids[-1]][0]):
-            elem_end = end_pos(annots[annot_ids[-1]][0])
+            #elem_end = end_pos(annots[annot_ids[-1]][0])
             #if len(annot_ids) > 1 and len(token_ids) > 1:
             #    print('(%i:%i), (%i:%i) INSERT %s FOR %s' % (annots[annot_ids[0]][0][0], end_pos(annots[annot_ids[-1]][0]), doc[token_ids[0]].idx, doc[token_ids[-1]].idx + len(doc[token_ids[-1]].string) ,str([texts[a_id] for a_id in annot_ids]), str([doc[t_id].string for t_id in token_ids])))
             annot_elements = [annots[i][1] for i in annot_ids]
@@ -135,36 +132,53 @@ def text_element_to_annotated_tree(element, soup, nlp):
             token_ids = []
             annot_ids = []
 
-
+    recreated_parents = {}
     new_elem = soup.new_tag(element.name, **element.attrs)
+    recreated_parents[element] = new_elem
     #prev_root = None
     for sent in doc.sents:
-        def do_token(token, root_parents):
+        def do_token(token):
             # add dependency edge and lexeme as classes
             elem_token = soup.new_tag('span', **{'class': 'spacy:dep/%s spacy:lex/%s' % (token.dep_, token.orth_)})
             # use token.string to get text content including whitespace
             elem_token.string = token.string
-            str_ref = elem_token.string
-            elem_ref = elem_token
+            ref_str = elem_token.string
+            ref_token = elem_token
             # add parents, eventually
-            for p in parent_elements[token.i]:
-                if p not in root_parents and (token.i == token.head.i or p not in parent_elements[token.head.i]):
-                    new_ = soup.new_tag(p.name, **p.attrs)
-                    new_.append(elem_token)
-                    elem_token = new_
+            p = parent_elements[token.i]
+            #for p in parent_elements[token.i]:
+            while p not in recreated_parents:
+                #if p not in root_parents and (token.i == token.head.i or p not in parent_elements[token.head.i]):
+                #if p not in recreated_parents:
+                new_parent = soup.new_tag(p.name, **p.attrs)
+                recreated_parents[p] = new_parent
+                new_parent.append(elem_token)
+                elem_token = new_parent
+                #else:
+                #    break
+                p = p.parent
 
+            if token.head.i == token.i:
+                recreated_parents[p].append(elem_token)
+                elem_token = recreated_parents[p]
+
+            last_child_after = ref_str
             for child in token.children:
-                # maintain original order
-                if child.i < token.i:
-                    str_ref.insert_before(do_token(child, root_parents))
-                else:
-                    elem_ref.append(do_token(child, root_parents))
+                c_token = do_token(child)
+                if c_token is not None:
+                    # maintain original order
+                    if child.i < token.i:
+                        ref_str.insert_before(c_token)
+                    else:
+                        last_child_after.insert_after(c_token)
+                        last_child_after = c_token
             return elem_token
 
-        sent_parents = [parent_elements[t.i] for t in sent]
-        root_parents = get_common_parents(sent_parents)
+        #sent_parents = [parent_elements[t.i] for t in sent]
+        #root_parents = get_common_parents(sent_parents)
 
-        new_elem.append(do_token(sent.root, root_parents))
+        do_token(sent.root)
+        print(sent.string)
         #prev_root = sent.root
     return new_elem
 
@@ -175,12 +189,12 @@ def annotate_nlp(soup, nlp):
     #block_tags = ['adress', 'article', 'aside', 'ausio', 'video', 'blockquote', 'canvas', 'dd', 'div', 'dl', 'fieldset',
     #              'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hgroup',
     #              'hr', 'noscript', 'ol', 'ul', 'output', 'p', 'pre', 'section', 'table', 'tfoot', 'ul']
-    block_tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ol', 'ul', 'pre', 'address', 'blockquote', 'dl', 'div',
+    block_tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'address', 'blockquote', 'dl', 'div',
                   'fieldset', 'form', 'hr', 'noscript', 'table']
     #inline_tags = ['b', 'big', 'i', 'small', 'tt', 'abbr', 'acronym', 'cite', 'code', 'dfn', 'em', 'kbd', 'strong',
     #               'samp', 'var', 'a', 'bdo', 'br', 'img', 'map', 'object', 'q', 'script', 'span', 'sub', 'sup',
     #               'button', 'input', 'label', 'select', 'textarea']
-    inline_tags = ['span', 'textarea', 'label', 'li']
+    inline_tags = ['span', 'textarea', 'label']
     # add list item tag
     #inline_tags.append('li')
     # should not nest any other block element
@@ -193,6 +207,7 @@ def annotate_nlp(soup, nlp):
     text_inline_elements = [elem for elem in text_inline_elements if len([p for p in elem.parents if p in text_inline_elements])==0]
     print('elements to modify: %i' % len(text_block_elements + text_inline_elements))
     for i, elem in enumerate(text_block_elements + text_inline_elements):
+        print(repr(elem))
         try:
             # append dummy element as marker to re-insert the modified one later at teh correct position
             dummy = soup.new_tag('dummy')
@@ -210,8 +225,8 @@ if __name__ == "__main__":
     print('parse html/xml ...')
     #contents = '<?xml version="1.0" encoding="iso-8859-1"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" class="client-js" dir="ltr" lang="en" xml:lang="en"><body class="mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-Physics rootpage-Physics skin-vector action-view"><div role="note" class="hatnote navigation-not-searchable">This article is about the field of science. For other uses, see <a href="/wiki/Physics_(disambiguation)" class="mw-disambig" title="Physics (disambiguation)"><span style="font-weight:bold;">Physics<span> </span>(disambiguation)</span></a>.</div></body></html>'
     #soup = BeautifulSoup(contents, 'html.parser')
-    with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.html', 'r') as contents:
-    #with open('/home/arne/Downloads/test.html', 'r') as contents:
+    #with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.html', 'r') as contents:
+    with open('/home/arne/Downloads/test.html', 'r') as contents:
         soup = BeautifulSoup(contents, 'html.parser')
     # html_content = soup.find(class_='mw-parser-output')
     # text_elements = html_content.find_all('p') #+ html_content.find_all('span')
@@ -228,4 +243,4 @@ if __name__ == "__main__":
     xml = xml.dom.minidom.parseString(str(soup))  # or xml.dom.minidom.parseString(xml_string)
     pretty_xml_as_string = xml.toprettyxml()
 
-    #print(pretty_xml_as_string)
+    print(pretty_xml_as_string)
