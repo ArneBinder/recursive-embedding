@@ -264,7 +264,9 @@ if __name__ == "__main__":
     print('parse html/xml ...')
     #contents = '<?xml version="1.0" encoding="iso-8859-1"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" class="client-js" dir="ltr" lang="en" xml:lang="en"><body class="mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-Physics rootpage-Physics skin-vector action-view"><div role="note" class="hatnote navigation-not-searchable">This article is about the field of science. For other uses, see <a href="/wiki/Physics_(disambiguation)" class="mw-disambig" title="Physics (disambiguation)"><span style="font-weight:bold;">Physics<span> </span>(disambiguation)</span></a>.</div></body></html>'
     #soup = BeautifulSoup(contents, 'html.parser')
-    with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.html', 'r') as contents:
+    #with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.html', 'r') as contents:
+    fn = 'data/en.wikipedia.org_wiki_Physics.html'
+    with open(fn, 'r') as contents:
     #with open('/home/arne/Downloads/test.html', 'r') as contents:
         soup = BeautifulSoup(contents, 'html.parser')
     # html_content = soup.find(class_='mw-parser-output')
@@ -274,7 +276,7 @@ if __name__ == "__main__":
     nlp = spacy.load('en')
     print('modify ...')
     annotate_nlp(soup, nlp)
-    with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.modified.html', "w") as file:
+    with open('%s.nlp.html' % fn, "w") as file:
         file.write(str(soup))
 
     import xml.dom.minidom
