@@ -100,7 +100,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
             # hack to fix spacy "bug": spacy replaces newlines by spaces
             t = t.replace('\n', ' ')
             if has_parent(e, 'sup', tags_seen):
-                t = u' ' + t
+                t = u' ' + t #TODO: or remove completely? t = u''
             #parents = list(e.parents)[:-1]
             texts.append(t)
             annots.append((offset, e))
@@ -283,7 +283,7 @@ if __name__ == "__main__":
     #contents = '<?xml version="1.0" encoding="iso-8859-1"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" class="client-js" dir="ltr" lang="en" xml:lang="en"><body class="mediawiki ltr sitedir-ltr mw-hide-empty-elt ns-0 ns-subject page-Physics rootpage-Physics skin-vector action-view"><div role="note" class="hatnote navigation-not-searchable">This article is about the field of science. For other uses, see <a href="/wiki/Physics_(disambiguation)" class="mw-disambig" title="Physics (disambiguation)"><span style="font-weight:bold;">Physics<span> </span>(disambiguation)</span></a>.</div></body></html>'
     #soup = BeautifulSoup(contents, 'html.parser')
     #with open('/home/arne/Downloads/en.wikipedia.org_wiki_Physics.html', 'r') as contents:
-    fn = 'data/en.wikipedia.org_wiki_Physics.html'
+    fn = 'data/en.wikipedia.org_wiki_Physics_abstract.html'
     with open(fn, 'r') as contents:
     #with open('/home/arne/Downloads/test.html', 'r') as contents:
         soup = BeautifulSoup(contents, 'html.parser')
