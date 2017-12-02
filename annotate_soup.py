@@ -60,6 +60,20 @@ def handle_ids(token_ids, annot_ids, annots, parent_elements, doc):
         #print('%i:\t%s "%s"' % (t_id, str(list(reversed(p_tags))), doc[t_id].string))
 
 
+# returns true only for first element with this parent
+def has_parent(elem, tag_name, tags_seen):
+    seen = tags_seen.get(tag_name, [])
+    p = elem.parent
+    while p is not None and p not in seen and p.name != tag_name:
+        p = p.parent
+
+    if p is not None and p not in seen and p.name == tag_name:
+        seen.append(p)
+        tags_seen[tag_name] = seen
+        return True
+    return False
+
+
 def text_element_to_annotated_tree(element, soup, nlp):
     if element.text.strip() == '':
         return element
@@ -67,6 +81,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
     offset = 0
     texts = []
     annots = []
+    tags_seen = {}
     #print('')
     for e in element.next_elements:
         if e.string is not None and e.name is None:# and e.string.strip() != '':
@@ -84,6 +99,8 @@ def text_element_to_annotated_tree(element, soup, nlp):
             t = unicode(t)
             # hack to fix spacy "bug": spacy replaces newlines by spaces
             t = t.replace('\n', ' ')
+            if has_parent(e, 'sup', tags_seen):
+                t = u' ' + t
             #parents = list(e.parents)[:-1]
             texts.append(t)
             annots.append((offset, e))
@@ -164,6 +181,7 @@ def text_element_to_annotated_tree(element, soup, nlp):
         if len(token_ids) == 0:
             raise Exception('empty token_ids, but annot_ids contains elements')
         handle_ids(annot_ids, token_ids, annots, parent_elements, doc)
+        # debug
         token_ids = []
         annot_ids = []
 
