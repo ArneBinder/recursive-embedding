@@ -357,8 +357,8 @@ class Lexicon(object):
 
     def sort_and_cut_and_fill_dict(self, data, count_threshold=1):
         converter, self._vecs, self._types, new_counts, new_idx_unknown = sort_and_cut_and_fill_dict(seq_data=data,
-                                                                                                     vecs=self._vecs,
-                                                                                                     types=self._types,
+                                                                                                     vecs=self.vecs,
+                                                                                                     types=self.types,
                                                                                                      count_threshold=count_threshold)
         self._mapping = None
         self._dumped_vecs = False

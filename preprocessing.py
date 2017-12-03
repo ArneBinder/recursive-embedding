@@ -454,7 +454,9 @@ def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None, conca
             # save root offset
             root_offsets.append(len(sen_parents))
             # add word embedding
-            sen_data.append(mytools.getOrAdd(data_maps, token.lemma_, dict_unknown))
+            #sen_data.append(mytools.getOrAdd(data_maps, token.lemma_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEXEME_EMBEDDING]
+                                             + constants.SEPARATOR + token.lemma_, dict_unknown))
             sen_parents.append(0)
             # add edge type embedding
             # sen_data.append(mytools.getOrAdd(data_maps, token.pos_, dict_unknown))
