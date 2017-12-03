@@ -161,7 +161,7 @@ def get_all_children_rec(idx, children, max_depth, current_depth=0, max_depth_on
         return []
     result = []
     for child in children[idx]:
-        if not max_depth_only or current_depth + 1 == max_depth:
+        if max_depth_only is None or current_depth + 1 == max_depth:
             result.append((child, current_depth + 1))
         result.extend(get_all_children_rec(idx + child, children, max_depth - 1, current_depth + 1, max_depth_only))
     return result
@@ -486,7 +486,7 @@ class Forest(object):
         return np.array(map(lambda idx: self.forest.T[idx], indices)).T
 
     def trees(self, root_indices=None):
-        if not root_indices:
+        if root_indices is None:
             root_indices = self.roots
         for i in root_indices:
             descendant_indices = sorted(get_descendant_indices(self.children, i))
