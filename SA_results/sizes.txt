@@ -1,0 +1,11 @@
+AVG w/ E:	340 * 326 = 110840 (leaf_fc=326)
+AVG w/o E:	300 * 370 = 111000 (leaf_fc=370)
+LSTM w/ E:	409 * 272 = 111248 (stat_size=68)
+LSTM w/o E:	375 * 296 = 111000 (stat_size=74)
+
+init parameters:
+AVG w/ E:	python train_fold.py --train_data_path=/media/arne/WIN/ML/data/corpora/SICK/process_sentence3/SICK_cmAGGREGATE_onehotdep --tree_embedder=TreeEmbedding_FLAT_AVG_2levels --learning_rate=0.05 --early_stop_queue=100 --root_fc_size=0 --leaf_fc_size=326 --state_size=0 --keep_prob=0.9 --logdir=/home/arne/ML_local/tf/supervised/log/SA/SICK_RUNS/NEW/X/edge_available --lexicon_trainable=False --data_single=False --init_only
+AVG w/o E:	python train_fold.py --train_data_path=/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_blanked/SICK_cmAGGREGATE_onehotdep --tree_embedder=TreeEmbedding_FLAT_AVG_2levels --learning_rate=0.05 --early_stop_queue=100 --root_fc_size=0 --leaf_fc_size=370 --state_size=0 --keep_prob=0.9 --logdir=/home/arne/ML_local/tf/supervised/log/SA/SICK_RUNS/NEW/X/edge_blanked --lexicon_trainable=False --data_single=False --init_only
+LSTM w/ E:	python train_fold.py --train_data_path=/media/arne/WIN/ML/data/corpora/SICK/process_sentence3/SICK_cmAGGREGATE_onehotdep --tree_embedder=TreeEmbedding_FLAT_LSTM_2levels --learning_rate=0.05 --early_stop_queue=100 --root_fc_size=0 --leaf_fc_size=0 --state_size=68 --keep_prob=0.9 --logdir=/home/arne/ML_local/tf/supervised/log/SA/SICK_RUNS/NEW/X/edge_available --lexicon_trainable=False --data_single=False --init_only
+LSTM w/o E:	python train_fold.py --train_data_path=/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_blanked/SICK_cmAGGREGATE_onehotdep --tree_embedder=TreeEmbedding_FLAT_LSTM_2levels --learning_rate=0.05 --early_stop_queue=100 --root_fc_size=0 --leaf_fc_size=0 --state_size=74 --keep_prob=0.9 --logdir=/home/arne/ML_local/tf/supervised/log/SA/SICK_RUNS/NEW/X/edge_blanked --lexicon_trainable=False --data_single=False --init_only
+
