@@ -141,6 +141,32 @@ def get_text(sequence_graph, types, blacklist=None):
     return result
 
 
+def get_text_plain(sequence_data, types, blacklist=None):
+    result = []
+    if len(sequence_data) > 0:
+        for d in sequence_data:
+
+            #if d < len(types):
+            l = types[d]  # data_to_word(d, data_maps_rev, vocab, vocab_neg)
+
+            #else:
+            #    l = types[constants.UNKNOWN_EMBEDDING]
+            if blacklist is not None:
+                found = False
+                for b in blacklist:
+                    if l.startswith(b + constants.SEPARATOR):
+                        found = True
+                        break
+                if found:
+                    continue
+                else:
+                    result.append(constants.SEPARATOR.join(l.split(constants.SEPARATOR)[1:]))
+            else:
+                result.append(l)
+
+    return result
+
+
 def visualize_seq_node_list(seq_tree_list, types, file_name=TEMP_FN):
     for i, seq_tree in enumerate(seq_tree_list):
         current_data, current_parents = sequence_trees.sequence_node_to_sequence_trees(seq_tree)
