@@ -218,6 +218,9 @@ class Config(object):
             raise AttributeError(name)
         return self.__dict__['__values'][name][1]
 
+    def as_dict(self):
+        return {k: self.__getattr__(k) for k in self}
+
     def __setattr__(self, key, value):
         """Sets the 'value' attribute of the entry name."""
 
@@ -659,9 +662,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False,
                                                                                  emit=False)
                             p_r = pearsonr(score_all, score_all_gold)[0]
+                            score_all.dump(os.path.join(logdir, 'sims.np'))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
-                            return p_r
+                            return p_r, np.mean(np.square(score_all - score_all_gold))
 
                     logging.info('create dev data set ...')
                     dev_set = list(
@@ -717,7 +721,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
-                            return test_p_rs_sorted[0]
+                            return test_p_rs_sorted[0], -1
 
                         # do not save, if score was not the best
                         # if rank > len(test_p_rs) * 0.05:
@@ -740,74 +744,91 @@ if __name__ == '__main__':
     mytools.logging_init()
     logging.debug('test')
     # tf.app.run()
-    config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
-    config.init_flags()
-    # pylint: disable=protected-access
-    FLAGS._parse_flags()
-    # pylint: enable=protected-access
-    config.update_with_flags(FLAGS)
-    if FLAGS.grid_config_file is not None:
-
-        parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
-        logging.info('load grid parameters from: %s' % parameters_fn)
-        with open(parameters_fn, 'r') as infile:
-            grid_parameters = json.load(infile)
-
-        scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
-        fieldnames_loaded = None
-        if os.path.isfile(scores_fn):
-            file_mode = 'a'
-            with open(scores_fn, 'r') as csvfile:
-                scores_done_reader = csv.DictReader(csvfile, delimiter='\t')
-                fieldnames_loaded = scores_done_reader.fieldnames
-                scores_done = list(scores_done_reader)
-            run_descriptions_done = [s_d['run_description'] for s_d in scores_done]
-            logging.debug('already finished: %s' % ', '.join(run_descriptions_done))
-        else:
-            file_mode = 'w'
-            run_descriptions_done = []
-        logging.info('write scores to: %s' % scores_fn)
-
-        # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
-        fieldnames_expected = grid_parameters.keys() + ['score_dev_best', 'score_test', 'run_description']
-        assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
-        fieldnames = fieldnames_loaded or fieldnames_expected
-        with open(scores_fn, file_mode) as csvfile:
+    if FLAGS.logdir_continue is not None and ',' in FLAGS.logdir_continue:
+        logdirs = FLAGS.logdir_continue.split(',')
+        logging.info('execute %i runs ...' % len(logdirs))
+        with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
+            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + ['score_pearson', 'score_mse']
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
-            if file_mode == 'w':
-                score_writer.writeheader()
+            score_writer.writeheader()
+            for logdir in logdirs:
+                config = Config(logdir_continue=logdir)
+                config_dict = config.as_dict()
+                p, mse = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
+                                     test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
+                config_dict['score_pearson'] = p
+                config_dict['score_mse'] = mse
+                score_writer.writerow(config_dict)
                 csvfile.flush()
+    else:
+        config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
+        config.init_flags()
+        # pylint: disable=protected-access
+        FLAGS._parse_flags()
+        # pylint: enable=protected-access
+        config.update_with_flags(FLAGS)
+        if FLAGS.grid_config_file is not None:
 
-            for i in range(FLAGS.run_count):
-                for c, d in config.explode(grid_parameters):
-                    c.set_run_description()
-                    run_desc_backup = c.run_description
+            parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
+            logging.info('load grid parameters from: %s' % parameters_fn)
+            with open(parameters_fn, 'r') as infile:
+                grid_parameters = json.load(infile)
 
-                    logging.info(
-                        'start run ==============================================================================')
-                    c.run_description = os.path.join(run_desc_backup, str(i))
-                    logdir = os.path.join(FLAGS.logdir, c.run_description)
+            scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
+            fieldnames_loaded = None
+            if os.path.isfile(scores_fn):
+                file_mode = 'a'
+                with open(scores_fn, 'r') as csvfile:
+                    scores_done_reader = csv.DictReader(csvfile, delimiter='\t')
+                    fieldnames_loaded = scores_done_reader.fieldnames
+                    scores_done = list(scores_done_reader)
+                run_descriptions_done = [s_d['run_description'] for s_d in scores_done]
+                logging.debug('already finished: %s' % ', '.join(run_descriptions_done))
+            else:
+                file_mode = 'w'
+                run_descriptions_done = []
+            logging.info('write scores to: %s' % scores_fn)
 
-                    train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
-                    test_fname = os.path.join(train_data_dir, FLAGS.test_file)
-                    assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
-
-                    # skip already processed
-                    if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
-                        logging.debug('skip config for logdir: %s' % logdir)
-                        c.run_description = run_desc_backup
-                        continue
-
-                    d['score_dev_best'] = execute_run(c)
-                    logging.info('best dev score: %f' % d['score_dev_best'])
-                    d['score_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
-                    logging.info('test score: %f' % d['score_test'])
-                    d['run_description'] = c.run_description
-
-                    c.run_description = run_desc_backup
-                    score_writer.writerow(d)
+            # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
+            fieldnames_expected = grid_parameters.keys() + ['score_dev_best', 'score_test', 'run_description']
+            assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
+            fieldnames = fieldnames_loaded or fieldnames_expected
+            with open(scores_fn, file_mode) as csvfile:
+                score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
+                if file_mode == 'w':
+                    score_writer.writeheader()
                     csvfile.flush()
 
-    else:
-        execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
-                    test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
+                for i in range(FLAGS.run_count):
+                    for c, d in config.explode(grid_parameters):
+                        c.set_run_description()
+                        run_desc_backup = c.run_description
+
+                        logging.info(
+                            'start run ==============================================================================')
+                        c.run_description = os.path.join(run_desc_backup, str(i))
+                        logdir = os.path.join(FLAGS.logdir, c.run_description)
+
+                        train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
+                        test_fname = os.path.join(train_data_dir, FLAGS.test_file)
+                        assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
+
+                        # skip already processed
+                        if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
+                            logging.debug('skip config for logdir: %s' % logdir)
+                            c.run_description = run_desc_backup
+                            continue
+
+                        d['score_dev_best'] = execute_run(c)
+                        logging.info('best dev score: %f' % d['score_dev_best'])
+                        d['score_test'], _ = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                        logging.info('test score: %f' % d['score_test'])
+                        d['run_description'] = c.run_description
+
+                        c.run_description = run_desc_backup
+                        score_writer.writerow(d)
+                        csvfile.flush()
+
+        else:
+            execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
+                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
