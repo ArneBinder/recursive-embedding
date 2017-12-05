@@ -751,7 +751,8 @@ if __name__ == '__main__':
             fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + ['score_pearson', 'score_mse']
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
             score_writer.writeheader()
-            for logdir in logdirs:
+            for i, logdir in enumerate(logdirs,1):
+                logging.info('START RUN %i of %i' % (i, len(logdirs)))
                 config = Config(logdir_continue=logdir)
                 config_dict = config.as_dict()
                 p, mse = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
