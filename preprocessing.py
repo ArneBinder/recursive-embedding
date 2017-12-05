@@ -433,6 +433,38 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None, conca
 
 
 # embeddings for:
+# word, edge (marked)
+def process_sentence10(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
+    sen_data = []
+    sen_parents = []
+    root_offsets = []
+    root_parents = []
+    for i in range(sentence.start, sentence.end):
+        # get current token
+        token = parsed_data[i]
+        parent_offset = token.head.i - i
+        root_parents.append(parent_offset)
+        # save root offset
+        root_offsets.append(len(sen_parents))
+        # add word embedding
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.DEPENDENCY_EMBEDDING]
+                                         + constants.SEPARATOR + token.dep_, dict_unknown))
+        sen_parents.append(0)
+        # add edge type embedding
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEXEME_EMBEDDING]
+                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_parents.append(-1)
+
+    if concat_mode == 'aggregate':
+        root_offsets.append(len(sen_data))
+        sen_parents.append(0)
+        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
+
+    return sen_data, sen_parents, root_offsets
+
+
+# embeddings for:
 # lemma, pos (filtered)
 def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = []
