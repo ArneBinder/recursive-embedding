@@ -678,6 +678,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
+                loss_test_best = 9999
                 TEST_MIN_INIT = -1
                 test_p_rs = [TEST_MIN_INIT]
                 step_train = sess.run(model_train.global_step)
@@ -692,6 +693,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
                                                                                train=False, test_step=step_train)
+
+                        if loss_test < loss_test_best:
+                            loss_test_best = loss_test
 
                         # EARLY STOPPING ###############################################################################
 
@@ -721,7 +725,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
-                            return test_p_rs_sorted[0], -1
+                            return test_p_rs_sorted[0], loss_test_best
 
                         # do not save, if score was not the best
                         # if rank > len(test_p_rs) * 0.05:
@@ -791,7 +795,8 @@ if __name__ == '__main__':
             logging.info('write scores to: %s' % scores_fn)
 
             # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
-            fieldnames_expected = grid_parameters.keys() + ['score_dev_best', 'score_test', 'run_description']
+            fieldnames_expected = grid_parameters.keys() + ['pearson_dev_best', 'pearson_test', 'mse_dev_best',
+                                                            'mse_test', 'run_description']
             assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
             fieldnames = fieldnames_loaded or fieldnames_expected
             with open(scores_fn, file_mode) as csvfile:
@@ -811,8 +816,11 @@ if __name__ == '__main__':
                         logdir = os.path.join(FLAGS.logdir, c.run_description)
 
                         train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
-                        test_fname = os.path.join(train_data_dir, FLAGS.test_file)
-                        assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
+                        if FLAGS.test_file is not None:
+                            test_fname = os.path.join(train_data_dir, FLAGS.test_file)
+                            assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
+                        else:
+                            test_fname = None
 
                         # skip already processed
                         if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
@@ -820,10 +828,14 @@ if __name__ == '__main__':
                             c.run_description = run_desc_backup
                             continue
 
-                        d['score_dev_best'] = execute_run(c)
-                        logging.info('best dev score: %f' % d['score_dev_best'])
-                        d['score_test'], _ = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
-                        logging.info('test score: %f' % d['score_test'])
+                        d['pearson_dev_best'] = execute_run(c)
+                        logging.info('best dev score: %f' % d['pearson_dev_best'])
+                        if test_fname is not None:
+                            d['pearson_test'], d['mse_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                            logging.info('test score: %f' % d['pearson_test'])
+                        else:
+                            d['pearson_test'] = 0.0
+                            d['mse_test'] = -1.0
                         d['run_description'] = c.run_description
 
                         c.run_description = run_desc_backup
