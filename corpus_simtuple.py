@@ -95,6 +95,11 @@ tf.flags.DEFINE_boolean(
     True,
     'Adapt the distribution of the data for sampling negative examples.'
 )
+tf.flags.DEFINE_boolean(
+    'random_vecs',
+    False,
+    'Set random embedding vectors for all lexicon entries.'
+)
 
 FLAGS = tf.flags.FLAGS
 mytools.logging_init()
@@ -244,6 +249,9 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     if FLAGS.one_hot_dep:
         out_path = out_path + '_onehotdep'
 
+    if FLAGS.random_vecs:
+        out_path = out_path + '_randomvecs'
+
     if (not corpus.exist(out_path) and not os.path.isfile(out_path + '.score')) or overwrite:
         logging.info('load spacy ...')
         nlp = spacy.load('en')
@@ -291,6 +299,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         forest.dump(out_path)
         scores.dump(out_path + '.score')
         lexicon.set_man_vocab_vec(man_vocab_id=constants.IDENTITY_EMBEDDING)
+        if FLAGS.random_vecs:
+            lexicon.set_to_random()
         lexicon.dump(out_path)
     else:
         lexicon = lex.Lexicon(filename=out_path)

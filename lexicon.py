@@ -392,6 +392,17 @@ class Lexicon(object):
             logging.info('set %i vecs to one-hot' % len(indices))
             self._dumped_vecs = False
 
+    def set_to_random(self, indices=None, prefix=None):
+        if prefix is not None:
+            indices = self.get_ids_for_prefix(prefix)
+        if indices is None:
+            indices = range(len(self))
+        for i in indices:
+            self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1])
+        if len(indices) > 0:
+            logging.info('set %i vecs to random' % len(indices))
+            self._dumped_vecs = False
+
     def set_man_vocab_vec(self, man_vocab_id, new_vec=None):
         if new_vec is None:
             new_vec = np.zeros(shape=self.vec_size, dtype=self._vecs.dtype)
