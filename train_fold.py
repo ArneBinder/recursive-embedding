@@ -828,7 +828,7 @@ if __name__ == '__main__':
                             c.run_description = run_desc_backup
                             continue
 
-                        d['pearson_dev_best'] = execute_run(c)
+                        d['pearson_dev_best'], d['mse_dev_best'] = execute_run(c)
                         logging.info('best dev score: %f' % d['pearson_dev_best'])
                         if test_fname is not None:
                             d['pearson_test'], d['mse_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
