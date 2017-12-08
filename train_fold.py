@@ -367,6 +367,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
+        # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
+        ENTRY1_idx = lexicon[u'ENTRY1']
+        ENTRY2_idx = lexicon[u'ENTRY2']
     else:
         lexicon = lex.Lexicon(filename=config.train_data_path)
         if logdir_pretrained:
@@ -380,6 +383,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
+        # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
+        ENTRY1_idx = lexicon[u'ENTRY1']
+        ENTRY2_idx = lexicon[u'ENTRY2']
+        lexicon.pad()
 
         lexicon.dump(filename=os.path.join(logdir, 'model'), types_only=True)
         assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
@@ -405,7 +412,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             set_head_neg(c)
 
     def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False,
-                            head_dropout=False):
+                            head_dropout=False, merge_prob_idx=None, subtree_head_ids=None):
+        if merge_prob_idx is not None:
+            assert subtree_head_ids is not None and type(subtree_head_ids) == list, \
+                'merge_prob_idx is given (%i), but subtree_head_ids is not a list' % merge_prob_idx
+            assert root_idx is not None, 'merge_prob_idx is given (%i), but root_idx is not set' % merge_prob_idx
+            assert not shuffle, 'merge_prob_idx is given (%i), but SHUFFLE is enabled' % merge_prob_idx
+            assert not split, 'merge_prob_idx is given (%i), but SPLIT is enabled' % merge_prob_idx
         n_last = None
         for sim_index_file in sim_index_files:
             indices, probs = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
@@ -418,15 +431,25 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             for idx in range(len(indices)):
                 index_tuple = indices[idx]
                 _trees = [sequence_trees.get_tree_dict_unsorted(i) for i in index_tuple]
-                if root_idx is not None:
-                    _trees[0]['head'] = root_idx
-                # unify heads
-                for i in range(1, n):
-                    _trees[i]['head'] = _trees[0]['head']
+                _probs = probs[idx]
+
+                if merge_prob_idx is not None:
+                    for i in range(n):
+                        _trees[i]['head'] = subtree_head_ids[i]
+                    new_root = {'head': root_idx, 'children': _trees}
+                    _trees = [new_root]
+                    _probs = [_probs[merge_prob_idx]]
+                else:
+                    if root_idx is not None:
+                        _trees[0]['head'] = root_idx
+                    # unify heads
+                    for i in range(1, n):
+                        _trees[i]['head'] = _trees[0]['head']
+
                 if head_dropout:
                     for t in _trees:
                         set_head_neg(t)
-                _probs = probs[idx]
+
                 if shuffle:
                     perm = np.random.permutation(n)
                     [_trees, _probs] = [[_trees[i] for i in perm], np.array([_probs[i] for i in perm])]
@@ -439,9 +462,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     extensions = config.extensions.split(',')
     if config.data_single:
         # extensions = ['', '.negs1']
-        data_iterator_train = partial(data_tuple_iterator, shuffle=False, extensions=extensions)
-        data_iterator_dev = partial(data_tuple_iterator, root_idx=IDENTITY_idx, extensions=extensions)
-        tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
+        #data_iterator_train = partial(data_tuple_iterator, extensions=extensions)
+        #data_iterator_dev = partial(data_tuple_iterator, extensions=extensions)
+        data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, merge_prob_idx=1, subtree_head_ids=[ENTRY1_idx, ENTRY2_idx])
+        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge_prob_idx=1, subtree_head_ids=[ENTRY1_idx, ENTRY2_idx])
+        #tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
+        tuple_size = 1
     else:
         data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
@@ -507,11 +533,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                   optimizer=optimizer,
                                                                                   learning_rate=config.learning_rate,
                                                                                   clipping_threshold=config.clipping)
-                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                                                                         optimizer=None,
-                                                                         learning_rate=config.learning_rate,
-                                                                         sim_measure=sim_measure,
-                                                                         clipping_threshold=config.clipping)
+                #model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                #                                                         optimizer=None,
+                #                                                         learning_rate=config.learning_rate,
+                #                                                         sim_measure=sim_measure,
+                #                                                         clipping_threshold=config.clipping)
+                model_test = model_train
             else:
                 model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                          optimizer=optimizer,
@@ -692,15 +719,19 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
-                                                                               train=False, test_step=step_train)
+                                                                               train=False, test_step=step_train,
+                                                                               new_model=config.data_single)
 
                         if loss_test < loss_test_best:
                             loss_test_best = loss_test
 
                         # EARLY STOPPING ###############################################################################
 
-                        # loss_test = round(loss_test, 6) #100000000
-                        p_r = pearsonr(sim_all, sim_all_gold)[0]
+                        if not config.data_single:
+                            # loss_test = round(loss_test, 6) #100000000
+                            p_r = pearsonr(sim_all, sim_all_gold)[0]
+                        else:
+                            p_r = 1. - loss_test
                         p_r = round(p_r, 6)
                         prev_max = max(test_p_rs)
                         # stop, if current test pearson r is not bigger than previous values. The amount of regarded
