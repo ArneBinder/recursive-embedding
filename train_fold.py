@@ -368,8 +368,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
-        ENTRY1_idx = lexicon[u'ENTRY1']
-        ENTRY2_idx = lexicon[u'ENTRY2']
+        if config.data_single:
+            ENTRY1_idx = lexicon[u'ENTRY1']
+            ENTRY2_idx = lexicon[u'ENTRY2']
     else:
         lexicon = lex.Lexicon(filename=config.train_data_path)
         if logdir_pretrained:
@@ -384,9 +385,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
-        ENTRY1_idx = lexicon[u'ENTRY1']
-        ENTRY2_idx = lexicon[u'ENTRY2']
-        lexicon.pad()
+        if config.data_single:
+            ENTRY1_idx = lexicon[u'ENTRY1']
+            ENTRY2_idx = lexicon[u'ENTRY2']
+            lexicon.pad()
 
         lexicon.dump(filename=os.path.join(logdir, 'model'), types_only=True)
         assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
