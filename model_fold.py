@@ -344,6 +344,46 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
         return model
 
 
+class TreeEmbedding_HTU_GRU_rev(TreeEmbedding):
+    """Calculates an embedding over a (recursive) SequenceNode.
+
+    Args:
+        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
+        name_or_scope: A scope to share variables over instances of sequence_tree_block
+    """
+
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_GRU_rev, self).__init__(name='HTU_GRU_rev', **kwargs)
+        with tf.variable_scope(self.scope):
+            self._grucell = td.ScopedLayer(tf.contrib.rnn.DropoutWrapper(
+                tf.contrib.rnn.GRUCell(num_units=self._state_size),
+                input_keep_prob=self.keep_prob,
+                output_keep_prob=self.keep_prob,
+                variational_recurrent=True,
+                dtype=tf.float32,
+                input_size=self.leaf_fc_size or DIMENSION_EMBEDDINGS),
+                'gru_cell')
+
+    def __call__(self):
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
+
+        # an aggregation function which takes the order of the inputs into account
+        def aggregator_order_aware(head, children):
+            # inputs=head, state=children
+            r, h2 = self._grucell(head, children)
+            return r
+
+        # TODO: try td.Mean()
+        children = self.children() >> td.Map(embed_tree())
+        cases = td.AllOf(self.head() >> self.leaf_fc >> td.Broadcast(), children) >> td.Zip() >> \
+                td.Map(td.Function(aggregator_order_aware)) >> td.Sum()
+
+        embed_tree.resolve_to(cases)
+        model = cases >> self.root_fc
+
+        return model
+
+
 class TreeEmbedding_HTU_GRU_dep(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode.
 
