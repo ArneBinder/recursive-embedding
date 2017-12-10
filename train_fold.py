@@ -692,6 +692,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                  emit=False)
                             p_r = pearsonr(score_all, score_all_gold)[0]
                             score_all.dump(os.path.join(logdir, 'sims.np'))
+                            score_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
                             return p_r, np.mean(np.square(score_all - score_all_gold))
@@ -712,7 +713,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 test_p_rs = [TEST_MIN_INIT]
                 step_train = sess.run(model_train.global_step)
                 max_queue_length = 0
-                for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
+                for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=not config.test_only), 1):
 
                     # train
                     if not config.early_stop_queue or len(test_p_rs) > 0:
