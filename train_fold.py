@@ -685,7 +685,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     if test_iterator is not None:
                         logging.info('create test data set ...')
                         test_set = list(
-                            model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data)))
+                            model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data),
+                                                                             ordered=True))
                         logging.info('test data size: ' + str(len(test_set)))
                         if train_iterator is None:
                             step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False,
@@ -713,7 +714,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 test_p_rs = [TEST_MIN_INIT]
                 step_train = sess.run(model_train.global_step)
                 max_queue_length = 0
-                for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=not config.test_only), 1):
+                for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
 
                     # train
                     if not config.early_stop_queue or len(test_p_rs) > 0:
@@ -782,6 +783,7 @@ if __name__ == '__main__':
     mytools.logging_init()
     logging.debug('test')
     # tf.app.run()
+    # ATTENTION: discards any FLAGS (e.g. provided as argument) contained in default_config!
     if FLAGS.logdir_continue is not None and ',' in FLAGS.logdir_continue:
         logdirs = FLAGS.logdir_continue.split(',')
         logging.info('execute %i runs ...' % len(logdirs))
