@@ -5,6 +5,7 @@ from __future__ import print_function
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
 from tensorflow_fold.blocks import result_types as tdt
+from tensorflow_fold.blocks import blocks as tdb
 import numpy as np
 import logging
 
@@ -146,6 +147,33 @@ def create_lexicon(lex_size, trainable=True):
     lexicon_init = lexicon.assign(lexicon_placeholder)
 
     return lexicon, lexicon_placeholder, lexicon_init
+
+
+def Softmax(name=None):  # pylint: disable=invalid-name
+    """
+    This block calculates softmax over a sequence.
+    """
+    c = td.Composition(name=name)
+    with c.scope():
+        exps = td.Map(td.Function(tf.exp)).reads(c.input)
+        exps_with_sum = td.Zip().reads(exps, td.Broadcast().reads(td.Sum().reads(exps)))
+        res = td.Map(td.Function(tdb._tf_batch_safe_scalar_division)).reads(exps_with_sum)
+        c.output.reads(res)
+    return c.set_constructor_name('td.Softmax')
+
+def Attention(name=None):  # pylint: disable=invalid-name
+    """
+    This block calculates attention over a sequence.
+    It requires a sequence of 1-d vectors and a 1-d vector as input and produces a sequence of 1-d vectors.
+    """
+    c = td.Composition(name=name)
+    with c.scope():
+        att_scalars = td.Map(td.Function(lambda x, y: tf.reduce_sum(x * y, axis=1))).reads(td.Zip().reads(c.input[0], td.Broadcast().reads(c.input[1])))
+        att_weights = Softmax().reads(att_scalars)
+        wheighted = td.Map(td.Function(tdb._tf_batch_scalar_mul)).reads(td.Zip().reads(att_weights, c.input[0]))
+        res = td.Sum().reads(wheighted)
+        c.output.reads(res)
+    return c.set_constructor_name('td.Attention')
 
 
 class TreeEmbedding(object):
