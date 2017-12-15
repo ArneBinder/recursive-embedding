@@ -22,6 +22,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import pairwise_distances
 from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import normalize
+from sklearn.metrics.pairwise import cosine_similarity
 # from google.protobuf.json_format import MessageToJson
 
 import constants
@@ -339,9 +340,31 @@ def distance():
     return response
 
 
-# DEPRECATED
 @app.route("/api/similarity", methods=['POST'])
 def sim():
+    try:
+        start = time.time()
+        logging.info('Distance requested')
+        params = get_params(request)
+        get_or_calc_embeddings(params)
+
+        result = cosine_similarity(params['embeddings'])
+        #result = pairwise_distances(params['embeddings'],
+        #                            metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
+        params['similarities'] = result.tolist()
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+
+    return response
+
+
+# DEPRECATED
+@app.route("/api/similarity_old", methods=['POST'])
+def sim_old():
     try:
         start = time.time()
         logging.info('Similarity requested')
