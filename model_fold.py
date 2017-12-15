@@ -468,6 +468,50 @@ class TreeEmbedding_HTU_GRU_dep(TreeEmbedding):
         return model
 
 
+class TreeEmbedding_HTU_ATT(TreeEmbedding):
+    """Calculates an embedding over a (recursive) SequenceNode.
+
+    Args:
+        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
+        name_or_scope: A scope to share variables over instances of sequence_tree_block
+    """
+
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_ATT, self).__init__(name='HTU_ATT', **kwargs)
+        with tf.variable_scope(self.scope):
+            self._grucell = td.ScopedLayer(tf.contrib.rnn.DropoutWrapper(
+                tf.contrib.rnn.GRUCell(num_units=self._state_size),
+                input_keep_prob=self.keep_prob,
+                output_keep_prob=self.keep_prob,
+                variational_recurrent=True,
+                dtype=tf.float32,
+                input_size=self.leaf_fc_size or DIMENSION_EMBEDDINGS),
+                'gru_cell')
+
+    def __call__(self):
+
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
+
+        children = self.children() >> td.Map(embed_tree())
+        #head = self.head() >> self.leaf_fc
+        head_att = td.Pipe(self.head(), self.leaf_fc, td.FC(self.state_size,
+                                                            activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
+                                                            name='fc_attention'),
+                           name='att_pipe')
+        head_gru = td.Pipe(self.head(), self.leaf_fc, td.FC(self.leaf_fc_size or DIMENSION_EMBEDDINGS, activation=tf.nn.tanh,
+                                                            input_keep_prob=self.keep_prob,
+                                                            name='fc_gru'),
+                           name='gru_pipe')
+        children_attention = td.AllOf(children, head_att) >> Attention()
+
+        cases = td.AllOf(head_gru, children_attention) >> td.Function(lambda h, c: self._grucell(h, c)[0])
+
+        embed_tree.resolve_to(cases)
+        model = cases >> self.root_fc
+
+        return model
+
+
 class TreeEmbedding_HTU_FC(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode.
 
