@@ -297,12 +297,7 @@ class TreeEmbedding(object):
 
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
-    """Calculates an embedding over a (recursive) SequenceNode.
-
-    Args:
-        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
-        name_or_scope: A scope to share variables over instances of sequence_tree_block
-    """
+    """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, **kwargs):
         super(TreeEmbedding_TREE_LSTM, self).__init__(name='TREE_LSTM', **kwargs)
@@ -327,12 +322,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
 
 
 class TreeEmbedding_HTU_GRU(TreeEmbedding):
-    """Calculates an embedding over a (recursive) SequenceNode.
-
-    Args:
-        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
-        name_or_scope: A scope to share variables over instances of sequence_tree_block
-    """
+    """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, **kwargs):
         super(TreeEmbedding_HTU_GRU, self).__init__(name='HTU_GRU', **kwargs)
@@ -374,12 +364,7 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
 
 
 class TreeEmbedding_HTU_GRU_rev(TreeEmbedding):
-    """Calculates an embedding over a (recursive) SequenceNode.
-
-    Args:
-        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
-        name_or_scope: A scope to share variables over instances of sequence_tree_block
-    """
+    """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, **kwargs):
         super(TreeEmbedding_HTU_GRU_rev, self).__init__(name='HTU_GRU_rev', **kwargs)
@@ -414,12 +399,7 @@ class TreeEmbedding_HTU_GRU_rev(TreeEmbedding):
 
 
 class TreeEmbedding_HTU_GRU_dep(TreeEmbedding):
-    """Calculates an embedding over a (recursive) SequenceNode.
-
-    Args:
-        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
-        name_or_scope: A scope to share variables over instances of sequence_tree_block
-    """
+    """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, **kwargs):
 
@@ -470,12 +450,7 @@ class TreeEmbedding_HTU_GRU_dep(TreeEmbedding):
 
 
 class TreeEmbedding_HTU_ATT(TreeEmbedding):
-    """Calculates an embedding over a (recursive) SequenceNode.
-
-    Args:
-        embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
-        name_or_scope: A scope to share variables over instances of sequence_tree_block
-    """
+    """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, **kwargs):
         super(TreeEmbedding_HTU_ATT, self).__init__(name='HTU_ATT', **kwargs)
@@ -490,26 +465,65 @@ class TreeEmbedding_HTU_ATT(TreeEmbedding):
                 'gru_cell')
 
     def __call__(self):
-
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
 
         children = self.children() >> td.Map(embed_tree())
-        #head = self.head() >> self.leaf_fc
-        head_att = td.Pipe(self.head(), self.leaf_fc, td.FC(self.state_size,
-                                                            activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
-                                                            name='fc_attention'),
-                           name='att_pipe')
-        head_gru = td.Pipe(self.head(), self.leaf_fc, td.FC(self.leaf_fc_size or DIMENSION_EMBEDDINGS, activation=tf.nn.tanh,
-                                                            input_keep_prob=self.keep_prob,
-                                                            name='fc_gru'),
-                           name='gru_pipe')
-        children_attention = td.AllOf(children, head_att) >> Attention()
+        head = self.head() >> self.leaf_fc
+        c = td.Composition()
+        with c.scope():
+            head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
+                                     name='fc_attention'),
+                               name='att_pipe').reads(c.input[0])
+            head_gru = td.Pipe(td.FC(self.leaf_fc_size or DIMENSION_EMBEDDINGS, activation=tf.nn.tanh,
+                                     input_keep_prob=self.keep_prob, name='fc_gru'),
+                               name='gru_pipe').reads(c.input[0])
+            children_attention = Attention().reads(c.input[1], head_att)
+            gru_out = td.Function(lambda _h, _c: self._grucell(_h, _c)[0]).reads(head_gru, children_attention)
+            c.output.reads(gru_out)
 
-        cases = td.AllOf(head_gru, children_attention) >> td.Function(lambda h, c: self._grucell(h, c)[0])
-
+        cases = td.AllOf(head, children) >> c
         embed_tree.resolve_to(cases)
         model = cases >> self.root_fc
+        return model
 
+
+class TreeEmbedding_HTU_ATT_split(TreeEmbedding):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_ATT_split, self).__init__(name='HTU_ATT_split', **kwargs)
+        with tf.variable_scope(self.scope):
+            self._grucell = td.ScopedLayer(tf.contrib.rnn.DropoutWrapper(
+                tf.contrib.rnn.GRUCell(num_units=self._state_size),
+                input_keep_prob=self.keep_prob,
+                output_keep_prob=self.keep_prob,
+                variational_recurrent=True,
+                dtype=tf.float32,
+                input_size=self.leaf_fc_size or DIMENSION_EMBEDDINGS),
+                'gru_cell')
+
+    def __call__(self):
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
+
+        children = self.children() >> td.Map(embed_tree())
+        head = self.head() >> self.leaf_fc
+
+        c = td.Composition()
+        with c.scope():
+            head_split = td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1)).reads(c.input[0])
+            head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
+                                     name='fc_attention'),
+                               name='att_pipe').reads(head_split[0])
+            head_gru = td.Pipe(td.FC(self.leaf_fc_size or DIMENSION_EMBEDDINGS, activation=tf.nn.tanh,
+                                     input_keep_prob=self.keep_prob, name='fc_gru'),
+                               name='gru_pipe').reads(head_split[1])
+            children_attention = Attention().reads(c.input[1], head_att)
+            gru_out = td.Function(lambda _h, _c: self._grucell(_h, _c)[0]).reads(head_gru, children_attention)
+            c.output.reads(gru_out)
+
+        cases = td.AllOf(head, children) >> c
+        embed_tree.resolve_to(cases)
+        model = cases >> self.root_fc
         return model
 
 
