@@ -341,7 +341,7 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
         children = self.children() >> td.Map(embed_tree()) >> td.Sum()
         head = self.head() >> self.leaf_fc
-        cases = td.AllOf(head, children) >> td.Function(lambda _h, _c: self._grucell(_h, _c)[0])
+        cases = td.AllOf(head, children) >> td.Function(lambda _h, _c: self._grucell(_h, _c)[1])
         embed_tree.resolve_to(cases)
         model = cases >> self.root_fc
         return model
@@ -366,7 +366,7 @@ class TreeEmbedding_HTU_GRU_rev(TreeEmbedding):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
         children = self.children() >> td.Map(embed_tree())
         cases = td.AllOf(self.head() >> self.leaf_fc >> td.Broadcast(), children) >> td.Zip() >> \
-                td.Map(td.Function(lambda _h, _c: self._grucell(_h, _c)[0])) >> td.Sum()
+                td.Map(td.Function(lambda _h, _c: self._grucell(_h, _c)[1])) >> td.Sum()
         embed_tree.resolve_to(cases)
         model = cases >> self.root_fc
         return model
@@ -452,7 +452,7 @@ class TreeEmbedding_HTU_ATT(TreeEmbedding):
                                      input_keep_prob=self.keep_prob, name='fc_gru'),
                                name='gru_pipe').reads(c.input[0])
             children_attention = Attention().reads(c.input[1], head_att)
-            gru_out = td.Function(lambda _h, _c: self._grucell(_h, _c)[0]).reads(head_gru, children_attention)
+            gru_out = td.Function(lambda _h, _c: self._grucell(_h, _c)[1]).reads(head_gru, children_attention)
             c.output.reads(gru_out)
 
         cases = td.AllOf(head, children) >> c
@@ -492,7 +492,7 @@ class TreeEmbedding_HTU_ATT_split(TreeEmbedding):
                                      input_keep_prob=self.keep_prob, name='fc_gru'),
                                name='gru_pipe').reads(head_split[1])
             children_attention = Attention().reads(c.input[1], head_att)
-            gru_out = td.Function(lambda _h, _c: self._grucell(_h, _c)[0]).reads(head_gru, children_attention)
+            gru_out = td.Function(lambda _h, _c: self._grucell(_h, _c)[1]).reads(head_gru, children_attention)
             c.output.reads(gru_out)
 
         cases = td.AllOf(head, children) >> c
