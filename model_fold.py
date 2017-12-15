@@ -72,7 +72,7 @@ def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu, keep_prob=N
     with tf.variable_scope(scope):
         with tf.variable_scope(name) as sc:
             result = td.ScopedLayer(fc_, name_or_scope=sc)
-
+    result.set_output_type(td.TensorType(shape=(num_units,)))
     return result
 
 
@@ -160,6 +160,7 @@ def Softmax(name=None):  # pylint: disable=invalid-name
         res = td.Map(td.Function(tdb._tf_batch_safe_scalar_division)).reads(exps_with_sum)
         c.output.reads(res)
     return c.set_constructor_name('td.Softmax')
+
 
 def Attention(name=None):  # pylint: disable=invalid-name
     """
