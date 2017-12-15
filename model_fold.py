@@ -337,29 +337,13 @@ class TreeEmbedding_HTU_GRU(TreeEmbedding):
                 'gru_cell')
 
     def __call__(self):
-        #zero_state = td.Zeros(self._state_size)
-        # zero_state = td.Zeros((state_size, state_size))
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
-
-        # an aggregation function which takes the order of the inputs into account
-        def aggregator_order_aware(head, children):
-            # inputs=head, state=children
-            r, h2 = self._grucell(head, children)
-            return r
-
-        # an aggregation function which doesn't take the order of the inputs into account
-        # TODO: try td.Mean()
-        #def aggregator_order_unaware(x, y):
-        #    return tf.add(x, y)
-
         # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
         children = self.children() >> td.Map(embed_tree()) >> td.Sum()
-
-        cases = td.AllOf(self.head() >> self.leaf_fc, children) >> td.Function(aggregator_order_aware)
-
+        head = self.head() >> self.leaf_fc
+        cases = td.AllOf(head, children) >> td.Function(lambda _h, _c: self._grucell(_h, _c)[0])
         embed_tree.resolve_to(cases)
         model = cases >> self.root_fc
-
         return model
 
 
@@ -380,21 +364,11 @@ class TreeEmbedding_HTU_GRU_rev(TreeEmbedding):
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
-
-        # an aggregation function which takes the order of the inputs into account
-        def aggregator_order_aware(head, children):
-            # inputs=head, state=children
-            r, h2 = self._grucell(head, children)
-            return r
-
-        # TODO: try td.Mean()
         children = self.children() >> td.Map(embed_tree())
         cases = td.AllOf(self.head() >> self.leaf_fc >> td.Broadcast(), children) >> td.Zip() >> \
-                td.Map(td.Function(aggregator_order_aware)) >> td.Sum()
-
+                td.Map(td.Function(lambda _h, _c: self._grucell(_h, _c)[0])) >> td.Sum()
         embed_tree.resolve_to(cases)
         model = cases >> self.root_fc
-
         return model
 
 
