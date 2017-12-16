@@ -357,6 +357,8 @@ class TreeEmbedding_GRU(TreeEmbedding_RNN):
                 dtype=tf.float32,
                 input_size=self.rnn_input_size),
                 'gru_cell')
+        print(self.rnn_step.output_type)
+        print(self.rnn_step.input_type)
 
     @property
     def rnn_step(self):
@@ -377,7 +379,7 @@ class TreeEmbedding_LSTM(TreeEmbedding_RNN):
         with tf.variable_scope(self.scope):
             self._lstm_cell = td.ScopedLayer(
                 tf.contrib.rnn.DropoutWrapper(
-                    tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5),
+                    tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5),#, state_is_tuple=False),
                     input_keep_prob=self.keep_prob,
                     output_keep_prob=self.keep_prob,
                     variational_recurrent=True,
@@ -385,17 +387,21 @@ class TreeEmbedding_LSTM(TreeEmbedding_RNN):
                     input_size=self.rnn_input_size),
                 'lstm_cell')
 
-    # TODO: fix this!
     @property
     def rnn_step(self):
-        return self._lstm_cell >> td.GetItem(0)
+        #return self._lstm_cell >> td.GetItem(1)    # requires: state_is_tuple=False
+        return td.AllOf(td.GetItem(0), td.GetItem(1)
+                        >> td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1))) \
+               >> self._lstm_cell >> td.GetItem(1) >> td.Concat()
 
     @property
     def rnn_cell(self):
         return self._lstm_cell
 
+    # TODO: use both states as output: return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.Concat)
     @property
     def rnn_reduce(self):
+        #return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1))
         return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0))
 
 
@@ -1001,266 +1007,3 @@ class SequenceTreeEmbedding(object):
     @property
     def e2_placeholder(self):
         return self._e2_placeholder
-
-
-class SequenceTreeEmbeddingSequence(object):
-    """ A Fold model for training sequence tree embeddings using negative sampling.
-        The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object
-        containing a sequence of sequence trees (see SequenceNode) assuming the first is the correct one.
-        It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum
-        entropy loss with regard to the correct tree.
-    """
-
-    def __init__(self, embeddings, scoring_scope=DEFAULT_SCOPE_SCORING):
-        def squz(x):
-            return tf.squeeze(x, [1])
-
-        # This layer maps a sequence tree embedding to an 'integrity' score
-        with tf.variable_scope(scoring_scope) as scoring_sc:
-            scoring_fc = td.FC(1, name=scoring_sc) >> td.Function(squz)
-
-        first = td.Composition()
-        with first.scope():
-            def z(a):
-                return 0
-
-            x = td.InputTransform(z)
-            nth_ = td.Nth().reads(first.input, x)
-            first.output.reads(nth_)
-
-        # takes a sequence of scalars as input
-        # and returns the first scalar normalized by the sum
-        # of all the scalars
-        norm_first = td.Composition()
-        with norm_first.scope():
-            sum_ = td.Reduce(td.Function(tf.add)).reads(norm_first.input)
-            nth_ = first.reads(norm_first.input)
-            normed_nth = td.Function(tf.div).reads(nth_, sum_)
-            norm_first.output.reads(normed_nth)
-
-        ## takes a sequence of scalars and an index as input
-        ## and returns the n-th scalar normalized by the sum
-        ## of all the scalars
-        # norm = td.Composition()
-        # with norm.scope():
-        #    sum_ = td.Reduce(td.Function(tf.add)).reads(norm.input[0])
-        #    nth_ = td.Nth().reads(norm.input[0], norm.input[1])
-        #    normed_nth = td.Function(tf.div).reads(nth_, sum_)
-        #    norm.output.reads(normed_nth)
-
-        tree_embed = TreeEmbedding_HTU_GRU_dep(embeddings)
-
-        # with tf.variable_scope(aggregator_ordered_scope) as sc:
-        #    tree_logits = td.Map(sequence_tree_block(embeddings, sc)
-        #                         >> scoring_fc >> td.Function(tf.exp))
-        tree_logits = td.Map(tree_embed() >> scoring_fc >> td.Function(tf.exp))
-
-        # softmax_correct = td.AllOf(td.GetItem('trees') >> tree_logits, td.GetItem('idx_correct')) >> norm
-        softmax_correct = td.GetItem('trees') >> tree_logits >> norm_first
-
-        self._compiler = td.Compiler.create(softmax_correct)
-
-        # Get the tensorflow tensors that correspond to the outputs of model.
-        self._softmax_correct, = self._compiler.output_tensors
-
-        self._loss = tf.reduce_mean(-tf.log(self._softmax_correct))
-
-        self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
-        optr = tf.train.GradientDescentOptimizer(0.01)
-        self._train_op = optr.minimize(self._loss, global_step=self._global_step)
-        tf.summary.scalar('loss', self._loss)
-        self._acc = tf.reduce_mean(self._softmax_correct)
-        tf.summary.scalar('acc', self._acc)
-
-    @property
-    def softmax_correct(self):
-        return self._softmax_correct
-
-    @property
-    def loss(self):
-        return self._loss
-
-    @property
-    def accuracy(self):
-        return self._acc
-
-    @property
-    def train_op(self):
-        return self._train_op
-
-    @property
-    def global_step(self):
-        return self._global_step
-
-    def build_feed_dict(self, sim_trees):
-        return self._compiler.build_feed_dict(sim_trees)
-
-
-def sequence_tree_block_with_candidates(embeddings, scope, candidate_count=3):
-    """Calculates an embedding over a (recursive) SequenceNode.
-
-    Args:
-      embeddings: a tensor of shape=(lex_size, state_size) containing the (pre-trained) embeddings
-      scope: A scope to share variables over instances of sequence_tree_block
-    """
-    state_size = embeddings.shape.as_list()[1]
-    expr_decl = td.ForwardDeclaration(td.PyObjectType(), td.SequenceType(td.convert_to_type(state_size)))
-    expr_decl2 = td.ForwardDeclaration(td.PyObjectType(), state_size)
-    grucell = td.ScopedLayer(tf.contrib.rnn.GRUCell(num_units=state_size), name_or_scope=scope)
-
-    # an aggregation function which takes the order of the inputs into account
-    def aggregator_order_aware(head, children):
-        # inputs=head, state=children
-        r, h2 = grucell(head, children)
-        return r
-
-    # an aggregation function which doesn't take the order of the inputs into account
-    def aggregator_order_unaware(x, y):
-        return tf.add(x, y)
-
-    # get the head embedding from id
-    def embed(x):
-        return tf.gather(embeddings, x)
-
-    # normalize (batched version -> dim=1)
-    def norm(x):
-        return tf.nn.l2_normalize(x, dim=1)
-
-    def case_dep(seq_tree):
-        if 'children_candidate' in seq_tree and len(seq_tree['children']) > 0 and 'head' in seq_tree:
-            return 0
-        if 'children_candidate' in seq_tree and len(seq_tree['children']) == 0 and 'head' in seq_tree:
-            return 1
-        if 'children_candidate' in seq_tree and len(seq_tree['children']) > 0 and 'head' not in seq_tree:
-            return 2
-        if 'children_candidate' in seq_tree and len(seq_tree['children']) == 0 and 'head' not in seq_tree:
-            return 3
-        if 'children_candidate' not in seq_tree and len(seq_tree['children']) > 0 and 'head' in seq_tree:
-            return 4
-        if 'children_candidate' not in seq_tree and len(seq_tree['children']) == 0 and 'head' in seq_tree:
-            return 5
-        if 'children_candidate' not in seq_tree and len(seq_tree['children']) > 0 and 'head' not in seq_tree:
-            return 6
-        # if len(seq_tree['children_candidates']) == 0 and len(seq_tree['children']) == 0 and 'head' not in seq_tree:
-        #    return 7
-        if len(seq_tree['candidates']) > 0:
-            return 8
-
-    cases = td.OneOf(lambda x: case_dep(x),
-                     {0: td.GetItem('children_candidate') >> expr_decl(),
-                      1: td.GetItem('children_candidate') >> expr_decl(),
-                      2: td.GetItem('children_candidate') >> expr_decl(),
-                      3: td.GetItem('children_candidate') >> expr_decl(),
-                      4: td.GetItem('head')
-                         >> td.Optional(td.Scalar(dtype='int32')
-                                        >> td.Function(embed))
-                         >> td.Broadcast(),
-                      5: td.GetItem('head')
-                         >> td.Optional(td.Scalar(dtype='int32')
-                                        >> td.Function(embed))
-                         >> td.Broadcast(),
-                      6: td.GetItem('children')
-                         >> td.Map(expr_decl()),
-                      # >> td.Reduce(td.Function(aggregator_order_unaware)),
-                      8: td.GetItem('candidates')
-                         >> td.Map(expr_decl()),
-                      })
-
-    def cases_single(seq_tree):
-        # children and head exist: process and aggregate
-        if len(seq_tree['children']) > 0 and 'head' in seq_tree:
-            return 0
-        # children do not exist (but maybe a head): process (optional) head only
-        if len(seq_tree['children']) == 0:
-            return 1
-        # otherwise (head does not exist): process children only
-        return 2
-
-    def cases_candidates(seq_tree):
-        if len(seq_tree['candidates']) > 0:
-            return 3
-        # children and head exist: process and aggregate
-        if len(seq_tree['children']) > 0 and 'head' in seq_tree:
-            return 0
-        # children do not exist (but maybe a head): process (optional) head only
-        if len(seq_tree['children']) == 0:
-            return 1
-        # otherwise (head does not exist): process children only
-        return 2
-
-    expr_decl.resolve_to(cases)
-
-    return cases >> td.Map(td.Function(norm))  # >> td.Function(dprint)
-
-
-class SequenceTreeEmbeddingWithCandidates(object):
-    """ A Fold model for training sequence tree embeddings using NCE.
-        The model expects a converted (see td.proto_tools.serialized_message_to_tree) SequenceNodeSequence object
-        containing a sequence of sequence trees (see SequenceNode) and an index of the correct tree.
-        It calculates all sequence tree embeddings, maps them to an 'integrity' score and calculates the maximum
-        entropy loss with regard to the correct tree.
-    """
-
-    def __init__(self, embeddings, scoring_scope=DEFAULT_SCOPE_SCORING):
-        # This layer maps a sequence tree embedding to an 'integrity' score
-        with tf.variable_scope(scoring_scope) as scoring_sc:
-            scoring_fc = td.FC(1, name=scoring_sc)
-
-        def squz(x):
-            return tf.squeeze(x, [1])
-
-        first = td.Composition()
-        with first.scope():
-            def z(a):
-                return 0
-
-            x = td.InputTransform(z)
-            nth_ = td.Nth().reads(first.input, x)
-            first.output.reads(nth_)
-
-        # takes a sequence of scalars as input
-        # and returns the first scalar normalized by the sum
-        # of all the scalars
-        norm = td.Composition()
-        with norm.scope():
-            sum_ = td.Reduce(td.Function(tf.add)).reads(norm.input)
-            nth_ = first.reads(norm.input)
-            normed_nth = td.Function(tf.div).reads(nth_, sum_)
-            norm.output.reads(normed_nth)
-
-        # TODO: fix
-        with tf.variable_scope(aggregator_ordered_scope) as sc:
-            tree_logits = sequence_tree_block_with_candidates(embeddings, sc) \
-                          >> td.Map(scoring_fc >> td.Function(squz) >> td.Function(tf.exp))
-
-        softmax_correct = tree_logits >> norm
-
-        self._compiler = td.Compiler.create(softmax_correct)
-
-        # Get the tensorflow tensors that correspond to the outputs of model.
-        self._softmax_correct = self._compiler.output_tensors
-
-        self._loss = tf.reduce_mean(-tf.log(self._softmax_correct))
-
-        self._global_step = tf.Variable(0, name=VAR_NAME_GLOBAL_STEP, trainable=False)
-        optr = tf.train.GradientDescentOptimizer(0.01)
-        self._train_op = optr.minimize(self._loss, global_step=self._global_step)
-
-    @property
-    def softmax_correct(self):
-        return self._softmax_correct
-
-    @property
-    def loss(self):
-        return self._loss
-
-    @property
-    def train_op(self):
-        return self._train_op
-
-    @property
-    def global_step(self):
-        return self._global_step
-
-    def build_feed_dict(self, sim_trees):
-        return self._compiler.build_feed_dict(sim_trees)
