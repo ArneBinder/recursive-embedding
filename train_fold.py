@@ -151,9 +151,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
-        if config.data_single:
-            ENTRY1_idx = lexicon[u'ENTRY1']
-            ENTRY2_idx = lexicon[u'ENTRY2']
+        #if config.data_single:
+        #    ENTRY1_idx = lexicon[u'ENTRY1']
+        #    ENTRY2_idx = lexicon[u'ENTRY2']
     else:
         lexicon = lex.Lexicon(filename=config.train_data_path)
         if logdir_pretrained:
@@ -168,10 +168,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
-        if config.data_single:
-            ENTRY1_idx = lexicon[u'ENTRY1']
-            ENTRY2_idx = lexicon[u'ENTRY2']
-            lexicon.pad()
+        #if config.data_single:
+        #    ENTRY1_idx = lexicon[u'ENTRY1']
+        #    ENTRY2_idx = lexicon[u'ENTRY2']
+        #    lexicon.pad()
 
         lexicon.dump(filename=os.path.join(logdir, 'model'), types_only=True)
         assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
@@ -196,8 +196,33 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         for c in tree['children']:
             set_head_neg(c)
 
+    def data_tuple_iterator_reroot(sequence_trees, indices, neg_samples, max_tries=10, max_depth=100, sim_index_files=None):
+        logging.debug('size of data: %i' % len(sequence_trees))
+        #for idx in np.random.randint(len(sequence_trees), size=size):
+        for idx in indices:
+            candidate_ids = []
+            try_count = 0
+            while len(candidate_ids) < neg_samples and try_count < max_tries:
+                idx_cand = np.random.randint(len(sequence_trees), size=1)[0]
+                if idx_cand != idx and sequence_trees.data[idx_cand] != sequence_trees.data[idx] and idx_cand not in candidate_ids:
+                    candidate_ids.append(idx_cand)
+                else:
+                    try_count += 1
+
+            if try_count == max_tries:
+                logging.warning('not enough samples: %i, required: %i' % (len(candidate_ids), neg_samples))
+                continue
+            _trees = [sequence_trees.get_tree_dict_rooted(idx, max_depth)]
+            for idx_cand in candidate_ids:
+                cand_tree = copy.deepcopy(_trees[0])
+                cand_tree['head'] = sequence_trees.data[idx_cand]
+                _trees.append(cand_tree)
+            _probs = np.zeros(neg_samples + 1)
+            _probs[0] = 1.
+            yield [_trees, _probs]
+
     def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False,
-                            head_dropout=False, merge_prob_idx=None, subtree_head_ids=None):
+                            head_dropout=False, merge_prob_idx=None, subtree_head_ids=None, count=None, merge=False):
         if merge_prob_idx is not None:
             assert subtree_head_ids is not None and type(subtree_head_ids) == list, \
                 'merge_prob_idx is given (%i), but subtree_head_ids is not a list' % merge_prob_idx
@@ -206,17 +231,21 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             assert not split, 'merge_prob_idx is given (%i), but SPLIT is enabled' % merge_prob_idx
         n_last = None
         for sim_index_file in sim_index_files:
-            indices, probs = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
+            indices, probabilities = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
             n = len(indices[0])
             assert n_last is None or n_last == n, 'all (eventually merged) index tuple files have to contain the ' \
                                                   'same amount of tuple entries, but entries in %s ' \
                                                   '(with extensions=%s) deviate with %i from %i' \
                                                   % (sim_index_file, str(extensions), n, n_last)
             n_last = n
+            if count is None:
+                count = n
+            _trees_merged = []
+            _probs_merged = np.zeros(shape=(0,))
             for idx in range(len(indices)):
                 index_tuple = indices[idx]
                 _trees = [sequence_trees.get_tree_dict_unsorted(i) for i in index_tuple]
-                _probs = probs[idx]
+                _probs = probabilities[idx]
 
                 if merge_prob_idx is not None:
                     for i in range(n):
@@ -241,6 +270,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 if split:
                     for i in range(1, n):
                         yield [[_trees[0], _trees[i]], np.array([_probs[0], _probs[i]])]
+                elif merge:
+                    _trees_merged.extend(_trees)
+                    _probs_merged = np.concatenate((_probs_merged,_probs))
+                    if len(_trees_merged)>= count:
+                        yield [_trees_merged, _probs_merged]
+                        _trees_merged = []
+                        _probs_merged = np.zeros((0,))
                 else:
                     yield [_trees, _probs]
 
@@ -249,10 +285,17 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         # extensions = ['', '.negs1']
         #data_iterator_train = partial(data_tuple_iterator, extensions=extensions)
         #data_iterator_dev = partial(data_tuple_iterator, extensions=extensions)
-        data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, merge_prob_idx=1, subtree_head_ids=[ENTRY1_idx, ENTRY2_idx])
-        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge_prob_idx=1, subtree_head_ids=[ENTRY1_idx, ENTRY2_idx])
+        #data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, merge_prob_idx=1, subtree_head_ids=[ENTRY1_idx, ENTRY2_idx])
+        #data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge_prob_idx=1, subtree_head_ids=[ENTRY1_idx, ENTRY2_idx])
         #tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
-        tuple_size = 1
+        #tuple_size = 1
+        neg_samples = 9
+        max_depth = 15
+        size = 10000
+        tuple_size = neg_samples + 1
+        data_iterator_train = partial(data_tuple_iterator_reroot, indices=range(size), neg_samples=neg_samples, max_depth=max_depth)
+        #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
+        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size, extensions=extensions)
     else:
         data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
@@ -318,12 +361,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                   optimizer=optimizer,
                                                                                   learning_rate=config.learning_rate,
                                                                                   clipping_threshold=config.clipping)
-                #model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                #                                                         optimizer=None,
-                #                                                         learning_rate=config.learning_rate,
-                #                                                         sim_measure=sim_measure,
-                #                                                         clipping_threshold=config.clipping)
-                model_test = model_train
+                # TODO: takes only every (neg_samples + 1)/2 example... fix!
+                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                                                                         optimizer=None,
+                                                                         learning_rate=config.learning_rate,
+                                                                         sim_measure=sim_measure,
+                                                                         clipping_threshold=config.clipping)
+                #model_test = model_train
             else:
                 model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                                                                          optimizer=optimizer,
@@ -507,7 +551,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
                                                                                train=False, test_step=step_train,
-                                                                               new_model=config.data_single)
+                                                                               #new_model=config.data_single)
+                                                                               new_model=False)
 
                         if loss_test < loss_test_best:
                             loss_test_best = loss_test

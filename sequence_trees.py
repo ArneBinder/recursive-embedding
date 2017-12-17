@@ -576,7 +576,7 @@ class Forest(object):
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999):
-        result = self.get_tree_dict(idx, max_depth=max_depth)
+        result = self.get_tree_dict_unsorted(idx, max_depth=max_depth)
         current_dict_tree = result
         current_id = idx
         while self.parents[current_id] != 0 and max_depth > 0:
@@ -585,7 +585,7 @@ class Forest(object):
             for c in self.children[parent_id]:
                 c_id = parent_id + c
                 if c_id != current_id:
-                    new_parent_child['children'].append(self.get_tree_dict(c_id, max_depth=max_depth-1))
+                    new_parent_child['children'].append(self.get_tree_dict_unsorted(c_id, max_depth=max_depth-1))
             current_dict_tree['children'].append(new_parent_child)
             current_dict_tree = new_parent_child
             current_id = parent_id

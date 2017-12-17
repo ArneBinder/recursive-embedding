@@ -357,8 +357,6 @@ class TreeEmbedding_GRU(TreeEmbedding_RNN):
                 dtype=tf.float32,
                 input_size=self.rnn_input_size),
                 'gru_cell')
-        print(self.rnn_step.output_type)
-        print(self.rnn_step.input_type)
 
     @property
     def rnn_step(self):
