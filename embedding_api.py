@@ -10,7 +10,6 @@ import time
 import numpy as np
 import spacy
 import tensorflow as tf
-import tensorflow_fold as td
 
 import mytools
 import sequence_trees as sequ_trees
@@ -26,7 +25,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 # from google.protobuf.json_format import MessageToJson
 
 import constants
-import corpus
 import corpus_simtuple
 import model_fold
 import preprocessing
@@ -35,16 +33,8 @@ import lexicon as lex
 from config import Config
 
 tf.flags.DEFINE_string('data_source',
-                       # '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
-                       '/home/arne/ML_local/tf/supervised/log/SA/FINETUNE/PPDB/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKCMAGGREGATE_teTREEEMBEDDINGFLATLSTM',
-                       # '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
-                       # '/home/arne/ML_local/tf/supervised/log/SA/DUMMY/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKOHCMAGGREGATE_teTREEEMBEDDINGFLATAVG',
-                       # '/home/arne/ML_local/tf/supervised/log/PRETRAINED/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3HASANCMSEQUENCEICMTREENEGSAMPLES1_treeembedderTREEEMBEDDINGHTUGRU',
-                       # '/home/arne/ML_local/tf/supervised/log/batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
-                       # '/home/arne/ML_local/tf/supervised/log/BACKUP_batchsize100_embeddingstrainableTRUE_learningrate0.001_optimizerADADELTAOPTIMIZER_simmeasureSIMCOSINE_statesize50_testfileindex1_traindatapathPROCESSSENTENCE3SICKTTCMSEQUENCEICMTREE_treeembedderTREEEMBEDDINGHTUGRU',
-                       # /model.ckpt-122800',
-                       # '/home/arne/ML_local/tf/supervised/log/applyembeddingfcTRUE_batchsize100_embeddingstrainableTRUE_normalizeTRUE_simmeasureSIMCOSINE_testfileindex-1_traindatapathPROCESSSENTENCE3SICKCMAGGREGATE_treeembedderTREEEMBEDDINGFLATLSTM',
-                       # '/home/arne/ML_local/tf/log/final_model',
+                       '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       #'/home/arne/ML_local/tf/supervised/log/SA/FINETUNE/PPDB/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKCMAGGREGATE_teTREEEMBEDDINGFLATLSTM',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension) and the model.type file containing the string dict.')
 tf.flags.DEFINE_string('external_lexicon',
@@ -53,9 +43,7 @@ tf.flags.DEFINE_string('external_lexicon',
                        'If not None, load embeddings from numpy array located at "<external_lexicon>.vec" and type '
                        'string mappings from "<external_lexicon>.type" file and merge them into the embeddings '
                        'from the loaded model ("<data_source>/[model].type").')
-# tf.flags.DEFINE_boolean('load_embeddings', False,
-#                        'Load embeddings from numpy array located at "<dict_file>.vec"')
-tf.flags.DEFINE_string('default_sentence_processor', 'process_sentence3',  # 'process_sentence8',#'process_sentence3',
+tf.flags.DEFINE_string('default_sentence_processor', 'process_sentence3',
                        'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string('default_concat_mode',
                        'sequence',
@@ -87,9 +75,6 @@ tf.flags.DEFINE_string('save_final_model_path',
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
-
-# PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-# PROTO_CLASS = 'SequenceNode'
 
 nlp = None
 sess = None
@@ -466,17 +451,7 @@ def get_cluster_ids(embeddings):
     return labels, meta, best_idx
 
 
-# unused # deprecated
-def seq_tree_iterator(sequences, parser, sentence_processor, data_maps, inner_concat_mode):
-    # pp = pprint.PrettyPrinter(indent=2)
-    for s in sequences:
-        seq_tree = preprocessing.build_sequence_tree_from_str(str_=s, sentence_processor=sentence_processor,
-                                                              parser=parser, data_maps=data_maps,
-                                                              inner_concat_mode=inner_concat_mode, expand_dict=False)
-        # pp.pprint(seq_tree)
-        yield seq_tree.SerializeToString()
-
-
+# unused
 def all_subclasses(cls):
     return cls.__subclasses__() + [g for s in cls.__subclasses__() for g in all_subclasses(s)]
 
@@ -592,9 +567,8 @@ def main(data_source):
 
 
 if __name__ == '__main__':
-    #logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    mytools.logging_init()
-    # tf.app.run()
+    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    #mytools.logging_init()
     FLAGS._parse_flags()
     main(FLAGS.data_source)
     logging.info('Starting the API')
