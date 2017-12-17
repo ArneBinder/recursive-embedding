@@ -32,6 +32,7 @@ import model_fold
 import preprocessing
 import visualize as vis
 import lexicon as lex
+from config import Config
 
 tf.flags.DEFINE_string('data_source',
                        # '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
@@ -86,26 +87,17 @@ tf.flags.DEFINE_string('save_final_model_path',
 tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
-mytools.logging_init()
-
-flags_fn = os.path.join(FLAGS.data_source, 'flags.json')
-if os.path.isfile(flags_fn):
-    with open(flags_fn, 'r') as infile:
-        model_flags = json.load(infile)
-    for flag in model_flags:
-        v = model_flags[flag]
-        getattr(tf.flags, v[0])('model_' + flag, v[1], v[2])
-else:
-    tf.flags.DEFINE_string('model_train_data_path', FLAGS.data_source, '')
 
 # PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
 # PROTO_CLASS = 'SequenceNode'
 
+nlp = None
 sess = None
 model_tree = None
 lexicon = None
-nlp = None
 forest = None
+data_path = None
+
 
 ##################################################
 # API part
@@ -206,26 +198,28 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
     init_nlp()
     for s in sequences:
         _forest = lexicon.read_data(reader=preprocessing.identity_reader,
-                                           sentence_processor=sentence_processor,
-                                           parser=nlp,
-                                           reader_args={'content': s},
-                                           concat_mode=concat_mode,
-                                           inner_concat_mode=inner_concat_mode,
-                                           expand_dict=False,
-                                           reader_roots_args={'root_label': constants.vocab_manual[constants.IDENTITY_EMBEDDING]})
+                                    sentence_processor=sentence_processor,
+                                    parser=nlp,
+                                    reader_args={'content': s},
+                                    concat_mode=concat_mode,
+                                    inner_concat_mode=inner_concat_mode,
+                                    expand_dict=False,
+                                    reader_roots_args={
+                                        'root_label': constants.vocab_manual[constants.IDENTITY_EMBEDDING]})
         yield _forest.forest
 
 
 def get_or_calc_sequence_data(params):
+    global data_path
     if 'data_sequences' in params:
         params['data_sequences'] = np.array(params['data_sequences'])
     elif 'idx_tuple_file' in params:
-        fn = '%s.%s' % (FLAGS.model_train_data_path, params['idx_tuple_file'])
+        fn = '%s.%s' % (data_path, params['idx_tuple_file'])
         if os.path.isfile(fn):
             params['sequences'] = []
             params['data_sequences'] = []
             params['scores_gold'] = []
-            init_forest()
+            init_forest(data_path)
             indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
             start = params.get('start', 0)
             end = params.get('end', len(indices))
@@ -271,8 +265,8 @@ def get_or_calc_embeddings(params):
     if 'embeddings' in params:
         params['embeddings'] = np.array(params['embeddings'])
     elif 'data_sequences' or 'sequences' in params:
+        assert model_tree is not None, 'No model loaded. To load a model, use endpoint: /api/load?path=path_to_model'
         get_or_calc_sequence_data(params)
-
         data_sequences = params['data_sequences']
         max_depth = 150
         if 'max_depth' in params:
@@ -284,7 +278,7 @@ def get_or_calc_embeddings(params):
         if len(batch) > 0:
             fdict = model_tree.build_feed_dict(batch)
             embeddings = sess.run(model_tree.embeddings_all, feed_dict=fdict)
-            #if embedder.scoring_enabled:
+            # if embedder.scoring_enabled:
             #    fdict_scoring = embedder.build_scoring_feed_dict(embeddings)
             #    params['scores'] = sess.run(embedder.scores, feed_dict=fdict_scoring)
         else:
@@ -305,8 +299,8 @@ def embed():
         get_or_calc_embeddings(params)
 
         # debug
-        #params['embeddings'].dump('api_request_embeddings')
-        #if 'scores_gold' in params:
+        # params['embeddings'].dump('api_request_embeddings')
+        # if 'scores_gold' in params:
         #    params['scores_gold'].dump('api_request_scores_gold')
         # debug end
 
@@ -349,34 +343,9 @@ def sim():
         get_or_calc_embeddings(params)
 
         result = cosine_similarity(params['embeddings'])
-        #result = pairwise_distances(params['embeddings'],
+        # result = pairwise_distances(params['embeddings'],
         #                            metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
         params['similarities'] = result.tolist()
-        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
-        response = Response(json_data, mimetype=return_type)
-        logging.info("Time spent handling the request: %f" % (time.time() - start))
-    except Exception as e:
-        raise InvalidUsage(e.message)
-
-    return response
-
-
-# DEPRECATED
-@app.route("/api/similarity_old", methods=['POST'])
-def sim_old():
-    try:
-        start = time.time()
-        logging.info('Similarity requested')
-        params = get_params(request)
-        get_or_calc_embeddings(params)
-
-        count = len(params['embeddings'])
-        sims = sess.run(embedder.sim,
-                        feed_dict={embedder.e1_placeholder: np.repeat(params['embeddings'], count, axis=0),
-                                   embedder.e2_placeholder: np.tile(params['embeddings'], (count, 1))})
-
-        params['similarities'] = sims.reshape((count, count)).tolist()
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
         response = Response(json_data, mimetype=return_type)
@@ -454,6 +423,21 @@ def visualize():
     return response
 
 
+@app.route("/api/load", methods=['POST'])
+def load_data_source():
+    try:
+        start = time.time()
+        logging.info('Reload requested')
+        params = get_params(request)
+        path = params['path']
+        main(path)
+
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+    return "reload successful"
+
+
 def get_cluster_ids(embeddings):
     logging.info('get clusters ...')
     k_min = 3
@@ -506,37 +490,36 @@ def init_nlp():
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
 
-def init_forest():
+def init_forest(data_path):
     global forest
     if forest is None:
-        forest = sequ_trees.Forest(filename=FLAGS.model_train_data_path)
+        forest = sequ_trees.Forest(filename=data_path)
 
 
-def main(unused_argv):
-    global sess, model_tree, lexicon
-
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-    td.proto_tools.map_proto_source_tree_path('', ROOT_DIR)
-    td.proto_tools.import_proto_file('sequence_node.proto')
-    td.proto_tools.import_proto_file('scored_tree.proto')
+def main(data_source):
+    global sess, model_tree, lexicon, data_path, forest
+    sess = None
+    model_tree = None
+    lexicon = None
+    forest = None
+    data_path = None
 
     # We retrieve our checkpoint fullpath
-    checkpoint = tf.train.get_checkpoint_state(FLAGS.data_source)
+    checkpoint = tf.train.get_checkpoint_state(data_source)
     # if a checkpoint file exist, take data_source as model dir
     if checkpoint:
-        logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % FLAGS.data_source)
+        logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % data_source)
         # use latest checkpoint in data_source
         input_checkpoint = checkpoint.model_checkpoint_path
-        lexicon = lex.Lexicon(filename=os.path.join(FLAGS.data_source, 'model'))
+        lexicon = lex.Lexicon(filename=os.path.join(data_source, 'model'))
         reader = tf.train.NewCheckpointReader(input_checkpoint)
         logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
         lexicon.init_vecs(reader.get_tensor(model_fold.VAR_NAME_LEXICON))
     # take data_source as corpus path
     else:
-        logging.info('No model checkpoint found in "%s". Load train data corpus from: "%s"' % (
-        FLAGS.data_source, FLAGS.model_train_data_path))
-        lexicon = lex.Lexicon(filename=FLAGS.model_train_data_path)
+        data_path = data_source
+        logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
+        lexicon = lex.Lexicon(filename=data_source)
 
     if FLAGS.external_lexicon:
         logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
@@ -554,7 +537,9 @@ def main(unused_argv):
 
     # load model
     if checkpoint:
-        tree_embedder = getattr(model_fold, FLAGS.model_tree_embedder)
+        model_config = Config(logdir_continue=data_source)
+        data_path = model_config.train_data_path
+        tree_embedder = getattr(model_fold, model_config.tree_embedder)
 
         saved_shapes = reader.get_variable_to_shape_map()
         scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
@@ -563,16 +548,16 @@ def main(unused_argv):
         else:
             logging.info('no scoring vars found. Disable scoring functionality.')
 
-        #sim_measure = getattr(model_fold, FLAGS.model_sim_measure)
+        # sim_measure = getattr(model_fold, model_config.sim_measure)
 
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
                 model_tree = model_fold.SequenceTreeModel(lex_size=len(lexicon),
                                                           tree_embedder=tree_embedder,
-                                                          state_size=FLAGS.model_state_size,
+                                                          state_size=model_config.state_size,
                                                           lexicon_trainable=False,
-                                                          leaf_fc_size=FLAGS.model_leaf_fc_size,
-                                                          root_fc_size=FLAGS.model_root_fc_size,
+                                                          leaf_fc_size=model_config.leaf_fc_size,
+                                                          root_fc_size=model_config.root_fc_size,
                                                           keep_prob=1.0,
                                                           tree_count=1,
                                                           prob_count=0)
@@ -605,9 +590,12 @@ def main(unused_argv):
                     lexicon.dump(FLAGS.save_final_model_path)
                 lexicon.init_vecs()
 
-    logging.info('Starting the API')
-    app.run()
-
 
 if __name__ == '__main__':
-    tf.app.run()
+    #logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+    mytools.logging_init()
+    # tf.app.run()
+    FLAGS._parse_flags()
+    main(FLAGS.data_source)
+    logging.info('Starting the API')
+    app.run()
