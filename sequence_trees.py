@@ -541,7 +541,7 @@ class Forest(object):
                     sampled_sim_tuples.append(current_sampled_indices)
         return sampled_sim_tuples
 
-    def get_tree_dict(self, idx):
+    def get_tree_dict(self, idx, max_depth=9999):
         """
         Build a _sorted_ (children) dict version of the subtree of this sequence_tree rooted at idx.
         :param idx: root of the subtree
@@ -553,7 +553,7 @@ class Forest(object):
         seq_node = {'head': self.data[idx], 'children': []}
         if idx in self.children:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_tree_dict(idx + child_offset))
+                seq_node['children'].append(self.get_tree_dict(idx + child_offset, max_depth=max_depth - 1))
         seq_node['children'].sort(cmp=_compare_tree_dicts)
 
         self._dicts[idx] = seq_node
@@ -574,6 +574,23 @@ class Forest(object):
             for child_offset in self.children[idx]:
                 seq_node['children'].append(self.get_tree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth - 1))
         return seq_node
+
+    def get_tree_dict_rooted(self, idx, max_depth=9999):
+        result = self.get_tree_dict(idx, max_depth=max_depth)
+        current_dict_tree = result
+        current_id = idx
+        while self.parents[current_id] != 0 and max_depth > 0:
+            parent_id = current_id + self.parents[current_id]
+            new_parent_child = {'head': self.data[parent_id], 'children': []}
+            for c in self.children[parent_id]:
+                c_id = parent_id + c
+                if c_id != current_id:
+                    new_parent_child['children'].append(self.get_tree_dict(c_id, max_depth=max_depth-1))
+            current_dict_tree['children'].append(new_parent_child)
+            current_dict_tree = new_parent_child
+            current_id = parent_id
+            max_depth -= 1
+        return result
 
     def __str__(self):
         return self._forest.__str__()
