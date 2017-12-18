@@ -144,7 +144,7 @@ class Tester(unittest.TestCase):
                 print('IDX: ' + str(i))
                 print(t_all[0])
                 #pp.pprint(seq_tree_seq)
-                visualize.visualize_seq_node_list(seq_tree_seq['trees'], types, 'forest_out_' + str(i) + '.png')
+                visualize.visualize_seq_node_list(seq_tree_seq['trees'], lexicon, 'forest_out_' + str(i) + '.png')
 
     @unittest.skip("skip")
     def test_iterator_sequence_trees_cbot(self):
@@ -203,7 +203,7 @@ class Tester(unittest.TestCase):
             print('IDX: ' + str(i))
             #print(t_all[0])
             pp.pprint(seq_tree_seq)
-            visualize.visualize_seq_node_list(seq_tree_seq['trees'], types, 'forest_out_' + str(i) + '.png')
+            visualize.visualize_seq_node_list(seq_tree_seq['trees'], lexicon, 'forest_out_' + str(i) + '.png')
 
     @unittest.skip("skip")
     def test_check_depth_collected(self):

@@ -286,12 +286,12 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         logging.debug('sizes: %s' % str(sizes))
         np.array(sizes).dump(out_path + '.size')
 
-        forest = sequ_trees.Forest(forest=np.concatenate(_forests, axis=1))
+        forest = sequ_trees.Forest(forest=np.concatenate(_forests, axis=1), lexicon=lexicon)
         scores = np.concatenate(_scores)
 
         converter, new_counts, new_idx_unknown = lexicon.sort_and_cut_and_fill_dict(data=forest.data,
                                                                                     count_threshold=FLAGS.count_threshold)
-        forest.convert_data(converter=converter, lex_size=len(lexicon), new_idx_unknown=new_idx_unknown)
+        forest.convert_data(converter=converter, new_idx_unknown=new_idx_unknown)
 
         if FLAGS.one_hot_dep:
             lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])
@@ -304,7 +304,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         lexicon.dump(out_path)
     else:
         lexicon = lex.Lexicon(filename=out_path)
-        forest = sequ_trees.Forest(filename=out_path)
+        forest = sequ_trees.Forest(filename=out_path, lexicon=lexicon)
         scores = np.load(out_path + '.score')
         sizes = np.load(out_path + '.size')
 
@@ -565,12 +565,12 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     #vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
     data_converter = lexicon1.merge(lexicon2, add=True, remove=False)
     #data2, parents2 = sequ_trees.load(corpus_fn2)
-    sequence_trees2 = sequ_trees.Forest(filename=corpus_fn2)
+    sequence_trees2 = sequ_trees.Forest(filename=corpus_fn2, lexicon=lexicon1)
     #m = lex.mapping_from_list(types)
     #mapping = {i: m[t] for i, t in enumerate(types2)}
     #converter = [m[t] for t in types2]
     #data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)
-    sequence_trees2.convert_data(converter=data_converter, lex_size=len(lexicon1.types),
+    sequence_trees2.convert_data(converter=data_converter,
                                  new_idx_unknown=lexicon1[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]])
     #dir2 = os.path.abspath(os.path.join(corpus_fn2, os.pardir))
     #indices2_fnames = fnmatch.filter(os.listdir(dir2), ntpath.basename(corpus_fn2) + '.idx.[0-9]*')

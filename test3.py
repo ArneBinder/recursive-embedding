@@ -29,7 +29,7 @@ def read_sentence2(sentence, vis = False):
 
     if vis:
         #token_list = list(corpus.create_or_read_dict_types_string('temp', mapping=data_maps2, spacy_vocab=nlp.vocab))
-        visualize.visualize('forest_temp.png', (seq_data, seq_parents), types)
+        visualize.visualize('forest_temp.png', (seq_data, seq_parents), lexicon)
         #img = Image('forest_temp.png')
         #display(img)
 

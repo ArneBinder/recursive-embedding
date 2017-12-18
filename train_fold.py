@@ -156,6 +156,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #    ENTRY2_idx = lexicon[u'ENTRY2']
     else:
         lexicon = lex.Lexicon(filename=config.train_data_path)
+        ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
+        IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
         if logdir_pretrained:
             logging.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
             old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
@@ -165,8 +167,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             lexicon_old.init_vecs(reader_old.get_tensor(model_fold.VAR_NAME_LEXICON))
             lexicon.merge(lexicon_old, add=False, remove=False)
 
-        ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
-        IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
+        lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+        lexicon.pad()
+
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
         #if config.data_single:
         #    ENTRY1_idx = lexicon[u'ENTRY1']
@@ -212,7 +215,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             if try_count == max_tries:
                 logging.warning('not enough samples: %i, required: %i' % (len(candidate_ids), neg_samples))
                 continue
-            _trees = [sequence_trees.get_tree_dict_rooted(idx, max_depth)]
+            _trees = [sequence_trees.get_tree_dict_rooted(idx, max_depth=max_depth, transform=True)]
             for idx_cand in candidate_ids:
                 cand_tree = copy.deepcopy(_trees[0])
                 cand_tree['head'] = sequence_trees.data[idx_cand]
@@ -245,7 +248,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             _probs_merged = np.zeros(shape=(0,))
             for idx in range(len(indices)):
                 index_tuple = indices[idx]
-                _trees = [sequence_trees.get_tree_dict_unsorted(idx=i, max_depth=max_depth, context=context) for i in index_tuple]
+                _trees = [sequence_trees.get_tree_dict(idx=i, max_depth=max_depth, context=context, transform=True) for i in index_tuple]
                 _probs = probabilities[idx]
 
                 if merge_prob_idx is not None:
@@ -413,7 +416,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             if lexicon.is_filled:
                 logging.info('init embeddings with external vectors...')
                 sess.run(model_tree.embedder.lexicon_init,
-                         feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs})
+                         feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs_var})
 
             if init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
@@ -508,7 +511,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # data, parents = sqt.load(config.train_data_path)
             # children, roots = sqt.children_and_roots(parents)
-            sqt_data = sqt.Forest(filename=config.train_data_path)
+            sqt_data = sqt.Forest(filename=config.train_data_path, lexicon=lexicon)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
 

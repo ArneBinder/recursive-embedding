@@ -2,7 +2,9 @@ import numpy as np
 import logging
 import os
 
-import preprocessing
+import pydot
+
+# import preprocessing
 import sequence_node_candidates_pb2
 import sequence_node_pb2
 import sequence_node_sequence_pb2
@@ -410,7 +412,10 @@ def _compare_tree_dicts(tree1, tree2):
 
 
 class Forest(object):
-    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None):
+    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None):
+        self._lexicon = None
+        if lexicon is not None:
+            self._lexicon = lexicon
         self._children = None
         self._roots = None
         self._depths = None
@@ -430,8 +435,8 @@ class Forest(object):
                 assert forest.shape[0] == 2, 'Wrong shape: %s. trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(forest.shape)
                 self._forest = forest
             else:
-                assert len(forest) == 2, 'Wrong shape: %i. Trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(
-                    forest.shape)
+                assert len(forest) == 2, 'Wrong array count: %i. Trees array has to contain exactly the parents and data arrays: len=2' % str(
+                    len(forest))
                 assert len(forest[0]) == len(forest[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(forest[0]), len(forest[1]))
                 self._forest = np.array(forest, dtype=np.int32)
                 self._data = forest[0]
@@ -478,8 +483,9 @@ class Forest(object):
             np.array(current_sim_tuples).dump('%s.idx.%i%s' % (self._filename, idx, out_path_prefix))
             start = end
 
-    def convert_data(self, converter, lex_size, new_idx_unknown):
-        convert_data(data=self.data, converter=converter, lex_size=lex_size, new_idx_unknown=new_idx_unknown)
+    def convert_data(self, converter, new_idx_unknown):
+        assert self.lexicon is not None, 'lexicon is not set'
+        convert_data(data=self.data, converter=converter, lex_size=len(self.lexicon), new_idx_unknown=new_idx_unknown)
         self._dicts = None
 
     def indices_to_forest(self, indices):
@@ -505,7 +511,7 @@ class Forest(object):
                 self._set_depths(self.children[idx], current_depth+1, idx)
 
     def trees_equal(self, root1, root2):
-        _cmp = _compare_tree_dicts(self.get_tree_dict(root1), self.get_tree_dict(root2))
+        _cmp = _compare_tree_dicts(self.get_tree_dict_cached(root1), self.get_tree_dict_cached(root2))
         return _cmp == 0
 
     # TODO: check!
@@ -541,11 +547,13 @@ class Forest(object):
                     sampled_sim_tuples.append(current_sampled_indices)
         return sampled_sim_tuples
 
-    def get_tree_dict(self, idx, max_depth=9999):
+    def get_tree_dict_cached(self, idx):
         """
+        DOES NOT WORK WITH max_depth!
         Build a _sorted_ (children) dict version of the subtree of this sequence_tree rooted at idx.
+        Does _not_ maintain order of data elements.
         :param idx: root of the subtree
-        :param max_depth: stop if this depth is exceeded
+        :param max_depth: stop if this depth is exceeded    DOES NOT WORK WITH CACHING!
         :return: the dict version of the subtree
         """
         if idx in self._dicts:
@@ -553,71 +561,134 @@ class Forest(object):
         seq_node = {'head': self.data[idx], 'children': []}
         if idx in self.children:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_tree_dict(idx + child_offset, max_depth=max_depth - 1))
+                seq_node['children'].append(self.get_tree_dict_cached(idx + child_offset))
         seq_node['children'].sort(cmp=_compare_tree_dicts)
 
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
-    # COMPATIBILITY: to maintain order for FLAT_LSTM models
-    def get_tree_dict_unsorted(self, idx=None, max_depth=9999, context=0):
+    def transform_data(self, idx):
+        assert self.lexicon is not None, 'lexicon is not set'
+        idx_trans = self.lexicon.ids_fixed_dict.get(idx, None)
+        if idx_trans is not None:
+            return -idx_trans
+        idx_trans = self.lexicon.ids_var_dict.get(idx, None)
+        if idx_trans is not None:
+            return idx_trans
+        raise ValueError('idx=%i not in ids_fixed and not in ids_var' % idx)
+
+    def get_tree_dict(self, idx=None, max_depth=9999, context=0, transform=False):
         """
-        Build a _sorted_ (children) dict version of the subtree of this sequence_tree rooted at idx.
+        Build a dict version of the subtree of this sequence_tree rooted at idx.
+        Maintains order of data elements.
+
         :param idx: root of the subtree
         :param max_depth: stop if this depth is exceeded
+        :param context depth of context tree (walk up parents) to add to all nodes
         :return: the dict version of the subtree
         """
         if idx is None:
             idx = self.roots[0]
-        seq_node = {'head': self.data[idx], 'children': []}
+        data_head = self.data[idx]
+        if transform:
+            data_head = self.transform_data(data_head)
+        seq_node = {'head': data_head, 'children': []}
         if idx in self.children and max_depth > 0:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_tree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth - 1,
-                                                                        context=context))
+                seq_node['children'].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
+                                                               context=context, transform=transform))
         if self.parents[idx] != 0 and context > 0:
-            seq_node['children'].append(self.get_tree_dict_parent(idx, context-1))
+            seq_node['children'].append(self.get_tree_dict_parent(idx, context-1, transform=transform))
         return seq_node
 
-    def get_tree_dict_rooted(self, idx, max_depth=9999):
-        result = self.get_tree_dict_unsorted(idx, max_depth=max_depth)
-        current_dict_tree = result
-        current_id = idx
-        while self.parents[current_id] != 0 and max_depth > 0:
-            parent_id = current_id + self.parents[current_id]
-            new_parent_child = {'head': self.data[parent_id], 'children': []}
-            for c in self.children[parent_id]:
-                c_id = parent_id + c
-                if c_id != current_id:
-                    new_parent_child['children'].append(self.get_tree_dict_unsorted(c_id, max_depth=max_depth-1))
-            current_dict_tree['children'].append(new_parent_child)
-            current_dict_tree = new_parent_child
-            current_id = parent_id
-            max_depth -= 1
+    def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False):
+        result = self.get_tree_dict(idx, max_depth=max_depth, transform=transform)
+        if self.parents[idx] != 0 and max_depth > 0:
+            result['children'].append(self.get_tree_dict_parent(idx, max_depth-1, transform=transform))
         return result
 
-    def get_tree_dict_parent(self, idx, max_depth=9999):
+    def get_tree_dict_parent(self, idx, max_depth=9999, transform=False):
+        assert self.lexicon is not None, 'lexicon is not set'
         if self.parents[idx] == 0:
             return None
         previous_id = idx
         current_id = idx + self.parents[idx]
-        result = {'head': self.data[current_id], 'children': []}
+        data_head = self.data[current_id] + len(self.lexicon) / 2
+        if transform:
+            data_head = self.transform_data(data_head)
+        result = {'head': data_head, 'children': []}
         current_dict_tree = result
         while max_depth > 0:
             # add other children
             for c in self.children[current_id]:
                 c_id = current_id + c
                 if c_id != previous_id:
-                    current_dict_tree['children'].append(self.get_tree_dict_unsorted(c_id, max_depth=max_depth-1))
+                    current_dict_tree['children'].append(self.get_tree_dict(c_id, max_depth=max_depth - 1, transform=transform))
             # go up
             if self.parents[current_id] != 0:
                 previous_id = current_id
                 current_id = current_id + self.parents[current_id]
-                new_parent_child = {'head': self.data[current_id], 'children': []}
+                data_head = self.data[current_id] + len(self.lexicon) / 2
+                if transform:
+                    data_head = self.transform_data(data_head)
+                new_parent_child = {'head': data_head, 'children': []}
                 current_dict_tree['children'].append(new_parent_child)
                 current_dict_tree = new_parent_child
                 max_depth -= 1
             else:
                 break
+        return result
+
+    def visualize(self, filename):
+        assert self.lexicon is not None, 'lexicon is not set'
+
+        graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
+        if len(self) > 0:
+            nodes = []
+            for i, d in enumerate(self.data):
+                if self.lexicon.is_fixed(d):
+                    color = "dodgerblue"
+                else:
+                    color = "limegreen"
+                l = self.lexicon[d]
+                nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
+
+            for node in nodes:
+                graph.add_node(node)
+
+            # add invisible edges for alignment
+            last_node = nodes[0]
+            for node in nodes[1:]:
+                graph.add_edge(pydot.Edge(last_node, node, weight=100, style='invis'))
+                last_node = node
+
+            for i in range(len(self)):
+                graph.add_edge(pydot.Edge(nodes[i],
+                                          nodes[i + self.parents[i]],
+                                          dir='back'))
+
+        # print(graph.to_string())
+        graph.write_svg(filename)
+
+    def get_text_plain(self, blacklist=None):
+        assert self.lexicon is not None, 'lexicon is not set'
+        result = []
+        if len(self.data) > 0:
+            for d in self.data:
+                l = self.lexicon[d]
+                if blacklist is not None:
+                    found = False
+                    for b in blacklist:
+                        if l.startswith(b + constants.SEPARATOR):
+                            found = True
+                            break
+                    if found:
+                        continue
+                    else:
+                        result.append(constants.SEPARATOR.join(l.split(constants.SEPARATOR)[1:]))
+                else:
+                    result.append(l)
+
         return result
 
     def __str__(self):
@@ -666,3 +737,7 @@ class Forest(object):
             for depth in range(m + 1):
                 self._depths_collected.append(np.where(self.depths == depth)[0])
         return self._depths_collected
+
+    @property
+    def lexicon(self):
+        return self._lexicon

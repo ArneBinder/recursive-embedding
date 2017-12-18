@@ -6,12 +6,13 @@ import logging
 import os
 import sys
 import time
+import re
 
 import numpy as np
 import spacy
 import tensorflow as tf
 
-import mytools
+# import mytools
 import sequence_trees as sequ_trees
 from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
@@ -23,6 +24,7 @@ from sklearn.neighbors import kneighbors_graph
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
 # from google.protobuf.json_format import MessageToJson
+import svgutils.transform as sg
 
 import constants
 import corpus_simtuple
@@ -31,6 +33,8 @@ import preprocessing
 import visualize as vis
 import lexicon as lex
 from config import Config
+
+TEMP_FN_SVG = 'temp_forest.svg'
 
 tf.flags.DEFINE_string('data_source',
                        '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
@@ -215,10 +219,9 @@ def get_or_calc_sequence_data(params):
                     params['scores_gold'].append(prob)
 
             params['scores_gold'] = np.array(params['scores_gold'])
-            for data, parents in params['data_sequences']:
-                texts = [" ".join(t_list) for t_list in
-                         vis.get_text((data, parents), lexicon.types, params.get('prefix_blacklist', None))]
-                params['sequences'].append(texts)
+            for data_sequence in params['data_sequences']:
+                token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon).get_text_plain(blacklist=params.get('prefix_blacklist', None))
+                params['sequences'].append(" ".join(token_list))
         else:
             raise IOError('could not open "%s"' % fn)
 
@@ -257,7 +260,7 @@ def get_or_calc_embeddings(params):
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
 
-        batch = [[[sequ_trees.Forest(forest=parsed_data).get_tree_dict_unsorted(max_depth=max_depth)], []]
+        batch = [[[sequ_trees.Forest(forest=parsed_data, lexicon=lexicon).get_tree_dict(max_depth=max_depth, transform=True)], []]
                  for parsed_data in data_sequences]
 
         if len(batch) > 0:
@@ -273,6 +276,33 @@ def get_or_calc_embeddings(params):
         params['embeddings'] = embeddings
     else:
         raise ValueError('no embeddings or sequences found in request')
+
+
+def concat_visualizations_svg(file_name, count):
+    file_names = [file_name + '.' + str(i) for i in range(count)]
+    # plots = [fig.getroot() for fig in map(sg.fromfile, file_names)]
+    images = map(sg.fromfile, file_names)
+    widths, heights = zip(*(i.get_size() for i in images))
+
+    rx = re.compile(r"[-+]?\d*\.\d+|\d+", re.VERBOSE)
+    widths = [float(rx.search(w).group()) for w in widths]
+    heights = [float(rx.search(h).group()) for h in heights]
+
+    total_height = 0
+    plots = []
+    for i, image in enumerate(images):
+        plot = image.getroot()
+        plot.moveto(0, total_height)
+        plots.append(plot)
+        total_height += heights[i]
+    max_width = max(widths)
+
+    fig = sg.SVGFigure(max_width, total_height)
+    fig.append(plots)
+    fig.save(file_name)
+
+    for fn in file_names:
+        os.remove(fn)
 
 
 @app.route("/api/embed", methods=['POST'])
@@ -394,8 +424,12 @@ def visualize():
 
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
-            vis.visualize_list(params['data_sequences'], lexicon.types, file_name=vis.TEMP_FN)
-            response = send_file(vis.TEMP_FN)
+            for i, data_sequence in enumerate(params['data_sequences']):
+                forest_temp = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon)
+                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i))
+            concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
+
+            response = send_file(TEMP_FN_SVG)
         elif mode == 'text':
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
             json_data = json.dumps(filter_result(make_serializable(params)))
@@ -416,13 +450,14 @@ def show_rooted_tree_dict():
         params = get_params(request)
         init_forest(data_path)
         idx = params['idx']
-        rerooted_dict = forest.get_tree_dict_rooted(idx)
-        rerooted_forest = sequ_trees.Forest(tree_dict=rerooted_dict)
+        max_depth = params.get('max_depth', 9999)
+        rerooted_dict = forest.get_tree_dict_rooted(idx, max_depth=max_depth)
+        rerooted_forest = sequ_trees.Forest(tree_dict=rerooted_dict, lexicon=lexicon)
 
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
-            vis.visualize_list([(rerooted_forest.data, rerooted_forest.parents)], lexicon.types, file_name=vis.TEMP_FN)
-            response = send_file(vis.TEMP_FN)
+            rerooted_forest.visualize(filename=TEMP_FN_SVG)
+            response = send_file(TEMP_FN_SVG)
         elif mode == 'text':
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
             json_data = json.dumps(filter_result(make_serializable(params)))
@@ -445,13 +480,13 @@ def show_enhanced_tree_dict():
         root = params['root']
         context = params.get('context', 0)
         max_depth = params.get('max_depth', 9999)
-        tree_dict = forest.get_tree_dict_unsorted(forest.roots[root], max_depth=max_depth, context=context)
-        _forest = sequ_trees.Forest(tree_dict=tree_dict)
+        tree_dict = forest.get_tree_dict(forest.roots[root], max_depth=max_depth, context=context)
+        _forest = sequ_trees.Forest(tree_dict=tree_dict, lexicon=lexicon)
 
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
-            vis.visualize_list([(_forest.data, _forest.parents)], lexicon.types, file_name=vis.TEMP_FN)
-            response = send_file(vis.TEMP_FN)
+            _forest.visualize(filename=TEMP_FN_SVG)
+            response = send_file(TEMP_FN_SVG)
         elif mode == 'text':
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
             json_data = json.dumps(filter_result(make_serializable(params)))
@@ -524,7 +559,7 @@ def init_nlp():
 def init_forest(data_path):
     global forest
     if forest is None:
-        forest = sequ_trees.Forest(filename=data_path)
+        forest = sequ_trees.Forest(filename=data_path, lexicon=lexicon)
 
 
 def main(data_source):
@@ -612,7 +647,7 @@ def main(data_source):
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     logging.info('init embeddings with external vectors ...')
                     sess.run(model_tree.embedder.lexicon_init,
-                             feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs})
+                             feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs_var})
 
                 if FLAGS.save_final_model_path:
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')

@@ -55,7 +55,8 @@ def visualize_dep(filename, sequence_graph, data_maps_rev, vocab):
     # view_pydot(graph)
 
 
-def visualize(filename, sequence_graph, types):
+#deprecated
+def visualize(filename, sequence_graph, lexicon):
 
     data, parents = sequence_graph
     # copy, because we modify parent
@@ -68,11 +69,12 @@ def visualize(filename, sequence_graph, types):
     if len(data) > 0:
         nodes = []
         for i, d in enumerate(data):
-            if d < len(types):
-                l = types[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
+            if lexicon.is_fixed(d):
+                color = "dodgerblue"
             else:
-                l = types[constants.UNKNOWN_EMBEDDING]
-            nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor="limegreen"))
+                color = "limegreen"
+            l = lexicon[d]
+            nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
 
         for node in nodes:
             graph.add_node(node)
@@ -92,7 +94,8 @@ def visualize(filename, sequence_graph, types):
     graph.write_svg(filename)
 
 
-def get_text(sequence_graph, types, blacklist=None):
+# deprecated
+def get_text(sequence_graph, lexicon, blacklist=None):
 
     data = sequence_graph[0]
     parents = sequence_graph[1]
@@ -110,12 +113,7 @@ def get_text(sequence_graph, types, blacklist=None):
             current_res = []
             indices = sorted(sequence_trees.get_descendant_indices(children, root))
             for i in indices:
-                d = data[i]
-                #if d < len(types):
-                l = types[d]  # data_to_word(d, data_maps_rev, vocab, vocab_neg)
-
-                #else:
-                #    l = types[constants.UNKNOWN_EMBEDDING]
+                l = lexicon[data[i]]
                 if blacklist is not None:
                     found = False
                     for b in blacklist:
@@ -130,17 +128,10 @@ def get_text(sequence_graph, types, blacklist=None):
                     current_res.append(l)
             result.append(current_res)
 
-
-        #for i, d in enumerate(data):
-        #    if d < len(types):
-        #        l = types[d] #data_to_word(d, data_maps_rev, vocab, vocab_neg)
-        #    else:
-        #        l = types[constants.UNKNOWN_EMBEDDING]
-        #    result.append(l)
-
     return result
 
 
+# deprecated
 def get_text_plain(sequence_data, types, blacklist=None):
     result = []
     if len(sequence_data) > 0:
@@ -167,17 +158,19 @@ def get_text_plain(sequence_data, types, blacklist=None):
     return result
 
 
-def visualize_seq_node_list(seq_tree_list, types, file_name=TEMP_FN):
+# deprecated
+def visualize_seq_node_list(seq_tree_list, lexicon, file_name=TEMP_FN):
     for i, seq_tree in enumerate(seq_tree_list):
         current_data, current_parents = sequence_trees.sequence_node_to_sequence_trees(seq_tree)
-        visualize(file_name + '.' + str(i), (current_data, current_parents), types)
+        visualize(file_name + '.' + str(i), (current_data, current_parents), lexicon)
     concat_visualizations_svg(file_name, len(seq_tree_list))
 
 
-def visualize_list(sequence_graph_list, types, file_name=TEMP_FN):
+# deprecated
+def visualize_list(sequence_graph_list, lexicon, file_name=TEMP_FN):
     for i, seq_graph in enumerate(sequence_graph_list):
         current_data, current_parents = seq_graph
-        visualize(file_name + '.' + str(i), (current_data, current_parents), types)
+        visualize(file_name + '.' + str(i), (current_data, current_parents), lexicon)
     concat_visualizations_svg(file_name, len(sequence_graph_list))
 
 
