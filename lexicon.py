@@ -306,6 +306,8 @@ class Lexicon(object):
         self._mapping = None
         self._dumped_vecs = False
         self._dumped_types = False
+        self._fixed = np.zeros(0, dtype=int)
+        self._var = []
         if filename is not None:
             #self._vecs, self._types = load(filename)
             self._types = read_types(filename)
@@ -316,6 +318,10 @@ class Lexicon(object):
             else:
                 # set dummy vecs
                 self.init_vecs()
+            # TODO: check _fixed
+            if os.path.isfile('%s.fix' % filename):
+                self._fixed = np.load('%s.fix' % filename)
+            self.update_var_ids(len(self))
         elif types is not None:
             self._types = types
             if vecs is not None:
@@ -329,7 +335,7 @@ class Lexicon(object):
         else:
             raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
 
-    def init_vecs(self, new_vecs=None):
+    def init_vecs(self, new_vecs=None, new_vecs_fixed=None, ids_fixed=None):
         if new_vecs is None:
             new_vecs = np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32)
             self._dumped_vecs = True
@@ -338,7 +344,20 @@ class Lexicon(object):
         if not self._dumped_vecs:
             logging.warning('overwrite unsaved vecs')
         assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' % (len(new_vecs), len(self))
-        self._vecs = new_vecs
+        # TODO: check _fixed
+        if new_vecs_fixed is not None:
+            assert ids_fixed is not None, 'ids_fixed is None, but required (new_vecs_fixed is not None)'
+            count_total = new_vecs.shape[0] + new_vecs_fixed.shape[0]
+            self._fixed = np.array(ids_fixed)
+            self.update_var_ids(len(self))
+            self._vecs = np.zeros(shape=(count_total, self._dummy_vec_size), dtype=np.float32)
+            for idx_source, idx_target in enumerate(self._fixed):
+                self._vecs[idx_target] = new_vecs_fixed[idx_source]
+            for idx_source, idx_target in enumerate(self._var):
+                self._vecs[idx_target] = new_vecs[idx_source]
+        else:
+            self._vecs = new_vecs
+            self._fixed = np.zeros(0, dtype=int)
 
     def dump(self, filename, types_only=False):
         dump_vecs = (not self._dumped_vecs or filename != self._filename) and not types_only
@@ -346,6 +365,9 @@ class Lexicon(object):
         dump(filename,
              vecs=self.vecs if dump_vecs else None,
              types=self.types if dump_types else None)
+        # TODO: check _fixed
+        if len(self._fixed) > 0:
+            self._fixed.dump('%s.fix' % filename)
         self._dumped_vecs = dump_vecs or len(self.vecs) == 0
         self._dumped_types = True
         self._filename = filename
@@ -360,6 +382,12 @@ class Lexicon(object):
                                                                                                      vecs=self.vecs,
                                                                                                      types=self.types,
                                                                                                      count_threshold=count_threshold)
+        # TODO: check _fixed
+        for i in range(self.len_fixed):
+            self._fixed[i] = converter[self._fixed[i]]
+        self._fixed = np.sort(self._fixed)
+        self.update_var_ids(len(self))
+
         self._mapping = None
         self._dumped_vecs = False
         self._dumped_types = False
@@ -441,9 +469,24 @@ class Lexicon(object):
             converter_other = None
         return converter_other
 
+    # TODO: check _fixed
+    def update_var_ids(self, size):
+        self._var = [i for i in range(size) if i not in self._fixed]
+
+    # TODO: check _fixed
+    def update_fix_ids(self, new_fix_ids=None, new_data=None):
+        if new_data is not None:
+            new_fix_ids = new_data[new_data < 0]
+            np.abs(new_data, out=new_data)
+        fixed_new_dif = [i for i in new_fix_ids if i not in self._fixed]
+        self._fixed = np.sort(np.concatenate((self._fixed, fixed_new_dif)))
+
+    # TODO: check _fixed
     def read_data(self, *args, **kwargs):
         data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
+        self.update_fix_ids(new_data=data)
         self._types = revert_mapping_to_list(self.mapping)
+        self.update_var_ids(len(self))
         self._dumped_types = False
         return sequ_trees.Forest(data=data, parents=parents)
 
@@ -468,8 +511,24 @@ class Lexicon(object):
         return self._vecs.shape[1]
 
     @property
+    def len_fixed(self):
+        return len(self._fixed)
+
+    @property
+    def len_var(self):
+        return len(self._var)
+
+    @property
     def vecs(self):
         return self._vecs
+
+    @property
+    def vecs_fixed(self):
+        return self._vecs[self._fixed]
+
+    @property
+    def vecs_var(self):
+        return self._vecs[self._var]
 
     @property
     def types(self):
