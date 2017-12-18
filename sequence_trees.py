@@ -572,8 +572,9 @@ class Forest(object):
         seq_node = {'head': self.data[idx], 'children': []}
         if idx in self.children and max_depth > 0:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_tree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth - 1))
-        if with_parent and self.parents[idx] != 0:
+                seq_node['children'].append(self.get_tree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth - 1,
+                                                                        with_parent=with_parent))
+        if with_parent and self.parents[idx] != 0 and max_depth > 0:
             seq_node['children'].append(self.get_tree_dict_parent(idx, max_depth-1))
         return seq_node
 
@@ -595,24 +596,29 @@ class Forest(object):
         return result
 
     def get_tree_dict_parent(self, idx, max_depth=9999):
-        result = {}
-        current_dict_tree = result
-        current_id = idx
-        while self.parents[current_id] != 0 and max_depth > 0:
-            parent_id = current_id + self.parents[current_id]
-            new_parent_child = {'head': self.data[parent_id], 'children': []}
-            for c in self.children[parent_id]:
-                c_id = parent_id + c
-                if c_id != current_id:
-                    new_parent_child['children'].append(self.get_tree_dict_unsorted(c_id, max_depth=max_depth-1))
-            current_dict_tree['children'].append(new_parent_child)
-            current_dict_tree = new_parent_child
-            current_id = parent_id
-            max_depth -= 1
-        if 'children' in result:
-            return result['children'][0]
-        else:
+        if self.parents[idx] == 0:
             return None
+        previous_id = idx
+        current_id = idx + self.parents[idx]
+        result = {'head': self.data[current_id], 'children': []}
+        current_dict_tree = result
+        while max_depth > 0:
+            # add other children
+            for c in self.children[current_id]:
+                c_id = current_id + c
+                if c_id != previous_id:
+                    current_dict_tree['children'].append(self.get_tree_dict_unsorted(c_id, max_depth=max_depth-1))
+            # go up
+            if self.parents[current_id] != 0:
+                previous_id = current_id
+                current_id = current_id + self.parents[current_id]
+                new_parent_child = {'head': self.data[current_id], 'children': []}
+                current_dict_tree['children'].append(new_parent_child)
+                current_dict_tree = new_parent_child
+                max_depth -= 1
+            else:
+                break
+        return result
 
     def __str__(self):
         return self._forest.__str__()

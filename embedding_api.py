@@ -408,7 +408,7 @@ def visualize():
     return response
 
 
-@app.route("/api/reroot", methods=['POST'])
+@app.route("/api/show_tree_rerooted", methods=['POST'])
 def show_rooted_tree_dict():
     try:
         start = time.time()
@@ -417,6 +417,35 @@ def show_rooted_tree_dict():
         init_forest(data_path)
         idx = params['idx']
         rerooted_dict = forest.get_tree_dict_rooted(idx)
+        rerooted_forest = sequ_trees.Forest(tree_dict=rerooted_dict)
+
+        mode = params.get('vis_mode', 'image')
+        if mode == 'image':
+            vis.visualize_list([(rerooted_forest.data, rerooted_forest.parents)], lexicon.types, file_name=vis.TEMP_FN)
+            response = send_file(vis.TEMP_FN)
+        elif mode == 'text':
+            return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+            json_data = json.dumps(filter_result(make_serializable(params)))
+            response = Response(json_data, mimetype=return_type)
+        else:
+            ValueError('Unknown mode=%s. Use "image" (default) or "text".')
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+    return response
+
+
+@app.route("/api/show_tree", methods=['POST'])
+def show_enhanced_tree_dict():
+    try:
+        start = time.time()
+        logging.info('Show tree requested')
+        params = get_params(request)
+        init_forest(data_path)
+        root = params['root']
+        with_backward = params.get('backward', False)
+        max_depth = params.get('max_depth', 9999)
+        rerooted_dict = forest.get_tree_dict_unsorted(forest.roots[root], max_depth=max_depth, with_parent=with_backward)
         rerooted_forest = sequ_trees.Forest(tree_dict=rerooted_dict)
 
         mode = params.get('vis_mode', 'image')
