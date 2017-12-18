@@ -560,7 +560,7 @@ class Forest(object):
         return self._dicts[idx]
 
     # COMPATIBILITY: to maintain order for FLAT_LSTM models
-    def get_tree_dict_unsorted(self, idx=None, max_depth=9999, with_parent=False):
+    def get_tree_dict_unsorted(self, idx=None, max_depth=9999, context=0):
         """
         Build a _sorted_ (children) dict version of the subtree of this sequence_tree rooted at idx.
         :param idx: root of the subtree
@@ -573,9 +573,9 @@ class Forest(object):
         if idx in self.children and max_depth > 0:
             for child_offset in self.children[idx]:
                 seq_node['children'].append(self.get_tree_dict_unsorted(idx=idx + child_offset, max_depth=max_depth - 1,
-                                                                        with_parent=with_parent))
-        if with_parent and self.parents[idx] != 0 and max_depth > 0:
-            seq_node['children'].append(self.get_tree_dict_parent(idx, max_depth-1))
+                                                                        context=context))
+        if self.parents[idx] != 0 and context > 0:
+            seq_node['children'].append(self.get_tree_dict_parent(idx, context-1))
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999):

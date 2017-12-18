@@ -122,7 +122,16 @@ default_config = {'train_data_path': ['DEFINE_string',
                                5.0,
                                'global norm threshold for clipping gradients',
                                'clip'],
-
+                  'max_depth': ['DEFINE_integer',
+                                15,
+                                'maximum depth of embedding trees',
+                                'depth'
+                                ],
+                  'context': ['DEFINE_integer',
+                              0,
+                              'maximum depth of added context trees',
+                              'cntxt'
+                              ],
                   }
 
 

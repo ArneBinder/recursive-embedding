@@ -223,7 +223,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False,
                             head_dropout=False, merge_prob_idx=None, subtree_head_ids=None, count=None, merge=False,
-                            add_parents=False):
+                            add_parents=False, max_depth=9999, context=0):
         if merge_prob_idx is not None:
             assert subtree_head_ids is not None and type(subtree_head_ids) == list, \
                 'merge_prob_idx is given (%i), but subtree_head_ids is not a list' % merge_prob_idx
@@ -245,7 +245,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             _probs_merged = np.zeros(shape=(0,))
             for idx in range(len(indices)):
                 index_tuple = indices[idx]
-                _trees = [sequence_trees.get_tree_dict_unsorted(idx=i, with_parent=add_parents) for i in index_tuple]
+                _trees = [sequence_trees.get_tree_dict_unsorted(idx=i, max_depth=max_depth, context=context) for i in index_tuple]
                 _probs = probabilities[idx]
 
                 if merge_prob_idx is not None:
@@ -298,8 +298,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size, extensions=extensions)
     else:
-        data_iterator_train = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
-        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, split=True, extensions=extensions)
+        data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': extensions, 'add_parents': True,
+                              'max_depth': config.max_depth, 'context': config.context}
+        data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
+        data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
 
     parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))

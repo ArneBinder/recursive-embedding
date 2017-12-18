@@ -443,14 +443,14 @@ def show_enhanced_tree_dict():
         params = get_params(request)
         init_forest(data_path)
         root = params['root']
-        with_backward = params.get('backward', False)
+        context = params.get('context', 0)
         max_depth = params.get('max_depth', 9999)
-        rerooted_dict = forest.get_tree_dict_unsorted(forest.roots[root], max_depth=max_depth, with_parent=with_backward)
-        rerooted_forest = sequ_trees.Forest(tree_dict=rerooted_dict)
+        tree_dict = forest.get_tree_dict_unsorted(forest.roots[root], max_depth=max_depth, context=context)
+        _forest = sequ_trees.Forest(tree_dict=tree_dict)
 
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
-            vis.visualize_list([(rerooted_forest.data, rerooted_forest.parents)], lexicon.types, file_name=vis.TEMP_FN)
+            vis.visualize_list([(_forest.data, _forest.parents)], lexicon.types, file_name=vis.TEMP_FN)
             response = send_file(vis.TEMP_FN)
         elif mode == 'text':
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
