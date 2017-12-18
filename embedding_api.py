@@ -619,6 +619,7 @@ def main(data_source):
                     saver_final = tf.train.Saver()
                     saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
                     lexicon.dump(FLAGS.save_final_model_path)
+                # clear vecs to save memory
                 lexicon.init_vecs()
 
 
