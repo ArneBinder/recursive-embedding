@@ -178,11 +178,18 @@ def Attention(name=None):  # pylint: disable=invalid-name
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, lexicon_size, keep_prob_placeholder=None, lexicon_trainable=True, state_size=None,
+    def __init__(self, name, lex_size_fix, lex_size_var, keep_prob_placeholder=None, state_size=None,
                  leaf_fc_size=0, root_fc_size=0, keep_prob_fixed=1.0):
-        self._lex_size = lexicon_size
-        self._lexicon, self._lexicon_placeholder, self._lexicon_init = create_lexicon(lex_size=lexicon_size,
-                                                                                      trainable=lexicon_trainable)
+        self._lex_size_fix = lex_size_fix
+        self._lex_size_var = lex_size_var
+
+        # compatibility
+        if self._lex_size_fix > 0:
+            self._lexicon_fix, self._lexicon_fix_placeholder, self._lexicon_fix_init = create_lexicon(lex_size=self._lex_size_fix,
+                                                                                                      trainable=False)
+        if self._lex_size_var > 0:
+            self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
+                                                                                                      trainable=True)
         self._keep_prob_fixed = keep_prob_fixed
         if keep_prob_placeholder is not None:
             self._keep_prob = keep_prob_placeholder
@@ -191,7 +198,7 @@ class TreeEmbedding(object):
         if state_size:
             self._state_size = state_size
         else:
-            self._state_size = self._lexicon.get_shape().as_list()[1]  # state_size
+            self._state_size = DIMENSION_EMBEDDINGS  # state_size
         #self._apply_leaf_fc = (leaf_fc_size > 0)
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
@@ -212,7 +219,7 @@ class TreeEmbedding(object):
             else:
                 self._root_fc = td.Identity()
 
-    def embed(self):
+    def embed_dep(self):
         # negative values indicate enabled head dropout
         def helper(x, keep_prob):
             if x >= 0:
@@ -228,6 +235,18 @@ class TreeEmbedding(object):
                            case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
                                         False: td.Void() >> td.Zeros(DIMENSION_EMBEDDINGS)})
 
+    def embed(self):
+        # get the head embedding from id
+        if self._lex_size_fix > 0 and self._lex_size_var > 0:
+            return td.OneOf(key_fn=(lambda x: x >= 0),
+                            case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_var, x)),
+                                         False: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.abs(x)))})
+        # compatibility
+        if self._lex_size_fix > 0:
+            return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.abs(x)))
+        if self._lex_size_var > 0:
+            return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_var, x))
+
     def head(self, name='head_embed'):
         #return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
         return td.Pipe(td.GetItem('head'), self.embed(), self.leaf_fc, name=name)
@@ -238,10 +257,6 @@ class TreeEmbedding(object):
     @property
     def state_size(self):
         return self._state_size
-
-    @property
-    def lexicon(self):
-        return self._lexicon
 
     @property
     def name(self):
@@ -267,21 +282,29 @@ class TreeEmbedding(object):
     def root_fc(self):
         return self._root_fc
 
-    #@property
-    #def embedding_fc_size_multiple(self):
-    #    return 1
-
     @property
     def lexicon_var(self):
-        return self._lexicon
+        return self._lexicon_var
 
     @property
-    def lexicon_init(self):
-        return self._lexicon_init
+    def lexicon_var_init(self):
+        return self._lexicon_var_init
 
     @property
-    def lexicon_placeholder(self):
-        return self._lexicon_placeholder
+    def lexicon_var_placeholder(self):
+        return self._lexicon_var_placeholder
+
+    @property
+    def lexicon_fix(self):
+        return self._lexicon_fix
+
+    @property
+    def lexicon_fix_init(self):
+        return self._lexicon_fix_init
+
+    @property
+    def lexicon_fix_placeholder(self):
+        return self._lexicon_fix_placeholder
 
     @property
     def keep_prob(self):
@@ -290,10 +313,6 @@ class TreeEmbedding(object):
     @property
     def keep_prob_fixed(self):
         return self._keep_prob_fixed
-
-    @property
-    def lex_size(self):
-        return self._lex_size
 
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
@@ -765,8 +784,7 @@ def get_jaccard_sim(tree_tuple):
 
 
 class SequenceTreeModel(object):
-    def __init__(self, lex_size, tree_embedder=TreeEmbedding_TREE_LSTM, lexicon_trainable=True, keep_prob=1.0,
-                 tree_count=2, prob_count=None, **kwargs):
+    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, prob_count=None, **kwargs):
         if prob_count is None:
             self._prob_count = tree_count
         else:
@@ -775,8 +793,7 @@ class SequenceTreeModel(object):
         self._tree_count = tree_count
         self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
 
-        self._tree_embed = tree_embedder(lexicon_size=lex_size, lexicon_trainable=lexicon_trainable,
-                                         keep_prob_placeholder=self._keep_prob, **kwargs)
+        self._tree_embed = tree_embedder(keep_prob_placeholder=self._keep_prob, **kwargs)
 
         embed_tree = self._tree_embed()
         model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat(),

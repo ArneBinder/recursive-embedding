@@ -199,7 +199,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         for c in tree['children']:
             set_head_neg(c)
 
-    def data_tuple_iterator_reroot(sequence_trees, indices, neg_samples, max_tries=10, max_depth=100, sim_index_files=None):
+    def data_tuple_iterator_reroot(sequence_trees, indices, neg_samples, max_tries=10, max_depth=100):
         logging.debug('size of data: %i' % len(sequence_trees))
         #for idx in np.random.randint(len(sequence_trees), size=size):
         for idx in indices:
@@ -226,7 +226,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False,
                             head_dropout=False, merge_prob_idx=None, subtree_head_ids=None, count=None, merge=False,
-                            add_parents=False, max_depth=9999, context=0):
+                            max_depth=9999, context=0, transform=True):
         if merge_prob_idx is not None:
             assert subtree_head_ids is not None and type(subtree_head_ids) == list, \
                 'merge_prob_idx is given (%i), but subtree_head_ids is not a list' % merge_prob_idx
@@ -248,7 +248,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             _probs_merged = np.zeros(shape=(0,))
             for idx in range(len(indices)):
                 index_tuple = indices[idx]
-                _trees = [sequence_trees.get_tree_dict(idx=i, max_depth=max_depth, context=context, transform=True) for i in index_tuple]
+                _trees = [sequence_trees.get_tree_dict(idx=i, max_depth=max_depth, context=context, transform=transform) for i in index_tuple]
                 _probs = probabilities[idx]
 
                 if merge_prob_idx is not None:
@@ -284,7 +284,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 else:
                     yield [_trees, _probs]
 
-    extensions = config.extensions.split(',')
     if config.data_single:
         # extensions = ['', '.negs1']
         #data_iterator_train = partial(data_tuple_iterator, extensions=extensions)
@@ -299,10 +298,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tuple_size = neg_samples + 1
         data_iterator_train = partial(data_tuple_iterator_reroot, indices=range(size), neg_samples=neg_samples, max_depth=max_depth)
         #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
-        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size, extensions=extensions)
+        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size,
+                                    extensions=config.extensions.split(','))
     else:
-        data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': extensions, 'add_parents': True,
-                              'max_depth': config.max_depth, 'context': config.context}
+        data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
+                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
         data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
@@ -349,11 +349,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     logging.info('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
+            logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
+            logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
             # Build the graph.
-            model_tree = model_fold.SequenceTreeModel(lex_size=len(lexicon),
+            model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
+                                                      lex_size_var=lexicon.len_var,
                                                       tree_embedder=tree_embedder,
                                                       state_size=config.state_size,
-                                                      lexicon_trainable=config.lexicon_trainable,
+                                                      #lexicon_trainable=config.lexicon_trainable,
                                                       leaf_fc_size=config.leaf_fc_size,
                                                       root_fc_size=config.root_fc_size,
                                                       keep_prob=config.keep_prob,
@@ -415,8 +418,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             if lexicon.is_filled:
                 logging.info('init embeddings with external vectors...')
-                sess.run(model_tree.embedder.lexicon_init,
-                         feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs_var})
+                sess.run([model_tree.embedder.lexicon_var_init, model_tree.embedder.lexicon_fix_init],
+                         feed_dict={model_tree.embedder.lexicon_var_placeholder: lexicon.vecs_var,
+                                    model_tree.embedder.lexicon_fix_placeholder: lexicon.vecs_fixed})
 
             if init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))

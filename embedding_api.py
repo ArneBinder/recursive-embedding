@@ -598,6 +598,11 @@ def main(data_source):
         logging.info('merge nlp embeddings into loaded embeddings ...')
         lexicon.merge(lexicon_nlp, add=True, remove=False)
 
+    # has to happen after integration of additional lexicon data (external_lexicon or merge_nlp_lexicon)
+    if not checkpoint:
+        lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+        lexicon.pad()
+
     assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
                               (len(lexicon), len(lexicon.vecs))
 
@@ -618,10 +623,13 @@ def main(data_source):
 
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-                model_tree = model_fold.SequenceTreeModel(lex_size=len(lexicon),
+                logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
+                logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
+                model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
+                                                          lex_size_var=lexicon.len_var,
                                                           tree_embedder=tree_embedder,
                                                           state_size=model_config.state_size,
-                                                          lexicon_trainable=False,
+                                                          #lexicon_trainable=False,
                                                           leaf_fc_size=model_config.leaf_fc_size,
                                                           root_fc_size=model_config.root_fc_size,
                                                           keep_prob=1.0,
@@ -646,8 +654,9 @@ def main(data_source):
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     logging.info('init embeddings with external vectors ...')
-                    sess.run(model_tree.embedder.lexicon_init,
-                             feed_dict={model_tree.embedder.lexicon_placeholder: lexicon.vecs_var})
+                    sess.run([model_tree.embedder.lexicon_var_init, model_tree.embedder.lexicon_fix_init],
+                             feed_dict={model_tree.embedder.lexicon_var_placeholder: lexicon.vecs_var,
+                                        model_tree.embedder.lexicon_fix_placeholder: lexicon.vecs_fixed})
 
                 if FLAGS.save_final_model_path:
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')

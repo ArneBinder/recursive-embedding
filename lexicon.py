@@ -318,7 +318,6 @@ class Lexicon(object):
             else:
                 # set dummy vecs
                 self.init_vecs()
-            # TODO: check _fixed
             if os.path.isfile('%s.fix' % filename):
                 logging.debug('load ids_fixed from "%s.fix"' % filename)
                 self._ids_fixed = set(np.load('%s.fix' % filename))
@@ -348,8 +347,8 @@ class Lexicon(object):
         assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' % (len(new_vecs), len(self))
         # TODO: check _fixed
         if new_vecs_fixed is not None:
-            assert len(ids_fixed) == self.len_fixed, 'len(ids_fixed)=%i is different then len(new_vecs_fixed)=%i' \
-                                                     % (len(ids_fixed), self.len_fixed)
+            assert new_vecs_fixed.shape()[0] == self.len_fixed, 'amount of vecs in new_vecs_fixed=%i is different then len_fixed=%i' \
+                                                     % (new_vecs_fixed.shape()[0], self.len_fixed)
             count_total = new_vecs.shape[0] + new_vecs_fixed.shape[0]
             self._vecs = np.zeros(shape=(count_total, self._dummy_vec_size), dtype=np.float32)
             for idx_source, idx_target in enumerate(self.ids_fixed):
@@ -472,18 +471,17 @@ class Lexicon(object):
         assert len(prefix) + len(suffix) > 0, 'please provide a prefix or a suffix.'
         self._types.extend([prefix + t + suffix for t in self.types])
 
-    # TODO: check _fixed
-    def update_fix_ids(self, new_data=None):
+    def update_fix_ids_and_abs_data(self, new_data):
         new_ids_fix = new_data[new_data < 0]
-        np.abs(new_data, out=new_data)
-        self._ids_fixed = self._ids_fixed.update(new_ids_fix)
-        self._ids_fixed_dict = None
-        self._ids_var_dict = None
+        if len(new_ids_fix) > 0:
+            np.abs(new_data, out=new_data)
+            self._ids_fixed = self._ids_fixed.update(new_ids_fix.tolist())
+            self._ids_fixed_dict = None
+            self._ids_var_dict = None
 
-    # TODO: check _fixed
     def read_data(self, *args, **kwargs):
         data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
-        self.update_fix_ids(new_data=data)
+        self.update_fix_ids_and_abs_data(new_data=data)
         self._types = revert_mapping_to_list(self.mapping)
         self._dumped_types = False
         return sequ_trees.Forest(data=data, parents=parents, lexicon=self)
