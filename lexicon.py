@@ -6,6 +6,7 @@ import constants
 import logging
 import os
 
+import model_fold
 import preprocessing
 import sequence_trees as sequ_trees
 
@@ -301,20 +302,20 @@ def has_vocab_prefix(s, man_vocab_id):
 
 class Lexicon(object):
     def __init__(self, filename=None, vecs=None, types=None, nlp_vocab=None):
-        self._dummy_vec_size = 300
+        #self._dummy_vec_size = 300
         self._filename = filename
         self._mapping = None
-        self._dumped_vecs = False
-        self._dumped_types = False
+        #self._dumped_vecs = False
+        #self._dumped_types = False
         self._ids_fixed = set()
         self._ids_fixed_dict = None
         self._ids_var_dict = None
         if filename is not None:
             self._types = read_types(filename)
-            self._dumped_types = True
+            #self._dumped_types = True
             if os.path.isfile('%s.vec' % filename):
                 self._vecs = np.load('%s.vec' % filename)
-                self._dumped_vecs = True
+                #self._dumped_vecs = True
             else:
                 # set dummy vecs
                 self.init_vecs()
@@ -336,45 +337,58 @@ class Lexicon(object):
         else:
             raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
 
-    def init_vecs(self, new_vecs=None, new_vecs_fixed=None, ids_fixed=None):
-        if new_vecs is None:
-            new_vecs = np.zeros(shape=(0, self._dummy_vec_size), dtype=np.float32)
-            self._dumped_vecs = True
-        else:
-            self._dumped_vecs = False
-        if not self._dumped_vecs:
-            logging.warning('overwrite unsaved vecs')
-        assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' % (len(new_vecs), len(self))
+    def init_vecs(self, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None):
+        if checkpoint_reader is not None:
+            saved_shapes = checkpoint_reader.get_variable_to_shape_map()
+            if model_fold.VAR_NAME_LEXICON_VAR in saved_shapes:
+                new_vecs = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_VAR)
+            if model_fold.VAR_NAME_LEXICON_FIX in saved_shapes:
+                new_vecs_fixed = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_FIX)
+            assert new_vecs is not None or new_vecs_fixed is not None, 'no vecs and no vecs_fixed found in checkpoint'
+        #if new_vecs is None and new_vecs_fixed is None:
+            #assert vec_size is not None, 'provide a vec_size to init empty vecs'
+            #new_vecs = np.zeros(shape=(0, vec_size), dtype=np.float32)
+            #new_vecs = None
+            #self._dumped_vecs = True
+        #else:
+            #self._dumped_vecs = False
+        #if not self._dumped_vecs:
+        #    logging.warning('overwrite unsaved vecs')
         # TODO: check _fixed
         if new_vecs_fixed is not None:
             assert new_vecs_fixed.shape()[0] == self.len_fixed, 'amount of vecs in new_vecs_fixed=%i is different then len_fixed=%i' \
                                                      % (new_vecs_fixed.shape()[0], self.len_fixed)
             count_total = new_vecs.shape[0] + new_vecs_fixed.shape[0]
-            self._vecs = np.zeros(shape=(count_total, self._dummy_vec_size), dtype=np.float32)
+            assert count_total <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs + new_vecs_fixed)==%i > len(types)==%i)' \
+                                             % (count_total, len(self))
+
+            self._vecs = np.zeros(shape=(count_total, new_vecs_fixed.shape()[1]), dtype=np.float32)
             for idx_source, idx_target in enumerate(self.ids_fixed):
                 self._vecs[idx_target] = new_vecs_fixed[idx_source]
             for idx_source, idx_target in enumerate(self.ids_var):
                 self._vecs[idx_target] = new_vecs[idx_source]
         else:
+            assert new_vecs is None or len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' \
+                                               % (len(new_vecs), len(self))
             self._vecs = new_vecs
 
     def dump(self, filename, types_only=False):
-        dump_vecs = (not self._dumped_vecs or filename != self._filename) and not types_only
-        dump_types = not self._dumped_types or filename != self._filename
+        #dump_vecs = (not self._dumped_vecs or filename != self._filename) and not types_only
+        #dump_types = not self._dumped_types or filename != self._filename
         dump(filename,
-             vecs=self.vecs if dump_vecs else None,
-             types=self.types if dump_types else None)
+             vecs=None if types_only else self.vecs, #if dump_vecs else None,
+             types=self.types) #if dump_types else None)
         # TODO: check _fixed
         if len(self._ids_fixed) > 0:
             self.ids_fixed.dump('%s.fix' % filename)
-        self._dumped_vecs = dump_vecs or len(self.vecs) == 0
-        self._dumped_types = True
+        #self._dumped_vecs = dump_vecs or len(self.vecs) == 0
+        #self._dumped_types = True
         self._filename = filename
 
     # compatibility
     def set_types_with_mapping(self, mapping):
         self._types = revert_mapping_to_list(mapping)
-        self._dumped_types = False
+        #self._dumped_types = False
 
     def sort_and_cut_and_fill_dict(self, data, count_threshold=1):
         converter, self._vecs, self._types, new_counts, new_idx_unknown = sort_and_cut_and_fill_dict(seq_data=data,
@@ -387,8 +401,8 @@ class Lexicon(object):
         self._ids_var_dict = None
 
         self._mapping = None
-        self._dumped_vecs = False
-        self._dumped_types = False
+        #self._dumped_vecs = False
+        #self._dumped_types = False
         return converter, new_counts, new_idx_unknown
 
     def get_ids_for_prefix(self, prefix):
@@ -405,7 +419,7 @@ class Lexicon(object):
             self._vecs[i] = np.zeros(self._vecs.shape[1], dtype=self._vecs.dtype)
         if len(indices) > 0:
             logging.info('set %i vecs to zero' % len(indices))
-            self._dumped_vecs = False
+            #self._dumped_vecs = False
 
     def set_to_onehot(self, indices=None, prefix=None):
         assert indices is not None or prefix is not None, 'please provide indices or a prefix'
@@ -416,7 +430,7 @@ class Lexicon(object):
             self._vecs[idx][i] = 1.0
         if len(indices) > 0:
             logging.info('set %i vecs to one-hot' % len(indices))
-            self._dumped_vecs = False
+            #self._dumped_vecs = False
 
     def set_to_random(self, indices=None, prefix=None):
         if prefix is not None:
@@ -427,14 +441,14 @@ class Lexicon(object):
             self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1])
         if len(indices) > 0:
             logging.info('set %i vecs to random' % len(indices))
-            self._dumped_vecs = False
+            #self._dumped_vecs = False
 
     def set_man_vocab_vec(self, man_vocab_id, new_vec=None):
         if new_vec is None:
             new_vec = np.zeros(shape=self.vec_size, dtype=self._vecs.dtype)
         idx = self[constants.vocab_manual[man_vocab_id]]
         self._vecs[idx] = new_vec
-        self._dumped_vecs = False
+        #self._dumped_vecs = False
         return idx
 
     def pad(self):
@@ -452,15 +466,15 @@ class Lexicon(object):
             for i in range(len(new_vecs)):
                 new_vecs[i] = np.random.standard_normal(size=self.vec_size) * vecs_variance + vecs_mean
             self._vecs = np.concatenate([self.vecs, new_vecs])
-            self._dumped_vecs = False
+            #self._dumped_vecs = False
         else:
             raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
 
     def merge(self, other, add=True, remove=True):
         self._vecs, self._types = merge_dicts(vecs1=self.vecs, types1=self.types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
         self._mapping = None
-        self._dumped_vecs = False
-        self._dumped_types = False
+        #self._dumped_vecs = False
+        #self._dumped_types = False
         if add:
             converter_other = [self.mapping[t] for t in other.types]
         else:
@@ -483,7 +497,7 @@ class Lexicon(object):
         data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
         self.update_fix_ids_and_abs_data(new_data=data)
         self._types = revert_mapping_to_list(self.mapping)
-        self._dumped_types = False
+        #self._dumped_types = False
         return sequ_trees.Forest(data=data, parents=parents, lexicon=self)
 
     def is_fixed(self, idx):
@@ -510,6 +524,7 @@ class Lexicon(object):
 
     @property
     def vec_size(self):
+        assert self._vecs is not None and self._vecs.shape[1] > 0, 'vecs are not set or have length 0'
         return self._vecs.shape[1]
 
     @property
@@ -565,7 +580,7 @@ class Lexicon(object):
 
     @property
     def is_filled(self):
-        return len(self) == len(self.vecs)
+        return self._vecs is not None and len(self) == len(self.vecs)
 
 
 

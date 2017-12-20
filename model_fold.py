@@ -11,9 +11,10 @@ import logging
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
-DIMENSION_EMBEDDINGS = 300
+# DIMENSION_EMBEDDINGS = 300     use lexicon.dimension_embeddings
 DIMENSION_SIM_MEASURE = 300
-VAR_NAME_LEXICON = 'embeddings'
+VAR_NAME_LEXICON_VAR = 'embeddings'
+VAR_NAME_LEXICON_FIX = 'embeddings_fix'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 VAR_PREFIX_FC_LEAF = 'FC_embedding'
 VAR_PREFIX_FC_ROOT = 'FC_output'
@@ -140,10 +141,10 @@ def norm(x):
     return tf.nn.l2_normalize(x, dim=1)
 
 
-def create_lexicon(lex_size, trainable=True):
-    lexicon = tf.Variable(tf.constant(0.0, shape=[lex_size, DIMENSION_EMBEDDINGS]),
-                          trainable=trainable, name=VAR_NAME_LEXICON)
-    lexicon_placeholder = tf.placeholder(tf.float32, [lex_size, DIMENSION_EMBEDDINGS])
+def create_lexicon(lex_size, dimension_embeddings, trainable=True):
+    lexicon = tf.Variable(tf.constant(0.0, shape=[lex_size, dimension_embeddings]),
+                          trainable=trainable, name=VAR_NAME_LEXICON_VAR if trainable else VAR_NAME_LEXICON_FIX)
+    lexicon_placeholder = tf.placeholder(tf.float32, [lex_size, dimension_embeddings])
     lexicon_init = lexicon.assign(lexicon_placeholder)
 
     return lexicon, lexicon_placeholder, lexicon_init
@@ -181,17 +182,20 @@ def Attention(name=None):  # pylint: disable=invalid-name
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, lex_size_fix, lex_size_var, keep_prob_placeholder=None, state_size=None,
+    def __init__(self, name, lex_size_fix, lex_size_var, dimension_embeddings, keep_prob_placeholder=None, state_size=None,
                  leaf_fc_size=0, root_fc_size=0, keep_prob_fixed=1.0):
         self._lex_size_fix = lex_size_fix
         self._lex_size_var = lex_size_var
+        self._dim_embeddings = dimension_embeddings
 
         # compatibility
         if self._lex_size_fix > 0:
             self._lexicon_fix, self._lexicon_fix_placeholder, self._lexicon_fix_init = create_lexicon(lex_size=self._lex_size_fix,
+                                                                                                      dimension_embeddings=self._dim_embeddings,
                                                                                                       trainable=False)
         if self._lex_size_var > 0:
             self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
+                                                                                                      dimension_embeddings=self._dim_embeddings,
                                                                                                       trainable=True)
         self._keep_prob_fixed = keep_prob_fixed
         if keep_prob_placeholder is not None:
@@ -201,7 +205,7 @@ class TreeEmbedding(object):
         if state_size:
             self._state_size = state_size
         else:
-            self._state_size = DIMENSION_EMBEDDINGS  # state_size
+            self._state_size = self._dim_embeddings  # state_size
         #self._apply_leaf_fc = (leaf_fc_size > 0)
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
@@ -236,7 +240,7 @@ class TreeEmbedding(object):
         return td.InputTransform(lambda x: helper(x, self.keep_prob_fixed)) \
                >> td.OneOf(key_fn=(lambda x: x >= 0),
                            case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
-                                        False: td.Void() >> td.Zeros(DIMENSION_EMBEDDINGS)})
+                                        False: td.Void() >> td.Zeros(self._dim_embeddings)})
 
     def embed(self):
         # get the head embedding from id
@@ -317,6 +321,10 @@ class TreeEmbedding(object):
     def keep_prob_fixed(self):
         return self._keep_prob_fixed
 
+    @property
+    def dimension_embeddings(self):
+        return self._dim_embeddings
+
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode."""
@@ -347,7 +355,7 @@ class TreeEmbedding_RNN(TreeEmbedding):
     def __init__(self, input_size=None, **kwargs):
         super(TreeEmbedding_RNN, self).__init__(**kwargs)
         if input_size is None:
-            input_size = self.leaf_fc_size or DIMENSION_EMBEDDINGS
+            input_size = self.leaf_fc_size or self._dim_embeddings
         self._rnn_input_size = input_size
 
     @property
@@ -552,7 +560,7 @@ class TreeEmbedding_HTU_ATT(TreeEmbedding_RNN):
             head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
                                      name='fc_attention'),
                                name='att_pipe').reads(c.input[0])
-            head_gru = td.Pipe(td.FC(self.leaf_fc_size or DIMENSION_EMBEDDINGS, activation=tf.nn.tanh,
+            head_gru = td.Pipe(td.FC(self.leaf_fc_size or self._dim_embeddings, activation=tf.nn.tanh,
                                      input_keep_prob=self.keep_prob, name='fc_gru'),
                                name='gru_pipe').reads(c.input[0])
             children_attention = Attention().reads(c.input[1], head_att)
@@ -587,7 +595,7 @@ class TreeEmbedding_HTU_ATT_split(TreeEmbedding_RNN):
             head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
                                      name='fc_attention'),
                                name='att_pipe').reads(head_split[0])
-            head_gru = td.Pipe(td.FC(self.leaf_fc_size or DIMENSION_EMBEDDINGS, activation=tf.nn.tanh,
+            head_gru = td.Pipe(td.FC(self.leaf_fc_size or self._dim_embeddings, activation=tf.nn.tanh,
                                      input_keep_prob=self.keep_prob, name='fc_rnn'),
                                name='rnn_pipe').reads(head_split[1])
             children_attention = Attention().reads(c.input[1], head_att)
@@ -626,7 +634,7 @@ class TreeEmbedding_FLAT(TreeEmbedding):
 
     @property
     def element_size(self):
-        return self.leaf_fc_size or DIMENSION_EMBEDDINGS
+        return self.leaf_fc_size or self._dim_embeddings
 
     @property
     def output_size(self):
@@ -658,7 +666,7 @@ class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
 
     @property
     def element_size(self):
-        return self.leaf_fc_size or (DIMENSION_EMBEDDINGS * 2)
+        return self.leaf_fc_size or (self._dim_embeddings * 2)
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
@@ -700,7 +708,7 @@ class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT_
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT, TreeEmbedding_LSTM):
     def __init__(self, name=None, input_size=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name or 'LSTM',
-                                                      input_size=input_size or leaf_fc_size or DIMENSION_EMBEDDINGS,
+                                                      input_size=input_size or leaf_fc_size or self._dim_embeddings,
                                                       leaf_fc_size=leaf_fc_size, **kwargs)
 
     def aggregate(self, name='aggregate'):
@@ -722,7 +730,7 @@ class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT_LSTM):
 class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT_LSTM, TreeEmbedding_FLAT_2levels):
     def __init__(self, name=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name or 'LSTM_2levels',
-                                                      input_size=leaf_fc_size or DIMENSION_EMBEDDINGS * 2,
+                                                      input_size=leaf_fc_size or self._dim_embeddings * 2,
                                                       leaf_fc_size=leaf_fc_size, **kwargs
                                                       )
 
@@ -736,7 +744,7 @@ class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT_LSTM_2levels):
 class TreeEmbedding_FLAT_GRU(TreeEmbedding_FLAT, TreeEmbedding_GRU):
     def __init__(self, name=None, input_size=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_GRU, self).__init__(name=name or 'GRU',
-                                                     input_size=input_size or leaf_fc_size or DIMENSION_EMBEDDINGS,
+                                                     input_size=input_size or leaf_fc_size or self._dim_embeddings,
                                                      leaf_fc_size=leaf_fc_size, **kwargs)
 
     def aggregate(self, name='aggregate'):
@@ -746,7 +754,7 @@ class TreeEmbedding_FLAT_GRU(TreeEmbedding_FLAT, TreeEmbedding_GRU):
 class TreeEmbedding_FLAT_GRU_2levels(TreeEmbedding_FLAT_GRU, TreeEmbedding_FLAT_2levels):
     def __init__(self, name=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_GRU_2levels, self).__init__(name=name or 'GRU_2levels',
-                                                             input_size=leaf_fc_size or DIMENSION_EMBEDDINGS * 2,
+                                                             input_size=leaf_fc_size or self._dim_embeddings * 2,
                                                              leaf_fc_size=leaf_fc_size, **kwargs
                                                              )
 

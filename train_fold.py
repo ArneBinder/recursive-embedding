@@ -74,9 +74,6 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
 FLAGS = tf.flags.FLAGS
 
 
-
-
-
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
     summary = tf.Summary()
     for name, value in six.iteritems(values):
@@ -147,9 +144,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
         lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
-        assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
+        #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
+        lexicon.init_vecs(checkpoint_reader=reader)
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
         #if config.data_single:
         #    ENTRY1_idx = lexicon[u'ENTRY1']
@@ -164,7 +162,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
             lexicon_old = lex.Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
-            lexicon_old.init_vecs(reader_old.get_tensor(model_fold.VAR_NAME_LEXICON))
+            lexicon_old.init_vecs(checkpoint_reader=reader_old)
             lexicon.merge(lexicon_old, add=False, remove=False)
 
         lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
@@ -360,6 +358,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
                                                       lex_size_var=lexicon.len_var,
                                                       tree_embedder=tree_embedder,
+                                                      dimension_embeddings=lexicon.vec_size,
                                                       state_size=config.state_size,
                                                       #lexicon_trainable=config.lexicon_trainable,
                                                       leaf_fc_size=config.leaf_fc_size,
@@ -395,7 +394,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             if old_checkpoint_fn is not None:
                 logging.info(
                     'restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...' % old_checkpoint_fn)
-                lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON)
+                lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_VAR) \
+                               + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_FIX)
                 optimizer_vars = model_train.optimizer_vars() + [model_train.global_step] \
                                  + ((model_test.optimizer_vars() + [
                     model_test.global_step]) if model_test is not None and model_test != model_train else [])
@@ -524,8 +524,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
-            # data, parents = sqt.load(config.train_data_path)
-            # children, roots = sqt.children_and_roots(parents)
             sqt_data = sqt.Forest(filename=config.train_data_path, lexicon=lexicon)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
@@ -544,12 +542,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             score_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
+                            lexicon.dump(filename=os.path.join(logdir, 'model'))
                             return p_r, np.mean(np.square(score_all - score_all_gold))
 
                     logging.info('create dev data set ...')
                     dev_set = list(
                         model_test.tree_model.compiler.build_loom_inputs(dev_iterator(sequence_trees=sqt_data)))
                     logging.info('dev data size: ' + str(len(dev_set)))
+
+                # clear vecs in lexicon to clean up memory
+                lexicon.init_vecs()
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)

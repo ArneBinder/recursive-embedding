@@ -270,7 +270,7 @@ def get_or_calc_embeddings(params):
             #    fdict_scoring = embedder.build_scoring_feed_dict(embeddings)
             #    params['scores'] = sess.run(embedder.scores, feed_dict=fdict_scoring)
         else:
-            embeddings = np.zeros(shape=(0, model_fold.DIMENSION_EMBEDDINGS), dtype=np.float32)
+            embeddings = np.zeros(shape=(0, model_tree.dimension_embeddings), dtype=np.float32)
             scores = np.zeros(shape=(0,), dtype=np.float32)
             params['scores'] = scores
         params['embeddings'] = embeddings
@@ -580,7 +580,7 @@ def main(data_source):
         lexicon = lex.Lexicon(filename=os.path.join(data_source, 'model'))
         reader = tf.train.NewCheckpointReader(input_checkpoint)
         logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
-        lexicon.init_vecs(reader.get_tensor(model_fold.VAR_NAME_LEXICON))
+        lexicon.init_vecs(checkpoint_reader=reader)
     # take data_source as corpus path
     else:
         data_path = data_source
@@ -627,6 +627,7 @@ def main(data_source):
                 logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
                 model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
                                                           lex_size_var=lexicon.len_var,
+                                                          dimension_embeddings=lexicon.vec_size,
                                                           tree_embedder=tree_embedder,
                                                           state_size=model_config.state_size,
                                                           #lexicon_trainable=False,
@@ -663,7 +664,7 @@ def main(data_source):
                     saver_final = tf.train.Saver()
                     saver_final.save(sess, FLAGS.save_final_model_path, write_meta_graph=False, write_state=False)
                     lexicon.dump(FLAGS.save_final_model_path)
-                # clear vecs to save memory
+                # clear vecs to clean up memory
                 lexicon.init_vecs()
 
 
