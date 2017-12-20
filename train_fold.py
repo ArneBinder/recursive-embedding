@@ -278,8 +278,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         yield [[_trees[0], _trees[i]], np.array([_probs[0], _probs[i]])]
                 elif merge:
                     _trees_merged.extend(_trees)
-                    _probs_merged = np.concatenate((_probs_merged,_probs))
-                    if len(_trees_merged)>= count:
+                    _probs_merged = np.concatenate((_probs_merged, _probs))
+                    if len(_trees_merged) >= count:
                         yield [_trees_merged, _probs_merged]
                         _trees_merged = []
                         _probs_merged = np.zeros((0,))
@@ -296,7 +296,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #tuple_size = 1
         neg_samples = 9
         max_depth = 10
-        #indices = range(100000)
+        #indices = range(1000)
         indices = None
         tuple_size = neg_samples + 1
         data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices, neg_samples=neg_samples,

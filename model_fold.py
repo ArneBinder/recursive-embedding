@@ -751,10 +751,15 @@ class TreeEmbedding_FLAT_GRU_2levels(TreeEmbedding_FLAT_GRU, TreeEmbedding_FLAT_
                                                              )
 
 
-def sim_cosine(e1, e2):
+def sim_cosine_DEP(e1, e2):
     e1 = tf.nn.l2_normalize(e1, dim=1)
     e2 = tf.nn.l2_normalize(e2, dim=1)
     return tf.reduce_sum(e1 * e2, axis=1)
+
+
+def sim_cosine(embeddings):
+    es_norm = tf.nn.l2_normalize(embeddings, dim=-1)
+    return tf.reduce_sum(es_norm[:, 0, :] * es_norm[:, 1, :], axis=-1)
 
 
 def sim_manhattan(e1, e2):
@@ -822,8 +827,16 @@ class SequenceTreeModel(object):
         return self._tree_embeddings_all
 
     @property
+    def embeddings_shaped(self):
+        return tf.reshape(self._tree_embeddings_all, shape=[-1, self.tree_output_size])
+
+    @property
     def probs_gold(self):
         return self._probs_gold
+
+    @property
+    def probs_gold_shaped(self):
+        return tf.reshape(self._probs_gold, shape=[-1])
 
     @property
     def compiler(self):
@@ -900,24 +913,20 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
 
         # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
-        self._scores_gold = tree_model.probs_gold[:, 1]
+        #self._scores_gold = tree_model.probs_gold[:, 1]
+        self._scores_gold = tf.reshape(tree_model.probs_gold_shaped, shape=[-1, 2])[:, 1]
 
-        # get first two tree embeddings
         tree_size = tree_model.tree_output_size
-        self._tree_embeddings_1 = tree_model.embeddings_all[:, :tree_size]
-        self._tree_embeddings_2 = tree_model.embeddings_all[:, tree_size:tree_size * 2]
-        self._scores = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
+        # get first two tree embeddings
+        #self._tree_embeddings_1 = tree_model.embeddings_all[:, :tree_size]
+        #self._tree_embeddings_2 = tree_model.embeddings_all[:, tree_size:tree_size * 2]
+        #self._scores = sim_measure(e1=self._tree_embeddings_1, e2=self._tree_embeddings_2)
+
+        self._tree_embeddings_reshaped = tf.reshape(tree_model.embeddings_shaped, shape=[-1, 2, tree_size])
+        self._scores = sim_measure(self._tree_embeddings_reshaped)
 
         BaseTrainModel.__init__(self, tree_model=tree_model,
                                 loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
-
-    @property
-    def tree_embeddings_1(self):
-        return self._tree_embeddings_1
-
-    @property
-    def tree_embeddings_2(self):
-        return self._tree_embeddings_2
 
     @property
     def scores_gold(self):
