@@ -199,9 +199,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         for c in tree['children']:
             set_head_neg(c)
 
-    def data_tuple_iterator_reroot(sequence_trees, indices, neg_samples, max_tries=10, max_depth=100, **unused):
+    def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tries=10, max_depth=100, **unused):
         logging.debug('size of data: %i' % len(sequence_trees))
-        #for idx in np.random.randint(len(sequence_trees), size=size):
+        # take all, if indices is not set
+        if indices is None:
+            indices = range(len(sequence_trees))
         for idx in indices:
             candidate_ids = []
             try_count = 0
@@ -294,9 +296,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #tuple_size = 1
         neg_samples = 9
         max_depth = 10
-        size = 1000
+        #indices = range(100000)
+        indices = None
         tuple_size = neg_samples + 1
-        data_iterator_train = partial(data_tuple_iterator_reroot, indices=range(size), neg_samples=neg_samples,
+        data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices, neg_samples=neg_samples,
                                       max_depth=max_depth, transform=True)
         #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size,
