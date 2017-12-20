@@ -199,7 +199,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         for c in tree['children']:
             set_head_neg(c)
 
-    def data_tuple_iterator_reroot(sequence_trees, indices, neg_samples, max_tries=10, max_depth=100):
+    def data_tuple_iterator_reroot(sequence_trees, indices, neg_samples, max_tries=10, max_depth=100, **unused):
         logging.debug('size of data: %i' % len(sequence_trees))
         #for idx in np.random.randint(len(sequence_trees), size=size):
         for idx in indices:
@@ -294,12 +294,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #tuple_size = 1
         neg_samples = 9
         max_depth = 10
-        size = 100000
+        size = 1000
         tuple_size = neg_samples + 1
-        data_iterator_train = partial(data_tuple_iterator_reroot, indices=range(size), neg_samples=neg_samples, max_depth=max_depth)
+        data_iterator_train = partial(data_tuple_iterator_reroot, indices=range(size), neg_samples=neg_samples,
+                                      max_depth=max_depth, transform=True)
         #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size,
-                                    extensions=config.extensions.split(','))
+                                    extensions=config.extensions.split(','), max_depth=config.max_depth,
+                                    context=config.context, transform=True)
     else:
         data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
                               'max_depth': config.max_depth, 'context': config.context, 'transform': True}
@@ -418,9 +420,15 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             if lexicon.is_filled:
                 logging.info('init embeddings with external vectors...')
-                sess.run([model_tree.embedder.lexicon_var_init, model_tree.embedder.lexicon_fix_init],
-                         feed_dict={model_tree.embedder.lexicon_var_placeholder: lexicon.vecs_var,
-                                    model_tree.embedder.lexicon_fix_placeholder: lexicon.vecs_fixed})
+                feed_dict = {}
+                model_vars = []
+                if lexicon.len_fixed > 0:
+                    feed_dict[model_tree.embedder.lexicon_fix_placeholder] = lexicon.vecs_fixed
+                    model_vars.append(model_tree.embedder.lexicon_fix_init)
+                if lexicon.len_var > 0:
+                    feed_dict[model_tree.embedder.lexicon_var_placeholder] = lexicon.vecs_var
+                    model_vars.append(model_tree.embedder.lexicon_var_init)
+                sess.run(model_vars, feed_dict=feed_dict)
 
             if init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
