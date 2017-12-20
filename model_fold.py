@@ -155,10 +155,13 @@ def Softmax(name=None):  # pylint: disable=invalid-name
     """
     c = td.Composition(name=name)
     with c.scope():
-        exps = td.Map(td.Function(tf.exp)).reads(c.input)
-        exps_with_sum = td.Zip().reads(exps, td.Broadcast().reads(td.Sum().reads(exps)))
-        res = td.Map(td.Function(tdb._tf_batch_safe_scalar_division)).reads(exps_with_sum)
-        c.output.reads(res)
+        # _exps = td.Map(td.Function(tf.exp)).reads(c.input)
+        # numerical stable version (subtract max)
+        _max = td.Max().reads(c.input)
+        _exps = td.Map(td.Function(lambda x, m: tf.exp(x - m))).reads(td.Zip().reads(c.input, td.Broadcast().reads(_max)))
+        _exps_with_sum = td.Zip().reads(_exps, td.Broadcast().reads(td.Sum().reads(_exps)))
+        _res = td.Map(td.Function(tdb._tf_batch_safe_scalar_division)).reads(_exps_with_sum)
+        c.output.reads(_res)
     return c.set_constructor_name('td.Softmax')
 
 
