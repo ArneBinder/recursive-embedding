@@ -7,6 +7,7 @@ import tensorflow_fold.public.blocks as td
 from tensorflow_fold.blocks import result_types as tdt
 from tensorflow_fold.blocks import blocks as tdb
 import numpy as np
+import math
 import logging
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
@@ -166,9 +167,9 @@ def Softmax(name=None):  # pylint: disable=invalid-name
     return c.set_constructor_name('td.Softmax')
 
 
-def Attention(name=None):  # pylint: disable=invalid-name
+def AttentionReduce(name=None):  # pylint: disable=invalid-name
     """
-    This block calculates attention over a sequence.
+    This block calculates attention over a sequence and sums the elements weighted by this attention.
     It requires a sequence of 1-d vectors and a 1-d vector as input and produces a sequence of 1-d vectors.
     """
     c = td.Composition(name=name)
@@ -179,6 +180,11 @@ def Attention(name=None):  # pylint: disable=invalid-name
         res = td.Sum().reads(wheighted)
         c.output.reads(res)
     return c.set_constructor_name('td.Attention')
+
+
+###################################
+#  Abstract TreeEmbedding models  #
+###################################
 
 
 class TreeEmbedding(object):
@@ -262,6 +268,24 @@ class TreeEmbedding(object):
         return td.InputTransform(lambda x: x.get('children', []), name=name)
 
     @property
+    def map(self):
+        """
+        Applies a mapping function.
+        :return: A tensorflow fold block that consumes a tuple (input, state_in) and outputs a new state with same shape
+        as state_in.
+        """
+        raise NotImplementedError
+
+    def reduce(self):
+        """
+        gets a tuple (head_in, children_sequence), where head_in is a 1-d vector and children a sequence of 1-d vectors
+        (size does not have to fit head_in size) and produces a tuple (children_reduced, head_out) to feed into
+        self.map.
+        :return: a tuple (head_out, children_reduced) of two 1-d vectors, of different size, eventually.
+        """
+        raise NotImplementedError
+
+    @property
     def state_size(self):
         return self._state_size
 
@@ -325,6 +349,10 @@ class TreeEmbedding(object):
     def dimension_embeddings(self):
         return self._dim_embeddings
 
+    @property
+    def head_size(self):
+        return self.leaf_fc_size or self._dim_embeddings
+
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode."""
@@ -352,10 +380,13 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
 
 
 class TreeEmbedding_RNN(TreeEmbedding):
+    """
+    Adds a RNN interface to the TreeEmbedding.
+    """
     def __init__(self, input_size=None, **kwargs):
         super(TreeEmbedding_RNN, self).__init__(**kwargs)
         if input_size is None:
-            input_size = self.leaf_fc_size or self._dim_embeddings
+            input_size = self.head_size
         self._rnn_input_size = input_size
 
     @property
@@ -363,15 +394,15 @@ class TreeEmbedding_RNN(TreeEmbedding):
         return self._rnn_input_size
 
     @property
-    def rnn_step(self):
-        raise NotImplementedError
-
-    @property
     def rnn_cell(self):
         raise NotImplementedError
 
     @property
     def rnn_reduce(self):
+        """
+        Applies the RNN cell to a sequence.
+        :return: A tensorflow fold block that consumes a sequence of inputs and returns a final state.
+        """
         raise NotImplementedError
 
 
@@ -379,7 +410,7 @@ class TreeEmbedding_GRU(TreeEmbedding_RNN):
     def __init__(self, **kwargs):
         super(TreeEmbedding_GRU, self).__init__(**kwargs)
         with tf.variable_scope(self.scope):
-            self._grucell = td.ScopedLayer(tf.contrib.rnn.DropoutWrapper(
+            self._rnn_cell = td.ScopedLayer(tf.contrib.rnn.DropoutWrapper(
                 tf.contrib.rnn.GRUCell(num_units=self._state_size),
                 input_keep_prob=self.keep_prob,
                 output_keep_prob=self.keep_prob,
@@ -389,23 +420,23 @@ class TreeEmbedding_GRU(TreeEmbedding_RNN):
                 'gru_cell')
 
     @property
-    def rnn_step(self):
-        return self._grucell >> td.GetItem(1)
+    def map(self):
+        return self._rnn_cell >> td.GetItem(1)
 
     @property
     def rnn_cell(self):
-        return self._grucell
+        return self._rnn_cell
 
     @property
     def rnn_reduce(self):
-        return td.Pipe(td.RNN(self._grucell), td.GetItem(1))
+        return td.Pipe(td.RNN(self._rnn_cell), td.GetItem(1))
 
 
 class TreeEmbedding_LSTM(TreeEmbedding_RNN):
     def __init__(self, **kwargs):
         super(TreeEmbedding_LSTM, self).__init__(**kwargs)
         with tf.variable_scope(self.scope):
-            self._lstm_cell = td.ScopedLayer(
+            self._rnn_cell = td.ScopedLayer(
                 tf.contrib.rnn.DropoutWrapper(
                     tf.contrib.rnn.BasicLSTMCell(num_units=self.state_size, forget_bias=2.5),#, state_is_tuple=False),
                     input_keep_prob=self.keep_prob,
@@ -416,30 +447,30 @@ class TreeEmbedding_LSTM(TreeEmbedding_RNN):
                 'lstm_cell')
 
     @property
-    def rnn_step(self):
+    def map(self):
         #return self._lstm_cell >> td.GetItem(1)    # requires: state_is_tuple=False
         return td.AllOf(td.GetItem(0), td.GetItem(1)
                         >> td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1))) \
-               >> self._lstm_cell >> td.GetItem(1) >> td.Concat()
+               >> self._rnn_cell >> td.GetItem(1) >> td.Concat()
 
     @property
     def rnn_cell(self):
-        return self._lstm_cell
+        return self._rnn_cell
 
     # TODO: use both states as output: return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.Concat)
     @property
     def rnn_reduce(self):
         #return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1))
-        return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0))
+        return td.Pipe(td.RNN(self._rnn_cell), td.GetItem(1), td.GetItem(0))
 
 
-class TreeEmbedding_FC(TreeEmbedding_RNN):
+class TreeEmbedding_mapFC(TreeEmbedding_RNN):
     def __init__(self, **kwargs):
-        super(TreeEmbedding_FC, self).__init__(**kwargs)
+        super(TreeEmbedding_mapFC, self).__init__(**kwargs)
         self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
 
     @property
-    def rnn_step(self):
+    def map(self):
         return td.Concat() >> self._fc
 
     #@property
@@ -451,57 +482,45 @@ class TreeEmbedding_FC(TreeEmbedding_RNN):
     #    return td.Pipe(td.RNN(self._grucell), td.GetItem(1))
 
 
-class TreeEmbedding_HTU(TreeEmbedding_RNN):
+class TreeEmbedding_HTU(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTU, self).__init__(name='HTU_' + name, **kwargs)
 
     def __call__(self):
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.rnn_step.output_type)
-        # simplified naive version (minor modification: apply order_aware also to single head with zeros as input state)
-        children = self.children() >> td.Map(embed_tree()) >> td.Sum()
-        #head = self.head() >> self.leaf_fc
-        cases = td.AllOf(self.head(), children) >> self.rnn_step
-        embed_tree.resolve_to(cases)
-        model = cases >> self.root_fc
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
+        children = self.children() >> td.Map(embed_tree())
+        state = td.AllOf(self.head(), children) >> self.reduce() >> self.map
+        embed_tree.resolve_to(state)
+        model = state >> self.root_fc
         return model
 
 
-class TreeEmbedding_HTU_GRU(TreeEmbedding_HTU, TreeEmbedding_GRU):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_GRU, self).__init__(name='HTU', **kwargs)
-
-
-class TreeEmbedding_HTU_LSTM(TreeEmbedding_HTU, TreeEmbedding_LSTM):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_LSTM, self).__init__(name='LSTM', **kwargs)
-
-
-class TreeEmbedding_HTU_FC(TreeEmbedding_HTU, TreeEmbedding_FC):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_FC, self).__init__(name='FC', **kwargs)
-
-
-class TreeEmbedding_HTU_rev(TreeEmbedding_RNN):
+class TreeEmbedding_reduceSUM(TreeEmbedding_HTU):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, name, **kwargs):
-        super(TreeEmbedding_HTU_rev, self).__init__(name='HTU_rev_' + name, **kwargs)
+        super(TreeEmbedding_reduceSUM, self).__init__(name='SUM_' + name, **kwargs)
+
+    def reduce(self):
+        return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Sum())
+
+
+class TreeEmbedding_HTUrev(TreeEmbedding):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTUrev, self).__init__(name='HTU_rev_' + name, **kwargs)
 
     def __call__(self):
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.rnn_step.output_type)
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
         children = self.children() >> td.Map(embed_tree())
-        cases = td.AllOf(self.head() >> td.Broadcast(), children) \
-                >> td.Zip() >> td.Map(self.rnn_step) >> td.Sum()
-        embed_tree.resolve_to(cases)
-        model = cases >> self.root_fc
+        children_mapped = td.AllOf(self.head() >> td.Broadcast(), children) >> td.Zip() >> td.Map(self.map)
+        state = td.AllOf(self.head(), children_mapped) >> self.reduce() >> td.GetItem(1)
+        embed_tree.resolve_to(state)
+        model = state >> self.root_fc
         return model
-
-
-class TreeEmbedding_HTU_rev_GRU(TreeEmbedding_HTU_rev, TreeEmbedding_GRU):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_rev_GRU, self).__init__(name='GRU', **kwargs)
 
 
 class TreeEmbedding_HTU_dep(TreeEmbedding_RNN):
@@ -511,7 +530,7 @@ class TreeEmbedding_HTU_dep(TreeEmbedding_RNN):
         super(TreeEmbedding_HTU_dep, self).__init__(name='HTU_dep_' + name, **kwargs)
 
     def __call__(self):
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.rnn_step.output_type)
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
 
         # naive version
         def case(seq_tree):
@@ -528,7 +547,7 @@ class TreeEmbedding_HTU_dep(TreeEmbedding_RNN):
             return td.Pipe(td.GetItem('children'), td.Map(embed_tree()), td.Sum(), name=name)
 
         cases = td.OneOf(lambda x: case(x),
-                         {0: td.AllOf(self.head(), children()) >> self.rnn_step,
+                         {0: td.AllOf(self.head(), children()) >> self.map,
                           1: self.head('head_only'),
                           2: children('children_only'),
                           })
@@ -539,102 +558,66 @@ class TreeEmbedding_HTU_dep(TreeEmbedding_RNN):
         return model
 
 
-class TreeEmbedding_HTU_dep_GRU(TreeEmbedding_HTU_dep, TreeEmbedding_GRU):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_dep_GRU, self).__init__(name='GRU', **kwargs)
-
-
-class TreeEmbedding_HTU_ATT(TreeEmbedding_RNN):
+class TreeEmbedding_reduceATT(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, name, **kwargs):
-        super(TreeEmbedding_HTU_ATT, self).__init__(name='HTU_ATT_' + name, **kwargs)
+        super(TreeEmbedding_reduceATT, self).__init__(name='ATT_' + name, **kwargs)
 
-    def __call__(self):
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.rnn_step.output_type)
-
-        children = self.children() >> td.Map(embed_tree())
-        #head = self.head() >> self.leaf_fc
-        c = td.Composition()
-        with c.scope():
-            head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
-                                     name='fc_attention'),
-                               name='att_pipe').reads(c.input[0])
-            head_gru = td.Pipe(td.FC(self.leaf_fc_size or self._dim_embeddings, activation=tf.nn.tanh,
-                                     input_keep_prob=self.keep_prob, name='fc_gru'),
-                               name='gru_pipe').reads(c.input[0])
-            children_attention = Attention().reads(c.input[1], head_att)
-            gru_out = self.rnn_step.reads(head_gru, children_attention)
-            c.output.reads(gru_out)
-
-        cases = td.AllOf(self.head(), children) >> c
-        embed_tree.resolve_to(cases)
-        model = cases >> self.root_fc
-        return model
+    def reduce(self):
+        # head_in, children_sequence --> head_out, children_reduced
+        _fc_rnn = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
+        _fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
+        return td.AllOf(td.GetItem(0) >> _fc_rnn, td.AllOf(td.GetItem(1), td.GetItem(0) >> _fc_att) >> AttentionReduce())
 
 
-class TreeEmbedding_HTU_ATT_GRU(TreeEmbedding_HTU_ATT, TreeEmbedding_GRU):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_ATT_GRU, self).__init__(name='GRU', **kwargs)
-
-
-class TreeEmbedding_HTU_ATT_split(TreeEmbedding_RNN):
+class TreeEmbedding_reduceATTsplit(TreeEmbedding):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, name, **kwargs):
-        super(TreeEmbedding_HTU_ATT_split, self).__init__(name='HTU_ATT_split_' + name, **kwargs)
+        super(TreeEmbedding_reduceATTsplit, self).__init__(name='ATT_split_' + name, **kwargs)
 
-    def __call__(self):
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.state_size)
-
-        children = self.children() >> td.Map(embed_tree())
-
+    def reduce(self):
+        # head_in, children_sequence --> head_out, children_reduced
         c = td.Composition()
         with c.scope():
             head_split = td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1)).reads(c.input[0])
             head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
                                      name='fc_attention'),
                                name='att_pipe').reads(head_split[0])
-            head_gru = td.Pipe(td.FC(self.leaf_fc_size or self._dim_embeddings, activation=tf.nn.tanh,
+            head_rnn = td.Pipe(td.FC(self.head_size, activation=tf.nn.tanh,
                                      input_keep_prob=self.keep_prob, name='fc_rnn'),
                                name='rnn_pipe').reads(head_split[1])
-            children_attention = Attention().reads(c.input[1], head_att)
-            rnn_out = self.rnn_step.reads(head_gru, children_attention)
-            c.output.reads(rnn_out)
-
-        cases = td.AllOf(self.head(), children) >> c
-        embed_tree.resolve_to(cases)
-        model = cases >> self.root_fc
-        return model
+            children_attention = AttentionReduce().reads(c.input[1], head_att)
+            c.output.reads(head_rnn, children_attention)
+        return c
 
 
-class TreeEmbedding_HTU_ATT_split_GRU(TreeEmbedding_HTU_ATT_split, TreeEmbedding_GRU):
-    def __init__(self, **kwargs):
-        super(TreeEmbedding_HTU_ATT_split_GRU, self).__init__(name='GRU', **kwargs)
+class TreeEmbedding_reduceATTsingle(TreeEmbedding):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_reduceATTsingle, self).__init__(name='ATT_single_' + name, **kwargs)
+        self._att_weights = tf.Variable(tf.truncated_normal([self.state_size], stddev=1.0 / math.sqrt(float(self.state_size))),
+                                        name='att_weights')
+
+    def reduce(self):
+        # head_in, children_sequence --> head_out, children_reduced
+        return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.Void() >> td.FromTensor(self._att_weights)) >> AttentionReduce())
 
 
 class TreeEmbedding_FLAT(TreeEmbedding):
+    """
+        FLAT TreeEmbedding models take all first level children of the root as input and reduce them.
+    """
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_FLAT, self).__init__(name='FLAT_' + name, **kwargs)
 
-    def element(self, name='element'):
-        return td.Pipe(self.head(), name=name)
-
-    def sequence(self, name='sequence'):
-        return td.Pipe(self.children(), td.Map(self.element()), name=name)
-
-    def aggregate(self, name='aggregate'):
-        raise NotImplementedError("Please Implement this method")
-
     def __call__(self):
-        model = self.sequence() >> self.aggregate() >> self.root_fc
+        model = self.children() >> td.Map(self.head()) >> self.reduce() >> self.root_fc
         if model.output_type is None:
             model.set_output_type(tdt.TensorType(shape=(self.output_size,), dtype='float32'))
         return model
-
-    @property
-    def element_size(self):
-        return self.leaf_fc_size or self._dim_embeddings
 
     @property
     def output_size(self):
@@ -642,6 +625,9 @@ class TreeEmbedding_FLAT(TreeEmbedding):
 
 
 class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
+    """
+        FLAT_2levels TreeEmbedding models take all first level children of the root as input and reduce them.
+    """
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_FLAT_2levels, self).__init__(name=name, **kwargs)
 
@@ -657,7 +643,7 @@ class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
             return res
         return td.InputTransform(get_children, name=name)
 
-    def element(self, name='element'):
+    def head(self, name='head_embed'):
         # use word embedding and first child embedding
         return td.Pipe(td.AllOf(td.Pipe(td.GetItem('head'), self.embed(), name='head_level1'), # self.head(name='head_level1'),
                                 td.GetItem('children') >> td.InputTransform(lambda s: s[0])
@@ -665,21 +651,66 @@ class TreeEmbedding_FLAT_2levels(TreeEmbedding_FLAT):
                        td.Concat(), self.leaf_fc, name=name)
 
     @property
-    def element_size(self):
-        return self.leaf_fc_size or (self._dim_embeddings * 2)
+    def head_size(self):
+        return self.leaf_fc_size or (self.dimension_embeddings * 2)
+
+
+#######################################
+#  Instantiable TreeEmbedding models  #
+#######################################
+
+
+class TreeEmbedding_HTU_reduceSUM_GRU(TreeEmbedding_reduceSUM, TreeEmbedding_GRU, TreeEmbedding_HTU):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_GRU, self).__init__(name='GRU', **kwargs)
+
+
+class TreeEmbedding_HTU_reduceSUM_LSTM(TreeEmbedding_reduceSUM, TreeEmbedding_LSTM, TreeEmbedding_HTU):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_LSTM, self).__init__(name='LSTM', **kwargs)
+
+
+class TreeEmbedding_HTU_reduceSUM_map_FC(TreeEmbedding_reduceSUM, TreeEmbedding_mapFC, TreeEmbedding_HTU):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_map_FC, self).__init__(name='FC', **kwargs)
+
+
+class TreeEmbedding_HTUrev_reduceSUM_GRU(TreeEmbedding_GRU, TreeEmbedding_reduceSUM, TreeEmbedding_HTUrev):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTUrev_reduceSUM_GRU, self).__init__(name='GRU', **kwargs)
+
+
+class TreeEmbedding_HTU_dep_GRU(TreeEmbedding_HTU_dep, TreeEmbedding_GRU):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_dep_GRU, self).__init__(name='GRU', **kwargs)
+
+
+class TreeEmbedding_HTU_reduceATT_GRU(TreeEmbedding_reduceATT, TreeEmbedding_GRU, TreeEmbedding_HTU):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_reduceATT_GRU, self).__init__(name='GRU', **kwargs)
+
+
+class TreeEmbedding_HTU_reduceATTsplit_GRU(TreeEmbedding_reduceATTsplit, TreeEmbedding_GRU, TreeEmbedding_HTU):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_reduceATTsplit_GRU, self).__init__(name='GRU', **kwargs)
+
+
+class TreeEmbedding_HTU_reduceATTsingle_GRU(TreeEmbedding_reduceATTsingle, TreeEmbedding_GRU, TreeEmbedding_HTU):
+    def __init__(self, **kwargs):
+        super(TreeEmbedding_HTU_reduceATTsingle_GRU, self).__init__(name='GRU', **kwargs)
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_FLAT):
     def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_AVG, self).__init__(name=name or 'AVG', **kwargs)
 
-    def aggregate(self, name='aggregate'):
+    def reduce(self):
         # an aggregation function which doesn't take the order of the inputs into account
-        return td.Mean(name)
+        return td.Mean()
 
     @property
     def output_size(self):
-        return self.root_fc_size or self.element_size
+        return self.root_fc_size or self.head_size
 
 
 class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT_2levels):
@@ -691,13 +722,13 @@ class TreeEmbedding_FLAT_SUM(TreeEmbedding_FLAT):
     def __init__(self, name=None, **kwargs):
         super(TreeEmbedding_FLAT_SUM, self).__init__(name=name or 'SUM', **kwargs)
 
-    def aggregate(self, name='aggregate'):
+    def reduce(self):
         # an aggregation function which doesn't take the order of the inputs into account
-        return td.Sum(name)
+        return td.Sum()
 
     @property
     def output_size(self):
-        return self.root_fc_size or self.element_size
+        return self.root_fc_size or self.head_size
 
 
 class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT_2levels):
@@ -706,14 +737,15 @@ class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT_
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_FLAT, TreeEmbedding_LSTM):
-    def __init__(self, name=None, input_size=None, leaf_fc_size=0, **kwargs):
+    def __init__(self, dimension_embeddings, name=None, input_size=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name or 'LSTM',
-                                                      input_size=input_size or leaf_fc_size or self._dim_embeddings,
-                                                      leaf_fc_size=leaf_fc_size, **kwargs)
+                                                      input_size=input_size or leaf_fc_size or dimension_embeddings,
+                                                      leaf_fc_size=leaf_fc_size,
+                                                      dimension_embeddings=dimension_embeddings,
+                                                      **kwargs)
 
-    def aggregate(self, name='aggregate'):
+    def reduce(self):
         # apply LSTM >> take the LSTM output state(s) >> take the h state (discard the c state)
-        #return td.Pipe(td.RNN(self._lstm_cell), td.GetItem(1), td.GetItem(0), name=name)
         return self.rnn_reduce
 
     @property
@@ -728,10 +760,12 @@ class TreeEmbedding_FLAT_LSTM50(TreeEmbedding_FLAT_LSTM):
 
 
 class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT_LSTM, TreeEmbedding_FLAT_2levels):
-    def __init__(self, name=None, leaf_fc_size=0, **kwargs):
+    def __init__(self, dimension_embeddings, name=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name or 'LSTM_2levels',
-                                                      input_size=leaf_fc_size or self._dim_embeddings * 2,
-                                                      leaf_fc_size=leaf_fc_size, **kwargs
+                                                      input_size=leaf_fc_size or dimension_embeddings * 2,
+                                                      leaf_fc_size=leaf_fc_size,
+                                                      dimension_embeddings=dimension_embeddings,
+                                                      **kwargs
                                                       )
 
 
@@ -742,21 +776,27 @@ class TreeEmbedding_FLAT_LSTM50_2levels(TreeEmbedding_FLAT_LSTM_2levels):
 
 
 class TreeEmbedding_FLAT_GRU(TreeEmbedding_FLAT, TreeEmbedding_GRU):
-    def __init__(self, name=None, input_size=None, leaf_fc_size=0, **kwargs):
+    def __init__(self, dimension_embeddings, name=None, input_size=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_GRU, self).__init__(name=name or 'GRU',
-                                                     input_size=input_size or leaf_fc_size or self._dim_embeddings,
-                                                     leaf_fc_size=leaf_fc_size, **kwargs)
+                                                     input_size=input_size or leaf_fc_size or dimension_embeddings,
+                                                     leaf_fc_size=leaf_fc_size,
+                                                     dimension_embeddings=dimension_embeddings,
+                                                     **kwargs)
 
-    def aggregate(self, name='aggregate'):
+    def reduce(self):
         return self.rnn_reduce
 
 
 class TreeEmbedding_FLAT_GRU_2levels(TreeEmbedding_FLAT_GRU, TreeEmbedding_FLAT_2levels):
-    def __init__(self, name=None, leaf_fc_size=0, **kwargs):
+    def __init__(self, dimension_embeddings, name=None, leaf_fc_size=0, **kwargs):
         super(TreeEmbedding_FLAT_GRU_2levels, self).__init__(name=name or 'GRU_2levels',
-                                                             input_size=leaf_fc_size or self._dim_embeddings * 2,
-                                                             leaf_fc_size=leaf_fc_size, **kwargs
+                                                             input_size=leaf_fc_size or dimension_embeddings * 2,
+                                                             leaf_fc_size=leaf_fc_size,
+                                                             dimension_embeddings=dimension_embeddings,
+                                                             **kwargs
                                                              )
+
+########################################################################################################################
 
 
 def sim_cosine_DEP(e1, e2):
