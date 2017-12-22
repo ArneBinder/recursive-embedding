@@ -356,13 +356,13 @@ class Lexicon(object):
         #    logging.warning('overwrite unsaved vecs')
         # TODO: check _fixed
         if new_vecs_fixed is not None:
-            assert new_vecs_fixed.shape()[0] == self.len_fixed, 'amount of vecs in new_vecs_fixed=%i is different then len_fixed=%i' \
-                                                     % (new_vecs_fixed.shape()[0], self.len_fixed)
+            assert new_vecs_fixed.shape[0] == self.len_fixed, 'amount of vecs in new_vecs_fixed=%i is different then len_fixed=%i' \
+                                                     % (new_vecs_fixed.shape[0], self.len_fixed)
             count_total = new_vecs.shape[0] + new_vecs_fixed.shape[0]
             assert count_total <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs + new_vecs_fixed)==%i > len(types)==%i)' \
                                              % (count_total, len(self))
 
-            self._vecs = np.zeros(shape=(count_total, new_vecs_fixed.shape()[1]), dtype=np.float32)
+            self._vecs = np.zeros(shape=(count_total, new_vecs_fixed.shape[1]), dtype=np.float32)
             for idx_source, idx_target in enumerate(self.ids_fixed):
                 self._vecs[idx_target] = new_vecs_fixed[idx_source]
             for idx_source, idx_target in enumerate(self.ids_var):
