@@ -292,13 +292,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge_prob_idx=1, subtree_head_ids=[ENTRY1_idx, ENTRY2_idx])
         #tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
         #tuple_size = 1
-        neg_samples = 9
-        max_depth = 10
+        #max_depth = 10
         #indices = range(1000)
         indices = None
+        neg_samples = 9
         tuple_size = neg_samples + 1
         data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices, neg_samples=neg_samples,
-                                      max_depth=max_depth, transform=True)
+                                      max_depth=config.max_depth, transform=True)
         #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size,
                                     extensions=config.extensions.split(','), max_depth=config.max_depth,
@@ -582,7 +582,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                         # EARLY STOPPING ###############################################################################
 
-                        if not config.data_single:
+                        if sim_all is not None and sim_all_gold is not None:
                             # loss_test = round(loss_test, 6) #100000000
                             p_r = pearsonr(sim_all, sim_all_gold)[0]
                         else:
