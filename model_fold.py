@@ -970,15 +970,23 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         assert tree_model.tree_count >= count, 'tree_model produces %i tree embeddings per batch entry, but count=%i ' \
                                                'requested' % (tree_model.tree_count, count)
         # cut inputs to 'count'
-        probs = tree_model.probs_gold[:, :count]
-        trees = tree_model.embeddings_all[:, :count * tree_model.tree_output_size]
-        input_layer = tf.reshape(trees, [-1, count, tree_model.tree_output_size, 1])
+        #probs = tree_model.probs_gold[:, :count]
+        #trees = tree_model.embeddings_all[:, :count * tree_model.tree_output_size]
+        #input_layer = tf.reshape(trees, [-1, count, tree_model.tree_output_size, 1])
 
-        conv = tf.layers.conv2d(inputs=input_layer, filters=1,
-                                kernel_size=[1, tree_model.tree_output_size], activation=None,
-                                name=DEFAULT_SCOPE_SCORING)
-        self._prediction_logits = tf.reshape(conv, shape=[-1, count])
-        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
+        #conv = tf.layers.conv2d(inputs=input_layer, filters=1,
+        #                        kernel_size=[1, tree_model.tree_output_size], activation=None,
+        #                        name=DEFAULT_SCOPE_SCORING)
+        #self._prediction_logits = tf.reshape(conv, shape=[-1, count])
+
+
+        _weights = tf.Variable(tf.truncated_normal([tree_model.tree_output_size, 1],
+                                                   stddev=1.0 / math.sqrt(float(tree_model.tree_output_size))),
+                               name='scoring_weights')
+        _bias = tf.Variable(tf.truncated_normal([1]), name='scoring_bias')
+        _prediction_logits = tf.reshape(tf.matmul(tree_model.embeddings_shaped, _weights) + _bias, shape=[-1])
+        #loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
+        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.probs_gold_shaped, logits=_prediction_logits))
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
