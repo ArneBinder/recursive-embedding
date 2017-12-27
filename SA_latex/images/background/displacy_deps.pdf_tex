@@ -1,0 +1,85 @@
+%% Creator: Inkscape inkscape 0.91, www.inkscape.org
+%% PDF/EPS/PS + LaTeX output extension by Johan Engelen, 2010
+%% Accompanies image file 'displacy_deps.pdf' (pdf, eps, ps)
+%%
+%% To include the image in your LaTeX document, write
+%%   \input{<filename>.pdf_tex}
+%%  instead of
+%%   \includegraphics{<filename>.pdf}
+%% To scale the image, write
+%%   \def\svgwidth{<desired width>}
+%%   \input{<filename>.pdf_tex}
+%%  instead of
+%%   \includegraphics[width=<desired width>]{<filename>.pdf}
+%%
+%% Images with a different path to the parent latex file can
+%% be accessed with the `import' package (which may need to be
+%% installed) using
+%%   \usepackage{import}
+%% in the preamble, and then including the image with
+%%   \import{<path to file>}{<filename>.pdf_tex}
+%% Alternatively, one can specify
+%%   \graphicspath{{<path to file>/}}
+%% 
+%% For more information, please see info/svg-inkscape on CTAN:
+%%   http://tug.ctan.org/tex-archive/info/svg-inkscape
+%%
+\begingroup%
+  \makeatletter%
+  \providecommand\color[2][]{%
+    \errmessage{(Inkscape) Color is used for the text in Inkscape, but the package 'color.sty' is not loaded}%
+    \renewcommand\color[2][]{}%
+  }%
+  \providecommand\transparent[1]{%
+    \errmessage{(Inkscape) Transparency is used (non-zero) for the text in Inkscape, but the package 'transparent.sty' is not loaded}%
+    \renewcommand\transparent[1]{}%
+  }%
+  \providecommand\rotatebox[2]{#2}%
+  \ifx\svgwidth\undefined%
+    \setlength{\unitlength}{1625.040625bp}%
+    \ifx\svgscale\undefined%
+      \relax%
+    \else%
+      \setlength{\unitlength}{\unitlength * \real{\svgscale}}%
+    \fi%
+  \else%
+    \setlength{\unitlength}{\svgwidth}%
+  \fi%
+  \global\let\svgwidth\undefined%
+  \global\let\svgscale\undefined%
+  \makeatother%
+  \begin{picture}(1,1.23002596)%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{ADET}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{manNOUN}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{isVERB}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{doingVERB}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{someDET}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{tricksNOUN}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{withADP}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{aDET}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{soccerNOUN}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{ballNOUN}}}%
+    \put(-0.06847617,1.05851873){\color[rgb]{0,0,0}\makebox(0,0)[b]{\smash{.PUNCT}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=1]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{det}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=2]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{nsubj}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=3]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{aux}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=4]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{det}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=5]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{dobj}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=6]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{prep}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=7]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{det}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=8]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{compound}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=9]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{pobj}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=10]{displacy_deps.pdf}}%
+    \put(-0.06847617,1.2751287){\makebox(0,0)[lb]{\smash{punct}}}%
+    \put(0,0){\includegraphics[width=\unitlength,page=11]{displacy_deps.pdf}}%
+  \end{picture}%
+\endgroup%

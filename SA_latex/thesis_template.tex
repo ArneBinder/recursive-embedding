@@ -1,0 +1,232 @@
+\documentclass[a4paper,11pt]{article}
+
+\usepackage{amsmath,amssymb,amsfonts,amsthm}    % Typical maths resource packages
+\usepackage{graphicx}                           % Packages to allow inclusion of graphics
+\graphicspath{{./images/}{./images/background/}}
+%\usepackage[colorinlistoftodos, disable, textsize=tiny]{todonotes}  
+\usepackage[colorinlistoftodos, textsize=tiny]{todonotes}   % todo notes
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}                           % For creating hyperlinks in cross references
+%\usepackage[authoryear]{natbib}                 % literature reference style
+
+%added
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{csquotes}
+\usepackage[backend=biber,style=authoryear]{biblatex}
+\addbibresource{Zotero.bib}
+\usepackage[printonlyused]{acronym}
+%% from tomepel/Technical_Book_DL
+\def\layersep{2.5cm}
+\usepackage{verbatim}
+\usepackage[bf]{caption}
+\usepackage{subcaption}
+\usepackage{tabularx}
+\usepackage{import}
+
+\usepackage{mathtools}
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+%added end
+
+% -------------------------------
+% --- some layout definitions ---
+% -------------------------------
+
+% define topline
+\usepackage[automark]{scrpage2}
+\pagestyle{scrheadings}
+\automark{section}
+\clearscrheadings
+\ohead{\headmark}
+
+% define citation style
+%\bibliographystyle{ecta}
+
+% define page size, margin size
+\setlength{\headheight}{1.1\baselineskip}
+\voffset=-2cm
+\hoffset=-3cm
+\textheight24cm
+\textwidth15.5cm
+\topmargin1cm
+\oddsidemargin3cm
+\evensidemargin3cm
+
+% define line line spacing = 1.5
+\renewcommand{\baselinestretch}{1.5}
+
+% define second level for `itemizing'
+\renewcommand{\labelitemii}{-}
+
+
+
+
+% --------------------------------------
+% --------------------------------------
+% --------------------------------------
+% --- the structure the tex document ---
+% ---  (this our recommendation) -------
+% frontmatter:
+%   - titlepage (mandatory),
+%   - acknowledgement,
+%   - abstract,
+%   - table of contents (mandatory),
+%   - list of abbreviations (not mandatory),
+%   - list of figures (not mandatory),
+%   - list of tables  (not mandatory) .
+%
+% body of the thesis (the structure of the thesis body is not mandatory, but the list of literature is mandatory):
+%   - introduction,
+%   - methods,
+%   - data,
+%   - results,
+%   - conclusion,
+%   - literature (mandatory),
+%   - appendix (figures, tables).
+%
+% last page:
+%   - declaration of authorship (mandatory).
+% --------------------------------------
+% --------------------------------------
+% --------------------------------------
+
+\begin{document}
+
+% -------------------------------
+% --- frontmatter: Title page ---
+% -------------------------------
+
+\thispagestyle{empty}
+\input{titlepage}
+
+\pagenumbering{roman}   % define page number in roman style
+\setcounter{page}{0}    % start page numbering
+
+% ------------------------------------
+% --- frontmatter: Acknowledgement ---
+% ------------------------------------
+%\newpage
+%\pagestyle{plain}
+%\pagenumbering{roman}   % define page number in roman style
+%\setcounter{page}{1}    % start page numbering
+%\input{acknowledgement}
+
+
+
+% -----------------------------
+% --- frontmatter: Abstract ---
+% -----------------------------
+%\newpage
+%\input{abstract}
+
+
+
+% -----------------------------
+% --- frontmatter: Contents ---
+% -----------------------------
+\newpage
+\tableofcontents
+\clearpage
+
+
+% ----------------------------------------------------
+% --- frontmatter: List of Figures (not mandatory) ---
+% ----------------------------------------------------
+\newpage
+\addcontentsline{toc}{section}{List of Abbreviations}
+\ohead[]{LIST OF ABBREVIATIONS}
+\input{abbreviations}
+
+
+% ----------------------------------------------------
+% --- frontmatter: List of Figures (not mandatory) ---
+% ----------------------------------------------------
+%\newpage
+%\addcontentsline{toc}{section}{List of Abbreviations}
+%\ohead[]{LIST OF ABBREVIATIONS}
+%\input{abbreviations}
+
+
+
+% ----------------------------------------------------
+% --- frontmatter: List of Figures (not mandatory) ---
+% ----------------------------------------------------
+%\newpage
+%\addcontentsline{toc}{section}{List of Figures}
+%\ohead[]{\rightmark}
+%\listoffigures
+
+
+
+% ---------------------------------------------------
+% --- frontmatter: List of Tables (not mandatory) ---
+% ---------------------------------------------------
+%\newpage
+%\addcontentsline{toc}{section}{List of Tables}
+%\listoftables
+
+
+
+% -------------------------------
+% --- main body of the thesis ---
+% -------------------------------
+\newpage
+\pagestyle{plain}
+\setcounter{page}{1}    % start page numbering anew
+\pagenumbering{arabic}  % page numbers in arabic style
+
+
+\input{chapters/introduction}
+\newpage
+\input{chapters/background}
+\newpage
+\input{chapters/related}
+\newpage
+\input{chapters/model}
+\newpage
+\input{chapters/experiments}
+\newpage
+\input{chapters/discussion}
+\newpage
+\input{chapters/conclusion}
+%\input{methods}
+%\newpage
+%\input{data}
+%\newpage
+%\input{results}
+%\input{conc}
+
+
+
+% ----------------
+% --- appendix ---
+% ----------------
+\appendix
+
+% literature
+\newpage
+\addcontentsline{toc}{section}{References}
+%\bibliography{literature}
+\printbibliography 
+
+% figures (not mandatory)
+%\newpage
+%\input{app_figures}
+
+% tables (not mandatory)
+%\newpage
+%\input{app_tables}
+
+
+
+% --------------------------------------------
+% --- last page: Declaration of Authorship ---
+% --------------------------------------------
+
+\newpage
+\thispagestyle{empty}
+\input{authorship}
+
+
+\end{document}
