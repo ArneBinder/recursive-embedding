@@ -7,7 +7,7 @@ The model consists of an embedding unit and a similarity function. The embedding
 Figure~\todo{AB: add figure} shows this architecture. In the following, we describe the respective modules. 
 
 \subsubsection{Token Embeddings}
-We use 300 dimensional GloVe embeddings \todo{AB:explain why} \autocite{pennington_glove:_2014} to embed individual word tokens. To evaluate the influence of dependency parse edge types, we concatenate the embedding with the one-hot encoded edge type. There are 40 different edge types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The embedding weights are not optimized during training.   
+We use 300 dimensional GloVe embeddings \todo{AB:explain why} \autocite{pennington_glove_2014} to embed individual word tokens. To evaluate the influence of dependency parse edge types, we concatenate the embedding with the one-hot encoded edge type. There are 40 different edge types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The embedding weights are not optimized during training.   
 
 \subsubsection{Composition function}
 In this work, we compare two different settings: Using (1) \acf{AVG} or (2) \acf{LSTM} as composition function. 
@@ -37,10 +37,10 @@ f_{SIM_{cos}}(a,b) = \frac{a \cdot b}{\norm{a}_2\norm{b}_2}
 As baseline of comparison we calculated TF-IDF based similarity scores in the following manner. We parse and lemmatize each sentence and filter for verbs, nouns and adjectives according to POS tags. Then, we embed each sentence with TF-IDF as described in section~\ref{subsec:doc_embedding} and apply the similarity measure as usual. 
 
 \subsection{Training and Implementation}
-We train the model via batched back-propagation with the \ac{MSE} loss function described in section~\ref{subsec:cost_function} and apply ADAM \autocite{kingma_adam:_2014} %ADADELTA \autocite{zeiler_adadelta:_2012}
+We train the model via batched back-propagation with the \ac{MSE} loss function described in section~\ref{subsec:cost_function} and apply ADAM \autocite{kingma_adam_2014} %ADADELTA \autocite{zeiler_adadelta_2012}
 as optimizer. We use a 4:1 train/dev split for early stopping. The training is terminated when the score on the development data set does not increase anymore regarding a smoothing window covering the last 25 epochs. 
 
-The model is implemented with the TensorFlow framework  \autocite{abadi_tensorflow:_2016}. TensorFlow allows to define and to execute arbitrary dataflow graphs efficiently on different devices as CPUs or GPUs. For tokenization and dependency parsing we use spaCy\footnote{see \url{https://spacy.io/}} which is a fast and still accurate\footnote{see \textcite{choi_it_2015} for a comparative study} \ac{NLP} framework. 
+The model is implemented with the TensorFlow framework  \autocite{abadi_tensorflow_2016}. TensorFlow allows to define and to execute arbitrary dataflow graphs efficiently on different devices as CPUs or GPUs. For tokenization and dependency parsing we use spaCy\footnote{see \url{https://spacy.io/}} which is a fast and still accurate\footnote{see \textcite{choi_it_2015} for a comparative study} \ac{NLP} framework. 
 
 
 %\subsection{Pre-Training}

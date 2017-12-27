@@ -60,7 +60,7 @@ where $rg(X)$ are the ranks of $X$.
 An \ac{ANN} is a machine learning model where input vectors are mapped to predictions by successive application of computational \textit{layers} \autocite{rumelhart_parallel_1986}. Each layer is a differentiable function $l^{(i)}: \mathbb{R}^{n^{(i-1)}} \mapsto \mathbb{R}^{n^{(i)}}$, with $n^{(i)}$ denoting the size of the input vector for the $i$-th layer, its \textit{layer size}. The arrangement of the layers form the network graph, which is a directed graph defining the specific network architecture. Provided adequate training data, \ac{ANN}s can be trained efficiently with gradient descent based optimization algorithms. In the next sections we will describe some popular architectures and important components of \ac{ANN}s. 
 
 \subsubsection{Feedforward Networks}
-The simplest class of \ac{ANN}s are \acl{FNN}s (\acs{FNN}s) that emerged from multilayer Perceptrons \autocite{rosenblatt_perceptron:_1958}. Their network architecture forms an acyclic graph and is defined by $f^{FNN}(v) = (l^{(N)} \circ ... \circ l^{(i)} \circ ... \circ l^{(1)})(v)$ where $N$ is the total amount of layers. The $N$-th layer is called \textit{output layer}, all other layers are \textit{hidden layers}. In addition, the virtual \textit{input layer} models the input. Figure~\ref{fig:1} \autocite{epelbaum_deep_2017} shows such a structure. 
+The simplest class of \ac{ANN}s are \acl{FNN}s (\acs{FNN}s) that emerged from multilayer Perceptrons \autocite{rosenblatt_perceptron_1958}. Their network architecture forms an acyclic graph and is defined by $f^{FNN}(v) = (l^{(N)} \circ ... \circ l^{(i)} \circ ... \circ l^{(1)})(v)$ where $N$ is the total amount of layers. The $N$-th layer is called \textit{output layer}, all other layers are \textit{hidden layers}. In addition, the virtual \textit{input layer} models the input. Figure~\ref{fig:1} \autocite{epelbaum_deep_2017} shows such a structure. 
 
 %% graphic taken from tomepel/Technical_Book_DL
 \begin{figure}[h]
@@ -199,7 +199,7 @@ Gradient-based optimization tackles this problem by shifting the parameters $\th
 \begin{equation}
 \theta' = \theta - \alpha\triangledown J_\Omega(\theta)
 \end{equation}
-where $\alpha$ is the chosen step size, or \textit{learning rate}, that has to be sufficiently small. On the other hand, it is unfavorable to choose a step size too small because that increases convergence time, meaning it slows down training. A lot of different approaches exist that apply dynamical sized stepping like \textit{Momentum} \autocite{polyak_methods_1964}, which takes previous parameter updates into account, or \textit{AdaDelta} \autocite{zeiler_adadelta:_2012} that tracks individual learning rates for the parameters in $\theta$. ADAM \autocite{kingma_adam:_2014} is another robust method to guide the parameter optimization, it keeps track of the gradients and its square roots.   
+where $\alpha$ is the chosen step size, or \textit{learning rate}, that has to be sufficiently small. On the other hand, it is unfavorable to choose a step size too small because that increases convergence time, meaning it slows down training. A lot of different approaches exist that apply dynamical sized stepping like \textit{Momentum} \autocite{polyak_methods_1964}, which takes previous parameter updates into account, or \textit{AdaDelta} \autocite{zeiler_adadelta_2012} that tracks individual learning rates for the parameters in $\theta$. ADAM \autocite{kingma_adam_2014} is another robust method to guide the parameter optimization, it keeps track of the gradients and its square roots.   
 
 As equation \eqref{eq:j_mse} states, one update step requires summation over all training examples in $\Omega$, so it is an $O(n)$ operation\todo{really? not higher?}. Hence, with large training sets calculation of $\triangledown J_\Omega(\theta)$ for every step becomes infeasible. \ac{SGD} addresses this problem by randomly partitioning $\Omega$ into subsets $\Omega^P_i$ of size $n^B$ that are used successively to calculate new parameter sets $\theta'$. Exhausting all $\Omega^P_i$, also referred to as \textit{(mini-)batches}, of a certain partition $\Omega^P$ is called finishing an \textit{epoch}. This approach stochastically approximates the calculation of $\triangledown J_\Omega(\theta)$.
 
@@ -320,7 +320,7 @@ M^{hidden} \cdot M^{out} + log(k) = M^{pmi}
 \end{equation}
 where $k$ is a constant. 
 
-Glove \autocite{pennington_glove:_2014} is a prediction based model that explicitly uses $M^{pmi}$. Its cost function \todo{UL:introduce! (??)} $J^{GLOVE}$ can be defined as:
+Glove \autocite{pennington_glove_2014} is a prediction based model that explicitly uses $M^{pmi}$. Its cost function \todo{UL:introduce! (??)} $J^{GLOVE}$ can be defined as:
 \begin{equation}
 J^{GLOVE}(\{w; b\}) = \sum\limits_{t_i \in T}\sum\limits_{c_j \in C}\ M^{B}_{ij}(w_i^Tw_j + b_i + b_j - log\,\#(t_i,c_j))^2
 \end{equation}
@@ -409,7 +409,7 @@ universal dependencies project
 \begin{figure}[htb!]
   \centering
   %\textbf{deviations from gold scores}\par\medskip
-  \def\svgwidth{\textwidth}
+  %\def\svgwidth{\textwidth}
   \input{images/background/displacy_deps.pdf_tex}
   %\import{images/background/}{displacy_deps2.pdf}
   \caption{Dependency parse tree}
