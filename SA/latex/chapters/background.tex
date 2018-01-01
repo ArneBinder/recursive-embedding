@@ -1,6 +1,6 @@
 \section{Theoretical Background}
 
-This chapter gives an overview of base concepts regarding semantic aware vector space representations and neural machine learning models to produce them.
+This chapter provides an overview of base concepts regarding semantic aware vector space representations and neural machine learning models to produce them. Furthermore, we briefly introduce the concept of linguistic dependency types.
 
 \subsection{Evaluation of Semantic Awareness}
 Following the Distributional Hypothesis \autocite{sahlgren_distributional_2008,harris_distributional_1954}\todo{AB:check references}, that linguistic items with similar distributions have similar meanings, a conceptional space should be arranged in a way, that distances of concepts follow the human intuition. By doing so, the meaning of these concepts should be as expected as by humans.
@@ -402,8 +402,11 @@ where $\lVert v\rVert_1 = \sum\limits_{l=1}^{|v|}|v_l|$ is the $L_1$ norm of $v$
 
 \subsection{Linguistic Dependency Types}
 \todo{AB: add content!!!}
+
+
+\subsection{Dependency Grammar}
 headed, no external (abstract) nodes
-\subsubsection{Dependency Types (Relations)}
+\subsubsection{Dependency Types}
 universal dependencies project
 
 \begin{figure}[htb!]
@@ -413,8 +416,8 @@ universal dependencies project
   %\input{images/background/displacy_deps.pdf_tex}
   %\includesvg{images/background/displacy}
   %\import{images/background/}{displacy_deps2.pdf}
-  \includegraphics[width=1.\linewidth]{background/displacy_new.pdf}
-  \caption{Dependency parse tree}
+  \includegraphics[width=1.\linewidth]{background/depparse_displacy.pdf}
+  \caption{Dependency parse tree with typed relations.}
   \label{fig:displacy_deps}
  \end{figure}
 \begin{comment}

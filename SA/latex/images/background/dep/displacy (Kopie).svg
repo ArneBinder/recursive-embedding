@@ -1,48 +1,48 @@
 <?xml version="1.0" standalone="no"?>
-<svg xmlns="http://www.w3.org/2000/svg" class="displacy" width="2350" height="520" viewBox="0 0 2350 520" id="displacy-svg">
-  <text class="displacy-token" fill="black" data-tag="DET" text-anchor="middle" y="440" x="150">
+<svg xmlns="http://www.w3.org/2000/svg" class="displacy" width="2350" height="520" viewBox="0 0 2350 520" preserveAspectRatio="xMinYMax meet" data-format="spacy" style="color: rgb(245, 244, 240); background: rgb(39, 40, 34) none repeat scroll 0% 0%; font-family: inherit;" id="displacy-svg">
+  <text class="displacy-token" fill="black" data-tag="DET" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="150" fill="black" data-tag="DET">A</tspan>
-    <!--<tspan class="displacy-tag" x="150" dy="2em" fill="black" data-tag="DET">DET</tspan>-->
+    <tspan class="displacy-tag" x="150" dy="2em" fill="black" data-tag="DET">DET</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440" x="350">
+  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="350" fill="black" data-tag="NOUN">man</tspan>
-    <!--<tspan class="displacy-tag" x="350" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>-->
+    <tspan class="displacy-tag" x="350" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="VERB" text-anchor="middle" y="440" x="550">
+  <text class="displacy-token" fill="black" data-tag="VERB" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="550" fill="black" data-tag="VERB">is</tspan>
-    <!--<tspan class="displacy-tag" x="550" dy="2em" fill="black" data-tag="VERB">VERB</tspan>-->
+    <tspan class="displacy-tag" x="550" dy="2em" fill="black" data-tag="VERB">VERB</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="VERB" text-anchor="middle" y="440" x="750">
+  <text class="displacy-token" fill="black" data-tag="VERB" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="750" fill="black" data-tag="VERB">doing</tspan>
-    <!--<tspan class="displacy-tag" x="750" dy="2em" fill="black" data-tag="VERB">VERB</tspan>-->
+    <tspan class="displacy-tag" x="750" dy="2em" fill="black" data-tag="VERB">VERB</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="DET" text-anchor="middle" y="440" x="950">
+  <text class="displacy-token" fill="black" data-tag="DET" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="950" fill="black" data-tag="DET">some</tspan>
-    <!--<tspan class="displacy-tag" x="950" dy="2em" fill="black" data-tag="DET">DET</tspan>-->
+    <tspan class="displacy-tag" x="950" dy="2em" fill="black" data-tag="DET">DET</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440" x="1150">
+  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="1150" fill="black" data-tag="NOUN">tricks</tspan>
-    <!--<tspan class="displacy-tag" x="1150" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>-->
+    <tspan class="displacy-tag" x="1150" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="ADP" text-anchor="middle" y="440" x="1350">
+  <text class="displacy-token" fill="black" data-tag="ADP" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="1350" fill="black" data-tag="ADP">with</tspan>
-    <!--<tspan class="displacy-tag" x="1350" dy="2em" fill="black" data-tag="ADP">ADP</tspan>-->
+    <tspan class="displacy-tag" x="1350" dy="2em" fill="black" data-tag="ADP">ADP</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="DET" text-anchor="middle" y="440" x="1550">
+  <text class="displacy-token" fill="black" data-tag="DET" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="1550" fill="black" data-tag="DET">a</tspan>
-    <!--<tspan class="displacy-tag" x="1550" dy="2em" fill="black" data-tag="DET">DET</tspan>-->
+    <tspan class="displacy-tag" x="1550" dy="2em" fill="black" data-tag="DET">DET</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440" x="1750">
+  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="1750" fill="black" data-tag="NOUN">soccer</tspan>
-    <!--<tspan class="displacy-tag" x="1750" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>-->
+    <tspan class="displacy-tag" x="1750" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440" x="1950">
+  <text class="displacy-token" fill="black" data-tag="NOUN" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="1950" fill="black" data-tag="NOUN">ball</tspan>
-    <!--<tspan class="displacy-tag" x="1950" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>-->
+    <tspan class="displacy-tag" x="1950" dy="2em" fill="black" data-tag="NOUN">NOUN</tspan>
   </text>
-  <text class="displacy-token" fill="black" data-tag="PUNCT" text-anchor="middle" y="440" x="2150">
+  <text class="displacy-token" fill="black" data-tag="PUNCT" text-anchor="middle" y="440">
     <tspan class="displacy-word" x="2150" fill="black" data-tag="PUNCT">.</tspan>
-    <!--<tspan class="displacy-tag" x="2150" dy="2em" fill="black" data-tag="PUNCT">PUNCT</tspan>-->
+    <tspan class="displacy-tag" x="2150" dy="2em" fill="black" data-tag="PUNCT">PUNCT</tspan>
   </text>
   <g class="displacy-arrow" data-dir="left" data-label="det">
     <path class="displacy-arc" d="M157.5,400 C157.5,300 342.5,300 342.5,400" stroke-width="2px" fill="none" stroke="black" data-dir="left" data-label="det" id="arrow-0"/>
