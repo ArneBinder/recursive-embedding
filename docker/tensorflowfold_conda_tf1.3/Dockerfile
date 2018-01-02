@@ -1,6 +1,8 @@
 FROM ubuntu:16.04
 
-LABEL maintainer="Craig Citro <craigcitro@google.com>"
+# adapted https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/tools/docker/Dockerfile.devel
+# to include Tensorflow Fold
+LABEL maintainer="Arne Binder <arne.b.binder@gmail.com>"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -19,17 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         zlib1g-dev \
         openjdk-8-jdk \
         openjdk-8-jre-headless \
+        wget \
         && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-## Set up our notebook config.
-#COPY jupyter_notebook_config.py /root/.jupyter/
-#
-## Jupyter has issues with being run directly:
-##   https://github.com/ipython/ipython/issues/7062
-## We just add a little wrapper script.
-#COPY run_jupyter.sh /
 
 # Set up Bazel.
 
@@ -53,36 +49,49 @@ RUN mkdir /bazel && \
     cd / && \
     rm -f /bazel/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
 
-# set up python
 
-## use python3 #better use conda env
-#RUN alias python=/usr/bin/python3
+# set up python (miniconda)
 
-RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
-    python get-pip.py && \
-    rm get-pip.py
+# python version
+ARG PYV=2
+ARG CONDAV=4.3.31
+
+RUN echo use Miniconda${PYV}-${CONDAV}
+
+RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
+    wget --quiet https://repo.continuum.io/miniconda/Miniconda${PYV}-${CONDAV}-Linux-x86_64.sh -O ~/miniconda.sh && \
+    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
+    rm ~/miniconda.sh
+
+ENV PATH /opt/conda/bin:$PATH
 
 RUN pip --no-cache-dir install \
-        ipykernel \
         jupyter \
         matplotlib \
         numpy \
         scipy \
         sklearn \
+        six \
         pandas \
-    && python -m ipykernel.kernelspec
+        wheel
 
 
 ########################################
 # get TensorFlow Fold and TensorFlow   #
 ########################################
 
-# fold with tensorflow 1.1: 7c498a4     (works)
-# fold with tensorflow 1.3: b6ee778     
-# fold with tensorflow 1.4: cc9bcef 
+# fold with tensorflow 1.1 (works):
+#ARG TD_BRANCH=7c498a4   
+# fold with tensorflow 1.3:
+#ARG TD_BRANCH=b6ee778
+ARG TD_BRANCH=af06b85 
+# fold with tensorflow 1.4:
+#ARG TD_BRANCH=cc9bcef
+
+RUN echo use TD_BRANCH=${TD_BRANCH}
 
 RUN git clone --recurse-submodules https://github.com/tensorflow/fold \
-    && cd fold && git checkout 7c498a4 \
+    && cd fold && git checkout ${TD_BRANCH} \
     && git submodule update --recursive
 
 #RUN cd /fold/tensorflow && tensorflow/tools/ci_build/builds/configured CPU
@@ -90,50 +99,25 @@ RUN git clone --recurse-submodules https://github.com/tensorflow/fold \
 WORKDIR /fold/tensorflow
 RUN tensorflow/tools/ci_build/builds/configured CPU
 
+#ARG BUILD_CMD='bazel build --verbose_failures --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0"'
+#RUN echo BUILD_CMD=${BUILD_CMD}
+
+ARG WHEEL_OUT=/wheel_pkg
+
 WORKDIR /fold
 
-#TODO: test!
-RUN bazel build --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow_fold/util:build_pip_package \
-    && bazel-bin/tensorflow_fold/util/build_pip_package /tmp/fold_pkg \
+RUN export PYTHON_BIN_PATH="$(which python)" \
+    && bazel build --verbose_failures --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow_fold/util:build_pip_package \
+    && bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg \
     && cd /fold/tensorflow \
-    && bazel build --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow/tools/pip_package:build_pip_package \
-    && bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg \
-    && pip --no-cache-dir install /tmp/fold_pkg/* && pip --no-cache-dir install /tmp/tensorflow_pkg/* \
+    && bazel build --verbose_failures --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow/tools/pip_package:build_pip_package \
+    && bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensorflow_pkg \
+    && pip --no-cache-dir install ${WHEEL_OUT}/fold_pkg/* && pip --no-cache-dir install ${WHEEL_OUT}/tensorflow_pkg/* \
     && rm -rf /tmp && rm -rf /root/.cache
+
 
 WORKDIR /root
 
 
-#RUN git clone https://github.com/tensorflow/tensorflow.git && \
-#    cd tensorflow && \
-#    git checkout r1.4
-#WORKDIR /tensorflow
-#
-## TODO(craigcitro): Don't install the pip package, since it makes it
-## more difficult to experiment with local changes. Instead, just add
-## the built directory to the path.
-#
-#ENV CI_BUILD_PYTHON python
-#
-#RUN tensorflow/tools/ci_build/builds/configured CPU \
-#    bazel build -c opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" \
-#        # For optimized builds appropriate for the hardware platform of your choosing, uncomment below...
-#        # For ivy-bridge or sandy-bridge
-#        # --copt=-march="ivybridge" \
-#        # for haswell, broadwell, or skylake
-#        # --copt=-march="haswell" \
-#        tensorflow/tools/pip_package:build_pip_package && \
-#    bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/pip && \
-#    pip --no-cache-dir install --upgrade /tmp/pip/tensorflow-*.whl && \
-#    rm -rf /tmp/pip && \
-#    rm -rf /root/.cache
-## Clean up pip wheel and Bazel cache when done.
-#
-## TensorBoard
-#EXPOSE 6006
-## IPython
-#EXPOSE 8888
-#
-#WORKDIR /root
-
+CMD [ "/bin/bash" ]
 
