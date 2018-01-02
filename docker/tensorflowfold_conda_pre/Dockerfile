@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libfreetype6-dev \
         libpng12-dev \
         libzmq3-dev \
+        mlocate \
         pkg-config \
         python-dev \
         rsync \
@@ -26,13 +27,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-## Set up our notebook config.
-#COPY jupyter_notebook_config.py /root/.jupyter/
-#
-## Jupyter has issues with being run directly:
-##   https://github.com/ipython/ipython/issues/7062
-## We just add a little wrapper script.
-#COPY run_jupyter.sh /
 
 # Set up Bazel.
 
@@ -82,46 +76,4 @@ RUN pip --no-cache-dir install \
         pandas \
         wheel
 
-
-########################################
-# get TensorFlow Fold and TensorFlow   #
-########################################
-
-# fold with tensorflow 1.1 (works)
-ARG TD_BRANCH=7c498a4   
-# fold with tensorflow 1.3
-#ARG TD_BRANCH=b6ee778
-# fold with tensorflow 1.4
-#ARG TD_BRANCH=cc9bcef
-
-RUN echo use TD_BRANCH=${TD_BRANCH}
-
-RUN git clone --recurse-submodules https://github.com/tensorflow/fold \
-    && cd fold && git checkout ${TD_BRANCH} \
-    && git submodule update --recursive
-
-#RUN cd /fold/tensorflow && tensorflow/tools/ci_build/builds/configured CPU
-# necessary to find "configure" script when executing "configured" (re-check!)
-WORKDIR /fold/tensorflow
-RUN tensorflow/tools/ci_build/builds/configured CPU
-
-#ARG BUILD_CMD='bazel build --verbose_failures --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0"'
-#RUN echo BUILD_CMD=${BUILD_CMD}
-
-ARG WHEEL_OUT=/wheel_pkg
-
-WORKDIR /fold
-
-RUN bazel build --verbose_failures --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow_fold/util:build_pip_package \
-    && bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg \
-    && cd /fold/tensorflow \
-    && bazel build --verbose_failures --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow/tools/pip_package:build_pip_package \
-    && bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensorflow_pkg \
-    && pip --no-cache-dir install ${WHEEL_OUT}/fold_pkg/* && pip --no-cache-dir install ${WHEEL_OUT}/tensorflow_pkg/* \
-    && rm -rf /tmp && rm -rf /root/.cache
-
-WORKDIR /root
-
-
-CMD [ "/bin/bash" ]
 
