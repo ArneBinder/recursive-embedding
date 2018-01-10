@@ -356,7 +356,7 @@ where $f_M: \mathbb{R}^{\hat{m}} \mapsto \mathbb{R}^{\mathring{m}}$ is the term 
 In the following we distinguish \textit{order unaware} composition models from \textit{order aware} models. Both types commonly use the identity function or $(htan \circ l^{FC})$ as mapping function $f_M$. There are also hybrid approaches based on n-grams and Convolutional Neural Networks\footnote{They fit into the definition of $f_{CM}$ by relaxing $f_M$, which is, in fact, a convolution kernel of size one, to $f_{M_{cnn}}: (\mathbb{R}^{\hat{m}}, ... ,\mathbb{R}^{\hat{m}}) \mapsto \mathbb{R}^{\mathring{m}}$ and using the \textit{max} function for $f_{R_{cnn}}$ to implement max pooling, for instance.}, but these are out of scope for this work.
 
 \subsubsection*{Order unaware composition}
-These models are known as Bag-of-Words models. They can be defined by constraining the reduction function $f_R$ to be symmetric. Common instances are \textit{summation} with:
+These models are known as Bag-of-Words models. They can be defined by constraining the reduction function $f_R$ to be associative. Common instances are \textit{summation} with:
 \begin{equation}
 f_{R_{sum}}(\mathring{t}; h) = h + \mathring{t} \quad \text{and} \quad h_{I_{sum}} = [0, ..., 0]^T \in \mathbb{R}^k, k = \mathring{m}
 \end{equation}
@@ -370,7 +370,7 @@ These models take the ordering of the input tokens into account. Commonly they b
 \begin{equation}
 f_{R_{rnn}} = g^{RNN}
 \end{equation}
-where $g^{RNN}$ is an \ac{RNN} cell function (see equation~\eqref{eq:rnn}, assuming $\theta$ is fixed) like $g^{LSTM}$ (see equation~\eqref{eq:lstm}), for instance. As it is commonly known from \ac{RNN} literature \todo{AB: REFS!!}, using these kind of asymmetric composition functions leverages \todo{AB: enables?} contextualized processing of the individual tokens.
+where $g^{RNN}$ is an \ac{RNN} cell function (see equation~\eqref{eq:rnn}, assuming $\theta$ is fixed) like $g^{LSTM}$ (see equation~\eqref{eq:lstm}), for instance. As it is commonly known from \ac{RNN} literature \todo{AB: REFS!!}, using these kind of non-associative composition functions leverages \todo{AB: enables?} contextualized processing of the individual tokens.
 
 \subsubsection{Similarity measures}
 \label{subsec:similarity_measure}
@@ -401,32 +401,36 @@ f_{S_{manh}}(\hat{d}_i, \hat{d}_j) = exp(-\lVert\hat{d}_i - \hat{d}_j\rVert_1)
 where $\lVert v\rVert_1 = \sum\limits_{l=1}^{|v|}|v_l|$ is the $L_1$ norm of $v$. Compared with the other measures, $f_{S_{manh}}$ has the lowest calculation costs. %Furthermore, it 
 
 \subsection{Linguistic Dependency Types}
-\todo{AB: add content!!!}
-In the following, we describe very briefly the theory of linguistic dependency grammar and typed dependency relations.
+In the following, we present a very brief introduction into the theory of linguistic dependency grammar and typed dependency relations that was mainly distilled from \textcite{jurafsky_dependency_2014}.
 
 \subsection{Dependency Grammar}
-what is grammar?
-what is dependency grammar?
-headed, no external (abstract) nodes
+\ac{DG} is a class of syntactic theories rooted in the work of Lucien Tesni\`{e}re \autocite{tesniere_elements_1976}. Its formalism describes the structure of sentences by linking individual words in a sentence with each other by directed, binary relations forming a tree commonly rooted by the finite verb. In this manner, any word has zero or multiple \textit{dependents} linked by \textit{dependency} relation instances. With respect to its dependents, a word is referred to as \textit{head}. Figure~\ref{fig:displacy_deps} shows an example dependency syntax tree.
+
+\begin{figure}[htb!]
+  \centering
+  % image workflow (displacy -> this):
+  % 1) create svg with https://demos.explosion.ai/displacy/
+  % 2) remove POS labels
+  % 3) convert to pdf online
+  \includegraphics[width=1.\linewidth]{background/depparse_displacy.pdf}
+  \caption{Dependency parse tree with typed relations. Arcs point from heads to their dependents and are labeled with dependency types.}
+  \label{fig:displacy_deps}
+ \end{figure}
+
 
 \subsubsection{Dependency Types}
+%Dependents modify their head, but a head governs its dependents. 
+%In addition to 
+A head with its dependents marks a linguistic unit in the hierarchical structure, similar to a linguistic constituent. In addition to this structural \todo{hierarchical?} information, dependency grammars allow to classify the kinds of dependency relations in terms of the grammatical role the dependent plays with respect to its head, e.g. \textit{subject}, \textit{direct object} or \textit{adverbial modifier}.
+
+%Grammatical roles or grammatical functions describe relationships 
+ 
 why typed relations?
 relation to word order
 which types? universal dependencies project
 
-\begin{figure}[htb!]
-  \centering
-  %\textbf{deviations from gold scores}\par\medskip
-  %\def\svgwidth{\textwidth}
-  %\input{images/background/displacy_deps.pdf_tex}
-  %\includesvg{images/background/displacy}
-  %\import{images/background/}{displacy_deps2.pdf}
-  \includegraphics[width=1.\linewidth]{background/depparse_displacy.pdf}
-  \caption{Dependency parse tree with typed relations.}
-  \label{fig:displacy_deps}
- \end{figure}
-\begin{comment}
 
+\begin{comment}
 \subsection{Transfer Learning}
 Successful supervised deep learning depends on access to certain amounts of quality labeled training data. Despite big datasets for some tasks exist by now, that is not every time the case since dataset creation is expensive. However, a lot of tasks and domains share common subsets. Transfer learning aims to exploit these interdependencies by conveying knowledge learned at one domain and task to another. 
 
