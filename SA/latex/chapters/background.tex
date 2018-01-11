@@ -394,6 +394,7 @@ where $\norm{v}_2 = \sqrt{\sum_{k=1}^{|v|}(v_k)^2}$ is the $L_2$ norm of $v$. As
 f_{S_{eucl}}(\hat{d}_i, \hat{d}_j) = exp(-\lVert\hat{d}_i - \hat{d}_j\rVert_2)
 \end{equation}
 
+
 Similarly, the \textit{manhattan/taxicab} distance can be used as similarity measure as proposed by \textcite{mueller_siamese_2016}:
 \begin{equation}
 f_{S_{manh}}(\hat{d}_i, \hat{d}_j) = exp(-\lVert\hat{d}_i - \hat{d}_j\rVert_1)
@@ -404,30 +405,26 @@ where $\lVert v\rVert_1 = \sum\limits_{l=1}^{|v|}|v_l|$ is the $L_1$ norm of $v$
 In the following, we present a very brief introduction into the theory of linguistic dependency grammar and typed dependency relations that was mainly distilled from \textcite{jurafsky_dependency_2014}.
 
 \subsection{Dependency Grammar}
-\ac{DG} is a class of syntactic theories rooted in the work of Lucien Tesni\`{e}re \autocite{tesniere_elements_1976}. Its formalism describes the structure of sentences by linking individual words in a sentence with each other by directed, binary relations forming a tree commonly rooted by the finite verb. In this manner, any word has zero or multiple \textit{dependents} linked by \textit{dependency} relation instances. With respect to its dependents, a word is referred to as \textit{head}. Figure~\ref{fig:displacy_deps} shows an example dependency syntax tree.
+\ac{DG} is a class of syntactic theories rooted in the work of Lucien Tesni\`{e}re \autocite{tesniere_elements_1976}. Its formalism describes the structure of sentences by linking individual words in a sentence with each other by directed, binary relations forming a tree commonly rooted by the finite verb. In this manner, any word has zero or multiple \textit{dependents} linked by \textit{dependency} relation instances. With respect to its dependents, a word is referred to as \textit{head}. A head and its dependents mark a linguistic unit in the hierarchical structure. Figure~\ref{fig:displacy_deps} shows an example dependency syntax tree.
 
 \begin{figure}[htb!]
   \centering
   % image workflow (displacy -> this):
   % 1) create svg with https://demos.explosion.ai/displacy/
-  % 2) remove POS labels
+  % 2) remove POS labels (with text editor)
   % 3) convert to pdf online
   \includegraphics[width=1.\linewidth]{background/depparse_displacy.pdf}
-  \caption{Dependency parse tree with typed relations. Arcs point from heads to their dependents and are labeled with dependency types.}
+  \caption{Dependency parse tree with typed relations. Arcs point from heads to their dependents. They are labeled with dependency types.}
   \label{fig:displacy_deps}
  \end{figure}
 
 
 \subsubsection{Dependency Types}
 %Dependents modify their head, but a head governs its dependents. 
-%In addition to 
-A head with its dependents marks a linguistic unit in the hierarchical structure, similar to a linguistic constituent. In addition to this structural \todo{hierarchical?} information, dependency grammars allow to classify the kinds of dependency relations in terms of the grammatical role the dependent plays with respect to its head, e.g. \textit{subject}, \textit{direct object} or \textit{adverbial modifier}.
+ %, similar to a linguistic constituent. 
+In addition to structural \todo{hierarchical?} information given by the dependence relation, dependency grammars allow to classify the kinds of dependencies in terms of the grammatical role the dependent plays with respect to its head, e.g. \textit{subject}, \textit{direct object} or \textit{indirect object}. The example roles mentioned are commonly known and relate to the main finite verb. Because they link phrases of clauses, they are kinds of \textit{clausal argument relations}. To classify all types of dependencies found in dependence structures, the \ac{DG} formalism expands the set of grammatical roles further to types of \textit{nominal modifier relations}, \textit{conjunctions} and many others. But languages vary and the amount of explicitly expressed grammatical functions do as well, e.g. morphological rich languages express a lot of functionality implicitly by inflection, that is, otherwise, expressed by grammatical function words. Nevertheless, efforts are being made to standardize the landscape of considered types of dependency relations. One approach that recently gains attention is the Universal Dependencies project \autocite{nivre_universal_2016}. It achieved to determine a common core of 40 grammatical relations while maintaining flexible enough to incorporate language specific types, if needed. The project currently provides resources annotated with dependency structure (treebanks) for 60 different languages.
 
-%Grammatical roles or grammatical functions describe relationships 
- 
-why typed relations?
-relation to word order
-which types? universal dependencies project
+The English language is more or less restricted in its word order and has weak morphology. As \textcite{jurafsky_dependency_2014} states, in this case, the dependency type strongly correlates with the position of the individual words.
 
 
 \begin{comment}

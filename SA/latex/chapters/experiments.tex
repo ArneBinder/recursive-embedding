@@ -1,5 +1,5 @@
 \section{Experiments and Evaluation}
-We conduct several experiments for all four settings to evaluate the influence of order awareness and availability of edge type information to the similarity prediction performance. In the following, we describe the dataset and the hyperparameter setting. Finally, we present the results and an analysis of errors.
+We conduct several experiments for all four settings to evaluate the influence of order awareness and availability of dependency type information to the similarity prediction performance. In the following, we describe the dataset and the hyperparameter setting. Finally, we present the results and an analysis of errors.
 
 \subsection{Dataset}
 We use the SICK corpus\footnote{\url{http://alt.qcri.org/semeval2014/task1/index.php?id=data-and-tools}} \autocite{marelli_sick_2014} for model training and evaluation. The corpus consists of about approximately 10.000 pairs of English sentences based on the 8K ImageFlickr data set\footnote{\url{http://nlp.cs.illinois.edu/
@@ -16,7 +16,7 @@ HockenmaierGroup/data.html}} \autocite{hodosh_framing_2013} and the SemEval 2012
     A brown dog is attacking another animal in front of the man in pants & Two dogs are wrestling and hugging & 0.55 \\ \hline
     A woman is chopping an onion & A woman is washing her feet & 0.0
   \end{tabular}
-  \caption{Example sentence pairs from SICK corpus with rescaled relatedness score}
+  \caption{Example sentence pairs from SICK corpus with rescaled relatedness score ranging from $0.0$ (not related) to $1.0$ (maximal related).}
 \label{tab:sick_examples}
 \end{table*}
 
@@ -57,7 +57,7 @@ We measured performance using the Pearson correlation coefficient and \ac{MSE} b
     \begin{tabularx}{\textwidth}{|X X|X|X|}
     %\begin{tabularx}{\textwidth}{|p{0.21\textwidth} p{0.15\textwidth}|X|X|} %{p{0.4\textwidth}|p{0.4\textwidth}|c}
       \hline
-      dependency edge & order aware & mse & pearson \\ \hline \hline
+      dependency type & order aware & mse & pearson \\ \hline \hline
       NO & NO & 0.0284 & 0.8382 \\ 
       NO & YES & 0.0206 & 0.8375 \\
       YES & NO & 0.0274 & 0.8413 \\
@@ -84,8 +84,8 @@ We measured performance using the Pearson correlation coefficient and \ac{MSE} b
         %NO, YES & 0.0206 & 0.8375 \\
         %YES, NO & 0.0274 & 0.8413 \\
         %YES, YES & 0.0205 & 0.8383 \\ \hline
-        dependency edge & NO & 0.0279 & 0.8397 \\
-        dependency edge & YES & 0.0206 & 0.8379 \\ \hline
+        dependency type & NO & 0.0279 & 0.8397 \\
+        dependency type & YES & 0.0206 & 0.8379 \\ \hline
         order aware & NO & 0.0245 & 0.8378 \\
         order aware & YES & 0.0240 & 0.8398 \\ \hline
       \end{tabularx}
@@ -118,10 +118,10 @@ We measured performance using the Pearson correlation coefficient and \ac{MSE} b
   \label{fig:res_all}
 \end{figure}
 
-Enabling the feature \textbf{order aware} results in a significant overall performance gain of $0.75\%$ in means of \ac{MSE} and a performance decrease of $-0.21\%$ with regard to Pearson's r ($p<0.0001$ for two-tailed t-test \todo{AB:ref?} in both cases). Adding \textbf{dependency edge types} improves the overall \ac{MSE} by $0.05\%$ and Pearson's r increases by $0.24\%$, whereby the former is not significant (p=0.336), but the later is ($p<0.0001$). Table~\ref{tab:results_merged} shows the specific scores.
+Enabling the feature \textbf{order aware} results in a significant overall performance gain of $0.75\%$ in means of \ac{MSE} and a performance decrease of $-0.21\%$ with regard to Pearson's r ($p<0.0001$ for two-tailed t-test \todo{AB:ref?} in both cases). Adding \textbf{dependency types} improves the overall \ac{MSE} by $0.05\%$ and Pearson's r increases by $0.24\%$, whereby the former is not significant (p=0.336), but the later is ($p<0.0001$). Table~\ref{tab:results_merged} shows the specific scores.
 
 
-\subsubsection{Relation of Order awareness and Dependency edge types}
+\subsubsection{Relation of Order awareness and Dependency types}
 
 \begin{figure}[htb!]
   \centering
