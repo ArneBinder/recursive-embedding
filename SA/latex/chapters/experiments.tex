@@ -29,7 +29,7 @@ HockenmaierGroup/data.html}} \autocite{hodosh_framing_2013} and the SemEval 2012
 We train the model in batches of 100 examples. The ADAM optimizer is initialized with a learning rate of 0.003. We apply gradient clipping by global norm as specified in \textcite{pascanu_difficulty_2012} with a threshold of 5.0 and use dropout \autocite{srivastava_dropout_2014} with a keep probability of 0.8 at the \ac{LSTM} and the \ac{FC} in the \ac{AVG} case to prevent from overfitting. We used a grid search at the train/dev set to find this parameter configuration. We applied 5-fold cross validation with regard to the train/dev split for every setting and repeated each experiment 10 times to achieve robust results.
 
 \subsection{Results}
-We measured performance using the Pearson correlation coefficient and \ac{MSE} between the predictions and gold scores. The mean Pearson correlation of all runs is about $0.839$ with a \ac{std} of $0.002$ and the mean \ac{MSE} is $0.024$ with std of $0.004$. The \ac{TF-IDF} baseline produces a Pearson score of $0.619$ and a \ac{MSE} of $0.082$. All scores averaged over same parameter settings are shown in Table~\ref{tab:results}. Figure~\ref{fig:res_all} displays the \ac{MSE} and Pearson's r results for all parameter combinations as box plots\footnote{The boxes of all box plots show the \ac{IQR}, whiskers mark the $[1.5\times \text{IQR}, 3\times \text{IQR}]$ range and notches the  $10000\times$ bootstrapped confidence intervals.}. Note, that the y-axis is inverted for all box plots visualizing \ac{MSE} scores to show better performing scores above worse ones and to provide comparability with plots of Pearson scores. 
+We measured performance using the Pearson correlation coefficient and \ac{MSE} between the predictions and gold scores. The mean Pearson correlation of all runs is about $0.839$ with a \ac{std} of $0.002$ and the mean \ac{MSE} is $0.024$ with std of $0.004$. The \ac{TF-IDF} baseline produces a Pearson score of $0.619$ and a \ac{MSE} of $0.082$. Thus, the regarded models achieve a mean \ac{MSE} performance gain of $+6.4\%$ with respect to the baseline. This performance lies in the range of the best system submitted for SemEval-2014 relatedness prediction task (MSE: $0.020$, Pearson's r: $0.828$), but stays below state of the art. Recent systems achieve MSE/Pearson's r scores of $0.016$/$0.87$ \autocite{he_multi-perspective_2015} or $0.014$/$0.88$ \autocite{mueller_siamese_2016}. We list the individual performances of the models examined in this work averaged over identical parameter settings in Table~\ref{tab:results}. Figure~\ref{fig:res_all} displays the \ac{MSE} and Pearson's r results for all parameter combinations as box plots\footnote{The boxes of all box plots show the \ac{IQR}, whiskers mark the $[1.5\times \text{IQR}, 3\times \text{IQR}]$ range and notches the  $10000\times$ bootstrapped confidence intervals.}. Note, that the y-axis is inverted for all box plots visualizing \ac{MSE} scores to show better performing scores above worse ones and to provide comparability with plots of Pearson scores. 
 %# SICK_VERBADJNOUN_lemma	0.611	0.091		# TFIDF
 %# SICK_ADJNOUN_lemma	0.558	0.111			# TFIDF
 %# SICK_VERBADJNOUN_orth	0.568	0.106		# TFIDF
@@ -111,22 +111,23 @@ Adding \textbf{dependency types} improves the overall \ac{MSE} by $0.05\%$ and P
 	\label{tab:results_merged}
 \end{table}
 
-Finding these contradictory results with respect to the applied measure, we took a closer look at the deviations of the predicted relatedness scores from the gold scores. Figure~\ref{fig:fig_sorted_errors_sep} shows the deviations per setting ordered by gold score. It suggests that the averaging model (\texttt{order aware} = NO) strongly overestimates the relatedness score. In fact, the mean deviation for all predictions in the averaging case is significant ($t < 0.0001$) higher ($0.085$) when compared with non-averaging ($0.019$). Such a bias distorts the Pearson'r as it ...
+Finding these contradictory results\todo{AB:with respect to the applied measure?}, we took a closer look at the deviations of the predicted relatedness scores from the gold scores. Figure~\ref{fig:fig_sorted_errors_sep} shows the deviations per setting ordered by gold score. It suggests that the averaging model (\texttt{order aware} = NO) strongly overestimates the relatedness score. In fact, the mean deviation for all predictions in the averaging case ($+0.085$) is significant ($t < 0.0001$) higher when compared with non-averaging ($+0.019$). Because such a bias distorts the Pearson'r and \ac{MSE} was used as cost function while training, we focus at the \ac{MSE} measure for the rest of this work.
 
 % One explanation ... MSE was used as cost function while optimization. NO sense
-
-  
 
 \begin{figure}[htb!]
 	\centering
 	\textbf{Deviations from gold score}\par\medskip
 	\includegraphics[width=1.\linewidth]{results/fig_sorted_errors_sep.pdf}
-	\caption{Deviations of the predictions from gold similarity scores by setting (<dependency available>, <order aware>). The averaging model (order aware = NO; plots at the left) clearly overestimates.}
+	\caption{Deviations of the predictions from gold similarity scores by setting (<dependency available>, <order aware>). The averaging models (order aware = NO; plots at the left) clearly overestimate.}
 	\label{fig:fig_sorted_errors_sep}
 \end{figure}
 
 
-\subsubsection{Relation of Order awareness and Dependency types}
+\subsubsection{Relation of Order Awareness and Dependency Types}
+
+
+
 
 \begin{figure}[htb!]
 	\centering
