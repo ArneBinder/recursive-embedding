@@ -2,7 +2,7 @@
 
 This chapter provides an overview of base concepts regarding semantic aware vector space representations and neural machine learning models to produce them. Furthermore, we briefly introduce the concept of linguistic dependency types.
 
-\subsection{Evaluation of Semantic Awareness}
+\subsection{Evaluation of Semantic Awareness} \label{subsec:eval_semantic_awareness}
 Following the Distributional Hypothesis \autocite{sahlgren_distributional_2008,harris_distributional_1954}\todo{AB:check references}, that linguistic items with similar distributions have similar meanings, a conceptional space should be arranged in a way, that distances of concepts follow the human intuition. By doing so, the meaning of these concepts should be as expected as by humans.
 
 We define semantic awareness as a property describing how much meaning a representational space is able to convoy with respect to the space of origin, textual natural language. Furthermore, the state of being semantically aware references the maximal achievable semantic awareness, i.e. convoying the same meaning as the origin of the representation. % move (<-) to previous chapter?
@@ -355,7 +355,7 @@ where $f_M: \mathbb{R}^{\hat{m}} \mapsto \mathbb{R}^{\mathring{m}}$ is the term 
 
 In the following we distinguish \textit{order unaware} composition models from \textit{order aware} models. Both types commonly use the identity function or $(htan \circ l^{FC})$ as mapping function $f_M$. There are also hybrid approaches based on n-grams and Convolutional Neural Networks\footnote{They fit into the definition of $f_{CM}$ by relaxing $f_M$, which is, in fact, a convolution kernel of size one, to $f_{M_{cnn}}: (\mathbb{R}^{\hat{m}}, ... ,\mathbb{R}^{\hat{m}}) \mapsto \mathbb{R}^{\mathring{m}}$ and using the \textit{max} function for $f_{R_{cnn}}$ to implement max pooling, for instance.}, but these are out of scope for this work.
 
-\subsubsection*{Order unaware composition}
+\subsubsection*{Order unaware composition} 
 These models are known as Bag-of-Words models. They can be defined by constraining the reduction function $f_R$ to be associative. Common instances are \textit{summation} with:
 \begin{equation}
 f_{R_{sum}}(\mathring{t}; h) = h + \mathring{t} \quad \text{and} \quad h_{I_{sum}} = [0, ..., 0]^T \in \mathbb{R}^k, k = \mathring{m}
@@ -365,7 +365,7 @@ or \textit{averaging} with:
 f_{R_{avg}} = f_{R_{sum}}, \quad h_{I_{avg}} = h_{I_{sum}} \quad \text{and} \quad f_{N_{avg}}(\dot{d}; \kappa) = \frac{1}{\kappa} \cdot \dot{d}
 \end{equation}
 
-\subsubsection*{Order aware composition}
+\subsubsection*{Order aware composition} \label{subsec:order_aware_composition}
 These models take the ordering of the input tokens into account. Commonly they build upon \acl{RNN}s. So, we can define the reduction function as:
 \begin{equation}
 f_{R_{rnn}} = g^{RNN}

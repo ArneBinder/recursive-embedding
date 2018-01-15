@@ -4,7 +4,15 @@ This chapter describes the architecture of the neural model used to calculate a 
 \subsection{Model architecture}
 The model consists of an embedding unit and a similarity function. The embedding unit translates a sequence of tokens into a single embedding vector and is applied to the two input sentences. It calculates the sentence embedding by gathering the individual embeddings for the contained tokens, eventually enhancing them with additional information, and applying a composition function. The two resulting embeddings are fed into the similarity function that produces the similarity score. 
 
-Figure~\todo{AB: add figure} shows this architecture. In the following, we describe the respective modules. 
+Figure~\ref{fig:model_architecture} shows this architecture. In the following, we describe the respective modules. 
+
+\begin{figure}[htb!]
+	\centering
+	%\textbf{Deviations from gold score}\par\medskip
+	\includegraphics[width=.8\linewidth]{model/SA_model.pdf}
+	\caption{General model architecture. The functionality marked by the blue boxes is identical for both input sentences, i.e. they share structure and weights.}
+	\label{fig:model_architecture}
+\end{figure}
 
 \subsubsection{Token Embeddings}
 We use 300 dimensional GloVe embeddings \todo{AB:explain why} \autocite{pennington_glove_2014} to embed individual word tokens. To evaluate the influence of dependency types, we concatenate the embedding with the one-hot encoded dependency type. The dependency type tag set is based on the Universal Dependencies project \autocite{nivre_universal_2016} and includes 40 different types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The embedding weights are not optimized during training.   

@@ -2,7 +2,8 @@
 \PreventPackageFromLoading{subfig}
 \documentclass[a4paper,11pt]{article}
 
-\usepackage{amsmath,amssymb,amsfonts,amsthm}    % Typical maths resource packages
+\usepackage{amsmath,amssymb,amsfonts}    % Typical maths resource packages
+\usepackage[amsmath,amsthm,thmmarks]{ntheorem}
 \usepackage{graphicx}                           % Packages to allow inclusion of graphics
 \usepackage{svg}
 \graphicspath{{./images/}{./images/background/}}
@@ -30,6 +31,18 @@
 \usepackage{mathtools}
 \DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
 \DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+
+
+%\usepackage{ntheorem}
+%\newtheorem{theorem}{Theorem}[Test]
+\theoremstyle{nonumberplain}
+\newtheorem{claim}{Claim}
+\theoremstyle{nonumberbreak}\theorembodyfont{\normalfont}\theoremsymbol{\ensuremath{\square}}
+\newtheorem{Proof}{Proof}
+%\theoremstyle{nonumberplain}
+%\theoremseparator{.}
+%\theoremsymbol{\ensuremath{\Box}}
+%\usepackage{pfsteps}
 %added end
 
 % -------------------------------

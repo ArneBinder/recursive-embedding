@@ -111,9 +111,7 @@ Adding \textbf{dependency types} improves the overall \ac{MSE} by $0.05\%$ and P
 	\label{tab:results_merged}
 \end{table}
 
-Finding these contradictory results\todo{AB:with respect to the applied measure?}, we took a closer look at the deviations of the predicted relatedness scores from the gold scores. Figure~\ref{fig:fig_sorted_errors_sep} shows the deviations per setting ordered by gold score. It suggests that the averaging model (\texttt{order aware} = NO) strongly overestimates the relatedness score. In fact, the mean deviation for all predictions in the averaging case ($+0.085$) is significant ($t < 0.0001$) higher when compared with non-averaging ($+0.019$). Because such a bias distorts the Pearson'r and \ac{MSE} was used as cost function while training, we focus at the \ac{MSE} measure for the rest of this work.
-
-% One explanation ... MSE was used as cost function while optimization. NO sense
+Finding these contradictory results\todo{AB:with respect to the applied measure?}, we took a closer look at the deviations of the predicted relatedness scores from the gold scores. Figure~\ref{fig:fig_sorted_errors_sep} shows the deviations per setting ordered by gold score. It suggests that the averaging model (\texttt{order aware} = NO) strongly overestimates the relatedness score. Indeed, the mean deviation for all predictions in the averaging case ($+0.085$) is significant ($t < 0.0001$) higher when compared with non-averaging ($+0.019$). Because such a bias distorts the Pearson'r and \ac{MSE} was used as cost function while training, we focus at the \ac{MSE} measure for the rest of this work.
 
 \begin{figure}[htb!]
 	\centering
@@ -123,11 +121,24 @@ Finding these contradictory results\todo{AB:with respect to the applied measure?
 	\label{fig:fig_sorted_errors_sep}
 \end{figure}
 
-
 \subsubsection{Relation of Order Awareness and Dependency Types}
+The specific performance in the examined settings suggests that the parameters Dependency Available and Order Aware are related. Figure~\ref{fig:fig_sep_cond} illustrates this by presenting the conditional impact of the parameters. Especially, the impact of Dependency Available seems to vary depending on activation of parameter Order Aware, whereas the opposite does not hold.\footnote{See table~\ref{tab:results} for the actual values.} This observation leads to the following question: What kind of useful information with respect to semantical awareness is encoded in dependency types? Precisely, we claim that
 
+\begin{claim}
+	Dependency types encode local context information that is useful to produce semantic aware compositional representations.
+	%Useful context information is encoded in dependency types.
+\end{claim}	
 
-
+\begin{Proof}
+	\begin{enumerate}
+		\item Order Awareness as implemented within \ac{LSTM}s enable locally contextualized processing (see Section~\ref{subsec:order_aware_composition}). Thus, these models encode local context.
+		\item As explained in section \ref{subsec:eval_semantic_awareness}, semantic awareness can be measured using the relatedness prediction task. Since enabling the parameter Order Aware significantly increases the prediction performance by $+0.8\%$ ($t < 0.0001$) shows that local context information is important to determine the meaning of a word in a specific textual utterance and to handle semantic aware composition.
+		%As relatedness prediction is a general semantic task, it requires this information.
+		\item Enabling the parameter Dependency Available significantly improves the model performance by $+0.1\%$ ($t < 0.001$), in the case of disabled Order Awareness, proving that dependency types indeed encode useful information.
+		\item Since the order aware model does not perform significantly better with dependency type data ($t = 0.50$) it follows that this data does not encode extra useful information for order aware models.
+		\item This strongly suggests that dependency types indeed encode local context.
+	\end{enumerate}
+\end{Proof}
 
 \begin{figure}[htb!]
 	\centering
