@@ -15,7 +15,7 @@ Figure~\ref{fig:model_architecture} shows this architecture. In the following, w
 \end{figure}
 
 \subsubsection{Token Embeddings}
-We use 300 dimensional GloVe embeddings \todo{AB:explain why} \autocite{pennington_glove_2014} to embed individual word tokens. To evaluate the influence of dependency types, we concatenate the embedding with the one-hot encoded dependency type. The dependency type tag set is based on the Universal Dependencies project \autocite{nivre_universal_2016} and includes 40 different types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The embedding weights are not optimized during training.   
+We use 300 dimensional GloVe vectors \todo{AB:emphasize why} \autocite{pennington_glove_2014} to embed individual word tokens. To evaluate the influence of dependency types, we concatenate the embedding with the one-hot encoded dependency type. The dependency type tag set is based on the Universal Dependencies project \autocite{nivre_universal_2016} and includes 40 different types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The embedding weights are not optimized during training.   
 
 \subsubsection{Composition function}
 In this work, we compare two different settings: Using (1) \acf{AVG} or (2) \acf{LSTM} as composition function. 

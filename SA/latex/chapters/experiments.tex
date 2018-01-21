@@ -4,8 +4,9 @@ We conduct several experiments for all four settings to evaluate the influence o
 \subsection{Dataset}
 We use the SICK corpus\footnote{\url{http://alt.qcri.org/semeval2014/task1/index.php?id=data-and-tools}} \autocite{marelli_sick_2014} for model training and evaluation. The corpus consists of about approximately 10.000 pairs of English sentences based on the 8K ImageFlickr data set\footnote{\url{http://nlp.cs.illinois.edu/
 HockenmaierGroup/data.html}} \autocite{hodosh_framing_2013} and the SemEval 2012 STS MSR-Video Description data set\footnote{\url{https://www.cs.york.ac.uk/semeval-2012/task6/index.php\%3Fid=data.html}} \autocite{agirre_semeval-2012_2012} that contain sentences describing the same picture or video. These sentences were linguistically normalized, so Named Entities and complex verb constructions are replaced or subordinates are turned into coordinates, for instance. Furthermore, they are manually expanded to generate candidate pairs that were labeled by 5 annotators with one to five point relatedness ratings that are averaged to produce a relatedness score. We rescaled the scores into the interval $[0.0, 1.0]$ to let them fit into our definition of a similarity measure. Table~\ref{tab:sick_examples} shows some examples of the dataset. The mean of the score for both train and test set is approximately $0.63$. The sentences have an average length of $9.6$ words and contain $2408$ different token types.  
+
+We chose the SICK corpus because it was used in the SemEval 2014 task 1, thus it is widely studied and various reference systems exist. Furthermore, as stated in \textcite{marelli_semeval-2014_2014}, this corpus was created to evaluate semantical aware composition without relying on too many external tools and resources (e.g., named-entity recognizers, gazetteers, ontologies).
 %mean score: 0.63 * 4.0 + 1.0 = 3.53
-\todo{AB:explain why SICK}
 
 \begin{table*}[!htb]
 \centering
@@ -122,14 +123,14 @@ Finding these contradictory results\todo{AB:with respect to the applied measure?
 \end{figure}
 
 \subsubsection{Relation of Order Awareness and Dependency Types}
-The specific performance in the examined settings suggests that the parameters Dependency Available and Order Aware are related. Figure~\ref{fig:fig_sep_cond} illustrates this by presenting the conditional impact of the parameters. Especially, the impact of Dependency Available seems to vary depending on activation of parameter Order Aware, whereas the opposite does not hold.\footnote{See table~\ref{tab:results} for the actual values.} This observation leads to the following question: What kind of useful information with respect to semantical awareness is encoded in dependency types? Precisely, we claim that
+The specific performance in the examined settings suggests that the parameters Dependency Available and Order Aware are related. Figure~\ref{fig:fig_sep_cond} illustrates this by presenting the conditional impact of the parameters. Especially, the impact of Dependency Available seems to vary depending on activation of parameter Order Aware, whereas the opposite does not hold.\footnote{See table~\ref{tab:results} for the actual values.} This observation leads to the following question: What kind of useful information with respect to semantical awareness is encoded in dependency types? Precisely, we conjecture \todo{AB: better: propose/ proposition?} that:
 
-\begin{claim}
+\begin{conjecture}
 	Dependency types encode local context information that is useful to produce semantic aware compositional representations.
 	%Useful context information is encoded in dependency types.
-\end{claim}	
-
-\begin{Proof}
+\end{conjecture}	
+\todo{AB: better: reasoning?}
+\begin{rationale}
 	\begin{enumerate}
 		\item Order Awareness as implemented within \ac{LSTM}s enable locally contextualized processing (see Section~\ref{subsec:order_aware_composition}). Thus, these models encode local context.
 		\item As explained in section \ref{subsec:eval_semantic_awareness}, semantic awareness can be measured using the relatedness prediction task. Since enabling the parameter Order Aware significantly increases the prediction performance by $+0.8\%$ ($t < 0.0001$) shows that local context information is important to determine the meaning of a word in a specific textual utterance and to handle semantic aware composition.
@@ -138,7 +139,7 @@ The specific performance in the examined settings suggests that the parameters D
 		\item Since the order aware model does not perform significantly better with dependency type data ($t = 0.50$) it follows that this data does not encode extra useful information for order aware models.
 		\item This strongly suggests that dependency types indeed encode local context.
 	\end{enumerate}
-\end{Proof}
+\end{rationale}
 
 \begin{figure}[htb!]
 	\centering

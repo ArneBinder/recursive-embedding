@@ -1,9 +1,33 @@
 \section{Related work}
+Since the task of semantic aware composition is very general in nature, there is a broad research landscape on compositional distributional semantics\todo{AB: introduce CDSM in background!!}. 
+%The survey \textcite{wang_comparison_2017} attempts to identify critical components of composition models. The authors select the dimensions \textit{word representation}, \textit{kind of training data}, \textit{composition function} and \textit{objective function} to classify different kinds of systems. We loosely follow this manner to name important research related to this work.
+
+% name different word-representations? 
+
+% binary composition & lingustic motivations
+Although not explicitly focus of this work, bi-gram composition forms the basis of compositional semantics since common composition models can be encoded in means of binary composition, at least conceptional. In this manner, \textcite{zanzotto_estimating_2010} names additive and multiplicative based composition as major building blocks. Here two individual vector representations are composed by point-wise application of these functions. There are several comparative studies on this topic \autocite{mitchell_composition_2010, dima_reverse-engineering_2015}, inter alia, incorporating psycholinguistic information based on analysis of semantic priming effects or compound data. \textcite{mitchell_composition_2010} concludes that, in spite of its simplicity, additive and multiplicative composition models are promising, but after all performance depends on the source of used embeddings. % when applied to LDA based embeddings, but multiplicative composition outperforms on co-occurrence based ones. 
+%Some research rooted linguistic theory motivated research 
+Further rooted in linguistic theory, \textcite{baroni_nouns_2010, baroni_frege_2014} distinguish composition by involved word types (i.e. adjectives and nouns) and propose frameworks in which the dimensionality of conceptional token entities or the level of order of the composition functions, respectively, differs. By modeling nouns as plain vectors and adjectives as two dimensional matrices, these token entities are intuitively composable in means of modifier application incorporating ideas of Formal Semantics \autocite{montague_proper_1973}, but requiring explicit distinction of word types.
+
+Semantic relatedness detection on sentence level was chosen as first task of SemEval 2014\footnote{See \url{http://alt.qcri.org/semeval2014/task1} for further information.}. SemEval is an annual challenge intended to explore the ways natural language represents meaning. Similar to our work, the SemEval 2014 task utilizes the SICK \autocite{marelli_sick_2014} corpus to evaluate performance of composition models. \textcite{marelli_semeval-2014_2014} summarizes the various approaches of submitted models. The majority of participants exploits compositionality features on different degrees of granularity (phrase or full sentence) and in addition several hand crafted features (e.g., word overlap and similarity, syntactical, alignments, topic modeling). Furthermore, different learning approaches like Support Vector Machines \autocite{cortes_support-vector_1995} and kernel based methods, Random Forests \autocite{breiman_random_2001} or ensembles \autocite{opitz_popular_1999} are applied. For instance, the best performing system \autocite{zhao_ecnu_2014} \todo{AB:learns vector space representations using \ac{LSA} in an ensemble based manner}exploits features related to sentence length, token and dependency type overlap, several distances (e.g., jaccard, cosine, manhatten) applied to \ac{TF-IDF} and latent semantic representations, n-gram data at token and character levels, co-occurrence statistics and summed \ac{LSA} data obtained from other corpora, among others, and applies an ensemble of machine learning methods.
+The system achieving the third place \autocite{bjerva_meaning_2014} builds on Formal Semantics and logical inference. In addition, it uses summed word2vec \autocite{mikolov_distributed_2013} embeddings to produce sentence representations and calculates the cosine similarity between them for each pair, similar to our approach.
+
+Recently,
+
+\todo{AB:bi-gram composition not heavily affected by exploding-/vanishing gradient effects}
+
+
+% composition of multi-word phrases & sentences 
+% --> AVG vs LSTM (CNN?)
+% --> use of dependency grammar information
+
+% Compositional Distributional Semantic Models 
+additive \autocite{zanzotto_estimating_2010} \\
 
 %\subsection{Composition models}
 survey \autocite{wang_comparison_2017}; \\
 survey on bi-gram composition (psych. ling. mot.) \autocite{mitchell_composition_2010} (e.g. semantic priming); \\
-survey on bi-gram comp (sum, mul, RecNN) \autocite{blacoe_comparison_2012} (avg better)
+survey on bi-gram and sentence comp (sum, mul, RecNN) \autocite{blacoe_comparison_2012} (avg better)
 German compounds (bi-gram) \autocite{dima_reverse-engineering_2015}; \\
 Skip-thought \autocite{kiros_skip-thought_2015}; \\
 RecRNN w/ parse structure \autocite{socher_dynamic_2011,socher_semantic_2012,socher_recursive_2013,tai_improved_2015,wieting_paraphrase_2015}; \\ 
