@@ -292,7 +292,7 @@ where $\hat{d}$ is the $\hat{n}$-dimensional document representation.
 Despite its clear theoretical motivation SVD based\todo{UL: more accurate} VSM\todo{AB:introduce!}s have the major draw back that the decomposition algorithm has to be applied every time a document or a term is added\todo{UL:Wozu?}. \ac{SVD} is computational expensive, it has a complexity of $O((n+m)^2\hat{n}^3)$. Assuming that $T$ does not change as much as $C$, approaches arise that build upon (pre-) calculated \textit{word} or \textit{term embeddings}\todo{UL:ref}. Then, embedded terms are dynamically composed to document representations leading to \textit{composition models}\todo{UL:ref}. We will outline these concepts in the following sections.
 
 \subsubsection{Term Embeddings}
-Term embeddings, in their common sense, are distributed representations of words \autocite{bengio_neural_2003}. Similar to context embeddings, we define a term embedding as a function $f_T:T \mapsto \mathbb{R}^{\hat{m}}$, where $\hat{m} \in \mathbb{N}$ is the dimensionality of the resulting embedding vectors.
+Term embeddings, in their common sense, are distributed representations of words \autocite{bengio_neural_2003}, thus forming \acfp{DSM}\todo{AB:REF}. Similar to context embeddings, we define a term embedding as a function $f_T:T \mapsto \mathbb{R}^{\hat{m}}$, where $\hat{m} \in \mathbb{N}$ is the dimensionality of the resulting embedding vectors.
 
 The methods described in the previous section are directly applicable to produce term embeddings by defining $f_T(t_i) = M^T \cdot e_i$ where $M \in \mathbb{R}^{m \times \hat{m}}$\todo{AB:define or replace $m$} is an occurrence matrix. A common approach to produce term embeddings is to calculate $M^{ppmi}$ and apply \ac{SVD}. In analogy to $\hat{d} = S_k^{-1}U_k^Td$ (equation \eqref{eq:svd_doc}), a term embedding $\hat{t}$ of the context based term vector $t$ of term $T_i$ can be calculated as $\hat{t} = S_k^{-1}V_k^Tt$.\todo{UL:explain benefit!}
 
@@ -302,7 +302,7 @@ C_j = \{t_i|(t_i, t_j) \in R^{CO}\}
 \end{equation}
 where $R^{CO} = \{(t_i, t_j)|t_i, t_j \in T; \text{ $t_i$ and $t_j$ are successive tokens}\}$. This approach can be enhanced by relaxing the co-occurrence relation, e.g. defining $R^{CO}$ via a fixed or soft sized co-occurrence window larger than two and optionally adding distance weighting.\todo{AB:refs?}
 
-In line with \textcite{levy_improving_2015} we refer to the term embedding models presented so far as \textit{count based} models and contrast them with \textit{prediction based} models. Prediction based embedding models commonly are \ac{ANN}s whose intermediate low\footnote{with respect to the size of $T$} dimensional layer results \todo{UL:add figure} are exploited as term embeddings\todo{UL:introduce idea before "how-to"/technical explanation}. They raised attention due to recently published methods that allow efficient embedding calculation with regard to billions of tokens. The \ac{SGNS}\footnote{A \ac{SGNS} implementation was released within the word2vec framework \autocite{mikolov_efficient_2013}.} \autocite{mikolov_distributed_2013} is a popular representative \todo{UL:repr. of what?} that does not immediately\todo{UL:UNCLEAR} rely on an occurrence matrix, but trains a simple, one hidden layer \acs{ANN} with the objective to predict the context of a term, e.g. the neighbors of the tokens in a textual corpus. The core Skip-Gram idea can be formalized as:
+In line with \textcite{levy_improving_2015} we refer to the term embedding models presented so far as \textit{count based} models and contrast them with \textit{prediction based} models. Prediction based embedding models commonly are \ac{ANN}s whose intermediate low\footnote{with respect to the size of $T$} dimensional layer results \todo{UL:add figure} are exploited as term embeddings\todo{UL:introduce idea before "how-to"/technical explanation}. They raised attention due to recently published methods that allow efficient embedding calculation with regard to billions of tokens. The \ac{SGNS}\footnote{A \ac{SGNS} implementation was released within the word2vec framework \autocite{mikolov_efficient_2013}.} \autocite{mikolov_distributed_2013} is a popular candidate that does not immediately\todo{UL:UNCLEAR} rely on an occurrence matrix, but trains a simple, one hidden layer \acs{ANN} with the objective to predict the context of a term, e.g. the neighbors of the tokens in a textual corpus. The core Skip-Gram idea can be formalized as:
 \begin{equation}
 \begin{split}
 f^{SG}_T(t_i)_j & = p(c_j|t_i) \\
@@ -340,7 +340,7 @@ f_T^{GLOVE}(t_i) = f_C^{GLOVE}(c_i) = w \cdot e_i + b_i
 \end{equation}
 
 \subsubsection{Composition Models}
-Composition Models intend to produce document embeddings $\hat{d}$ from a sequence of term embeddings $\hat{s} = [\hat{t}_1, ..., \hat{t}_\kappa]$ with $\forall \hat{t} \in \hat{s}: \hat{t} = f_T(t), t \in T, \hat{t} \subseteq \mathbb{R}^{\hat{m}}$. They can be expressed recursively by:
+\acfp{CDSM} \todo{AB:REF!} intend to produce document embeddings $\hat{d}$ from a sequence of term embeddings $\hat{s} = [\hat{t}_1, ..., \hat{t}_\kappa]$ with $\forall \hat{t} \in \hat{s}: \hat{t} = f_T(t), t \in T, \hat{t} \subseteq \mathbb{R}^{\hat{m}}$. They can be expressed recursively by:
 \begin{equation}
 \begin{split}
 f_{CM}(\hat{s}) & = f_N(f_{Rec}(\hat{s}; h_I); |\hat{s}|) \quad \text{and} \\
@@ -356,7 +356,7 @@ where $f_M: \mathbb{R}^{\hat{m}} \mapsto \mathbb{R}^{\mathring{m}}$ is the term 
 In the following we distinguish \textit{order unaware} composition models from \textit{order aware} models. Both types commonly use the identity function or $(htan \circ l^{FC})$ as mapping function $f_M$. There are also hybrid approaches based on n-grams and Convolutional Neural Networks\footnote{They fit into the definition of $f_{CM}$ by relaxing $f_M$, which is, in fact, a convolution kernel of size one, to $f_{M_{cnn}}: (\mathbb{R}^{\hat{m}}, ... ,\mathbb{R}^{\hat{m}}) \mapsto \mathbb{R}^{\mathring{m}}$ and using the \textit{max} function for $f_{R_{cnn}}$ to implement max pooling, for instance.}, but these are out of scope for this work.
 
 \subsubsection*{Order unaware composition} 
-These models are known as Bag-of-Words models. They can be defined by constraining the reduction function $f_R$ to be associative\todo{AB: and commutative?!}. Common instances are \textit{summation} with:
+These models are known as Bag-of-Words models. They can be defined by constraining the reduction function $f_R$ to be associative and commutative. Common instances are \textit{summation} with:
 \begin{equation}
 f_{R_{sum}}(\mathring{t}; h) = h + \mathring{t} \quad \text{and} \quad h_{I_{sum}} = [0, ..., 0]^T \in \mathbb{R}^k, k = \mathring{m}
 \end{equation}
