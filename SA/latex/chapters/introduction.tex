@@ -17,7 +17,7 @@ However, \Textcite{misra_measuring_2016} state that averaging all word embedding
 However, these models\todo{UL:specify!} are applied to sentences, but not yet to multi-sentence arguments or paragraphs. Additionally, their\todo{UL:specify!}  approach does not use dependency edge type information such as 'nsubj' (nominal subject) or 'prep' (preposition).
 
 \subsection{Objective}
-In this work we examine what degree of semantical awareness is achievable with different existing embedding composition models of varying complexity when applied to sentences\todo{UL:clarify sentence level vs. super-sentence level mismatch}. We regard compositions of token embeddings as semantically aware if they yield a distance measure that matches human intuition. Furthermore, our goal is to provide access to the rapid implementation of different neural network topologies including \ac{RecNN} for semantically aware composition.
+In this work we examine what degree of semantical awareness is achievable with different existing embedding composition models of varying complexity when applied to sentences\todo{UL:clarify sentence level vs. super-sentence level mismatch}. We regard compositions of token embeddings as semantically aware if they yield a distance measure that matches human intuition. Furthermore, our goal is to provide access to the rapid implementation of different neural network topologies including \acp{RecNN} for semantically aware composition.
 
 \subsection{Approach}
 To achieve these goals we implement the following: (a) an averaging model, and (b) a neural sequence model. We evaluate the semantical awareness with the SICK \ac{STS} challenge \autocite{marelli_sick_2014} and compare the model performances against a \acs{TF-IDF} baseline.
