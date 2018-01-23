@@ -1,5 +1,5 @@
 \section{Experiments and Evaluation}
-We conduct several experiments for all four settings to evaluate the influence of order awareness and availability of dependency type information to the similarity prediction performance. In the following, we describe the dataset and the hyperparameter setting. Finally, we present the results and an analysis of errors.
+We conduct several experiments for all four settings to evaluate the influence of order awareness and availability of dependency type information to the similarity prediction performance. In the following, we describe the dataset and the hyperparameter setting. Finally, we present the results including a comparative analysis of errors.
 
 \subsection{Dataset}
 We use the SICK corpus\footnote{\url{http://alt.qcri.org/semeval2014/task1/index.php?id=data-and-tools}} \autocite{marelli_sick_2014} for model training and evaluation. The corpus consists of about approximately 10.000 pairs of English sentences based on the 8K ImageFlickr data set\footnote{\url{http://nlp.cs.illinois.edu/
@@ -192,7 +192,7 @@ that:
 \subsubsection{Value of Dependency Types}
 In order to further investigate the value of dependency type data for semantic aware composition we have taken a closer look at the sentence pairs in which only adding this data outperforms the setting in which parameter Order Aware is enabled exclusively. Table~\ref{tab:results_benefit_DA} lists the top 10 of these data points. Trying to examine the reasons behind cases of superior performance reveals two main classes of constructions (see column \textit{remarks} of Table~\ref{tab:results_benefit_DA}). At first, half of the top 10 sentence pairs contains passive constructions. Secondly, three sentence pairs are related to negation. 
 
-As it turns out, dependency type data is indeed beneficial to handle composition of tokens involved in passive constructions. We filtered the test data set for dependency types indicating these constructions (\textit{auxpass}: passive auxiliary; \textit{nsubjpass}: passive nominal subject; \textit{csubjpass}: passive clausal subject) and calculated \ac{MSE} scores\footnote{We used the relatedness scores predicted by the best model for each setting with respect to train/test split and run.}. Table~\ref{tab:mse_passive} and Figure~\ref{fig:fig_mse_passive} present the resulting data. The Dependency Available setting ([YES, NO]) significantly ($p < 0.0001$) outperforms the Order Aware setting ([NO, YES]) in the presence of passive constructions. Furthermore, negation seems to be hard in general. Similar to the passive check, we selected a subset of the test dataset, but filtered by dependency type \textit{neg} and words like "no" or "nobody". Despite initial thoughts, negation favors Order Awareness quite a bit as visualized in Figure~\ref{fig:fig_mse_passive}. Again, Table~\ref{tab:mse_passive} contains the specific evaluation scores.
+As it turns out, dependency type data is indeed beneficial to handle composition of tokens involved in passive constructions. We filtered the test data set for dependency types indicating these constructions (\textit{auxpass}: passive auxiliary; \textit{nsubjpass}: passive nominal subject; \textit{csubjpass}: passive clausal subject) and calculated \ac{MSE} scores\footnote{We used the relatedness scores predicted by the best model for each setting with respect to train/test split and run.}. Table~\ref{tab:mse_passive} and Figure~\ref{fig:fig_mse_passive} present the resulting data. The Dependency Available setting ([YES, NO]) significantly ($p < 0.0001$) outperforms the Order Aware setting ([NO, YES]) in the presence of passive constructions. Furthermore, negation seems to be hard in general. Similar to the passive check, we selected a subset of the test dataset, but filtered by dependency type \textit{neg} and words like "no" or "nobody". Despite initial thoughts, negation favors Order Awareness (e.g., performance drop of $-0.2\%$ for [YES, YES] vs. $-0.5\%$ for [YES, NO]) as visualized in Figure~\ref{fig:fig_mse_passive}. Again, Table~\ref{tab:mse_passive} displays the specific evaluation scores and, in addition, relative performance differences with respect to the considered data split.
 
 % pearson-correlation("('NO', 'NO') vs ('YES', 'NO') abs"; "score_jaccard") = -0.456
 % > increasing overlap -> decreasing benefit of "dependency available" 
@@ -224,16 +224,16 @@ Obviously, the benefit of dependency types decreases with increasing word overla
 
 \begin{table}[htb!]
 	\centering
-	\begin{tabularx}{\textwidth}{p{0.15\textwidth}|X|X|X|X|p{0.07\textwidth}} 
-		 test data & [NO, NO] & [NO, YES] & [YES, NO] & [YES, YES] & count \\ \hline
-		 all & 0.028 & 0.020 & 0.026 & 0.020 & 4927 \\ \hline
-		 w/o passive & 0.028 & 0.019 & 0.027 & 0.020 & 4371 \\
-		 w/ passive & 0.023 & 0.022 & 0.021 & 0.021 & 556 \\ \hline
-		 w/o negation & 0.026 & 0.019 & 0.025 & 0.019 & 3856 \\
-		 w/ negation & 0.032 & 0.021 & 0.030 & 0.021 & 1071 \\
+	\begin{tabularx}{\textwidth}{p{0.15\textwidth}|XX|XX|XX|XX|p{0.07\textwidth}} 
+		 test data & \multicolumn{2}{c}{[NO, NO]} & \multicolumn{2}{|c|}{[NO, YES]} & \multicolumn{2}{c}{[YES, NO]} & \multicolumn{2}{|c|}{[YES, YES]} & count \\ \hline
+		 all & 0.028 & & 0.020 & & 0.026 & & 0.020 & & 4927 \\ \hline
+		 w/o passive & 0.028 & & 0.019 & & 0.027 & & 0.020 & & 4371 \\
+		 w/ passive & 0.023 & $+0.5\%$ & 0.022 & $-0.3\%$ & 0.021 & $+0.6\%$ & 0.021 & $-0.1\%$ & 556 \\ \hline
+		 w/o negation & 0.026 & & 0.019 & & 0.025 & & 0.019 & & 3856 \\
+		 w/ negation & 0.032 & $-0.6\%$ & 0.021 & $-0.2\%$ & 0.030 & $-0.5\%$ & 0.021 & $-0.2\%$ & 1071 \\
 	\end{tabularx}
 	%\captionsetup{width=0.9\linewidth}
-	\caption{\ac{MSE} for selected subsets of SICK test data measured within all settings ([Dependency Available, Order Aware]).}
+	\caption{\ac{MSE} for selected subsets of SICK test data measured within all settings ([Dependency Available, Order Aware]) and relative performance gains/drops (+/-). \textit{count} represents the amount of sentence pairs in the respective subset.}
 	\label{tab:mse_passive}
 \end{table}
 
