@@ -2,7 +2,7 @@
 This chapter describes the architecture of the neural model used to calculate a similarity score for a given sentence tuple and how this model is trained.
 
 \subsection{Model architecture}
-The model consists of an embedding unit and a similarity function. The embedding unit translates a sequence of tokens into a single embedding vector and is applied to the two input sentences using identical weights, thus our system follows a siamese structure \autocite{bromley_signature_1994}. %\textcite{he_multi-perspective_2015}: "Our model has a “Siamese” structure (Bromley et al., 1993) with two subnetworks each processing a sentence in parallel. The subnetworks share all of their weights, and are joined by the similarity measurement layer, then followed by a fully connected layer for similarity score output."
+The model consists of a sentence embedding unit and a similarity function. The embedding unit translates a sequence of tokens into a single embedding vector and is applied to the two input sentences using identical weights, thus our system follows a siamese structure \autocite{bromley_signature_1994}. %\textcite{he_multi-perspective_2015}: "Our model has a “Siamese” structure (Bromley et al., 1993) with two subnetworks each processing a sentence in parallel. The subnetworks share all of their weights, and are joined by the similarity measurement layer, then followed by a fully connected layer for similarity score output."
 It calculates the sentence embedding by gathering the individual embeddings for the contained tokens, eventually enhancing them with additional information, and applying a composition function. The two resulting embeddings are fed into the similarity function that produces the similarity score. 
 
 Figure~\ref{fig:model_architecture} shows this architecture. In the following, we describe the respective modules. 
@@ -16,12 +16,12 @@ Figure~\ref{fig:model_architecture} shows this architecture. In the following, w
 \end{figure}
 
 \subsubsection{Token Embeddings}
-We use 300 dimensional GloVe vectors \todo{AB:emphasize why} \autocite{pennington_glove_2014} to embed individual word tokens. To evaluate the influence of dependency types, we concatenate the embedding with the one-hot encoded dependency type. The dependency type tag set is based on the Universal Dependencies project \autocite{nivre_universal_2016} and includes 40 different types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The embedding weights are not optimized during training.   
+We use 300 dimensional GloVe vectors \todo{AB:emphasize why glove} \autocite{pennington_glove_2014} to embed individual word tokens. To evaluate the influence of dependency types, we concatenate the embedding with the one-hot encoded dependency type. The dependency type tag set is based on the Universal Dependencies project \autocite{nivre_universal_2016} and includes 40 different types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The embedding weights are not optimized during training.   
 
 \subsubsection{Composition function}
-In this work, we compare two different settings: Using (1) \acf{AVG} or (2) \acf{LSTM} as composition function. 
+In this work, we compare two major settings: Using (1) \acf{AVG} or (2) \acf{LSTM} as composition function. 
 In the \ac{AVG} case, we apply one \acf{FC} with $tanh$ as activation function to every token embedding. Then, averaging the resulting vectors gives the sentence embedding.
-In the \ac{LSTM} setting, the token embeddings are fed directly into a LSTM layer whose output is used as sentence embedding. The two settings are visualized in Figure~\todo{AB: add figure}.
+In the \ac{LSTM} setting, the token embeddings are fed directly into a LSTM layer whose final state output is used as sentence embedding. %The two settings are visualized in Figure~\todo{AB: add figure}.
 
 To achieve comparability between the two composition functions, we control the amount of effectively trainable parameters in each of them. Depending on whether dependency parse information is used, we use different sizes for the $tanh$ \ac{FC} in the \ac{AVG} case and the inner state of the \ac{LSTM} to fix the amount of effective parameters to approximately 111000. Table~\ref{tab:sizes} shows the exact amounts and sizes of the elements. % total sizes: AVG=input*fc, LSTM=(input+state+1)*4*state 
 
