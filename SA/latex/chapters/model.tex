@@ -1,7 +1,7 @@
 \section{Model architecture and training}
 This chapter describes the architecture of the neural model used to calculate a similarity score for a given sentence tuple and how this model is trained.
 
-\subsection{Model architecture}
+\subsection{Model architecture} \label{subsec:architecture}
 The model consists of a sentence embedding unit and a similarity function. The embedding unit translates a sequence of tokens into a single embedding vector and is applied to the two input sentences using identical weights, thus our system follows a siamese structure \autocite{bromley_signature_1994}. %\textcite{he_multi-perspective_2015}: "Our model has a “Siamese” structure (Bromley et al., 1993) with two subnetworks each processing a sentence in parallel. The subnetworks share all of their weights, and are joined by the similarity measurement layer, then followed by a fully connected layer for similarity score output."
 It calculates the sentence embedding by gathering the individual embeddings for the contained tokens, eventually enhancing them with additional information, and applying a composition function. The two resulting embeddings are fed into the similarity function that produces the similarity score. 
 
