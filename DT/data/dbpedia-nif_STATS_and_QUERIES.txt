@@ -1,0 +1,217 @@
+# dbpedia-nif STATS and QUERIES
+
+# x that are Things with "derivedFrom"
+3333532
+
+# x with "derivedFrom" containing "oldid"
+2325513
+
+# x that are Things with "derivedFrom" containing "oldid"
+1813639
+
+# x that are Things with "derivedFrom" NOT containing "oldid"
+0
+
+# x containing "http://dbpedia.org/resource/" with "derivedFrom":
+1749513 
+
+# x containing "/resource/" with "derivedFrom":
+2084513
+
+
+graph = Graph('SPARQLStore', identifier="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
+graph.open("http://localhost:8890/sparql")
+pop = graph.value(URIRef("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#AnnotationUnit"), URIRef("http://www.w3.org/2000/01/rdf-schema#comment"))
+print(graph.store.queryString)
+
+http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#hasSection
+http://www.w3.org/2000/01/rdf-schema#label
+
+
+
+# add links to dbpedia resources via http://localhost:8890/sparql:
+# use INSERT to add (instead of CONSTRUCT)
+
+CONSTRUCT {
+?s <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?o2 .
+}
+where {
+?s a nif:Context
+#<http://dbpedia.org/resource/Germany?dbpv=2016-10&nif=context> ?v ?o .
+BIND(IRI(REPLACE(STR(?s), ".dbpv=2016-10&nif=context", "")) AS ?o2)
+}
+LIMIT 100
+
+## or better:
+
+CONSTRUCT {
+?s <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?o2 .
+}
+where {
+?s a nif:Context
+BIND(IRI(STRBEFORE(STR(?s), "?dbpv=2016-10&nif=context")) AS ?o2)
+}
+LIMIT 100
+
+## full INSERT query
+WITH <http://dbpedia.org/nif>
+INSERT {
+?s <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?o2 .
+}
+where {
+?s a nif:Context .
+BIND(IRI(STRBEFORE(STR(?s), "?dbpv=2016-10&nif=context")) AS ?o2) .
+}
+
+
+## lastSection
+select * where {
+#<http://dbpedia.org/resource/Abi_Tucker?dbpv=2016-10&nif=context> ?v ?o .
+?s nif:lastSection ?lastSection .
+?s a nif:Context .
+?s nif:isString ?str .
+} LIMIT 100
+
+
+## distinct count of nif:Context: 4938346
+
+
+## split strings:
+# http://docs.openlinksw.com/virtuoso/howtospliturlencodedlist/
+# http://docs.openlinksw.com/virtuoso/fn_split_and_decode/
+
+
+## "See also"s
+select ?s ?lastSectionStr ?str where {
+#<http://dbpedia.org/resource/Abi_Tucker?dbpv=2016-10&nif=context> ?v ?o .
+?s nif:lastSection ?lastSection .
+?lastSection nif:beginIndex ?beginIndex .
+?lastSection nif:endIndex ?endIndex .
+#?s a nif:Context .
+?s nif:isString ?str .
+## not empty sections
+FILTER (?endIndex - ?beginIndex > 0)
+## check endIndex in str
+FILTER (STRLEN(?str) >= ?endIndex)
+BIND(SUBSTR(STR(?str), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?lastSectionStr)
+# get "See also"s 
+FILTER (STRSTARTS(STR(?lastSectionStr), "See also"))
+} LIMIT 100
+
+
+## get links (resource to resource)
+select * where {
+?ref <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?res .
+?ref nif:superString+ ?super . 
+?super a nif:Context .
+BIND(IRI(STRBEFORE(STR(?super), "?dbpv=2016-10&nif=context")) AS ?contextRef) .
+} LIMIT 100
+
+
+## context - See also - links (with string proof) and save to file "test.tsv"
+select ?context ?linkRefContext ?seeAlsoSectionStr where {
+?context a nif:Context .
+?seeAlsoSection a nif:Section .
+?seeAlsoSection nif:superString+ ?context .
+?seeAlsoSection nif:beginIndex ?beginIndex .
+?seeAlsoSection nif:endIndex ?endIndex .
+?link nif:superString+ ?seeAlsoSection .
+?link <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?linkRef .
+?context nif:isString ?contextStr .
+FILTER (?endIndex - ?beginIndex > 0)
+FILTER (STRLEN(?contextStr) >= ?endIndex)
+BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr)
+FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also"))
+BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext)
+} LIMIT 100
+
+
+## count contexts with See also
+## RESULT: 1001417 (w/o "?context nif:lastSection ?seeAlsoSection") / 93818
+select count(distinct ?context) where {
+?context a nif:Context .
+?seeAlsoSection a nif:Section .
+?seeAlsoSection nif:superString+ ?context .
+?seeAlsoSection nif:beginIndex ?beginIndex .
+?seeAlsoSection nif:endIndex ?endIndex .
+?context nif:isString ?contextStr .
+FILTER (?endIndex - ?beginIndex > 0)
+FILTER (STRLEN(?contextStr) >= ?endIndex)
+BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr)
+FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also"))
+}
+
+## count See also links
+## RESULT: 692 ??
+select count(distinct *) where {
+?context a nif:Context .
+?seeAlsoSection a nif:Section .
+?seeAlsoSection nif:superString+ ?context .
+?seeAlsoSection nif:beginIndex ?beginIndex .
+?seeAlsoSection nif:endIndex ?endIndex .
+?link nif:superString+ ?seeAlsoSection .
+?link <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?linkRef .
+?context nif:isString ?contextStr .
+FILTER (?endIndex - ?beginIndex > 0)
+FILTER (STRLEN(?contextStr) >= ?endIndex)
+BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr)
+FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also"))
+}
+
+
+
+## FIRST SECTION
+
+## show firstSection
+select ?context ?firstSection ?firstSectionStr where {
+?context a nif:Context .
+?context nif:endIndex ?context_endIndex .
+?context nif:firstSection ?firstSection .
+?context nif:isString ?contextStr .
+?firstSection nif:beginIndex ?beginIndex .
+?firstSection nif:endIndex ?endIndex .
+FILTER (?endIndex - ?beginIndex > 0)
+FILTER (?context_endIndex >= ?endIndex)
+FILTER (?beginIndex = 0)
+BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?firstSectionStr)
+} LIMIT 100
+
+## check for multiple firstSections
+select ?context count(?firstSection) as ?c where {
+?context a nif:Context .
+?context nif:firstSection ?firstSection .
+?context nif:isString ?contextStr .
+?firstSection nif:beginIndex ?beginIndex .
+?firstSection nif:endIndex ?endIndex .
+FILTER (?endIndex - ?beginIndex > 0)
+FILTER (?beginIndex = 0)
+BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?firstSectionStr)
+} 
+GROUP BY ?context 
+ORDER BY DESC(?c)
+LIMIT 100
+
+
+## ... and get paragraphs
+select ?context ?firstSection ?paragraph ?paragraphStr ?firstSectionStr where {
+?context a nif:Context .
+?context nif:endIndex ?context_endIndex .
+?context nif:firstSection ?firstSection .
+?context nif:isString ?contextStr .
+?firstSection nif:beginIndex ?beginIndex .
+?firstSection nif:endIndex ?endIndex .
+FILTER (?endIndex - ?beginIndex > 0)
+FILTER (?context_endIndex >= ?endIndex)
+FILTER (?beginIndex = 0)
+BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?firstSectionStr)
+?paragraph a nif:Paragraph .
+?paragraph nif:superString+ ?firstSection .
+?paragraph nif:beginIndex ?para_beginIndex .
+?paragraph nif:endIndex ?para_endIndex .
+FILTER (?para_endIndex - ?para_beginIndex > 0)
+FILTER (?context_endIndex >= ?para_endIndex)
+#FILTER NOT EXISTS { ?paragraph}
+#?paragraph_2 nif:superString+ ?paragraph .
+#?paragraph_2 a nif:Paragraph .
+BIND(SUBSTR(STR(?contextStr), ?para_beginIndex + 1, ?para_endIndex - ?para_beginIndex) AS ?paragraphStr)
+} LIMIT 100
