@@ -3,7 +3,7 @@ from rdflib.store import Store
 from rdflib.plugin import get as plugin
 from rdflib.term import URIRef
 from rdflib import Namespace
-from rdflib.namespace import RDF
+from rdflib.namespace import RDF, RDFS
 
 """
 prerequisites:
@@ -47,9 +47,18 @@ if __name__ == '__main__':
     nif = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
     dbr = Namespace("http://dbpedia.org/resource/")
 
-    for i, (nif_context, _, _) in enumerate(g.triples((None, RDF.type, nif.Context))):
-        if i > 10:
-            break
-        print(nif_context)
+    #for i, (nif_context, _, _) in enumerate(g.triples((None, RDF.type, nif.Context))):
+    #    if i > 10:
+    #        break
+    #    print(nif_context)
+
+    res = g.store.query('SELECT ?c WHERE { ?c a nif:Context .} LIMIT 10')
+
+    #q = prepareQuery(
+    #    'SELECT ?c WHERE { ?c a nif:Context .} LIMIT 10',
+    #    initNs={"rdfs": RDFS, "nif": nif})
+
+    for i, row in enumerate(res):
+        print(row)
 
 
