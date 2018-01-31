@@ -10,7 +10,7 @@ prerequisites:
     set up / install:
         virtuoso docker image: 
             see https://joernhees.de/blog/2015/11/23/setting-up-a-linked-data-mirror-from-rdf-dumps-dbpedia-2015-04-freebase-wikidata-linkedgeodata-with-virtuoso-7-2-1-and-docker-optional/
-        virtuoso dboc driver (libvirtodbc0) included in libvirtodbc0_7.2_amd64.deb (e.g. from https://github.com/Dockerizing/triplestore-virtuoso7)
+        virtuoso odbc driver (libvirtodbc0) included in libvirtodbc0_7.2_amd64.deb (e.g. from https://github.com/Dockerizing/triplestore-virtuoso7)
             wget https://github.com/Dockerizing/triplestore-virtuoso7/raw/master/libvirtodbc0_7.2_amd64.deb
             sudo apt install /PATH/TO/libvirtodbc0_7.2_amd64.deb
         rdflib:
@@ -32,6 +32,9 @@ prerequisites:
     
     start virtuoso docker image (use 8gb of ram):
         docker run -it -p 8890:8890 -p 1111:1111 -v ~/virtuoso_db:/var/lib/virtuoso-opensource-7 -e "NumberOfBuffers=$((8*85000))" joernhees/virtuoso
+        
+    ATTENTION:
+        DO NOT PUT A FILE virtuoso.py IN THE SAME FOLDER!
 """
 
 if __name__ == '__main__':
