@@ -1,3 +1,5 @@
+
+from datetime import datetime
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
@@ -51,14 +53,32 @@ if __name__ == '__main__':
     #    if i > 10:
     #        break
     #    print(nif_context)
-
-    res = g.store.query('SELECT ?c WHERE { ?c a nif:Context .} LIMIT 10')
-
+    t_start = datetime.now()
+    res = g.store.query('select ?context ?linkRefContext where { \
+                        ?context a nif:Context . \
+                        ?seeAlsoSection a nif:Section . \
+                        ?seeAlsoSection nif:superString+ ?context . \
+                        ?seeAlsoSection nif:beginIndex ?beginIndex . \
+                        ?seeAlsoSection nif:endIndex ?endIndex . \
+                        ?link nif:superString+ ?seeAlsoSection . \
+                        ?link <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?linkRef . \
+                        ?context nif:isString ?contextStr . \
+                        FILTER (?endIndex - ?beginIndex > 0) \
+                        FILTER (STRLEN(?contextStr) >= ?endIndex) \
+                        BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr) \
+                        FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) \
+                        BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext) \
+                        } \
+                        LIMIT 10000 OFFSET 100000 \
+                        ')
     #q = prepareQuery(
     #    'SELECT ?c WHERE { ?c a nif:Context .} LIMIT 10',
     #    initNs={"rdfs": RDFS, "nif": nif})
-
+    print(datetime.now() - t_start)
+    t_start = datetime.now()
+    print('result count: %i' % len(res))
     for i, row in enumerate(res):
         print(row)
-
+        break
+    print(datetime.now() - t_start)
 
