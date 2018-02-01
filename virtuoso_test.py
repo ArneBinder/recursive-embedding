@@ -44,8 +44,8 @@ ITS = Namespace("http://www.w3.org/2005/11/its/rdf#")
 ns_dict = {'nif': NIF, 'dbr': DBR, 'its': ITS, 'rdf': RDF, 'rdfs': RDFS}
 
 
-def query_see_also_links(graph):
-    res = graph.store.query('select ?context ?linkRefContext where { \
+def query_see_also_links(graph, initBindings=None):
+    q_str = ('select ?context ?linkRefContext where { \
                         ?context a nif:Context . \
                         ?seeAlsoSection a nif:Section . \
                         ?seeAlsoSection nif:superString+ ?context . \
@@ -60,37 +60,41 @@ def query_see_also_links(graph):
                         FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) \
                         BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext) \
                         } \
-                        LIMIT 100 OFFSET 0 \
+                        LIMIT 1000 OFFSET 0 \
                         ')
+
+    res = graph.store.query(q_str, initNs=ns_dict, initBindings=initBindings)
     return res
 
 
-def query_first_section_structure(graph, context):
+def query_first_section_structure(graph, initBindings=None):
     q_str = (
         'construct {'
         ' ?s ?p ?o .'
-        ' ?superString nif:subString ?s .'
-        ' <'+context+'> nif:isString ?str .'
-        ' ?s nif:superOffset ?superOffset .'
+        #' ?superString nif:subString ?s .'
+        ' ?context ?context_p ?context_o .'
+        #' ?s nif:superOffset ?superOffset .'
+        #' ?s nif:superString ?superString .'
         '} '
         #'select distinct ?p '
         'where {'
-        ' <'+context+'> nif:isString ?str .'
-        ' ?s nif:referenceContext <' + context + '> .'
-        ' <'+context+'> nif:firstSection ?firstSection .'
+        ' ?context ?context_p ?context_o .'
+        ' VALUES ?context_p {nif:beginIndex nif:endIndex rdf:type nif:isString } .'
+        ' ?s nif:referenceContext ?context .'
+        ' ?context nif:firstSection ?firstSection .'
         ' ?firstSection nif:beginIndex 0 .'
         ' ?s nif:superString* ?firstSection .'
         ' ?s ?p ?o .'
         ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString its:taIdentRef rdf:type} .'
-        ' ?s nif:superString ?superString .'
-        ' ?superString nif:beginIndex ?superOffset .'
+        #' ?s nif:superString ?superString .'
+        #' ?superString nif:beginIndex ?superOffset .'
         #' ?s its:taIdentRef ?ref .'
         #' ?s ?p2 ?oo2 .'
         
         #' FILTER (?p != nif:referenceContext)'
         '}')
     print(q_str)
-    res = graph.store.query(q_str, initNs=ns_dict)
+    res = graph.store.query(q_str, initNs=ns_dict, initBindings=initBindings)
     print(type(res))
     return res
 
@@ -110,7 +114,7 @@ if __name__ == '__main__':
     t_start = datetime.now()
     #res = query_see_also_links(g)
     #res = query_first_section_structrue(g, "http://dbpedia.org/resource/8th_Canadian_Hussars_(Princess_Louise's)?dbpv=2016-10&nif=context")
-    res = query_first_section_structure(g, "http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")
+    res = query_first_section_structure(g, {'context': URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")})
     print('exec query: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
     g_structure = Graph()
@@ -130,11 +134,11 @@ if __name__ == '__main__':
     print('children (ordered by ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)):')
     #for s, p, o in g_structure.triples((None, NIF.subString, None)):
     #    print(s, o)
-    for row in g_structure.query('SELECT DISTINCT ?s ?child WHERE {?s a nif:Section . ?s nif:beginIndex ?beginIndex . ?s nif:endIndex ?endIndex . ?s nif:subString ?child . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)', initNs=ns_dict):
+    for row in g_structure.query('SELECT DISTINCT ?s ?child ?type WHERE {?s a ?type . VALUES ?type {nif:Section nif:Context} . ?s nif:beginIndex ?beginIndex . ?s nif:endIndex ?endIndex . ?child nif:superString ?s . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)', initNs=ns_dict):
         print(row)
 
     print('terminals (ordered by ?beginIndex DESC(?endIndex)):')
-    for row in g_structure.query('SELECT DISTINCT ?terminal ?beginIndex ?endIndex ?type WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal nif:superOffset ?superOffset . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)', initNs=ns_dict):
+    for row in g_structure.query('SELECT DISTINCT ?terminal ?beginIndex ?endIndex ?type WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)', initNs=ns_dict):
         #pprint.pprint(row)
         print(row)
 
