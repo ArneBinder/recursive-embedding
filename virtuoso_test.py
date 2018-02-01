@@ -1,4 +1,4 @@
-
+import pprint
 from datetime import datetime
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
@@ -38,23 +38,14 @@ prerequisites:
     ATTENTION:
         DO NOT PUT A FILE virtuoso.py IN THE SAME FOLDER!
 """
+NIF = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
+DBR = Namespace("http://dbpedia.org/resource/")
+ITS = Namespace("http://www.w3.org/2005/11/its/rdf#")
+ns_dict = {'nif': NIF, 'dbr': DBR, 'its': ITS, 'rdf': RDF, 'rdfs': RDFS}
 
-if __name__ == '__main__':
-    print('set up connection ...')
-    Virtuoso = plugin("Virtuoso", Store)
-    store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
-    default_graph_uri = "http://dbpedia.org/nif"
-    g = Graph(store, identifier=URIRef(default_graph_uri))
-    print('connected')
-    nif = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
-    dbr = Namespace("http://dbpedia.org/resource/")
 
-    #for i, (nif_context, _, _) in enumerate(g.triples((None, RDF.type, nif.Context))):
-    #    if i > 10:
-    #        break
-    #    print(nif_context)
-    t_start = datetime.now()
-    res = g.store.query('select ?context ?linkRefContext where { \
+def query_see_also_links(graph):
+    res = graph.store.query('select ?context ?linkRefContext where { \
                         ?context a nif:Context . \
                         ?seeAlsoSection a nif:Section . \
                         ?seeAlsoSection nif:superString+ ?context . \
@@ -69,16 +60,92 @@ if __name__ == '__main__':
                         FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) \
                         BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext) \
                         } \
-                        LIMIT 10000 OFFSET 100000 \
+                        LIMIT 100 OFFSET 0 \
                         ')
+    return res
+
+
+def query_first_section_structure(graph, context):
+    q_str = (
+        'construct {'
+        ' ?s ?p ?o .'
+        ' ?superString nif:subString ?s .'
+        ' <'+context+'> nif:isString ?str .'
+        ' ?s nif:superOffset ?superOffset .'
+        '} '
+        #'select distinct ?p '
+        'where {'
+        ' <'+context+'> nif:isString ?str .'
+        ' ?s nif:referenceContext <' + context + '> .'
+        ' <'+context+'> nif:firstSection ?firstSection .'
+        ' ?firstSection nif:beginIndex 0 .'
+        ' ?s nif:superString* ?firstSection .'
+        ' ?s ?p ?o .'
+        ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString its:taIdentRef rdf:type} .'
+        ' ?s nif:superString ?superString .'
+        ' ?superString nif:beginIndex ?superOffset .'
+        #' ?s its:taIdentRef ?ref .'
+        #' ?s ?p2 ?oo2 .'
+        
+        #' FILTER (?p != nif:referenceContext)'
+        '}')
+    print(q_str)
+    res = graph.store.query(q_str, initNs=ns_dict)
+    print(type(res))
+    return res
+
+
+if __name__ == '__main__':
+    print('set up connection ...')
+    Virtuoso = plugin("Virtuoso", Store)
+    store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+    default_graph_uri = "http://dbpedia.org/nif"
+    g = Graph(store, identifier=URIRef(default_graph_uri))
+    print('connected')
+
+    #for i, (nif_context, _, _) in enumerate(g.triples((None, RDF.type, nif.Context))):
+    #    if i > 10:
+    #        break
+    #    print(nif_context)
+    t_start = datetime.now()
+    #res = query_see_also_links(g)
+    #res = query_first_section_structrue(g, "http://dbpedia.org/resource/8th_Canadian_Hussars_(Princess_Louise's)?dbpv=2016-10&nif=context")
+    res = query_first_section_structure(g, "http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")
+    print('exec query: %s' % str(datetime.now() - t_start))
+    t_start = datetime.now()
+    g_structure = Graph()
+    for r in res:
+        g_structure.add(r)
+    #g_structure.addN(res)
+    #query_first_section_structrue(g, "http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context"))
     #q = prepareQuery(
     #    'SELECT ?c WHERE { ?c a nif:Context .} LIMIT 10',
     #    initNs={"rdfs": RDFS, "nif": nif})
-    print(datetime.now() - t_start)
+    print('new graph: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
     print('result count: %i' % len(res))
     for i, row in enumerate(res):
         print(row)
-        break
-    print(datetime.now() - t_start)
 
+    print('children (ordered by ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)):')
+    #for s, p, o in g_structure.triples((None, NIF.subString, None)):
+    #    print(s, o)
+    for row in g_structure.query('SELECT DISTINCT ?s ?child WHERE {?s a nif:Section . ?s nif:beginIndex ?beginIndex . ?s nif:endIndex ?endIndex . ?s nif:subString ?child . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)', initNs=ns_dict):
+        print(row)
+
+    print('terminals (ordered by ?beginIndex DESC(?endIndex)):')
+    for row in g_structure.query('SELECT DISTINCT ?terminal ?beginIndex ?endIndex ?type WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal nif:superOffset ?superOffset . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)', initNs=ns_dict):
+        #pprint.pprint(row)
+        print(row)
+
+    print('refs:')
+    #for s, p, o in g_structure.triples((None, ITS.taIdentRef, None)):
+    #    print(s, o)
+    for row in g_structure.query('SELECT DISTINCT ?superString ?targetContext ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref its:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . BIND(URI(CONCAT(STR(?target), "?dbpv=2016-10&nif=context")) as ?targetContext)}', initNs=ns_dict):
+        print(row)
+
+    print('str:')
+    for s, p, o in g_structure.triples((None, NIF.isString, None)):
+        print(s, o)
+
+    print('print result: %s' % str(datetime.now() - t_start))
