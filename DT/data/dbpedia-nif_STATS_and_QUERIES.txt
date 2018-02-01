@@ -18,6 +18,8 @@
 # x containing "/resource/" with "derivedFrom":
 2084513
 
+distinct isString's: 	4935970
+distinct context's:		4938346
 
 graph = Graph('SPARQLStore', identifier="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
 graph.open("http://localhost:8890/sparql")
