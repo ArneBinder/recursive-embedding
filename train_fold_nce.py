@@ -219,7 +219,7 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
                 continue
 
             seq_tree = sequence_node_pb2.SequenceNode()
-            sequence_trees.build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
+            build_sequence_tree(seq_data, children, idx, seq_tree, max_depth)
             seq_tree_ = td.proto_tools.serialized_message_to_tree('recursive_dependency_embedding.SequenceNode',
                                                             seq_tree.SerializeToString())
             seq_tree_seq = {'trees': [seq_tree_]}
@@ -230,6 +230,26 @@ def iterator_sequence_trees_cbot(corpus_path, max_depth, seq_data, children, sam
                 seq_tree_seq['trees'].append(seq_tree_new_)
 
             yield seq_tree_seq
+
+
+# Build a sequence_tree from a data and a parents sequence.
+# All roots are children of a headless node.
+def build_sequence_tree(seq_data, children, root, seq_tree=None, max_depth=9999):
+    # assume, all parents are inside this array!
+
+    """Recursively build a tree of SequenceNode_s"""
+
+    def build(seq_node, pos, max_depth):
+        seq_node.head = seq_data[pos]
+        if pos in children and max_depth > 0:
+            for child_offset in children[pos]:
+                build(seq_node.children.add(), pos + child_offset, max_depth - 1)
+
+    if seq_tree is None:
+        seq_tree = sequence_node_pb2.SequenceNode()
+    build(seq_tree, root, max_depth)
+
+    return seq_tree
 
 
 # unused

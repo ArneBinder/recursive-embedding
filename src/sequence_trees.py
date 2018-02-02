@@ -5,9 +5,9 @@ import os
 import pydot
 
 # import preprocessing
-import sequence_node_candidates_pb2
-import sequence_node_pb2
-import sequence_node_sequence_pb2
+#import sequence_node_candidates_pb2
+#import sequence_node_pb2
+#import sequence_node_sequence_pb2
 
 import constants
 
@@ -228,70 +228,6 @@ def calc_depth(children, parents, depth, start):
         depth[start] = 0
 
 
-# Build a sequence_tree from a data and a parents sequence.
-# All roots are children of a headless node.
-def build_sequence_tree(seq_data, children, root, seq_tree=None, max_depth=9999):
-    # assume, all parents are inside this array!
-
-    """Recursively build a tree of SequenceNode_s"""
-
-    def build(seq_node, pos, max_depth):
-        seq_node.head = seq_data[pos]
-        if pos in children and max_depth > 0:
-            for child_offset in children[pos]:
-                build(seq_node.children.add(), pos + child_offset, max_depth - 1)
-
-    if seq_tree is None:
-        seq_tree = sequence_node_pb2.SequenceNode()
-    build(seq_tree, root, max_depth)
-
-    return seq_tree
-
-
-# unused
-def build_sequence_tree_flat(seq_data, children, root, seq_tree, max_depth=9999):
-    # assume, all parents are inside this array!
-
-    """Recursively build a tree of SequenceNode_s"""
-
-    def build(seq_node, pos, max_depth):
-        seq_node.head = seq_data[pos]
-        if max_depth > 0:
-            for child_offset in get_children(children, pos):
-                build(seq_node.children.add(), pos + child_offset, max_depth - 1)
-
-    if seq_tree is None:
-        seq_tree = sequence_node_pb2.SequenceNode()
-    build(seq_tree, root, max_depth)
-
-    return seq_tree
-
-
-# unused
-def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count, all_depths_collected):
-    idx = child_tuple[0]
-    idx_child = child_tuple[0] + child_tuple[1]
-    path_len = child_tuple[2]
-
-    max_candidate_depth = max_depth - path_len
-    seq_tree_seq = sequence_node_sequence_pb2.SequenceNodeSequence()
-    # seq_tree_seq.idx_correct = 0
-
-    # add correct tree
-    build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
-                                       candidate_idx=idx_child, max_depth=max_depth,
-                                       max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
-    # add samples
-    for _ in range(sample_count):
-        candidate_idx = np.random.choice(all_depths_collected[max_candidate_depth])
-        build_sequence_tree_with_candidate(seq_data=seq_data, children=children, root=idx, insert_idx=idx_child,
-                                           candidate_idx=candidate_idx, max_depth=max_depth,
-                                           max_candidate_depth=max_candidate_depth, seq_tree=seq_tree_seq.trees.add())
-    # pp.pprint(seq_tree_seq)
-    # print('')
-    return seq_tree_seq
-
-
 def build_sequence_tree_dict(seq_data, children, root, max_depth=9999):
     # assume, all parents are inside this array!
 
@@ -305,64 +241,6 @@ def build_sequence_tree_dict(seq_data, children, root, max_depth=9999):
         return seq_node
 
     return build(root, max_depth)
-
-
-# unused
-def build_sequence_tree_with_candidate(seq_data, children, root, insert_idx, candidate_idx, max_depth,
-                                       max_candidate_depth, seq_tree=None):
-    """Recursively build a tree of SequenceNode_s"""
-
-    def build(seq_node, pos, max_depth, inserted):
-        seq_node.head = seq_data[pos]
-        if pos in children and max_depth > 0:
-            for child_offset in children[pos]:
-                if pos + child_offset == insert_idx and not inserted:
-                    build(seq_node.children.add(), candidate_idx, max_candidate_depth, True)
-                else:
-                    build(seq_node.children.add(), pos + child_offset, max_depth - 1, inserted)
-
-    if seq_tree is None:
-        seq_tree = sequence_node_pb2.SequenceNode()
-
-    build(seq_tree, root, max_depth, False)
-    return seq_tree
-
-
-# unused
-def build_sequence_tree_with_candidates(seq_data, parents, children, root, insert_idx, candidate_indices, seq_tree=None,
-                                        max_depth=999):
-    # assume, all parents and candidate_indices are inside this array!
-
-    # create path from insert_idx to root
-    candidate_path = [insert_idx]
-    candidate_parent = insert_idx + parents[insert_idx]
-    while candidate_parent != root:
-        candidate_path.append(candidate_parent)
-        candidate_parent = candidate_parent + parents[candidate_parent]
-
-    """Recursively build a tree of SequenceNode_s"""
-
-    def build(seq_node, pos, max_depth):
-        if pos == insert_idx and len(candidate_path) == 0:
-            for candidate_idx in [pos] + candidate_indices:
-                build_sequence_tree(seq_data, children, candidate_idx, seq_node.candidates.add(), max_depth - 1)
-        else:
-            seq_node.head = seq_data[pos]
-            if pos in children and max_depth > 0:
-                candidate_child = candidate_path.pop()
-                for child_offset in children[pos]:
-                    if candidate_child == pos + child_offset:
-                        x = seq_node.children_candidate
-                        build(x, pos + child_offset, max_depth - 1)
-                    else:
-                        build_sequence_tree(seq_data, children, pos + child_offset, seq_node.children.add(),
-                                            max_depth - 1)
-
-    if seq_tree is None:
-        seq_tree = sequence_node_candidates_pb2.SequenceNodeCandidates()
-    build(seq_tree, root, max_depth)
-
-    return seq_tree
 
 
 def build_sequence_tree_dict_from_parse(seq_graph, max_depth=9999):
