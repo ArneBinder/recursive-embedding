@@ -3,9 +3,9 @@ import os
 import re
 
 import matplotlib.pyplot as plt
-import pydot
+#import pydot
 import svgutils.transform as sg
-from PIL import Image
+#from PIL import Image
 
 import constants
 import sequence_trees

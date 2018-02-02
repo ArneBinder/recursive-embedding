@@ -1,0 +1,22 @@
+spacy>=2.0.0
+pprint
+six
+
+# corpus creation
+rdflib
+
+# embedding_api
+sklearn
+ast
+flask
+flask_cors
+
+# visualization
+svgutils
+
+# misc
+tqdm
+
+# from python:
+# csv json itertools functools errno math copy logging fnmatch os ntpath re random sys time math multiprocessing datetime
+
