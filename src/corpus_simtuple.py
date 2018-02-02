@@ -9,15 +9,15 @@ from functools import partial
 import numpy as np
 import spacy
 import tensorflow as tf
-import tensorflow_fold as td
+#import tensorflow_fold as td
 
 import constants
 import corpus
 import lexicon as lex
 import preprocessing
-import scored_tree_pb2
+#import scored_tree_pb2
 import sequence_trees as sequ_trees
-import similarity_tree_tuple_pb2
+#import similarity_tree_tuple_pb2
 import mytools
 
 #PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
@@ -25,9 +25,9 @@ import mytools
 # Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
 import visualize
 
-td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
-td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
-td.proto_tools.import_proto_file('scored_tree.proto')
+#td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
+#td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
+#td.proto_tools.import_proto_file('scored_tree.proto')
 
 tf.flags.DEFINE_string('corpora_source_root',
                        '/home/arne/devel/ML/data/corpora',
@@ -421,6 +421,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         np.array(all_samples).dump('%s.idx.negs%i' % (out_path, FLAGS.sample_count))
 
 
+# unused
 def iterate_sim_tuple_data(paths):
     count = 0
     for path in paths:
@@ -431,6 +432,7 @@ def iterate_sim_tuple_data(paths):
             count += 1
 
 
+# unused
 def iterate_scored_tree_data(paths):
     for path in paths:
         for v in tf.python_io.tf_record_iterator(path):
@@ -439,6 +441,7 @@ def iterate_scored_tree_data(paths):
             yield res
 
 
+# used by corpus_hasan.py
 def write_sim_tuple_data(out_fn, sim_tuples, data, children):
     """
     Write sim_tuple(s) to file.
@@ -466,6 +469,7 @@ def write_sim_tuple_data(out_fn, sim_tuples, data, children):
             record_output.write(sim_tree_tuple.SerializeToString())
 
 
+# unused
 def write_sim_tuple_data_single(out_fn, sim_tuples, data, children):
     """
     Write sim_tuple(s) to file.
