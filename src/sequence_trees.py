@@ -110,6 +110,7 @@ def get_descendant_indices_flat(children, root):
     return leafs
 
 
+# unused
 def calc_depths_and_child_indices(x):  # (out_path, offset, max_depth)):
     (parents, max_depth, child_idx_offset) = x
     # parents = np.load(out_path + '.parent.batch' + str(offset))
@@ -131,6 +132,7 @@ def calc_depths_and_child_indices(x):  # (out_path, offset, max_depth)):
     return depth, np.array(idx_tuples)
 
 
+# unused
 def calc_seq_depth(children, roots, seq_parents):
     # ATTENTION: int16 restricts the max sentence count per tree to 32767
     depth = -np.ones(len(seq_parents), dtype=np.int16)
@@ -184,6 +186,7 @@ def calc_depth_rec(children, depth, idx):
         depth[idx] = max_depth + 1
 
 
+# unused
 def calc_depth(children, parents, depth, start):
     idx = start
     children_idx = list()
@@ -245,6 +248,7 @@ def build_sequence_tree(seq_data, children, root, seq_tree=None, max_depth=9999)
     return seq_tree
 
 
+# unused
 def build_sequence_tree_flat(seq_data, children, root, seq_tree, max_depth=9999):
     # assume, all parents are inside this array!
 
@@ -263,6 +267,7 @@ def build_sequence_tree_flat(seq_data, children, root, seq_tree, max_depth=9999)
     return seq_tree
 
 
+# unused
 def create_seq_tree_seq(child_tuple, seq_data, children, max_depth, sample_count, all_depths_collected):
     idx = child_tuple[0]
     idx_child = child_tuple[0] + child_tuple[1]
@@ -302,6 +307,7 @@ def build_sequence_tree_dict(seq_data, children, root, max_depth=9999):
     return build(root, max_depth)
 
 
+# unused
 def build_sequence_tree_with_candidate(seq_data, children, root, insert_idx, candidate_idx, max_depth,
                                        max_candidate_depth, seq_tree=None):
     """Recursively build a tree of SequenceNode_s"""
@@ -322,6 +328,7 @@ def build_sequence_tree_with_candidate(seq_data, children, root, insert_idx, can
     return seq_tree
 
 
+# unused
 def build_sequence_tree_with_candidates(seq_data, parents, children, root, insert_idx, candidate_indices, seq_tree=None,
                                         max_depth=999):
     # assume, all parents and candidate_indices are inside this array!
