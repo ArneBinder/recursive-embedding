@@ -300,7 +300,8 @@ def _compare_tree_dicts(tree1, tree2):
 
 
 def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, root_type="http://dbpedia.org/resource",
-                                    anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"):
+                                    anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
+                                    terminal_types=None):
     """
     Constructs a tree from triples.
     :param sorted_parent_triples: list of triples (uri, uri_type, uri_parent)
@@ -312,24 +313,34 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
                         root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
     :return: the tree as Forest object and position mappings ({str(uri): offset})
     """
+    if terminal_types is None:
+        terminal_types = [u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph',
+                          u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title']
+    ids_terminal_types = [lexicon[unicode(terminal_type)] for terminal_type in terminal_types]
     id_root_type = lexicon[unicode(root_type)]
     id_root_id = lexicon[unicode(root_id)]
     id_anchor_type = lexicon[unicode(anchor_type)]
     temp_data = [id_root_type, id_root_id, id_anchor_type]
     temp_parents = [0, -1, -2]
     positions = {}
+    parent_uris = {}
+    terminal_types = []
 
     for uri, uri_type, uri_parent in sorted_parent_triples:
-        id_uri_type = lexicon[unicode(uri_type)]
-
         if len(temp_data) == 3:
             positions[unicode(uri_parent)] = len(temp_data) - 1
+        parent_uris[unicode(uri)] = unicode(uri_parent)
         positions[unicode(uri)] = len(temp_data)
-        temp_data.append(id_uri_type)
-        temp_parents.append(positions[unicode(uri_parent)] - len(temp_parents))
+        uri_type_str = unicode(uri_type)
+        id_uri_type = lexicon[uri_type_str]
+        if id_uri_type in ids_terminal_types:
+            terminal_types.append(uri_type_str)
+        else:
+            temp_data.append(id_uri_type)
+            temp_parents.append(positions[unicode(uri_parent)] - len(temp_parents))
         #positions[unicode(uri)] = len(temp_data)
 
-    return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), positions
+    return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), positions, terminal_types, parent_uris
 
 
 class Forest(object):

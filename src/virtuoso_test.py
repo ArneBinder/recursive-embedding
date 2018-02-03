@@ -53,7 +53,7 @@ ITS = Namespace("http://www.w3.org/2005/11/its/rdf#")
 ns_dict = {'nif': NIF, 'dbr': DBR, 'its': ITS, 'rdf': RDF, 'rdfs': RDFS}
 
 logger = logging.getLogger('corpus_dbpedia_nif')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
 
@@ -114,7 +114,7 @@ def query_first_section_structure(graph, initBindings=None):
 
 def create_context_tree(nlp, lexicon, children_typed, terminals, context):
     t_start = datetime.now()
-    tree_context, positions = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
+    tree_context, positions, terminal_types, parent_uris = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
     logger.info('created forest_struct: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
 
@@ -124,9 +124,9 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context):
         for s in terminal_strings:
             yield s
 
-    # TODO: FIX THIS! but terminal TYPES, not their uris
+
     def reader_roots():
-        for s in terminal_uri_strings:
+        for s in terminal_types:
             yield s
 
     logger.info('parse data ...')
@@ -140,7 +140,8 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context):
     # link terminal roots to (virtual) parents
     for i, root in enumerate(forest_terminals.roots):
         uri_string = terminal_uri_strings[i]
-        uri_pos = positions[uri_string]
+        parent_uri = parent_uris[uri_string]
+        uri_pos = positions[parent_uri]
         forest_terminals.parents[root] = uri_pos - (len(tree_context) + root)
 
     # append to tree_context
