@@ -2,8 +2,8 @@ import copy
 import os
 import re
 
-import matplotlib.pyplot as plt
-#import pydot
+#import matplotlib.pyplot as plt
+import pydot
 import svgutils.transform as sg
 #from PIL import Image
 
@@ -175,24 +175,24 @@ def visualize_list(sequence_graph_list, lexicon, file_name=TEMP_FN):
 
 
 # deprecated
-def concat_visualizations(file_name, count):
-    file_names = [file_name + '.' + str(i) for i in range(count)]
-    images = map(Image.open, file_names)
-    widths, heights = zip(*(i.size for i in images))
-
-    max_width = max(widths)
-    total_height = sum(heights)
-
-    new_im = Image.new('RGB', (max_width, total_height), color='white')
-
-    y_offset = 0
-    for im in images:
-        new_im.paste(im, (0, y_offset))
-        y_offset += im.size[1]
-
-    new_im.save(file_name)
-    for fn in file_names:
-        os.remove(fn)
+#def concat_visualizations(file_name, count):
+#    file_names = [file_name + '.' + str(i) for i in range(count)]
+#    images = map(Image.open, file_names)
+#    widths, heights = zip(*(i.size for i in images))
+#
+#    max_width = max(widths)
+#    total_height = sum(heights)
+#
+#    new_im = Image.new('RGB', (max_width, total_height), color='white')
+#
+#    y_offset = 0
+#    for im in images:
+#        new_im.paste(im, (0, y_offset))
+#        y_offset += im.size[1]
+#
+#    new_im.save(file_name)
+#    for fn in file_names:
+#        os.remove(fn)
 
 
 def concat_visualizations_svg(file_name, count):
@@ -223,13 +223,13 @@ def concat_visualizations_svg(file_name, count):
 
 
 # deprecated
-def unfold_and_plot(data, width):
-    t = data.squeeze().data
-    print(len(t))
-    #unfolded = t.unfold(0,net.edge_count, net.edge_count).numpy()
-    unfolded = t.numpy().reshape((len(t)/width, width))
-    print(unfolded)
-    plt.imshow(unfolded, aspect='auto', interpolation='none')
+#def unfold_and_plot(data, width):
+#    t = data.squeeze().data
+#    print(len(t))
+#    #unfolded = t.unfold(0,net.edge_count, net.edge_count).numpy()
+#    unfolded = t.numpy().reshape((len(t)/width, width))
+#    print(unfolded)
+#    plt.imshow(unfolded, aspect='auto', interpolation='none')
 
 
 # deprecated

@@ -40,7 +40,7 @@ def convert_texts(in_filename, out_filename, init_dict_filename, sentence_proces
             or not os.path.isfile(out_filename + '.count'):
         if not parser:
             logging.info('load spacy ...')
-            parser = spacy.load('en')
+            parser = spacy.load('en_core_web_md')
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         # get vecs and types and save it at out_filename
         if init_dict_filename:
@@ -69,7 +69,7 @@ def convert_texts(in_filename, out_filename, init_dict_filename, sentence_proces
             or not os.path.isfile(out_filename + '.lex_size'):
         if not parser:
             logging.info('load spacy ...')
-            parser = spacy.load('en')
+            parser = spacy.load('en_core_web_md')
             parser.pipeline = [parser.tagger, parser.entity, parser.parser]
         vecs, types = lex.create_or_read_dict(out_filename, parser.vocab)
         # sort and filter vecs/mappings by counts

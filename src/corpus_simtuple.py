@@ -254,7 +254,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
 
     if (not corpus.exist(out_path) and not os.path.isfile(out_path + '.score')) or overwrite:
         logging.info('load spacy ...')
-        nlp = spacy.load('en')
+        nlp = spacy.load('en_core_web_md')
         nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
         lexicon = lex.Lexicon(nlp_vocab=nlp.vocab)
