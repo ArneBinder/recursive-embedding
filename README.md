@@ -1,3 +1,5 @@
+# THIS IS OUTDATED
+
 # recursive-dependency-embedding
 
 Train embeddings for syntactic dependency edges. This enables recursive calculation of sentence embeddings with regard to syntactic dependency parses.
