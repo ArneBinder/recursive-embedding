@@ -312,37 +312,32 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
                         root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
     :return: the tree as Forest object and position mappings ({str(uri): offset})
     """
-    id_root_type = lexicon[str(root_type)]
-    id_root_id = lexicon[str(root_id)]
-    id_anchor_type = lexicon[str(anchor_type)]
+    id_root_type = lexicon[unicode(root_type)]
+    id_root_id = lexicon[unicode(root_id)]
+    id_anchor_type = lexicon[unicode(anchor_type)]
     temp_data = [id_root_type, id_root_id, id_anchor_type]
     temp_parents = [0, -1, -2]
     positions = {}
 
     for uri, uri_type, uri_parent in sorted_parent_triples:
-        id_uri_type = lexicon[str(uri_type)]
+        id_uri_type = lexicon[unicode(uri_type)]
 
         if len(temp_data) == 3:
-            positions[str(uri_parent)] = len(temp_data)
+            positions[unicode(uri_parent)] = len(temp_data)
         temp_data.append(id_uri_type)
-        temp_parents.append(positions[str(uri_parent)] - len(temp_data))
-        positions[str(uri)] = len(temp_data)
+        temp_parents.append(positions[unicode(uri_parent)] - len(temp_data))
+        positions[unicode(uri)] = len(temp_data)
 
     return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), positions
 
 
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None):
+        self.reset_cache_values()
         self._lexicon = None
         if lexicon is not None:
             self._lexicon = lexicon
-        self._children = None
-        self._roots = None
-        self._depths = None
-        self._depths_collected = None
-        self._dicts = {}
         self._filename = filename
-        self._id_positions = {}
         if filename is not None:
             if exist(filename):
                 self.set_forest(*load(filename))
@@ -375,6 +370,13 @@ class Forest(object):
                 'Not enouth arguments to instantiate SequenceTrees object. Please provide a filename or data and parent arrays.')
         #self._sorted = np.zeros(len(self), dtype=bool)
 
+    def reset_cache_values(self):
+        self._children = None
+        self._roots = None
+        self._depths = None
+        self._depths_collected = None
+        self._dicts = {}
+
     def set_forest(self, data, parents):
         # return np.concatenate((data, parents)).reshape(2, len(data))
         self._forest = np.empty(shape=(2, len(data)), dtype=data.dtype)
@@ -387,11 +389,8 @@ class Forest(object):
 
     def reload(self):
         assert self._filename is not None, 'no filename set'
+        self.reset_cache_values()
         self.set_forest(*load(self._filename))
-        self._depths = None
-        self._depths_collected = None
-        self._children = None
-        self._roots = None
 
     # deprecated
     def write_tuple_idx_data(self, sizes, factor=1, out_path_prefix='', root_scores=None, root_index_converter=None):
@@ -563,6 +562,13 @@ class Forest(object):
             else:
                 break
         return result
+
+    def append(self, other):
+        assert self.lexicon == other.lexicon or other.lexicon is None, 'can not append forest with other lexicon'
+        assert self.forest.dtype == other.forest.dtype, 'dtype of other Forest is different, convert before appending it.'
+        self.reset_cache_values()
+        self.set_forest(data=np.concatenate([self.data, other.data]),
+                        parents=np.concatenate([self.parents, other.parents]))
 
     def visualize(self, filename):
         assert self.lexicon is not None, 'lexicon is not set'
