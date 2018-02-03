@@ -7,6 +7,9 @@ from rdflib.term import URIRef
 from rdflib import Namespace
 from rdflib.namespace import RDF, RDFS
 
+from lexicon import Lexicon
+from sequence_trees import Forest, tree_from_sorted_parent_triples
+
 """
 prerequisites:
     set up / install:
@@ -114,7 +117,8 @@ if __name__ == '__main__':
     t_start = datetime.now()
     #res = query_see_also_links(g)
     #res = query_first_section_structrue(g, "http://dbpedia.org/resource/8th_Canadian_Hussars_(Princess_Louise's)?dbpv=2016-10&nif=context")
-    res = query_first_section_structure(g, {'context': URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")})
+    context = URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")
+    res = query_first_section_structure(g, {'context': context})
     print('exec query: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
     g_structure = Graph()
@@ -131,10 +135,15 @@ if __name__ == '__main__':
     for i, row in enumerate(res):
         print(row)
 
-    print('children (ordered by ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)):')
+    print('children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
     #for s, p, o in g_structure.triples((None, NIF.subString, None)):
     #    print(s, o)
-    for row in g_structure.query('SELECT DISTINCT ?s ?child ?type WHERE {?s a ?type . VALUES ?type {nif:Section nif:Context} . ?s nif:beginIndex ?beginIndex . ?s nif:endIndex ?endIndex . ?child nif:superString ?s . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)', initNs=ns_dict):
+    #children_typed = g_structure.query('SELECT DISTINCT ?s ?child ?type WHERE {?s a ?type . VALUES ?type {nif:Section nif:Context} . ?s nif:beginIndex ?beginIndex . ?s nif:endIndex ?endIndex . ?child nif:superString ?s . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)', initNs=ns_dict)
+    children_typed = g_structure.query(
+        'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
+        initNs=ns_dict)
+
+    for row in children_typed:
         print(row)
 
     print('terminals (ordered by ?beginIndex DESC(?endIndex)):')
@@ -153,3 +162,10 @@ if __name__ == '__main__':
         print(s, o)
 
     print('print result: %s' % str(datetime.now() - t_start))
+
+    # create empty lexicon
+    lexicon = Lexicon(types=[])
+    print(len(lexicon))
+
+    forest_struct, positions = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
+    forest_struct.visualize('tmp.svg')

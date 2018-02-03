@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 import numpy as np
 import logging
 import os
@@ -10,6 +11,8 @@ import pydot
 #import sequence_node_sequence_pb2
 
 import constants
+
+DTYPE_FOREST = np.int64
 
 
 def load(fn):
@@ -296,6 +299,38 @@ def _compare_tree_dicts(tree1, tree2):
     return 0
 
 
+def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, root_type="http://dbpedia.org/resource",
+                                    anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"):
+    """
+    Constructs a tree from triples.
+    :param sorted_parent_triples: list of triples (uri, uri_type, uri_parent)
+                                  sorted by ?parent_beginIndex DESC(?parent_endIndex) ?beginIndex DESC(?endIndex))
+    :param lexicon: the lexicon used to convert the uri strings into integer ids
+    :param root_id: uri string added as direct root child, e.g. "http://dbpedia.org/resource/Damen_Group"
+    :param root_type: uri string used as root data, e.g. "http://dbpedia.org/resource"
+    :param anchor_type: the tree represented in sorted_parent_triples will be anchored via this uri string to the
+                        root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
+    :return: the tree as Forest object and position mappings ({str(uri): offset})
+    """
+    id_root_type = lexicon[str(root_type)]
+    id_root_id = lexicon[str(root_id)]
+    id_anchor_type = lexicon[str(anchor_type)]
+    temp_data = [id_root_type, id_root_id, id_anchor_type]
+    temp_parents = [0, -1, -2]
+    positions = {}
+
+    for uri, uri_type, uri_parent in sorted_parent_triples:
+        id_uri_type = lexicon[str(uri_type)]
+
+        if len(temp_data) == 3:
+            positions[str(uri_parent)] = len(temp_data)
+        temp_data.append(id_uri_type)
+        temp_parents.append(positions[str(uri_parent)] - len(temp_data))
+        positions[str(uri)] = len(temp_data)
+
+    return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), positions
+
+
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None):
         self._lexicon = None
@@ -307,6 +342,7 @@ class Forest(object):
         self._depths_collected = None
         self._dicts = {}
         self._filename = filename
+        self._id_positions = {}
         if filename is not None:
             if exist(filename):
                 self.set_forest(*load(filename))
@@ -314,6 +350,10 @@ class Forest(object):
                 raise IOError('could not load sequence_trees from "%s"' % filename)
         elif data is not None and parents is not None:
             assert len(data) == len(parents), 'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
+            if type(data) == list:
+                data = np.array(data, dtype=DTYPE_FOREST)
+            if type(parents) == list:
+                parents = np.array(parents, dtype=DTYPE_FOREST)
             self.set_forest(data, parents)
         elif forest is not None:
             if type(forest) == np.ndarray:
@@ -323,7 +363,7 @@ class Forest(object):
                 assert len(forest) == 2, 'Wrong array count: %i. Trees array has to contain exactly the parents and data arrays: len=2' % str(
                     len(forest))
                 assert len(forest[0]) == len(forest[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(forest[0]), len(forest[1]))
-                self._forest = np.array(forest, dtype=np.int32)
+                self._forest = np.array(forest, dtype=DTYPE_FOREST)
                 self._data = forest[0]
                 self._parents = forest[1]
                 #raise TypeError('trees has to be a numpy.ndarray')

@@ -301,7 +301,14 @@ def has_vocab_prefix(s, man_vocab_id):
 
 
 class Lexicon(object):
-    def __init__(self, filename=None, vecs=None, types=None, nlp_vocab=None):
+    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None):
+        """
+        Create a Lexicon from file, from types (and optionally from vecs), or from spacy vocabulary.
+        :param filename: load types from file <filename>.type and, if the file exists exists, vecs from <filename>.vec
+        :param types: a list of unicode strings
+        :param vecs: word embeddings, a numpy array of shape [vocab_size, vector_length]
+        :param nlp_vocab: a spacy vocabulary. It has to contain embedding vectors.
+        """
         #self._dummy_vec_size = 300
         self._filename = filename
         self._mapping = None
