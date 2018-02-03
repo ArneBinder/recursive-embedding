@@ -311,6 +311,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
     :param root_type: uri string used as root data, e.g. "http://dbpedia.org/resource"
     :param anchor_type: the tree represented in sorted_parent_triples will be anchored via this uri string to the
                         root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
+    :param terminal_types: uri strings that are considered as terminals, i.e. are used as roots of parsed string trees
     :return: the tree as Forest object and position mappings ({str(uri): offset})
     """
     if terminal_types is None:
