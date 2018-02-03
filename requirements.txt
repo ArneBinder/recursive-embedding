@@ -1,3 +1,7 @@
+## tensorflow & tensorflow_fold:
+# compile (check out Dockerfiles in folder docker for cpu+mkl versions)
+# and install manually
+
 spacy>=2.0.0
 pprint
 six
