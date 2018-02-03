@@ -465,7 +465,7 @@ def process_sentence10(sentence, parsed_data, data_maps, dict_unknown=None, conc
 
 
 # embeddings for:
-# lemma, pos (filtered)
+# lemma, pos (filtered!)
 def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None, concat_mode=None):
     sen_data = []
     sen_parents = []

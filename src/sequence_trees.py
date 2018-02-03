@@ -323,10 +323,11 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
         id_uri_type = lexicon[unicode(uri_type)]
 
         if len(temp_data) == 3:
-            positions[unicode(uri_parent)] = len(temp_data)
-        temp_data.append(id_uri_type)
-        temp_parents.append(positions[unicode(uri_parent)] - len(temp_data))
+            positions[unicode(uri_parent)] = len(temp_data) - 1
         positions[unicode(uri)] = len(temp_data)
+        temp_data.append(id_uri_type)
+        temp_parents.append(positions[unicode(uri_parent)] - len(temp_parents))
+        #positions[unicode(uri)] = len(temp_data)
 
     return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), positions
 
@@ -570,13 +571,15 @@ class Forest(object):
         self.set_forest(data=np.concatenate([self.data, other.data]),
                         parents=np.concatenate([self.parents, other.parents]))
 
-    def visualize(self, filename):
+    def visualize(self, filename, start=0, end=None):
+        if end is None:
+            end = len(self)
         assert self.lexicon is not None, 'lexicon is not set'
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
         if len(self) > 0:
             nodes = []
-            for i, d in enumerate(self.data):
+            for i, d in enumerate(self.data[start:end]):
                 if self.lexicon.is_fixed(d):
                     color = "dodgerblue"
                 else:
@@ -593,10 +596,11 @@ class Forest(object):
                 graph.add_edge(pydot.Edge(last_node, node, weight=100, style='invis'))
                 last_node = node
 
-            for i in range(len(self)):
-                graph.add_edge(pydot.Edge(nodes[i],
-                                          nodes[i + self.parents[i]],
-                                          dir='back'))
+            for i in range(len(nodes)):
+                target_index = i + self.parents[i+start]
+                if target_index < 0 or target_index >= len(nodes):
+                    target_index = i
+                graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
 
         # print(graph.to_string())
         graph.write_svg(filename)

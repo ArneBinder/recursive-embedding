@@ -1,5 +1,10 @@
+from __future__ import unicode_literals
+
+import logging
 import pprint
 from datetime import datetime
+
+import spacy
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
@@ -9,6 +14,7 @@ from rdflib.namespace import RDF, RDFS
 
 from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples
+from src import preprocessing
 
 """
 prerequisites:
@@ -45,6 +51,10 @@ NIF = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#
 DBR = Namespace("http://dbpedia.org/resource/")
 ITS = Namespace("http://www.w3.org/2005/11/its/rdf#")
 ns_dict = {'nif': NIF, 'dbr': DBR, 'its': ITS, 'rdf': RDF, 'rdfs': RDFS}
+
+logger = logging.getLogger('corpus_dbpedia_nif')
+logger.setLevel(logging.INFO)
+logger.addHandler(logging.StreamHandler())
 
 
 def query_see_also_links(graph, initBindings=None):
@@ -96,19 +106,59 @@ def query_first_section_structure(graph, initBindings=None):
         
         #' FILTER (?p != nif:referenceContext)'
         '}')
-    print(q_str)
+    logger.debug(q_str)
     res = graph.store.query(q_str, initNs=ns_dict, initBindings=initBindings)
-    print(type(res))
+    #print(type(res))
     return res
 
 
+def create_context_tree(nlp, lexicon, children_typed, terminals, context):
+    t_start = datetime.now()
+    tree_context, positions = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
+    logger.info('created forest_struct: %s' % str(datetime.now() - t_start))
+    t_start = datetime.now()
+
+    terminal_uri_strings, terminal_strings = zip(*[(unicode(uri), context_str[int(begin):int(end)]) for uri, begin, end in terminals])
+
+    def terminal_reader():
+        for s in terminal_strings:
+            yield s
+
+    # TODO: FIX THIS! but terminal TYPES, not their uris
+    def reader_roots():
+        for s in terminal_uri_strings:
+            yield s
+
+    logger.info('parse data ...')
+    forest_terminals = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
+                                         reader_roots=reader_roots,
+                                         parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
+                                         expand_dict=True)
+    logger.info('parsed data: %s' % str(datetime.now() - t_start))
+    t_start = datetime.now()
+
+    # link terminal roots to (virtual) parents
+    for i, root in enumerate(forest_terminals.roots):
+        uri_string = terminal_uri_strings[i]
+        uri_pos = positions[uri_string]
+        forest_terminals.parents[root] = uri_pos - (len(tree_context) + root)
+
+    # append to tree_context
+    tree_context.append(forest_terminals)
+    logger.info('added terminals: %s' % str(datetime.now() - t_start))
+
+    #children = tree_context.children
+    #roots = tree_context.roots
+    return tree_context
+
+
 if __name__ == '__main__':
-    print('set up connection ...')
+    logger.info('set up connection ...')
     Virtuoso = plugin("Virtuoso", Store)
     store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
     default_graph_uri = "http://dbpedia.org/nif"
     g = Graph(store, identifier=URIRef(default_graph_uri))
-    print('connected')
+    logger.info('connected')
 
     #for i, (nif_context, _, _) in enumerate(g.triples((None, RDF.type, nif.Context))):
     #    if i > 10:
@@ -119,7 +169,7 @@ if __name__ == '__main__':
     #res = query_first_section_structrue(g, "http://dbpedia.org/resource/8th_Canadian_Hussars_(Princess_Louise's)?dbpv=2016-10&nif=context")
     context = URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")
     res = query_first_section_structure(g, {'context': context})
-    print('exec query: %s' % str(datetime.now() - t_start))
+    logger.info('exec query: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
     g_structure = Graph()
     for r in res:
@@ -129,13 +179,13 @@ if __name__ == '__main__':
     #q = prepareQuery(
     #    'SELECT ?c WHERE { ?c a nif:Context .} LIMIT 10',
     #    initNs={"rdfs": RDFS, "nif": nif})
-    print('new graph: %s' % str(datetime.now() - t_start))
+    logger.info('new graph: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
-    print('result count: %i' % len(res))
+    logger.info('result count: %i' % len(res))
     for i, row in enumerate(res):
-        print(row)
+        logger.debug(row)
 
-    print('children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
+    logger.debug('children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
     #for s, p, o in g_structure.triples((None, NIF.subString, None)):
     #    print(s, o)
     #children_typed = g_structure.query('SELECT DISTINCT ?s ?child ?type WHERE {?s a ?type . VALUES ?type {nif:Section nif:Context} . ?s nif:beginIndex ?beginIndex . ?s nif:endIndex ?endIndex . ?child nif:superString ?s . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)', initNs=ns_dict)
@@ -144,28 +194,41 @@ if __name__ == '__main__':
         initNs=ns_dict)
 
     for row in children_typed:
-        print(row)
+        logger.debug(row)
 
-    print('terminals (ordered by ?beginIndex DESC(?endIndex)):')
-    for row in g_structure.query('SELECT DISTINCT ?terminal ?beginIndex ?endIndex ?type WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)', initNs=ns_dict):
+    logger.debug('terminals (ordered by ?beginIndex DESC(?endIndex)):')
+    terminals = g_structure.query('SELECT DISTINCT ?terminal ?beginIndex ?endIndex WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)', initNs=ns_dict)
+    for row in terminals:
         #pprint.pprint(row)
-        print(row)
+        logger.debug(row)
 
-    print('refs:')
+    logger.debug('refs:')
     #for s, p, o in g_structure.triples((None, ITS.taIdentRef, None)):
     #    print(s, o)
     for row in g_structure.query('SELECT DISTINCT ?superString ?targetContext ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref its:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . BIND(URI(CONCAT(STR(?target), "?dbpv=2016-10&nif=context")) as ?targetContext)}', initNs=ns_dict):
-        print(row)
+        logger.debug(row)
 
-    print('str:')
-    for s, p, o in g_structure.triples((None, NIF.isString, None)):
-        print(s, o)
+    logger.debug('str:')
+    #for o in g_structure.objects(subject=context, predicate=NIF.isString):
+    #    print(o)
+    context_str = unicode(g_structure.value(subject=context, predicate=NIF.isString, any=False))
+    #context_str = context_str_lit.toPython
+    logger.debug(len(context_str))
 
-    print('print result: %s' % str(datetime.now() - t_start))
+    logger.info('print result: %s' % str(datetime.now() - t_start))
+    t_start = datetime.now()
 
     # create empty lexicon
     lexicon = Lexicon(types=[])
-    print(len(lexicon))
+    logger.debug(len(lexicon))
 
-    forest_struct, positions = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
-    forest_struct.visualize('tmp.svg')
+    logger.info('load spacy ...')
+    nlp = spacy.load('en_core_web_md')
+    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
+    t_start = datetime.now()
+
+    tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
+                                       context=context)
+    logger.info('leafs: %i' % len(tree_context))
+
+    tree_context.visualize('tmp.svg', start=0, end=100)
