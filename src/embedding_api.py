@@ -553,7 +553,7 @@ def init_nlp():
     if nlp is None:
         logging.info('load spacy ...')
         nlp = spacy.load('en_core_web_md')
-        nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+        #nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
 
 def init_forest(data_path):

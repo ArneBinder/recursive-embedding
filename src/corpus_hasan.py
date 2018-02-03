@@ -105,7 +105,7 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
     logging.info('load spacy ...')
     nlp = spacy.load('en_core_web_md')
-    nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
+    #nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
     # vecs, mapping = corpus.create_or_read_dict(FLAGS.dict_filename, nlp.vocab)
     # corpus.make_parent_dir(FLAGS.dict_filename)
