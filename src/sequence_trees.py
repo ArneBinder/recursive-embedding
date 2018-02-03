@@ -316,7 +316,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
     if terminal_types is None:
         terminal_types = [u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph',
                           u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title']
-    ids_terminal_types = [lexicon[unicode(terminal_type)] for terminal_type in terminal_types]
+    #ids_terminal_types = [lexicon[unicode(terminal_type)] for terminal_type in terminal_types]
     id_root_type = lexicon[unicode(root_type)]
     id_root_id = lexicon[unicode(root_id)]
     id_anchor_type = lexicon[unicode(anchor_type)]
@@ -324,23 +324,28 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
     temp_parents = [0, -1, -2]
     positions = {}
     parent_uris = {}
-    terminal_types = []
+    terminal_parent_positions = {}
+    terminal_types_list = []
 
     for uri, uri_type, uri_parent in sorted_parent_triples:
-        if len(temp_data) == 3:
-            positions[unicode(uri_parent)] = len(temp_data) - 1
-        parent_uris[unicode(uri)] = unicode(uri_parent)
-        positions[unicode(uri)] = len(temp_data)
+        uri_str = unicode(uri)
         uri_type_str = unicode(uri_type)
+        uri_parent_str = unicode(uri_parent)
+        if len(temp_data) == 3:
+            positions[uri_parent_str] = len(temp_data) - 1
+        parent_uris[uri_str] = uri_parent_str
+        positions[uri_str] = len(temp_data)
         id_uri_type = lexicon[uri_type_str]
-        if id_uri_type in ids_terminal_types:
-            terminal_types.append(uri_type_str)
+        #if id_uri_type in ids_terminal_types:
+        if uri_type_str in terminal_types:
+            terminal_types_list.append(uri_type_str)
+            terminal_parent_positions[uri_str] = positions[parent_uris[uri_str]]
         else:
             temp_data.append(id_uri_type)
-            temp_parents.append(positions[unicode(uri_parent)] - len(temp_parents))
+            temp_parents.append(positions[uri_parent_str] - len(temp_parents))
         #positions[unicode(uri)] = len(temp_data)
 
-    return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), positions, terminal_types, parent_uris
+    return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), terminal_parent_positions, terminal_types_list
 
 
 class Forest(object):

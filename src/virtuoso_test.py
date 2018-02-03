@@ -114,7 +114,7 @@ def query_first_section_structure(graph, initBindings=None):
 
 def create_context_tree(nlp, lexicon, children_typed, terminals, context):
     t_start = datetime.now()
-    tree_context, positions, terminal_types, parent_uris = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
+    tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
     logger.info('created forest_struct: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
 
@@ -123,7 +123,6 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context):
     def terminal_reader():
         for s in terminal_strings:
             yield s
-
 
     def reader_roots():
         for s in terminal_types:
@@ -140,8 +139,8 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context):
     # link terminal roots to (virtual) parents
     for i, root in enumerate(forest_terminals.roots):
         uri_string = terminal_uri_strings[i]
-        parent_uri = parent_uris[uri_string]
-        uri_pos = positions[parent_uri]
+        #parent_uri = parent_uris[uri_string]
+        uri_pos = terminal_parent_positions[uri_string]
         forest_terminals.parents[root] = uri_pos - (len(tree_context) + root)
 
     # append to tree_context
@@ -232,4 +231,4 @@ if __name__ == '__main__':
                                        context=context)
     logger.info('leafs: %i' % len(tree_context))
 
-    tree_context.visualize('tmp.svg', start=0, end=100)
+    tree_context.visualize('tmp.svg')#, start=0, end=100)
