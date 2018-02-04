@@ -116,7 +116,8 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_also_refs, link_refs):
+def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_also_refs, link_refs,
+                        link_ref_type="http://www.w3.org/2005/11/its/rdf#taIdentRef"):
     t_start = datetime.now()
     tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
                                                                                               see_also_refs=see_also_refs,
@@ -136,25 +137,28 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_al
         for s in terminal_types:
             yield s
 
+    ref_type_id = lexicon[unicode(link_ref_type)]
+
     def link_reader():
-        # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
+        """
+        :return: a generator yielding tuples (start_char, end_char, link_annotation_data, link_annotation_parents) for
+                 the respective docs and None otherwise
+        """
         refs = {}
+        # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
         for ref_tuple in link_refs:
             super_string = unicode(ref_tuple[0])
             target = unicode(ref_tuple[1])
+            target_id = lexicon[target]
             offset = int(ref_tuple[2])
             begin_index = int(ref_tuple[3])
             end_index = int(ref_tuple[4])
 
-            l = refs.get(super_string, [])
-            l.append((begin_index - offset, end_index - offset, target))
-            refs[super_string] = l
+            ref_list = refs.get(super_string, [])
+            ref_list.append((begin_index - offset, end_index - offset, [ref_type_id, target_id], [0, -1]))
+            refs[super_string] = ref_list
         for s in terminal_uri_strings:
             yield refs.get(s, None)
-
-    #print('links:')
-    #for x in link_reader():
-    #    print(x)
 
     logger.info('parse data ...')
     forest_terminals = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
@@ -181,6 +185,57 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_al
     return tree_context
 
 
+def query_context_data(graph, context):
+    t_start = datetime.now()
+    res_context_seealsos = query_see_also_links(graph, initBindings={'context': context})
+    res_context = query_first_section_structure(graph, {'context': context})
+    #for i, row in enumerate(res_context):
+    #    logger.debug(row)
+
+    g_structure = Graph()
+    for triple in res_context:
+        g_structure.add(triple)
+
+    children_typed = g_structure.query(
+        'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
+        initNs=ns_dict)
+
+    terminals = g_structure.query(
+        'SELECT DISTINCT ?terminal ?beginIndex ?endIndex WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)',
+        initNs=ns_dict)
+    refs = g_structure.query(
+        'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
+        initNs=ns_dict)
+    context_str = unicode(g_structure.value(subject=context, predicate=NIF.isString, any=False))
+
+    # debug
+    logger.info('exec query: %s' % str(datetime.now() - t_start))
+    t_start = datetime.now()
+    logger.debug("see also's:")
+    for row in res_context_seealsos:
+        logger.debug(row)
+
+    logger.debug(
+        'children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
+    for row in children_typed:
+        logger.debug(row)
+
+    logger.debug('terminals (ordered by ?beginIndex DESC(?endIndex)):')
+    for row in terminals:
+        logger.debug(row)
+
+    logger.debug('refs:')
+    for row in refs:
+        logger.debug(row)
+
+    logger.debug('str:')
+    logger.debug(len(context_str))
+
+    logger.info('print result: %s' % str(datetime.now() - t_start))
+
+    return res_context_seealsos, children_typed, terminals, refs, context_str
+
+
 if __name__ == '__main__':
     logger.info('set up connection ...')
     Virtuoso = plugin("Virtuoso", Store)
@@ -189,68 +244,10 @@ if __name__ == '__main__':
     g = Graph(store, identifier=URIRef(default_graph_uri))
     logger.info('connected')
 
-    #for i, (nif_context, _, _) in enumerate(g.triples((None, RDF.type, nif.Context))):
-    #    if i > 10:
-    #        break
-    #    print(nif_context)
     t_start = datetime.now()
-    #res = query_see_also_links(g)
-    #res = query_first_section_structrue(g, "http://dbpedia.org/resource/8th_Canadian_Hussars_(Princess_Louise's)?dbpv=2016-10&nif=context")
     context = URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")
-    res_context_seealsos = query_see_also_links(g, initBindings={'context': context})
-    res_context = query_first_section_structure(g, {'context': context})
+    res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(g, context)
     logger.info('exec query: %s' % str(datetime.now() - t_start))
-    t_start = datetime.now()
-    g_structure = Graph()
-    for r in res_context:
-        g_structure.add(r)
-    #g_structure.addN(res)
-    #query_first_section_structrue(g, "http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context"))
-    #q = prepareQuery(
-    #    'SELECT ?c WHERE { ?c a nif:Context .} LIMIT 10',
-    #    initNs={"rdfs": RDFS, "nif": nif})
-    logger.info('new graph: %s' % str(datetime.now() - t_start))
-    t_start = datetime.now()
-    logger.info('result count: %i' % len(res_context))
-    for i, row in enumerate(res_context):
-        logger.debug(row)
-
-    logger.debug("see also's:")
-    for row in res_context_seealsos:
-        logger.debug(row)
-
-    logger.debug('children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
-    #for s, p, o in g_structure.triples((None, NIF.subString, None)):
-    #    print(s, o)
-    #children_typed = g_structure.query('SELECT DISTINCT ?s ?child ?type WHERE {?s a ?type . VALUES ?type {nif:Section nif:Context} . ?s nif:beginIndex ?beginIndex . ?s nif:endIndex ?endIndex . ?child nif:superString ?s . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?beginIndex DESC(?endIndex) ?child_beginIndex DESC(?child_endIndex)', initNs=ns_dict)
-    children_typed = g_structure.query(
-        'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
-        initNs=ns_dict)
-
-    for row in children_typed:
-        logger.debug(row)
-
-    logger.debug('terminals (ordered by ?beginIndex DESC(?endIndex)):')
-    terminals = g_structure.query('SELECT DISTINCT ?terminal ?beginIndex ?endIndex WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)', initNs=ns_dict)
-    for row in terminals:
-        #pprint.pprint(row)
-        logger.debug(row)
-
-    logger.debug('refs:')
-    #for s, p, o in g_structure.triples((None, ITS.taIdentRef, None)):
-    #    print(s, o)
-    refs = g_structure.query('SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }', initNs=ns_dict)
-    for row in refs:
-        logger.debug(row)
-
-    logger.debug('str:')
-    #for o in g_structure.objects(subject=context, predicate=NIF.isString):
-    #    print(o)
-    context_str = unicode(g_structure.value(subject=context, predicate=NIF.isString, any=False))
-    #context_str = context_str_lit.toPython
-    logger.debug(len(context_str))
-
-    logger.info('print result: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
 
     # create empty lexicon

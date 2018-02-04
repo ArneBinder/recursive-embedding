@@ -77,10 +77,27 @@ def concat_roots(data, parents, root_offsets, root_parents=None, concat_mode='tr
     return data, parents, new_roots
 
 
+def get_annotations_for_token(annotations, token):
+    # add annotations after respective token (if its parent isn't a match, too)
+    j = 0
+    data = []
+    parents = []
+    for _ in range(len(annotations)):
+        annot = annotations[j]
+        if ((token.idx <= annot[0] <= token.idx + len(token)) or (token.idx <= annot[1] <= token.idx + len(token))) \
+                and (token.head == token or not ((token.head.idx <= annot[0] <= token.head.idx + len(token.head))
+                                                 or (token.head.idx <= annot[1] <= token.head.idx + len(token.head)))):
+            data.extend(annot[2])
+            annot[3][0] = -len(parents) - 1
+            parents.extend(annot[3])
+            del annotations[j]
+    return data, parents
+
+
 # embeddings for:
 # word
 def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None,
-                      concat_mode=constants.default_inner_concat_mode, **kwargs):
+                      concat_mode=constants.default_inner_concat_mode, annotations=[], **kwargs):
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -97,6 +114,11 @@ def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None,
         root_offsets.append(len(sen_parents))
         # set as root
         sen_parents.append(0)
+
+        # check and append annotations, eventually
+        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token)
+        sen_data.extend(annot_data)
+        sen_parents.extend(annot_parents)
 
     new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
     sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
@@ -495,6 +517,24 @@ def identity_reader(content):
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode, inner_concat_mode=constants.default_inner_concat_mode,
               expand_dict=True, reader_roots=None, reader_roots_args={}, reader_annotations=None):
+    """
+
+    :param reader:
+    :param sentence_processor:
+    :param parser:
+    :param data_maps:
+    :param reader_args:
+    :param batch_size:
+    :param concat_mode:
+    :param inner_concat_mode:
+    :param expand_dict:
+    :param reader_roots:
+    :param reader_roots_args:
+    :param reader_annotations: a generator yielding tuples of the format (char_begin, char_end, data_array, parents_array),
+                               where the first entry of parents_array does not matter (for convenience, the arrays have
+                               the same size)
+    :return:
+    """
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
     # offsets of the parents
@@ -530,9 +570,7 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
     logging.debug('start read_data ...')
     sen_count = 0
     for parsed_data in parser.pipe(reader(**reader_args), n_threads=4, batch_size=batch_size):
-        # prev_root = None
         temp_roots = []
-        #start_idx = len(seq_data)
         annotations = _reader_annotations.next()
         for sentence in parsed_data.sents:
             sent_start = sentence.start_char
