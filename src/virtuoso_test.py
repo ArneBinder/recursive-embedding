@@ -57,10 +57,12 @@ ns_dict = {'nif': NIF, 'dbr': DBR, 'itsrdf': ITSRDF, 'rdf': RDF, 'rdfs': RDFS, '
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
+#logger.addHandler(logging.FileHandler('../virtuoso_test.log', mode='w', encoding='utf-8'))
 
 logger_virtuoso = logging.getLogger('virtuoso.vstore')
-logger_virtuoso.setLevel(logging.DEBUG)
-logger_virtuoso.addHandler(logging.StreamHandler())
+logger_virtuoso.setLevel(logging.INFO)
+logger_virtuoso.addHandler(logging.FileHandler('../virtuoso.log', mode='w', encoding='utf-8'))
+logger_virtuoso.propagate = False
 
 
 def query_see_also_links(graph, initBindings=None):
@@ -131,7 +133,7 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, contex
                                                                                               lexicon=lexicon,
                                                                                               root_id=str(context)[:-len('?dbpv=2016-10&nif=context')])
     if logger.level <= logging.DEBUG:
-        tree_context.visualize('tmp_structure.svg')
+        tree_context.visualize('../tmp_structure.svg')
     logger.debug('created forest_struct: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
 
@@ -176,7 +178,7 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, contex
     logger.debug('parsed data: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
     if logger.level <= logging.DEBUG:
-        forest_terminals.visualize('tmp_terminals.svg')
+        forest_terminals.visualize('../tmp_terminals.svg')
 
     # link terminal roots to (virtual) parents
     for i, root in enumerate(forest_terminals.roots):
@@ -263,7 +265,7 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
                                        context=context)
     logger.info('leafs: %i' % len(tree_context))
 
-    tree_context.visualize('tmp.svg')  # , start=0, end=100)
+    tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
 def test_all_context_tree(graph):
@@ -279,7 +281,7 @@ def test_all_context_tree(graph):
     failed = []
     t_start = datetime.now()
     for i, context in enumerate(g.subjects(RDF.type, NIF.Context)):
-        if i % 10000 == 0:
+        if i % 1000 == 0:
             logger.info('%i: %s (failed: %i)' % (i, str(datetime.now() - t_start), len(failed)))
             t_start = datetime.now()
         #contexts.append(context)
