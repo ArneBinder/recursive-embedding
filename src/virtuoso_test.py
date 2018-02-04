@@ -1,4 +1,5 @@
-from __future__ import unicode_literals
+# coding: utf-8
+#from __future__ import unicode_literals
 
 import logging
 import pprint
@@ -54,13 +55,17 @@ ITSRDF = Namespace("http://www.w3.org/2005/11/its/rdf#")
 ns_dict = {'nif': NIF, 'dbr': DBR, 'itsrdf': ITSRDF, 'rdf': RDF, 'rdfs': RDFS, 'dbo': DBO}
 
 logger = logging.getLogger('corpus_dbpedia_nif')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
+
+logger_virtuoso = logging.getLogger('virtuoso.vstore')
+logger_virtuoso.setLevel(logging.DEBUG)
+logger_virtuoso.addHandler(logging.StreamHandler())
 
 
 def query_see_also_links(graph, initBindings=None):
     q_str = (#'SELECT ?context ?linkRef '
-             'SELECT ?linkRef '
+             u'SELECT ?linkRef '
              'WHERE {'
              '  ?context a nif:Context . '
              '  ?seeAlsoSection a nif:Section . '
@@ -79,14 +84,14 @@ def query_see_also_links(graph, initBindings=None):
              'LIMIT 1000 '
              'OFFSET 0 '
              )
-
+    logging.debug(q_str)
     res = graph.store.query(q_str, initNs=ns_dict, initBindings=initBindings)
     return res
 
 
 def query_first_section_structure(graph, initBindings=None):
     q_str = (
-        'construct {'
+        u'construct {'
         ' ?s ?p ?o .'
         #' ?superString nif:subString ?s .'
         ' ?context ?context_p ?context_o .'
@@ -117,7 +122,7 @@ def query_first_section_structure(graph, initBindings=None):
 
 
 def create_context_tree(nlp, lexicon, children_typed, terminals, context, context_str, see_also_refs, link_refs,
-                        link_ref_type="http://www.w3.org/2005/11/its/rdf#taIdentRef", max_see_also_refs=50):
+                        link_ref_type=u"http://www.w3.org/2005/11/its/rdf#taIdentRef", max_see_also_refs=50):
     t_start = datetime.now()
     if len(see_also_refs) > max_see_also_refs:
         see_also_refs = []
@@ -201,14 +206,14 @@ def query_context_data(graph, context):
         g_structure.add(triple)
 
     children_typed = g_structure.query(
-        'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
+        u'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
         initNs=ns_dict)
 
     terminals = g_structure.query(
-        'SELECT DISTINCT ?terminal ?beginIndex ?endIndex WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)',
+        u'SELECT DISTINCT ?terminal ?beginIndex ?endIndex WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)',
         initNs=ns_dict)
     refs = g_structure.query(
-        'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
+        u'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
         initNs=ns_dict)
     context_str = unicode(g_structure.value(subject=context, predicate=NIF.isString, any=False))
 
@@ -241,7 +246,7 @@ def query_context_data(graph, context):
     return res_context_seealsos, children_typed, terminals, refs, context_str
 
 
-def test_context_tree(graph, context=URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")):
+def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")):
 
     # create empty lexicon
     lexicon = Lexicon(types=[])
@@ -271,20 +276,28 @@ def test_all_context_tree(graph):
     nlp = spacy.load('en_core_web_md')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
 
+    failed = []
     t_start = datetime.now()
     for i, context in enumerate(g.subjects(RDF.type, NIF.Context)):
         if i % 10000 == 0:
-            logger.info('%i: %s' % (i, str(datetime.now() - t_start)))
+            logger.info('%i: %s (failed: %i)' % (i, str(datetime.now() - t_start), len(failed)))
             t_start = datetime.now()
         #contexts.append(context)
-
-        res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
-        tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-                                           see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
-                                           context=context)
-        logger.debug('leafs: %i' % len(tree_context))
+        try:
+            res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+            tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
+                                               see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
+                                               context=context)
+            logger.debug('leafs: %i' % len(tree_context))
+        except Exception as e:
+            failed.append((failed, e))
 
         #tree_context.visualize('tmp.svg')  # , start=0, end=100)
+
+
+def test_utf8_context(graph, context=URIRef(u"http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context")):
+    for s, p, o in graph.triples((context, None, None)):
+        print(s, p, o)
 
 
 if __name__ == '__main__':
@@ -295,9 +308,10 @@ if __name__ == '__main__':
     g = Graph(store, identifier=URIRef(default_graph_uri))
     logger.info('connected')
 
-    test_context_tree(g)
+    #test_context_tree(g)
+    #test_utf8_context(g)
 
-    #test_all_context_tree(g)
+    test_all_context_tree(g)
 
 
 
