@@ -125,8 +125,9 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, contex
                                                                                               see_also_refs=see_also_refs,
                                                                                               lexicon=lexicon,
                                                                                               root_id=str(context)[:-len('?dbpv=2016-10&nif=context')])
-    tree_context.visualize('tmp_structure.svg')
-    logger.info('created forest_struct: %s' % str(datetime.now() - t_start))
+    if logger.level <= logging.DEBUG:
+        tree_context.visualize('tmp_structure.svg')
+    logger.debug('created forest_struct: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
 
     terminal_uri_strings, terminal_strings = zip(*[(unicode(uri), context_str[int(begin):int(end)]) for uri, begin, end in terminals])
@@ -162,14 +163,15 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, contex
         for s in terminal_uri_strings:
             yield refs.get(s, None)
 
-    logger.info('parse data ...')
+    logger.debug('parse data ...')
     forest_terminals = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
                                          reader_roots=reader_roots, reader_annotations=link_reader,
                                          parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
                                          expand_dict=True)
-    logger.info('parsed data: %s' % str(datetime.now() - t_start))
+    logger.debug('parsed data: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
-    forest_terminals.visualize('tmp_terminals.svg')
+    if logger.level <= logging.DEBUG:
+        forest_terminals.visualize('tmp_terminals.svg')
 
     # link terminal roots to (virtual) parents
     for i, root in enumerate(forest_terminals.roots):
@@ -180,7 +182,7 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, contex
 
     # append to tree_context
     tree_context.append(forest_terminals)
-    logger.info('added terminals: %s' % str(datetime.now() - t_start))
+    logger.debug('added terminals: %s' % str(datetime.now() - t_start))
 
     #children = tree_context.children
     #roots = tree_context.roots
@@ -210,30 +212,31 @@ def query_context_data(graph, context):
         initNs=ns_dict)
     context_str = unicode(g_structure.value(subject=context, predicate=NIF.isString, any=False))
 
-    # debug
-    logger.info('exec query: %s' % str(datetime.now() - t_start))
-    t_start = datetime.now()
-    logger.debug("see also's:")
-    for row in res_context_seealsos:
-        logger.debug(row)
+    if logger.level <= logging.DEBUG:
+        # debug
+        logger.info('exec query: %s' % str(datetime.now() - t_start))
+        t_start = datetime.now()
+        logger.debug("see also's:")
+        for row in res_context_seealsos:
+            logger.debug(row)
 
-    logger.debug(
-        'children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
-    for row in children_typed:
-        logger.debug(row)
+        logger.debug(
+            'children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
+        for row in children_typed:
+            logger.debug(row)
 
-    logger.debug('terminals (ordered by ?beginIndex DESC(?endIndex)):')
-    for row in terminals:
-        logger.debug(row)
+        logger.debug('terminals (ordered by ?beginIndex DESC(?endIndex)):')
+        for row in terminals:
+            logger.debug(row)
 
-    logger.debug('refs:')
-    for row in refs:
-        logger.debug(row)
+        logger.debug('refs:')
+        for row in refs:
+            logger.debug(row)
 
-    logger.debug('str:')
-    logger.debug(context_str)
+        logger.debug('str:')
+        logger.debug(context_str)
 
-    logger.info('print result: %s' % str(datetime.now() - t_start))
+        logger.info('print result: %s' % str(datetime.now() - t_start))
 
     return res_context_seealsos, children_typed, terminals, refs, context_str
 
@@ -242,7 +245,7 @@ def test_context_tree(graph, context=URIRef("http://dbpedia.org/resource/Damen_G
 
     # create empty lexicon
     lexicon = Lexicon(types=[])
-    logger.debug(len(lexicon))
+    logger.debug('lexicon size: %i' % len(lexicon))
 
     logger.info('load spacy ...')
     t_start = datetime.now()
@@ -258,6 +261,32 @@ def test_context_tree(graph, context=URIRef("http://dbpedia.org/resource/Damen_G
     tree_context.visualize('tmp.svg')  # , start=0, end=100)
 
 
+def test_all_context_tree(graph):
+    # create empty lexicon
+    lexicon = Lexicon(types=[])
+    logger.info('lexicon size: %i' % len(lexicon))
+
+    logger.info('load spacy ...')
+    t_start = datetime.now()
+    nlp = spacy.load('en_core_web_md')
+    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
+
+    t_start = datetime.now()
+    for i, context in enumerate(g.subjects(RDF.type, NIF.Context)):
+        if i % 10000 == 0:
+            logger.info('%i: %s' % (i, str(datetime.now() - t_start)))
+            t_start = datetime.now()
+        #contexts.append(context)
+
+        res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+        tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
+                                           see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
+                                           context=context)
+        logger.debug('leafs: %i' % len(tree_context))
+
+        #tree_context.visualize('tmp.svg')  # , start=0, end=100)
+
+
 if __name__ == '__main__':
     logger.info('set up connection ...')
     Virtuoso = plugin("Virtuoso", Store)
@@ -268,13 +297,7 @@ if __name__ == '__main__':
 
     test_context_tree(g)
 
-    #contexts = []
-    #t_start = datetime.now()
-    #for i, context in enumerate(g.subjects(RDF.type, NIF.Context)):
-    #    if i % 1000 == 0:
-    #        logger.info('%i: %s' % (i, str(datetime.now() - t_start)))
-    #        t_start = datetime.now()
-    #    contexts.append(context)
+    #test_all_context_tree(g)
 
 
 
