@@ -346,7 +346,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id,
         uri_type_str = unicode(uri_type)
         uri_parent_str = unicode(uri_parent)
         if len(temp_data) == pre_len:
-            positions[uri_parent_str] = len(temp_data) - 1
+            positions[uri_parent_str] = 2
         parent_uris[uri_str] = uri_parent_str
         positions[uri_str] = len(temp_data)
         id_uri_type = lexicon[uri_type_str]

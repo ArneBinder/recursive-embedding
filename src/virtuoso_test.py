@@ -122,6 +122,7 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_al
                                                                                               see_also_refs=see_also_refs,
                                                                                               lexicon=lexicon,
                                                                                               root_id=str(context)[:-len('?dbpv=2016-10&nif=context')])
+    tree_context.visualize('tmp_structure.svg')
     logger.info('created forest_struct: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
 
@@ -142,6 +143,7 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_al
                                          expand_dict=True)
     logger.info('parsed data: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
+    forest_terminals.visualize('tmp_terminals.svg')
 
     # link terminal roots to (virtual) parents
     for i, root in enumerate(forest_terminals.roots):
