@@ -299,9 +299,14 @@ def _compare_tree_dicts(tree1, tree2):
     return 0
 
 
-def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, root_type="http://dbpedia.org/resource",
+def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id,
+                                    see_also_refs,
+                                    root_type="http://dbpedia.org/resource",
                                     anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
-                                    terminal_types=None):
+                                    terminal_types=None,
+                                    see_also_link_type="http://dbpedia.org/ontology/seeAlsoWikiPageWikiLink"
+                                    #see_also_type="http://dbpedia.org/ontology/wikiPageWikiLink"
+                                    ):
     """
     Constructs a tree from triples.
     :param sorted_parent_triples: list of triples (uri, uri_type, uri_parent)
@@ -321,8 +326,16 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
     id_root_type = lexicon[unicode(root_type)]
     id_root_id = lexicon[unicode(root_id)]
     id_anchor_type = lexicon[unicode(anchor_type)]
+    id_see_also_link_type = lexicon[unicode(see_also_link_type)]
     temp_data = [id_root_type, id_root_id, id_anchor_type]
     temp_parents = [0, -1, -2]
+    for see_also_ref, in see_also_refs:
+        s = unicode(see_also_ref)
+        temp_data.append(id_see_also_link_type)
+        temp_parents.append(-len(temp_parents))
+        temp_data.append(lexicon[s])
+        temp_parents.append(-1)
+    pre_len = len(temp_data)
     positions = {}
     parent_uris = {}
     terminal_parent_positions = {}
@@ -332,7 +345,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id, roo
         uri_str = unicode(uri)
         uri_type_str = unicode(uri_type)
         uri_parent_str = unicode(uri_parent)
-        if len(temp_data) == 3:
+        if len(temp_data) == pre_len:
             positions[uri_parent_str] = len(temp_data) - 1
         parent_uris[uri_str] = uri_parent_str
         positions[uri_str] = len(temp_data)

@@ -49,8 +49,9 @@ prerequisites:
 """
 NIF = Namespace("http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#")
 DBR = Namespace("http://dbpedia.org/resource/")
-ITS = Namespace("http://www.w3.org/2005/11/its/rdf#")
-ns_dict = {'nif': NIF, 'dbr': DBR, 'its': ITS, 'rdf': RDF, 'rdfs': RDFS}
+DBO = Namespace("http://dbpedia.org/ontology/")
+ITSRDF = Namespace("http://www.w3.org/2005/11/its/rdf#")
+ns_dict = {'nif': NIF, 'dbr': DBR, 'itsrdf': ITSRDF, 'rdf': RDF, 'rdfs': RDFS, 'dbo': DBO}
 
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.DEBUG)
@@ -58,23 +59,26 @@ logger.addHandler(logging.StreamHandler())
 
 
 def query_see_also_links(graph, initBindings=None):
-    q_str = ('select ?context ?linkRefContext where { \
-                        ?context a nif:Context . \
-                        ?seeAlsoSection a nif:Section . \
-                        ?seeAlsoSection nif:superString+ ?context . \
-                        ?seeAlsoSection nif:beginIndex ?beginIndex . \
-                        ?seeAlsoSection nif:endIndex ?endIndex . \
-                        ?link nif:superString+ ?seeAlsoSection . \
-                        ?link <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?linkRef . \
-                        ?context nif:isString ?contextStr . \
-                        FILTER (?endIndex - ?beginIndex > 0) \
-                        FILTER (STRLEN(?contextStr) >= ?endIndex) \
-                        BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr) \
-                        FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) \
-                        BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext) \
-                        } \
-                        LIMIT 1000 OFFSET 0 \
-                        ')
+    q_str = (#'SELECT ?context ?linkRef '
+             'SELECT ?linkRef '
+             'WHERE {'
+             '  ?context a nif:Context . '
+             '  ?seeAlsoSection a nif:Section . '
+             '  ?seeAlsoSection nif:superString+ ?context . '
+             '  ?seeAlsoSection nif:beginIndex ?beginIndex . '
+             '  ?seeAlsoSection nif:endIndex ?endIndex . '
+             '  ?link nif:superString+ ?seeAlsoSection . '
+             '  ?link <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?linkRef . '
+             '  ?context nif:isString ?contextStr . '
+             '  FILTER (?endIndex - ?beginIndex > 0) '
+             '  FILTER (STRLEN(?contextStr) >= ?endIndex) '
+             '  BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr) '
+             '  FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) '
+             #'  BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext) '
+             '} '
+             'LIMIT 1000 '
+             'OFFSET 0 '
+             )
 
     res = graph.store.query(q_str, initNs=ns_dict, initBindings=initBindings)
     return res
@@ -98,10 +102,10 @@ def query_first_section_structure(graph, initBindings=None):
         ' ?firstSection nif:beginIndex 0 .'
         ' ?s nif:superString* ?firstSection .'
         ' ?s ?p ?o .'
-        ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString its:taIdentRef rdf:type} .'
+        ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString itsrdf:taIdentRef rdf:type} .'
         #' ?s nif:superString ?superString .'
         #' ?superString nif:beginIndex ?superOffset .'
-        #' ?s its:taIdentRef ?ref .'
+        #' ?s itsrdf:taIdentRef ?ref .'
         #' ?s ?p2 ?oo2 .'
         
         #' FILTER (?p != nif:referenceContext)'
@@ -112,9 +116,12 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def create_context_tree(nlp, lexicon, children_typed, terminals, context):
+def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_also_refs):
     t_start = datetime.now()
-    tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed, lexicon=lexicon, root_id=str(context))
+    tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
+                                                                                              see_also_refs=see_also_refs,
+                                                                                              lexicon=lexicon,
+                                                                                              root_id=str(context)[:-len('?dbpv=2016-10&nif=context')])
     logger.info('created forest_struct: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
 
@@ -168,11 +175,12 @@ if __name__ == '__main__':
     #res = query_see_also_links(g)
     #res = query_first_section_structrue(g, "http://dbpedia.org/resource/8th_Canadian_Hussars_(Princess_Louise's)?dbpv=2016-10&nif=context")
     context = URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")
-    res = query_first_section_structure(g, {'context': context})
+    res_context_seealsos = query_see_also_links(g, initBindings={'context': context})
+    res_context = query_first_section_structure(g, {'context': context})
     logger.info('exec query: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
     g_structure = Graph()
-    for r in res:
+    for r in res_context:
         g_structure.add(r)
     #g_structure.addN(res)
     #query_first_section_structrue(g, "http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context"))
@@ -181,8 +189,12 @@ if __name__ == '__main__':
     #    initNs={"rdfs": RDFS, "nif": nif})
     logger.info('new graph: %s' % str(datetime.now() - t_start))
     t_start = datetime.now()
-    logger.info('result count: %i' % len(res))
-    for i, row in enumerate(res):
+    logger.info('result count: %i' % len(res_context))
+    for i, row in enumerate(res_context):
+        logger.debug(row)
+
+    logger.debug("see also's:")
+    for row in res_context_seealsos:
         logger.debug(row)
 
     logger.debug('children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
@@ -205,7 +217,7 @@ if __name__ == '__main__':
     logger.debug('refs:')
     #for s, p, o in g_structure.triples((None, ITS.taIdentRef, None)):
     #    print(s, o)
-    for row in g_structure.query('SELECT DISTINCT ?superString ?targetContext ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref its:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . BIND(URI(CONCAT(STR(?target), "?dbpv=2016-10&nif=context")) as ?targetContext)}', initNs=ns_dict):
+    for row in g_structure.query('SELECT DISTINCT ?superString ?targetContext ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . BIND(URI(CONCAT(STR(?target), "?dbpv=2016-10&nif=context")) as ?targetContext)}', initNs=ns_dict):
         logger.debug(row)
 
     logger.debug('str:')
@@ -228,6 +240,7 @@ if __name__ == '__main__':
     t_start = datetime.now()
 
     tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
+                                       see_also_refs=res_context_seealsos,
                                        context=context)
     logger.info('leafs: %i' % len(tree_context))
 
