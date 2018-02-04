@@ -116,7 +116,7 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_also_refs, link_refs,
+def create_context_tree(nlp, lexicon, children_typed, terminals, context, context_str, see_also_refs, link_refs,
                         link_ref_type="http://www.w3.org/2005/11/its/rdf#taIdentRef"):
     t_start = datetime.now()
     tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
@@ -236,6 +236,26 @@ def query_context_data(graph, context):
     return res_context_seealsos, children_typed, terminals, refs, context_str
 
 
+def test_context_tree(graph, context=URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")):
+
+    # create empty lexicon
+    lexicon = Lexicon(types=[])
+    logger.debug(len(lexicon))
+
+    logger.info('load spacy ...')
+    t_start = datetime.now()
+    nlp = spacy.load('en_core_web_md')
+    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
+
+    res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+    tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
+                                       see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
+                                       context=context)
+    logger.info('leafs: %i' % len(tree_context))
+
+    tree_context.visualize('tmp.svg')  # , start=0, end=100)
+
+
 if __name__ == '__main__':
     logger.info('set up connection ...')
     Virtuoso = plugin("Virtuoso", Store)
@@ -244,24 +264,9 @@ if __name__ == '__main__':
     g = Graph(store, identifier=URIRef(default_graph_uri))
     logger.info('connected')
 
-    t_start = datetime.now()
-    context = URIRef("http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")
-    res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(g, context)
-    logger.info('exec query: %s' % str(datetime.now() - t_start))
-    t_start = datetime.now()
+    test_context_tree(g)
+    #children_typed = g_structure.query(
+    #    'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
+    #    initNs=ns_dict)
 
-    # create empty lexicon
-    lexicon = Lexicon(types=[])
-    logger.debug(len(lexicon))
 
-    logger.info('load spacy ...')
-    nlp = spacy.load('en_core_web_md')
-    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
-    t_start = datetime.now()
-
-    tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-                                       see_also_refs=res_context_seealsos, link_refs=refs,
-                                       context=context)
-    logger.info('leafs: %i' % len(tree_context))
-
-    tree_context.visualize('tmp.svg')#, start=0, end=100)
