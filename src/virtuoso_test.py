@@ -147,7 +147,7 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_al
             end_index = int(ref_tuple[4])
 
             l = refs.get(super_string, [])
-            l.append((target, begin_index - offset, end_index - offset))
+            l.append((begin_index - offset, end_index - offset, target))
             refs[super_string] = l
         for s in terminal_uri_strings:
             yield refs.get(s, None)
