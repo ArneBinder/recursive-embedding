@@ -37,32 +37,44 @@ def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
     return result_data, result_parents, [root_offset]
 
 
-def concat_roots(parents, root_offsets, root_parents=None, concat_mode='tree'):
-    if not concat_mode:
-        return parents, root_offsets
-    elif concat_mode == 'aggregate':
+def concat_roots(data, parents, root_offsets, root_parents=None, concat_mode='tree', new_root_id=None):
+    if concat_mode is None:
+        return data, parents, root_offsets
+
+    if concat_mode == 'aggregate':
+        assert new_root_id is not None, 'concat_mode=aggregate requires an aggregation root, but new_root_id is None.'
+        root_offsets.append(len(data))
+        parents.append(0)
+        data.append(new_root_id)
         for i in range(len(root_offsets) - 1):
             parents[root_offsets[i]] = len(parents) - root_offsets[i] - 1
-        return parents, [len(parents) - 1]
-    elif concat_mode == 'tree':
+        return data, parents, [len(parents) - 1]
+    if concat_mode == 'tree':
         assert root_parents and len(root_parents) == len(root_offsets), \
-            'length of root_parents does not match length of root_offsets=' + str(len(root_offsets))
+            'length of root_parents=%i does not match length of root_offsets=%i' % (len(root_parents), len(root_offsets))
         new_roots = []
         for i in range(len(root_parents)):
             if root_parents[i] != 0:
                 parents[root_offsets[i]] = root_offsets[i + root_parents[i]] - root_offsets[i]
             else:
                 new_roots.append(root_offsets[i])
-
-        return parents, new_roots
+        #return data, parents, new_roots
     # connect roots consecutively
     elif concat_mode == 'sequence':
         for i in range(len(root_offsets) - 1):
             parents[root_offsets[i]] = root_offsets[i + 1] - root_offsets[i]
-        return parents, [root_offsets[-1]]
-
+        #return data, parents, [root_offsets[-1]]
+        new_roots = [root_offsets[-1]]
     else:
         raise NameError('unknown concat_mode: ' + concat_mode)
+
+    # concat_mode is 'tree' or 'sequence'
+    if new_root_id is not None:
+        parents.append(0)
+        data.append(new_root_id)
+        parents[new_roots[0]] = len(parents) - new_roots[0] - 1
+        new_roots = [len(data)-1]
+    return data, parents, new_roots
 
 
 # embeddings for:
@@ -86,11 +98,13 @@ def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None,
         # set as root
         sen_parents.append(0)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
 
     return sen_data, sen_parents, root_offsets
 
@@ -118,12 +132,13 @@ def process_sentence2(sentence, parsed_data, data_maps, dict_unknown=None,
         sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEXEME_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -149,12 +164,13 @@ def process_sentence3_dep(sentence, parsed_data, data_maps, dict_unknown=None, c
         sen_data.append(mytools.getOrAdd(data_maps, token.dep_, dict_unknown))
         sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -181,12 +197,13 @@ def process_sentence3(sentence, parsed_data, data_maps, dict_unknown=None, conca
                                          + constants.SEPARATOR + token.dep_, dict_unknown))
         sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -219,12 +236,13 @@ def process_sentence4(sentence, parsed_data, data_maps, dict_unknown=None, conca
         sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.DEPENDENCY_EMBEDDING], dict_unknown))
         sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -257,12 +275,13 @@ def process_sentence5(sentence, parsed_data, data_maps, dict_unknown=None, conca
                                              + constants.SEPARATOR + token.ent_type_, dict_unknown))
             sen_parents.append(-2)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -304,12 +323,13 @@ def process_sentence6(sentence, parsed_data, data_maps, dict_unknown=None, conca
             sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.ENTITY_EMBEDDING], dict_unknown))
             sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -355,12 +375,13 @@ def process_sentence7(sentence, parsed_data, data_maps, dict_unknown=None, conca
                                              + constants.SEPARATOR + token.lemma_, dict_unknown))
             sen_parents.append(root_offset - len(sen_parents))
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -423,12 +444,13 @@ def process_sentence8(sentence, parsed_data, data_maps, dict_unknown=None, conca
                 mytools.getOrAdd(data_maps, constants.vocab_manual[constants.LEMMA_EMBEDDING], dict_unknown))
             sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -455,11 +477,13 @@ def process_sentence10(sentence, parsed_data, data_maps, dict_unknown=None, conc
                                          + constants.SEPARATOR + token.orth_, dict_unknown))
         sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
 
     return sen_data, sen_parents, root_offsets
 
@@ -494,12 +518,13 @@ def process_sentence9(sentence, parsed_data, data_maps, dict_unknown=None, conca
             # sen_data.append(mytools.getOrAdd(data_maps, token.pos_, dict_unknown))
             # sen_parents.append(-1)
 
-    if concat_mode == 'aggregate':
-        root_offsets.append(len(sen_data))
-        sen_parents.append(0)
-        sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
-    sen_parents, root_offsets = concat_roots(sen_parents, root_offsets, root_parents, concat_mode)
-
+    #if concat_mode == 'aggregate':
+    #    root_offsets.append(len(sen_data))
+    #    sen_parents.append(0)
+    #    sen_data.append(mytools.getOrAdd(data_maps, constants.vocab_manual[constants.AGGREGATOR_EMBEDDING], dict_unknown))
+    new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
+    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+                                                       new_root_id=new_root_id)
     return sen_data, sen_parents, root_offsets
 
 
@@ -564,19 +589,21 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
             sen_count += 1
 
         # add source node(s), if concat_mode is not None:
-        if concat_mode:
-            root_data_list = _reader_root.next()
-            if type(root_data_list) != list:
-                root_data_list = [root_data_list]
-            root_temp_roots = []
-            for i, root_data in enumerate(root_data_list):
-                root_temp_roots.append(len(seq_parents))
-                seq_parents.append(0)
-                seq_data.append(mytools.getOrAdd(data_maps, root_data, unknown_default))
-            seq_parents, new_roots = concat_roots(seq_parents, root_temp_roots, concat_mode='aggregate')
-            temp_roots.extend(new_roots)
+        #if concat_mode is not None:
+        #    root_data_list = _reader_root.next()
+        #    if type(root_data_list) != list:
+        #        root_data_list = [root_data_list]
+        #    root_temp_roots = []
+        #    for i, root_data in enumerate(root_data_list):
+        #        root_temp_roots.append(len(seq_parents))
+        #        seq_parents.append(0)
+        #        seq_data.append(mytools.getOrAdd(data_maps, root_data, unknown_default))
+        #    seq_parents, new_roots = concat_roots(seq_parents, root_temp_roots, concat_mode='aggregate')
+        #    temp_roots.extend(new_roots)
 
-        seq_parents, _ = concat_roots(seq_parents, temp_roots, concat_mode=concat_mode)
+        new_root_id = mytools.getOrAdd(data_maps, _reader_root.next(), unknown_default)
+        seq_data, seq_parents, _ = concat_roots(data=seq_data, parents=seq_parents, root_offsets=temp_roots,
+                                                concat_mode=concat_mode,  new_root_id=new_root_id)
 
     logging.debug('sentences read: ' + str(sen_count))
     data = np.array(seq_data)
