@@ -117,8 +117,10 @@ def query_first_section_structure(graph, initBindings=None):
 
 
 def create_context_tree(nlp, lexicon, children_typed, terminals, context, context_str, see_also_refs, link_refs,
-                        link_ref_type="http://www.w3.org/2005/11/its/rdf#taIdentRef"):
+                        link_ref_type="http://www.w3.org/2005/11/its/rdf#taIdentRef", max_see_also_refs=50):
     t_start = datetime.now()
+    if len(see_also_refs) > max_see_also_refs:
+        see_also_refs = []
     tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
                                                                                               see_also_refs=see_also_refs,
                                                                                               lexicon=lexicon,
@@ -229,7 +231,7 @@ def query_context_data(graph, context):
         logger.debug(row)
 
     logger.debug('str:')
-    logger.debug(len(context_str))
+    logger.debug(context_str)
 
     logger.info('print result: %s' % str(datetime.now() - t_start))
 
@@ -265,8 +267,14 @@ if __name__ == '__main__':
     logger.info('connected')
 
     test_context_tree(g)
-    #children_typed = g_structure.query(
-    #    'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
-    #    initNs=ns_dict)
+
+    #contexts = []
+    #t_start = datetime.now()
+    #for i, context in enumerate(g.subjects(RDF.type, NIF.Context)):
+    #    if i % 1000 == 0:
+    #        logger.info('%i: %s' % (i, str(datetime.now() - t_start)))
+    #        t_start = datetime.now()
+    #    contexts.append(context)
+
 
 
