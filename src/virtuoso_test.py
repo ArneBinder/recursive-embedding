@@ -116,7 +116,7 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_also_refs):
+def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_also_refs, link_refs):
     t_start = datetime.now()
     tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
                                                                                               see_also_refs=see_also_refs,
@@ -136,9 +136,29 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, see_al
         for s in terminal_types:
             yield s
 
+    def link_reader():
+        # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
+        refs = {}
+        for ref_tuple in link_refs:
+            super_string = unicode(ref_tuple[0])
+            target = unicode(ref_tuple[1])
+            offset = int(ref_tuple[2])
+            begin_index = int(ref_tuple[3])
+            end_index = int(ref_tuple[4])
+
+            l = refs.get(super_string, [])
+            l.append((target, begin_index - offset, end_index - offset))
+            refs[super_string] = l
+        for s in terminal_uri_strings:
+            yield refs.get(s, None)
+
+    #print('links:')
+    #for x in link_reader():
+    #    print(x)
+
     logger.info('parse data ...')
     forest_terminals = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
-                                         reader_roots=reader_roots,
+                                         reader_roots=reader_roots, reader_annotations=link_reader,
                                          parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
                                          expand_dict=True)
     logger.info('parsed data: %s' % str(datetime.now() - t_start))
@@ -219,7 +239,8 @@ if __name__ == '__main__':
     logger.debug('refs:')
     #for s, p, o in g_structure.triples((None, ITS.taIdentRef, None)):
     #    print(s, o)
-    for row in g_structure.query('SELECT DISTINCT ?superString ?targetContext ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . BIND(URI(CONCAT(STR(?target), "?dbpv=2016-10&nif=context")) as ?targetContext)}', initNs=ns_dict):
+    refs = g_structure.query('SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }', initNs=ns_dict)
+    for row in refs:
         logger.debug(row)
 
     logger.debug('str:')
@@ -242,7 +263,7 @@ if __name__ == '__main__':
     t_start = datetime.now()
 
     tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-                                       see_also_refs=res_context_seealsos,
+                                       see_also_refs=res_context_seealsos, link_refs=refs,
                                        context=context)
     logger.info('leafs: %i' % len(tree_context))
 
