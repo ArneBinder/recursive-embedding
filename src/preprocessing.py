@@ -538,7 +538,7 @@ def identity_reader(content):
 
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode, inner_concat_mode=constants.default_inner_concat_mode,
-              expand_dict=True, reader_roots=None, reader_roots_args={}):
+              expand_dict=True, reader_roots=None, reader_roots_args={}, reader_annotations=None):
     # ids (dictionary) of the data points in the dictionary
     seq_data = list()
     # offsets of the parents
@@ -566,12 +566,18 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
     else:
         _reader_root = reader_roots(**reader_roots_args)
 
+    if reader_annotations is not None:
+        _reader_annotations = reader_annotations()
+    else:
+        _reader_annotations = iter(lambda: None, -1)
+
     logging.debug('start read_data ...')
     sen_count = 0
     for parsed_data in parser.pipe(reader(**reader_args), n_threads=4, batch_size=batch_size):
         # prev_root = None
         temp_roots = []
         #start_idx = len(seq_data)
+        annotations = _reader_annotations.next()
         for sentence in parsed_data.sents:
             processed_sen = sentence_processor(sentence, parsed_data, data_maps, unknown_default, inner_concat_mode)
             # skip not processed sentences (see process_sentence)
