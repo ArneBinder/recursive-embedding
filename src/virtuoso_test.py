@@ -2,7 +2,7 @@
 #from __future__ import unicode_literals
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import os
 import spacy
@@ -12,6 +12,8 @@ from rdflib.plugin import get as plugin
 from rdflib.term import URIRef
 from rdflib import Namespace
 from rdflib.namespace import RDF, RDFS
+from toolz import partition_all
+from joblib import Parallel, delayed
 
 from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples
@@ -296,14 +298,18 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
 
     logger.info('start parsing ...')
     failed = []
-    t_start = datetime.now()
+    t_start_batch = datetime.now()
+    t_query = timedelta(microseconds=0)
+    t_parse = timedelta(microseconds=0)
     skip = False
     i = 0
-    for i, context in enumerate(g.subjects(RDF.type, NIF.Context)):
+    for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
         if i % steps_save == 0:
             if i > 0:
-                logger.info('%i: %s (failed: %i, forest_size: %i)%s'
-                            % (i, str(datetime.now() - t_start), len(failed), len(forest), ' LOADED' if skip else ''))
+                logger.info('%i: %s (failed: %i, forest_size: %i) t_query: %s t_parse: %s%s'
+                            % (i, str(datetime.now() - t_start_batch), len(failed), len(forest), str(t_query), str(t_parse), ' LOADED' if skip else ''))
+                t_query = timedelta(microseconds=0)
+                t_parse = timedelta(microseconds=0)
                 if not skip:
                     fn = os.path.join(out_path, 'forest-%i' % i)
                     forest.dump(fn)
@@ -326,14 +332,18 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
                 forest = Forest(data=[], parents=[], lexicon=lexicon)
                 failed = []
 
-            t_start = datetime.now()
+            t_start_batch = datetime.now()
         #contexts.append(context)
         if not skip:
             try:
+                t_start = datetime.now()
                 res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+                t_query += datetime.now() - t_start
+                t_start = datetime.now()
                 tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
                                                    see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
                                                    context=context)
+                t_parse += datetime.now() - t_start
                 forest.append(tree_context)
                 #logger.debug('leafs: %i' % len(tree_context))
             except Exception as e:
@@ -409,6 +419,71 @@ def test_connect_utf8(dns="DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y",
     return res
 
 
+def process_contexts(nlp, batch_idx, contexts, graph, out_path):
+    logger.debug('start batch: %i' % batch_idx)
+    t_start = datetime.now()
+    lexicon = Lexicon(types=[])
+    forest = Forest(data=[], parents=[], lexicon=lexicon)
+    failed = []
+
+    t_query = timedelta(microseconds=0)
+    t_parse = timedelta(microseconds=0)
+
+    for context in contexts:
+        try:
+            t_start = datetime.now()
+            res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+            t_query += datetime.now() - t_start
+            t_start = datetime.now()
+            tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed,
+                                               terminals=terminals,
+                                               see_also_refs=res_context_seealsos, link_refs=refs,
+                                               context_str=context_str,
+                                               context=context)
+            t_parse += datetime.now() - t_start
+            forest.append(tree_context)
+            # logger.debug('leafs: %i' % len(tree_context))
+        except Exception as e:
+            failed.append((context, e))
+
+    fn = os.path.join(out_path, 'forest-%i' % batch_idx)
+    forest.dump(fn)
+    lexicon.dump(fn, types_only=True)
+    with open(fn + '.failed', 'w', ) as f:
+        for uri, e in failed:
+            f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
+
+    logger.debug('finished batch %i: %s (failed: %i) t_query: %s t_parse: %s' % (batch_idx, str(datetime.now() - t_start), len(failed), str(t_query), str(t_parse)))
+
+
+def test_process_all_contexts_parallel(graph,
+                                       out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF_parallel',
+                                       steps_save=10000,
+                                       n_jobs=4):
+    logger.setLevel(logging.DEBUG)
+
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+
+    # create empty lexicon
+    #lexicon = Lexicon(types=[])
+    #logger.info('lexicon size: %i' % len(lexicon))
+
+    logger.info('load spacy ...')
+    t_start = datetime.now()
+    nlp = spacy.load('en_core_web_md')
+    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
+    t_start = datetime.now()
+    logger.info('create context partitions ... ')
+    partitions = partition_all(steps_save, list(graph.subjects(RDF.type, NIF.Context)))
+    logger.info('partitions created: %s' % str(datetime.now() - t_start))
+    executor = Parallel(n_jobs=n_jobs)
+    do = delayed(process_contexts)
+    logger.info('start processing ... ')
+    tasks = (do(nlp, i, batch, graph, out_path) for i, batch in enumerate(partitions))
+    executor(tasks)
+
+
 if __name__ == '__main__':
     #test_connect_utf8()
 
@@ -423,6 +498,7 @@ if __name__ == '__main__':
     #test_utf8_context(g)
 
     process_all_contexts(g)
+    #test_process_all_contexts_parallel(g)
 
 
 
