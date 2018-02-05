@@ -269,7 +269,7 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
-def process_all_contexts(graph, out_path='../tmp_out', steps_save=1000):
+def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=100):
 
     if not os.path.exists(out_path):
         os.mkdir(out_path)
@@ -298,7 +298,9 @@ def process_all_contexts(graph, out_path='../tmp_out', steps_save=1000):
                     forest.dump(fn)
                     lexicon.dump(fn, types_only=True)
                     with open(fn+'.failed', 'w', ) as f:
-                        f.writelines([(unicode(uri)+u'\t'+unicode(e)).encode('utf8') for uri, e in failed])
+                        #f.writelines([(unicode(uri) + u'\t' + unicode(e)).encode('utf8') for uri, e in failed])
+                        for uri, e in failed:
+                            f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
 
             # check, if next ones are already available
             try:
@@ -322,7 +324,7 @@ def process_all_contexts(graph, out_path='../tmp_out', steps_save=1000):
                 forest.append(tree_context)
                 #logger.debug('leafs: %i' % len(tree_context))
             except Exception as e:
-                failed.append((failed, e))
+                failed.append((context, e))
 
     # save remaining
     if i % steps_save > 0:
