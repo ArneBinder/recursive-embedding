@@ -117,7 +117,7 @@ def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None,
 
         # check and append annotations, eventually
         annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token)
-        sen_data.extend([mytools.getOrAdd(data_maps, s) for s in annot_data])
+        sen_data.extend([mytools.getOrAdd(data_maps, s, dict_unknown) for s in annot_data])
         sen_parents.extend(annot_parents)
 
     new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)

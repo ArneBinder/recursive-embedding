@@ -1,10 +1,12 @@
 # coding: utf-8
 #from __future__ import unicode_literals
-
+import Queue
 import logging
 from datetime import datetime, timedelta
 
 import os
+from threading import Thread
+
 import spacy
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
@@ -167,11 +169,29 @@ def create_context_forest(nlp, lexicon, graph, nif_contexts, link_ref_type=u"htt
     failed = []
     ref_type_str = unicode(link_ref_type)
 
-    def terminal_reader():
-        for nif_context in nif_contexts:
-            try:
-                tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions = prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str)
+    q = Queue.Queue()
 
+    def add_queried_context_data(graph, nif_contexts, max_see_also_refs, ref_type_str):
+        for nif_context in nif_contexts:
+            #print('put: ' + unicode(nif_context))
+            item = list(prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str))
+            item.append(nif_context)
+            q.put(item)
+        q.put(None)
+
+    t = Thread(target=add_queried_context_data, args=(graph, nif_contexts, max_see_also_refs, ref_type_str))
+    t.start()
+
+    def terminal_reader():
+        #for nif_context in nif_contexts:
+        while True:
+            item = q.get()
+            if item is None:
+                break
+            tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions, nif_context = tuple(item)
+            #print('get: '+unicode(nif_context))
+            try:
+                #tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions = prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str)
                 prepend = (tree_context_data, tree_context_parents)
                 for i in range(len(terminal_strings)):
                     yield (terminal_strings[i], {'root_type': terminal_types[i],
@@ -181,6 +201,8 @@ def create_context_forest(nlp, lexicon, graph, nif_contexts, link_ref_type=u"htt
                     prepend = None
             except Exception as e:
                 failed.append((nif_context, e))
+                #raise e
+            #q.task_done()
 
     #logger.debug('parse data ...')
     forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
@@ -542,7 +564,7 @@ if __name__ == '__main__':
     #test_context_tree(g, context=URIRef(u'http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context'))
     #test_utf8_context(g)
 
-    process_all_contexts_dep(g)
+    process_all_contexts(g)
     #test_process_all_contexts_parallel(g)
 
 

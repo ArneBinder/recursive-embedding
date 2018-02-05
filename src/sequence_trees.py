@@ -331,10 +331,9 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     temp_data = [root_type_str, root_id_str, anchor_type_str]
     temp_parents = [0, -1, -2]
     for see_also_ref, in see_also_refs:
-        s = unicode(see_also_ref)
         temp_data.append(see_also_link_type_str)
         temp_parents.append(-len(temp_parents))
-        temp_data.append(lexicon[s])
+        temp_data.append(unicode(see_also_ref))
         temp_parents.append(-1)
     pre_len = len(temp_data)
     positions = {}
@@ -350,13 +349,13 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
             positions[uri_parent_str] = 2
         parent_uris[uri_str] = uri_parent_str
         positions[uri_str] = len(temp_data)
-        id_uri_type = lexicon[uri_type_str]
+        #id_uri_type = lexicon[uri_type_str]
         #if id_uri_type in ids_terminal_types:
         if uri_type_str in terminal_types:
             terminal_types_list.append(uri_type_str)
             terminal_parent_positions[uri_str] = positions[parent_uris[uri_str]]
         else:
-            temp_data.append(id_uri_type)
+            temp_data.append(uri_type_str)
             temp_parents.append(positions[uri_parent_str] - len(temp_parents))
         #positions[unicode(uri)] = len(temp_data)
 
