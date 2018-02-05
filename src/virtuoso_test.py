@@ -2,9 +2,9 @@
 #from __future__ import unicode_literals
 
 import logging
-import pprint
 from datetime import datetime
 
+import os
 import spacy
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
@@ -58,6 +58,7 @@ logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 #logger.addHandler(logging.FileHandler('../virtuoso_test.log', mode='w', encoding='utf-8'))
+logger.propagate = False
 
 logger_virtuoso = logging.getLogger('virtuoso.vstore')
 logger_virtuoso.setLevel(logging.INFO)
@@ -268,7 +269,11 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
-def test_all_context_tree(graph):
+def process_all_contexts(graph, out_path='../tmp_out', steps_save=1000):
+
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+
     # create empty lexicon
     lexicon = Lexicon(types=[])
     logger.info('lexicon size: %i' % len(lexicon))
@@ -278,23 +283,52 @@ def test_all_context_tree(graph):
     nlp = spacy.load('en_core_web_md')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
 
+    logger.info('start parsing ...')
     failed = []
     t_start = datetime.now()
+    skip = False
+    i = 0
     for i, context in enumerate(g.subjects(RDF.type, NIF.Context)):
-        if i % 1000 == 0:
-            logger.info('%i: %s (failed: %i)' % (i, str(datetime.now() - t_start), len(failed)))
+        if i % steps_save == 0:
+            if i > 0:
+                logger.info('%i: %s (failed: %i, forest_size: %i)%s'
+                            % (i, str(datetime.now() - t_start), len(failed), len(forest), ' LOADED' if skip else ''))
+                if not skip:
+                    fn = os.path.join(out_path, 'forest-%i' % i)
+                    forest.dump(fn)
+                    lexicon.dump(fn, types_only=True)
+                    with open(fn+'.failed', 'w', ) as f:
+                        f.writelines([(unicode(uri)+u'\t'+unicode(e)).encode('utf8') for uri, e in failed])
+
+            # check, if next ones are already available
+            try:
+                fn_next = os.path.join(out_path, 'forest-%i' % (i+steps_save))
+                lexicon = Lexicon(filename=fn_next)
+                forest = Forest(filename=fn_next)
+                skip = True
+            except IOError:
+                skip = False
+                forest = Forest(data=[], parents=[], lexicon=lexicon)
+                failed = []
+
             t_start = datetime.now()
         #contexts.append(context)
-        try:
-            res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
-            tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-                                               see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
-                                               context=context)
-            logger.debug('leafs: %i' % len(tree_context))
-        except Exception as e:
-            failed.append((failed, e))
+        if not skip:
+            try:
+                res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+                tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
+                                                   see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
+                                                   context=context)
+                forest.append(tree_context)
+                #logger.debug('leafs: %i' % len(tree_context))
+            except Exception as e:
+                failed.append((failed, e))
 
-        #tree_context.visualize('tmp.svg')  # , start=0, end=100)
+    # save remaining
+    if i % steps_save > 0:
+        fn = os.path.join(out_path, 'forest-%i' % i)
+        forest.dump(fn)
+        lexicon.dump(fn, types_only=True)
 
 
 def test_utf8_context(graph, context=URIRef(u"http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context")):
@@ -313,7 +347,7 @@ if __name__ == '__main__':
     #test_context_tree(g)
     #test_utf8_context(g)
 
-    test_all_context_tree(g)
+    process_all_contexts(g)
 
 
 
