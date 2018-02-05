@@ -20,17 +20,25 @@ from src import preprocessing
 """
 prerequisites:
     set up / install:
-        virtuoso docker image: 
+      * virtuoso docker image: 
             see https://joernhees.de/blog/2015/11/23/setting-up-a-linked-data-mirror-from-rdf-dumps-dbpedia-2015-04-freebase-wikidata-linkedgeodata-with-virtuoso-7-2-1-and-docker-optional/
-        virtuoso odbc driver (libvirtodbc0) included in libvirtodbc0_7.2_amd64.deb (e.g. from https://github.com/Dockerizing/triplestore-virtuoso7)
+      * virtuoso odbc driver (libvirtodbc0) included in libvirtodbc0_7.2_amd64.deb (e.g. from https://github.com/Dockerizing/triplestore-virtuoso7)
             wget https://github.com/Dockerizing/triplestore-virtuoso7/raw/master/libvirtodbc0_7.2_amd64.deb
             sudo apt install /PATH/TO/libvirtodbc0_7.2_amd64.deb
-        rdflib:
+      * rdflib:
             pip install rdflib
-        virtuoso-python: see https://github.com/maparent/virtuoso-python
+      * virtuoso-python: see https://github.com/maparent/virtuoso-python
             git clone git@github.com:maparent/virtuoso-python.git && cd virtuoso-python
             pip install -r requirements.txt
             python setup.py install
+      * fix connection encoding: due libvirtodbc0 knows only utf-8, the connections settings in virtuoso.vstore of the 
+        virtuoso-python package has to be adapted. Change the line that is commented out below with the other one:
+            #connection.setencoding(unicode, 'utf-32LE', pyodbc.SQL_WCHAR)
+            connection.setencoding(unicode, 'utf-8', pyodbc.SQL_CHAR)
+        and further change line ~353:
+            #log.log(9, "query: \n" + str(q))
+            log.log(9, "query: \n" + unicode(q))
+        
     
     settings:            
         ~/.odbc.ini (or /etc/odbc.ini) containing:
@@ -88,7 +96,7 @@ def query_see_also_links(graph, initBindings=None):
              'OFFSET 0 '
              )
     logging.debug(q_str)
-    res = graph.store.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     return res
 
 
@@ -119,7 +127,7 @@ def query_first_section_structure(graph, initBindings=None):
         #' FILTER (?p != nif:referenceContext)'
         '}')
     logger.debug(q_str)
-    res = graph.store.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     #print(type(res))
     return res
 
@@ -132,7 +140,7 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, contex
     tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
                                                                                               see_also_refs=see_also_refs,
                                                                                               lexicon=lexicon,
-                                                                                              root_id=str(context)[:-len('?dbpv=2016-10&nif=context')])
+                                                                                              root_id=unicode(context)[:-len('?dbpv=2016-10&nif=context')])
     if logger.level <= logging.DEBUG:
         tree_context.visualize('../tmp_structure.svg')
     logger.debug('created forest_struct: %s' % str(datetime.now() - t_start))
@@ -250,17 +258,19 @@ def query_context_data(graph, context):
 
 
 def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")):
+    logger.setLevel(logging.DEBUG)
+    logger_virtuoso.setLevel(logging.DEBUG)
 
     # create empty lexicon
     lexicon = Lexicon(types=[])
     logger.debug('lexicon size: %i' % len(lexicon))
 
+    res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+
     logger.info('load spacy ...')
     t_start = datetime.now()
     nlp = spacy.load('en_core_web_md')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
-
-    res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
     tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
                                        see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
                                        context=context)
@@ -270,6 +280,7 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
 
 
 def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=100):
+    logger.setLevel(logging.INFO)
 
     if not os.path.exists(out_path):
         os.mkdir(out_path)
@@ -301,11 +312,13 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
                         #f.writelines([(unicode(uri) + u'\t' + unicode(e)).encode('utf8') for uri, e in failed])
                         for uri, e in failed:
                             f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
+                    fn_prev = os.path.join(out_path, 'forest-%i' % (i - steps_save))
+                    Lexicon.delete(fn_prev)
 
             # check, if next ones are already available
             try:
                 fn_next = os.path.join(out_path, 'forest-%i' % (i+steps_save))
-                lexicon = Lexicon(filename=fn_next)
+                #lexicon = Lexicon(filename=fn_next)
                 forest = Forest(filename=fn_next)
                 skip = True
             except IOError:
@@ -334,11 +347,71 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
 
 
 def test_utf8_context(graph, context=URIRef(u"http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context")):
-    for s, p, o in graph.triples((context, None, None)):
+    logger.setLevel(logging.DEBUG)
+    logger_virtuoso.setLevel(logging.DEBUG)
+    #for s, p, o in graph.triples((context, None, None)):
+    #    print(s, p, o)
+    #test_context_tree(graph, context)
+    res = graph.query(u'select distinct ?p ?o where { <http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context> ?p ?o . } LIMIT 10')
+    print(res)
+
+
+def test_connect_utf8(dns="DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y",
+                 #q=u'SPARQL select distinct ?p ?o where { <http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context> ?p ?o . } LIMIT 10'
+                 q=u'SPARQL select distinct ?s ?p ?o where { ?s ?p ?o . VALUES ?s {<http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context>}} LIMIT 10'
+                 ):
+    import pyodbc
+
+    def _sparql_select(q, cursor, must_close):
+        from virtuoso.vstore import EagerIterator, VirtuosoResultRow, Variable, resolve
+        logger.debug("_sparql_select")
+        results = cursor.execute(q)
+        vars = [Variable(col[0]) for col in results.description]
+        var_dict = VirtuosoResultRow.prepare_var_dict(vars)
+
+        def f():
+            try:
+                for r in results:
+                    try:
+                        yield VirtuosoResultRow([resolve(cursor, x) for x in r],
+                                                var_dict)
+                    except Exception as e:
+                        logger.debug("skip row, because of %s", e)
+                        pass
+            finally:
+                if must_close:
+                    cursor.close()
+
+        e = EagerIterator(f())
+        e.vars = vars
+        e.selectionF = e.vars
+        return e
+
+    logger.setLevel(logging.DEBUG)
+    logger_virtuoso.setLevel(logging.DEBUG)
+    connection = pyodbc.connect(dns)
+    connection.setdecoding(pyodbc.SQL_CHAR, 'utf-8', pyodbc.SQL_CHAR)
+    connection.setdecoding(pyodbc.SQL_WCHAR, 'utf-32LE', pyodbc.SQL_WCHAR, unicode)
+    connection.setdecoding(pyodbc.SQL_WMETADATA, 'utf-32LE', pyodbc.SQL_WCHAR, unicode)
+    #connection.setdecoding(pyodbc.SQL_WCHAR, 'utf-8', pyodbc.SQL_WCHAR, unicode)
+    #connection.setdecoding(pyodbc.SQL_WMETADATA, 'utf-8', pyodbc.SQL_WCHAR, unicode)
+
+    #connection.setencoding(unicode, 'utf-32LE', pyodbc.SQL_WCHAR)
+    connection.setencoding(unicode, 'utf-8', pyodbc.SQL_CHAR)
+    connection.setencoding(str, 'utf-8', pyodbc.SQL_CHAR)
+
+    cursor = connection.cursor()
+    res = _sparql_select(q, cursor, True)
+    for s, p, o in res:
         print(s, p, o)
+    #results = cursor.execute(q)
+    #cursor.close()
+    return res
 
 
 if __name__ == '__main__':
+    #test_connect_utf8()
+
     logger.info('set up connection ...')
     Virtuoso = plugin("Virtuoso", Store)
     store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
@@ -346,7 +419,7 @@ if __name__ == '__main__':
     g = Graph(store, identifier=URIRef(default_graph_uri))
     logger.info('connected')
 
-    #test_context_tree(g)
+    #test_context_tree(g, context=URIRef(u'http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context'))
     #test_utf8_context(g)
 
     process_all_contexts(g)

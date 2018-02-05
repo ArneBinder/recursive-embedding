@@ -22,6 +22,7 @@ def load(fn):
     return data, parents
 
 
+# deprecated, use Forest.dump
 def dump(fn, data=None, parents=None):
     if data is not None:
         logging.debug('dump data ...')
@@ -415,8 +416,18 @@ class Forest(object):
         self._forest[1] = parents
 
     def dump(self, filename):
-        dump(fn=filename, data=self.data, parents=self.parents)
+        #dump(fn=filename, data=self.data, parents=self.parents)
+        #if data is not None:
+        logging.debug('dump data ...')
+        self.data.dump('%s.data' % filename)
+        #if parents is not None:
+        logging.debug('dump parents ...')
+        self.parents.dump('%s.parent' % filename)
         self._filename = filename
+
+    @staticmethod
+    def exist(filename):
+        return os.path.exists('%s.data' % filename) and os.path.exists('%s.parent' % filename)
 
     def reload(self):
         assert self._filename is not None, 'no filename set'

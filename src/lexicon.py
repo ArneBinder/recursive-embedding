@@ -392,6 +392,17 @@ class Lexicon(object):
         #self._dumped_types = True
         self._filename = filename
 
+    @staticmethod
+    def exist(filename, types_only=False):
+        return os.path.isfile('%s.type' % filename) and (types_only or os.path.isfile('%s.vec' % filename))
+
+    @staticmethod
+    def delete(filename, types_only=False):
+        if Lexicon.exist(filename, types_only=types_only):
+            os.remove('%s.type' % filename)
+            if not types_only:
+                os.remove('%s.vec' % filename)
+
     # compatibility
     def set_types_with_mapping(self, mapping):
         self._types = revert_mapping_to_list(mapping)
