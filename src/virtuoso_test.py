@@ -233,6 +233,10 @@ def query_context_data(graph, context):
     if logger.level <= logging.DEBUG:
         # debug
         logger.info('exec query: %s' % str(datetime.now() - t_start))
+
+        for triple in g_structure:
+            logger.debug(triple)
+
         t_start = datetime.now()
         logger.debug("see also's:")
         for row in res_context_seealsos:
@@ -458,7 +462,7 @@ def process_contexts(nlp, batch_idx, contexts, graph, out_path):
 
 def test_process_all_contexts_parallel(graph,
                                        out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF_parallel',
-                                       steps_save=10000,
+                                       steps_save=1000,
                                        n_jobs=4):
     logger.setLevel(logging.DEBUG)
 
@@ -473,9 +477,17 @@ def test_process_all_contexts_parallel(graph,
     t_start = datetime.now()
     nlp = spacy.load('en_core_web_md')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
+
+    # debug
+    # query all contexts takes 4min @4gb for virtuoso
+    t_start = datetime.now()
+    logger.info('query all contexts ... ')
+    contexts = list(graph.subjects(RDF.type, NIF.Context))
+    logger.info('contexts queried: %s' % str(datetime.now() - t_start))
+
     t_start = datetime.now()
     logger.info('create context partitions ... ')
-    partitions = partition_all(steps_save, list(graph.subjects(RDF.type, NIF.Context)))
+    partitions = partition_all(steps_save, contexts)
     logger.info('partitions created: %s' % str(datetime.now() - t_start))
     executor = Parallel(n_jobs=n_jobs)
     do = delayed(process_contexts)
