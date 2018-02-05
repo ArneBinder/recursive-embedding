@@ -300,7 +300,7 @@ def _compare_tree_dicts(tree1, tree2):
     return 0
 
 
-def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id,
+def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
                                     see_also_refs,
                                     root_type="http://dbpedia.org/resource",
                                     anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
@@ -318,21 +318,21 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id,
     :param anchor_type: the tree represented in sorted_parent_triples will be anchored via this uri string to the
                         root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
     :param terminal_types: uri strings that are considered as terminals, i.e. are used as roots of parsed string trees
-    :return: the tree as Forest object and position mappings ({str(uri): offset})
+    :return: the tree data strings, parents, position mappings ({str(uri): offset}) and list of terminal types
     """
     if terminal_types is None:
         terminal_types = [u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph',
                           u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title']
     #ids_terminal_types = [lexicon[unicode(terminal_type)] for terminal_type in terminal_types]
-    id_root_type = lexicon[unicode(root_type)]
-    id_root_id = lexicon[unicode(root_id)]
-    id_anchor_type = lexicon[unicode(anchor_type)]
-    id_see_also_link_type = lexicon[unicode(see_also_link_type)]
-    temp_data = [id_root_type, id_root_id, id_anchor_type]
+    root_type_str = unicode(root_type)
+    root_id_str = unicode(root_id)
+    anchor_type_str = unicode(anchor_type)
+    see_also_link_type_str = unicode(see_also_link_type)
+    temp_data = [root_type_str, root_id_str, anchor_type_str]
     temp_parents = [0, -1, -2]
     for see_also_ref, in see_also_refs:
         s = unicode(see_also_ref)
-        temp_data.append(id_see_also_link_type)
+        temp_data.append(see_also_link_type_str)
         temp_parents.append(-len(temp_parents))
         temp_data.append(lexicon[s])
         temp_parents.append(-1)

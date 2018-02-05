@@ -117,7 +117,7 @@ def process_sentence1(sentence, parsed_data, data_maps, dict_unknown=None,
 
         # check and append annotations, eventually
         annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token)
-        sen_data.extend(annot_data)
+        sen_data.extend([mytools.getOrAdd(data_maps, s) for s in annot_data])
         sen_parents.extend(annot_parents)
 
     new_root_id = mytools.getOrAdd(data_maps, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
@@ -573,7 +573,7 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
             prepend = context.get('prepend_tree', None)
             if prepend is not None:
                 last_prepend_offset = len(seq_data)
-                seq_data.extend(prepend[0])
+                seq_data.extend([mytools.getOrAdd(data_maps, s) for s in prepend[0]])
                 seq_parents.extend(prepend[1])
             annotations = context.get('annotations', None)
             root_type = context.get('root_type', _reader_root.next())

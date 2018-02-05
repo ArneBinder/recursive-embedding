@@ -134,13 +134,13 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def prepare_context_data(graph, nif_context, lexicon, max_see_also_refs, ref_type_id):
+def prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str):
     see_also_refs, children_typed, terminals, link_refs, nif_context_str = query_context_data(graph, nif_context)
     if len(see_also_refs) > max_see_also_refs:
         see_also_refs = []
-    tree_context_data, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
+    tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
         children_typed,
-        see_also_refs=see_also_refs, lexicon=lexicon,
+        see_also_refs=see_also_refs,
         root_id=unicode(nif_context)[:-len('?dbpv=2016-10&nif=context')])
     terminal_uri_strings, terminal_strings = zip(
         *[(unicode(uri), nif_context_str[int(begin):int(end)]) for uri, begin, end in terminals])
@@ -149,28 +149,28 @@ def prepare_context_data(graph, nif_context, lexicon, max_see_also_refs, ref_typ
     # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
     for ref_tuple in link_refs:
         super_string = unicode(ref_tuple[0])
-        target = unicode(ref_tuple[1])
-        target_id = lexicon[target]
+        target_str = unicode(ref_tuple[1])
+        #target_id = lexicon[target]
         offset = int(ref_tuple[2])
         begin_index = int(ref_tuple[3])
         end_index = int(ref_tuple[4])
 
         ref_list = refs.get(super_string, [])
-        ref_list.append((begin_index - offset, end_index - offset, [ref_type_id, target_id], [0, -1]))
+        ref_list.append((begin_index - offset, end_index - offset, [ref_type_str, target_str], [0, -1]))
         refs[super_string] = ref_list
 
-    return tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions
+    return tree_context_data_strings, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions
 
 
 def create_context_forest(nlp, lexicon, graph, nif_contexts, link_ref_type=u"http://www.w3.org/2005/11/its/rdf#taIdentRef",
                           max_see_also_refs=50):
     failed = []
-    ref_type_id = lexicon[unicode(link_ref_type)]
+    ref_type_str = unicode(link_ref_type)
 
     def terminal_reader():
         for nif_context in nif_contexts:
             try:
-                tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions = prepare_context_data(graph, nif_context, lexicon, max_see_also_refs, ref_type_id)
+                tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions = prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str)
 
                 prepend = (tree_context_data, tree_context_parents)
                 for i in range(len(terminal_strings)):
@@ -358,33 +358,36 @@ def process_all_contexts_dep(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
                     Lexicon.delete(fn_prev, types_only=True)
 
             # check, if next ones are already available
-            try:
-                fn_next = os.path.join(out_path, 'forest-%i' % (i+steps_save))
-                #lexicon = Lexicon(filename=fn_next)
-                forest = Forest(filename=fn_next)
+            fn_next = os.path.join(out_path, 'forest-%i' % (i + steps_save))
+            if Forest.exist(fn_next):
                 skip = True
-            except IOError:
+            else:
                 skip = False
-                forest = Forest(data=[], parents=[], lexicon=lexicon)
                 failed = []
+                forest = None #Forest(data=[], parents=[], lexicon=lexicon)
 
             t_start_batch = datetime.now()
         #contexts.append(context)
         if not skip:
-            try:
-                t_start = datetime.now()
-                #res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
-                t_query += datetime.now() - t_start
-                t_start = datetime.now()
-                #tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-                #                                   see_also_refs=res_context_seealsos, link_refs=refs, nif_context_str=context_str,
-                #                                   nif_context=context)
-                forest = create_context_forest(lexicon=lexicon, nlp=nlp, graph=graph, nif_contexts=[context])
-                t_parse += datetime.now() - t_start
-                #forest.append(tree_context)
-                #logger.debug('leafs: %i' % len(tree_context))
-            except Exception as e:
-                failed.append((context, e))
+            #try:
+            #t_start = datetime.now()
+            ##res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
+            #t_query += datetime.now() - t_start
+            t_start = datetime.now()
+            #tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
+            #                                   see_also_refs=res_context_seealsos, link_refs=refs, nif_context_str=context_str,
+            #                                   nif_context=context)
+            forest_current, failed_current = create_context_forest(lexicon=lexicon, nlp=nlp, graph=graph, nif_contexts=[context])
+            if forest is None:
+                forest = forest_current
+            else:
+                forest.append(forest_current)
+            t_parse += datetime.now() - t_start
+            #forest.append(tree_context)
+            #logger.debug('leafs: %i' % len(tree_context))
+            #except Exception as e:
+            #failed.append((context, e))
+            failed.extend(failed_current)
 
     # save remaining
     if i % steps_save > 0:
