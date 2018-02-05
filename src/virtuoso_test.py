@@ -279,7 +279,7 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
-def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=100):
+def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
     logger.setLevel(logging.INFO)
 
     if not os.path.exists(out_path):
@@ -313,7 +313,7 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
                         for uri, e in failed:
                             f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
                     fn_prev = os.path.join(out_path, 'forest-%i' % (i - steps_save))
-                    Lexicon.delete(fn_prev)
+                    Lexicon.delete(fn_prev, types_only=True)
 
             # check, if next ones are already available
             try:
