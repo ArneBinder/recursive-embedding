@@ -415,6 +415,9 @@ class Forest(object):
         self._forest[0] = data
         self._forest[1] = parents
 
+    def set_lexicon(self, lexicon):
+        self._lexicon = lexicon
+
     def dump(self, filename):
         #dump(fn=filename, data=self.data, parents=self.parents)
         #if data is not None:
@@ -643,6 +646,7 @@ class Forest(object):
                     target_index = i
                 graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
 
+        logging.debug('graph created. write to file ...')
         # print(graph.to_string())
         graph.write_svg(filename)
 
