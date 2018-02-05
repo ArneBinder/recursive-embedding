@@ -134,37 +134,20 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def create_context_tree(nlp, lexicon, children_typed, terminals, context, context_str, see_also_refs, link_refs,
+def create_context_tree(nlp, lexicon, children_typed, terminals, nif_context, nif_context_str, see_also_refs, link_refs,
                         link_ref_type=u"http://www.w3.org/2005/11/its/rdf#taIdentRef", max_see_also_refs=50):
     t_start = datetime.now()
     if len(see_also_refs) > max_see_also_refs:
         see_also_refs = []
-    tree_context, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
-                                                                                              see_also_refs=see_also_refs,
-                                                                                              lexicon=lexicon,
-                                                                                              root_id=unicode(context)[:-len('?dbpv=2016-10&nif=context')])
-    if logger.level <= logging.DEBUG:
-        tree_context.visualize('../tmp_structure.svg')
-    logger.debug('created forest_struct: %s' % str(datetime.now() - t_start))
-    t_start = datetime.now()
-
-    terminal_uri_strings, terminal_strings = zip(*[(unicode(uri), context_str[int(begin):int(end)]) for uri, begin, end in terminals])
-
-    def terminal_reader():
-        for s in terminal_strings:
-            yield s
-
-    def reader_roots():
-        for s in terminal_types:
-            yield s
 
     ref_type_id = lexicon[unicode(link_ref_type)]
 
-    def link_reader():
-        """
-        :return: a generator yielding tuples (start_char, end_char, link_annotation_data, link_annotation_parents) for
-                 the respective docs and None otherwise
-        """
+    def terminal_reader():
+        tree_context_data, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(children_typed,
+                                                                    see_also_refs=see_also_refs, lexicon=lexicon,
+                                                                    root_id=unicode(nif_context)[:-len('?dbpv=2016-10&nif=context')])
+        terminal_uri_strings, terminal_strings = zip(*[(unicode(uri), nif_context_str[int(begin):int(end)]) for uri, begin, end in terminals])
+
         refs = {}
         # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
         for ref_tuple in link_refs:
@@ -178,33 +161,25 @@ def create_context_tree(nlp, lexicon, children_typed, terminals, context, contex
             ref_list = refs.get(super_string, [])
             ref_list.append((begin_index - offset, end_index - offset, [ref_type_id, target_id], [0, -1]))
             refs[super_string] = ref_list
-        for s in terminal_uri_strings:
-            yield refs.get(s, None)
+
+        prepend = (tree_context_data, tree_context_parents)
+
+        for i in range(len(terminal_strings)):
+            yield (terminal_strings[i], {'root_type': terminal_types[i],
+                                         'annotations': refs.get(terminal_uri_strings[i], None),
+                                         'prepend_tree': prepend,
+                                         'parent_prepend_offset': terminal_parent_positions[terminal_uri_strings[i]]})
+            prepend = None
 
     logger.debug('parse data ...')
-    forest_terminals = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
-                                         reader_roots=reader_roots, reader_annotations=link_reader,
+    forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
                                          parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
-                                         expand_dict=True)
+                                         expand_dict=True, as_tuples=True)
     logger.debug('parsed data: %s' % str(datetime.now() - t_start))
-    t_start = datetime.now()
     if logger.level <= logging.DEBUG:
-        forest_terminals.visualize('../tmp_terminals.svg')
+        forest.visualize('../tmp.svg')
 
-    # link terminal roots to (virtual) parents
-    for i, root in enumerate(forest_terminals.roots):
-        uri_string = terminal_uri_strings[i]
-        #parent_uri = parent_uris[uri_string]
-        uri_pos = terminal_parent_positions[uri_string]
-        forest_terminals.parents[root] = uri_pos - (len(tree_context) + root)
-
-    # append to tree_context
-    tree_context.append(forest_terminals)
-    logger.debug('added terminals: %s' % str(datetime.now() - t_start))
-
-    #children = tree_context.children
-    #roots = tree_context.roots
-    return tree_context
+    return forest
 
 
 def query_context_data(graph, context):
@@ -278,8 +253,8 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     nlp = spacy.load('en_core_web_md')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
     tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-                                       see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
-                                       context=context)
+                                       see_also_refs=res_context_seealsos, link_refs=refs, nif_context_str=context_str,
+                                       nif_context=context)
     logger.info('leafs: %i' % len(tree_context))
 
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
@@ -345,8 +320,8 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
                 t_query += datetime.now() - t_start
                 t_start = datetime.now()
                 tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-                                                   see_also_refs=res_context_seealsos, link_refs=refs, context_str=context_str,
-                                                   context=context)
+                                                   see_also_refs=res_context_seealsos, link_refs=refs, nif_context_str=context_str,
+                                                   nif_context=context)
                 t_parse += datetime.now() - t_start
                 forest.append(tree_context)
                 #logger.debug('leafs: %i' % len(tree_context))
@@ -442,8 +417,8 @@ def process_contexts(nlp, batch_idx, contexts, graph, out_path):
             tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed,
                                                terminals=terminals,
                                                see_also_refs=res_context_seealsos, link_refs=refs,
-                                               context_str=context_str,
-                                               context=context)
+                                               nif_context_str=context_str,
+                                               nif_context=context)
             t_parse += datetime.now() - t_start
             forest.append(tree_context)
             # logger.debug('leafs: %i' % len(tree_context))
@@ -506,10 +481,11 @@ if __name__ == '__main__':
     g = Graph(store, identifier=URIRef(default_graph_uri))
     logger.info('connected')
 
+    test_context_tree(g)
     #test_context_tree(g, context=URIRef(u'http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context'))
     #test_utf8_context(g)
 
-    process_all_contexts(g)
+    #process_all_contexts(g)
     #test_process_all_contexts_parallel(g)
 
 

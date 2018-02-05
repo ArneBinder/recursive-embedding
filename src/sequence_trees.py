@@ -360,7 +360,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, lexicon, root_id,
             temp_parents.append(positions[uri_parent_str] - len(temp_parents))
         #positions[unicode(uri)] = len(temp_data)
 
-    return Forest(data=temp_data, parents=temp_parents, lexicon=lexicon), terminal_parent_positions, terminal_types_list
+    return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
 class Forest(object):

@@ -516,7 +516,7 @@ def identity_reader(content):
 
 def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode, inner_concat_mode=constants.default_inner_concat_mode,
-              expand_dict=True, reader_roots=None, reader_roots_args={}, reader_annotations=None):
+              expand_dict=True, reader_roots=None, reader_roots_args={}, as_tuples=False):
     """
 
     :param reader:
@@ -562,16 +562,26 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
     else:
         _reader_root = reader_roots(**reader_roots_args)
 
-    if reader_annotations is not None:
-        _reader_annotations = reader_annotations()
-    else:
-        _reader_annotations = iter(lambda: None, -1)
-
     logging.debug('start read_data ...')
     sen_count = 0
-    for parsed_data in parser.pipe(reader(**reader_args), n_threads=4, batch_size=batch_size):
+    annotations = None
+    last_prepend_offset = None
+    parent_root_pos = None
+    for parsed_data in parser.pipe(reader(**reader_args), n_threads=4, batch_size=batch_size, as_tuples=as_tuples):
+        if as_tuples:
+            parsed_data, context = parsed_data
+            prepend = context.get('prepend_tree', None)
+            if prepend is not None:
+                last_prepend_offset = len(seq_data)
+                seq_data.extend(prepend[0])
+                seq_parents.extend(prepend[1])
+            annotations = context.get('annotations', None)
+            root_type = context.get('root_type', _reader_root.next())
+            parent_prepend_offset = context.get('parent_prepend_offset', None)
+            parent_root_pos = last_prepend_offset + parent_prepend_offset
+        else:
+            root_type = _reader_root.next()
         temp_roots = []
-        annotations = _reader_annotations.next()
         for sentence in parsed_data.sents:
             sent_start = sentence.start_char
             sent_end = sentence.end_char
@@ -596,22 +606,13 @@ def read_data(reader, sentence_processor, parser, data_maps, reader_args={}, bat
 
             sen_count += 1
 
-        # add source node(s), if concat_mode is not None:
-        #if concat_mode is not None:
-        #    root_data_list = _reader_root.next()
-        #    if type(root_data_list) != list:
-        #        root_data_list = [root_data_list]
-        #    root_temp_roots = []
-        #    for i, root_data in enumerate(root_data_list):
-        #        root_temp_roots.append(len(seq_parents))
-        #        seq_parents.append(0)
-        #        seq_data.append(mytools.getOrAdd(data_maps, root_data, unknown_default))
-        #    seq_parents, new_roots = concat_roots(seq_parents, root_temp_roots, concat_mode='aggregate')
-        #    temp_roots.extend(new_roots)
-
-        new_root_id = mytools.getOrAdd(data_maps, _reader_root.next(), unknown_default)
-        seq_data, seq_parents, _ = concat_roots(data=seq_data, parents=seq_parents, root_offsets=temp_roots,
-                                                concat_mode=concat_mode,  new_root_id=new_root_id)
+        new_root_id = mytools.getOrAdd(data_maps, root_type, unknown_default)
+        seq_data, seq_parents, new_roots = concat_roots(data=seq_data, parents=seq_parents, root_offsets=temp_roots,
+                                                        concat_mode=concat_mode,  new_root_id=new_root_id)
+        # add links to prepended data/parents
+        if parent_root_pos is not None:
+            for new_root in new_roots:
+                seq_parents[new_root] = parent_root_pos - new_root
 
     logging.debug('sentences read: ' + str(sen_count))
     data = np.array(seq_data)
