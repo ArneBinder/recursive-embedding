@@ -5,14 +5,8 @@ import os
 
 import pydot
 
-# import preprocessing
-#import sequence_node_candidates_pb2
-#import sequence_node_pb2
-#import sequence_node_sequence_pb2
-
+from lexicon import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX
 import constants
-
-DTYPE_FOREST = np.int64
 
 
 def load(fn):
@@ -64,23 +58,23 @@ def children_and_roots_flat(seq_parents):
     # assume, all parents are inside this array!
 
     root_count = 0
-    children_counts = np.zeros(shape=len(seq_parents), dtype=np.int32)
+    children_counts = np.zeros(shape=len(seq_parents), dtype=DTYPE_COUNT)
     for i, p in enumerate(seq_parents):
         if p == 0:  # is it a root?
             root_count += 1
             continue
         p_idx = i + p
         children_counts[p_idx] += 1
-    children_offsets = np.zeros(shape=len(seq_parents), dtype=np.int32)
+    children_offsets = np.zeros(shape=len(seq_parents), dtype=DTYPE_IDX)
     cc = 0
     for i, c in enumerate(children_counts):
         children_offsets[i] = cc
         cc += c
 
-    roots = np.zeros(shape=root_count, dtype=np.int32)
+    roots = np.zeros(shape=root_count, dtype=DTYPE_IDX)
     root_count = 0
-    children_indices = np.zeros(shape=cc, dtype=np.int32)
-    current_offsets = np.zeros(shape=len(seq_parents), dtype=np.int32)
+    children_indices = np.zeros(shape=cc, dtype=DTYPE_IDX)
+    current_offsets = np.zeros(shape=len(seq_parents), dtype=DTYPE_IDX)
     for i, p in enumerate(seq_parents):
         if p == 0:  # is it a root?
             roots[root_count] = i
@@ -139,7 +133,7 @@ def calc_depths_and_child_indices(x):  # (out_path, offset, max_depth)):
 # unused
 def calc_seq_depth(children, roots, seq_parents):
     # ATTENTION: int16 restricts the max sentence count per tree to 32767
-    depth = -np.ones(len(seq_parents), dtype=np.int16)
+    depth = -np.ones(len(seq_parents), dtype=DTYPE_DEPTH)
     for root in roots:
         calc_depth(children, seq_parents, depth, root)
     return depth
@@ -362,11 +356,19 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
+DTYPE_DATA = np.int64
+DTYPE_PARENT = np.int64
+DTYPE_DEPTH = np.int16
+
+
 class Forest(object):
-    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None, as_hashes=False):
+    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None,
+                 data_as_hashes=False):
         self.reset_cache_values()
-        self._as_hashes = as_hashes
+        self._as_hashes = data_as_hashes
         self._lexicon = None
+        self._data = None
+        self._parents = None
         if lexicon is not None:
             self._lexicon = lexicon
         self._filename = filename
@@ -375,28 +377,11 @@ class Forest(object):
                 self.set_forest(*load(filename))
             else:
                 raise IOError('could not load sequence_trees from "%s"' % filename)
-        elif data is not None and parents is not None:
-            assert len(data) == len(parents), 'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
-            if type(data) == list:
-                data = np.array(data, dtype=DTYPE_FOREST)
-            if type(parents) == list:
-                parents = np.array(parents, dtype=DTYPE_FOREST)
-            self.set_forest(data, parents)
-        elif forest is not None:
-            if type(forest) == np.ndarray:
-                assert forest.shape[0] == 2, 'Wrong shape: %s. trees array has to contain exactly the parents and data arrays: shape=(2, None)' % str(forest.shape)
-                self._forest = forest
-            else:
-                assert len(forest) == 2, 'Wrong array count: %i. Trees array has to contain exactly the parents and data arrays: len=2' % str(
-                    len(forest))
-                assert len(forest[0]) == len(forest[1]), 'sizes of data and parents arrays differ: len(trees[0])==%i != len(trees[1])==%i' % (len(forest[0]), len(forest[1]))
-                self._forest = np.array(forest, dtype=DTYPE_FOREST)
-                self._data = forest[0]
-                self._parents = forest[1]
-                #raise TypeError('trees has to be a numpy.ndarray')
+        elif (data is not None and parents is not None) or forest is not None:
+            self.set_forest(data=data, parents=parents, forest=forest)
         elif tree_dict is not None:
             _data, _parents = sequence_node_to_sequence_trees(tree_dict)
-            self.set_forest(data=np.array(_data), parents=np.array(_parents))
+            self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes)
         else:
             raise ValueError(
                 'Not enouth arguments to instantiate SequenceTrees object. Please provide a filename or data and parent arrays.')
@@ -409,11 +394,24 @@ class Forest(object):
         self._depths_collected = None
         self._dicts = {}
 
-    def set_forest(self, data, parents):
-        # return np.concatenate((data, parents)).reshape(2, len(data))
-        self._forest = np.empty(shape=(2, len(data)), dtype=data.dtype)
-        self._forest[0] = data
-        self._forest[1] = parents
+    def set_forest(self, data=None, parents=None, forest=None, data_as_hashes=False):
+        if data_as_hashes:
+            data_dtype = DTYPE_HASH
+        else:
+            data_dtype = DTYPE_DATA
+        if forest is not None:
+            assert len(forest) == 2, 'Wrong array count: %i. Trees array has to contain exactly the parents and data ' \
+                                     'arrays: len=2' % str(len(forest))
+            data = forest[0]
+            parents = forest[1]
+        assert len(data) == len(parents), \
+            'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
+        if not isinstance(data, np.ndarray) or not data.dtype == data_dtype:
+            data = np.array(data, dtype=data_dtype)
+        if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_PARENT:
+            parents = np.array(parents, dtype=DTYPE_PARENT)
+        self._data = data
+        self._parents = parents
 
     def set_lexicon(self, lexicon):
         self._lexicon = lexicon
@@ -458,7 +456,9 @@ class Forest(object):
         self._dicts = None
 
     def indices_to_forest(self, indices):
-        return np.array(map(lambda idx: self.forest.T[idx], indices)).T
+        # return np.array(map(lambda idx: self.forest.T[idx], indices)).T
+        return np.array(map(lambda idx: self.data[idx], indices)), \
+               np.array(map(lambda idx: self.parents[idx], indices))
 
     def trees(self, root_indices=None):
         if root_indices is None:
@@ -608,12 +608,31 @@ class Forest(object):
                 break
         return result
 
-    def append(self, other):
-        assert self.lexicon == other.lexicon or other.lexicon is None, 'can not append forest with other lexicon'
-        assert self.forest.dtype == other.forest.dtype, 'dtype of other Forest is different, convert before appending it.'
+    @staticmethod
+    def meta_matches(a, b, operation):
+        assert a.lexicon == b.lexicon or b.lexicon is None, 'lexica do not match, can not %s.' % operation
+        assert a.data.dtype == b.data.dtype, 'dtype of data arrays do not match, can not %s.' % operation
+        assert a.parents.dtype == b.parents.dtype, 'dtype of parent arrays do not match, can not %s.' % operation
+        assert a.data_as_hashes == b.data_as_hashes, 'data_as_hash do not match, can not %s.' % operation
+
+    def extend(self, others):
+        if type(others) == list:
+            others = [others]
+        for other in others:
+            Forest.meta_matches(self, other, 'extend')
         self.reset_cache_values()
-        self.set_forest(data=np.concatenate([self.data, other.data]),
-                        parents=np.concatenate([self.parents, other.parents]))
+        self.set_forest(data=np.concatenate([f.data for f in [self] + others]),
+                        parents=np.concatenate([f.parents for f in [self] + others]))
+
+    @staticmethod
+    def concatenate(forests):
+        assert len(forests) > 0, 'can not concatenate empty list of forests'
+        for f in forests[1:]:
+            Forest.meta_matches(forests[0], f, 'concatenate')
+        return Forest(data=np.concatenate([f.data for f in forests]),
+                      parents=np.concatenate([f.parents for f in forests]),
+                      data_as_hashes=forests[0].data_as_hashes,
+                      lexicon=forests[0].lexicon)
 
     def visualize(self, filename, start=0, end=None):
         if end is None:
@@ -675,22 +694,22 @@ class Forest(object):
         return result
 
     def __str__(self):
-        return self._forest.__str__()
+        return self._data.__str__()
 
     def __len__(self):
         return len(self.data)
 
     @property
     def data(self):
-        return self._forest[0]
+        return self._data
 
     @property
     def parents(self):
-        return self._forest[1]
+        return self._parents
 
     @property
     def forest(self):
-        return self._forest
+        return self.data, self.parents
 
     @property
     def children(self):
@@ -707,7 +726,7 @@ class Forest(object):
     @property
     def depths(self):
         if self._depths is None:
-            self._depths = np.zeros(shape=self.data.shape, dtype=np.int32)
+            self._depths = np.zeros(shape=self.data.shape, dtype=DTYPE_DEPTH)
             self._set_depths(self.roots, 0)
             self._depths_collected = None
         return self._depths
@@ -724,3 +743,7 @@ class Forest(object):
     @property
     def lexicon(self):
         return self._lexicon
+
+    @property
+    def data_as_hashes(self):
+        return self._as_hashes

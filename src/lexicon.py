@@ -10,7 +10,12 @@ import os
 import model_fold
 from preprocessing import read_data, as_lexeme
 #import sequence_trees as sequ_trees
-from sequence_trees import DTYPE_FOREST, Forest
+from sequence_trees import DTYPE_DATA, DTYPE_PARENT, Forest
+
+DTYPE_HASH = np.uint64
+DTYPE_VECS = np.int32
+DTYPE_COUNT = np.int32
+DTYPE_IDX = np.int32
 
 
 # TODO: adapt for StringStore
@@ -21,7 +26,7 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
     logging.info('initial strings size: %i' % len(strings))
     # count types
     logging.debug('calculate counts ...')
-    counts = np.zeros(shape=new_max_size, dtype=np.int32)
+    counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
     for d in seq_data:
         counts[d] += 1
 
@@ -33,10 +38,10 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
     vecs_variance = np.var(vecs, axis=0)
     new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
     # new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
-    new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
+    new_counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
     #new_types = [None] * new_max_size
-    new_types = np.zeros(shape=(new_max_size,), dtype=np.uint64)
-    converter = -np.ones(shape=new_max_size, dtype=np.int32)
+    new_types = np.zeros(shape=(new_max_size,), dtype=DTYPE_HASH)
+    converter = -np.ones(shape=new_max_size, dtype=DTYPE_IDX)
 
     logging.debug('process reversed(sorted_indices) ...')
     new_idx = 0
@@ -95,16 +100,16 @@ def sort_and_cut_dict(seq_data, strings, types, count_threshold=1, keep=constant
     logging.info('initial strings size: %i' % len(strings))
     # count types
     logging.debug('calculate counts ...')
-    counts = np.zeros(shape=new_max_size, dtype=np.int32)
+    counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
     for d in seq_data:
         counts[d] += 1
 
     logging.debug('argsort ...')
     sorted_indices = np.argsort(counts)
 
-    new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
-    new_types = np.zeros(shape=(new_max_size,), dtype=np.uint64)
-    converter = -np.ones(shape=new_max_size, dtype=np.int32)
+    new_counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
+    new_types = np.zeros(shape=(new_max_size,), dtype=DTYPE_HASH)
+    converter = -np.ones(shape=new_max_size, dtype=DTYPE_IDX)
 
     logging.debug('process reversed(sorted_indices) ...')
     new_idx = 0
@@ -529,7 +534,6 @@ class Lexicon(object):
             self._vecs[i] = np.zeros(self._vecs.shape[1], dtype=self._vecs.dtype)
         if len(indices) > 0:
             logging.info('set %i vecs to zero' % len(indices))
-            #self._dumped_vecs = False
 
     def set_to_onehot(self, indices=None, prefix=None):
         assert indices is not None or prefix is not None, 'please provide indices or a prefix'
@@ -540,7 +544,6 @@ class Lexicon(object):
             self._vecs[idx][i] = 1.0
         if len(indices) > 0:
             logging.info('set %i vecs to one-hot' % len(indices))
-            #self._dumped_vecs = False
 
     def set_to_random(self, indices=None, prefix=None):
         if prefix is not None:
@@ -551,14 +554,12 @@ class Lexicon(object):
             self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1])
         if len(indices) > 0:
             logging.info('set %i vecs to random' % len(indices))
-            #self._dumped_vecs = False
 
     def set_man_vocab_vec(self, man_vocab_id, new_vec=None):
         if new_vec is None:
             new_vec = np.zeros(shape=self.vec_size, dtype=self._vecs.dtype)
         idx = self[constants.vocab_manual[man_vocab_id]]
         self._vecs[idx] = new_vec
-        #self._dumped_vecs = False
         return idx
 
     def pad(self):
@@ -623,7 +624,7 @@ class Lexicon(object):
             return data, parents
         else:
             self.convert_data_hashes_to_indices(data)
-            return Forest(data=data.astype(dtype=DTYPE_FOREST), parents=parents.astype(dtype=DTYPE_FOREST), lexicon=self)
+            return Forest(data=data.astype(dtype=DTYPE_DATA), parents=parents.astype(dtype=DTYPE_PARENT), lexicon=self)
 
     def is_fixed(self, idx):
         return idx in self._ids_fixed
@@ -716,7 +717,7 @@ class Lexicon(object):
         # maps positions to hashes
         #return self._types
         if self._types is None:
-            self._types = np.zeros(shape=(len(self.strings),), dtype=np.uint64)
+            self._types = np.zeros(shape=(len(self.strings),), dtype=DTYPE_HASH)
             for i, s in enumerate(self.strings):
                 self._types[i] = self.strings[s]
         return self._types

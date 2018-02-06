@@ -261,7 +261,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             logging.info('scores read: %i' % len(_s))
             assert 2 * len(_s) == len(_forest.roots), 'len(roots): %i != 2 * len(scores): %i' % (
                 2 * len(_s), len(_forest.roots))
-            return _forest.forest, _s
+            return _forest, _s
 
         file_names = [os.path.join(FLAGS.corpora_source_root, corpus_name, fn) for fn in file_names]
 
@@ -272,7 +272,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         logging.debug('sizes: %s' % str(sizes))
         np.array(sizes).dump(out_path + '.size')
 
-        forest = Forest(forest=np.concatenate(_forests, axis=1), lexicon=lexicon)
+        # forest = Forest(forest=np.concatenate(_forests, axis=1), lexicon=lexicon)
+        forest = Forest.concatenate(_forests)
         scores = np.concatenate(_scores)
 
         logging.info('add vocab_manual ... ')
@@ -328,7 +329,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
                         if not Lexicon.has_vocab_prefix(lexicon[forest.data[j_root]], constants.UNIQUE_EMBEDDING):
                             j_root_data_backup = forest.data[j_root]
                             forest.data[j_root] = forest.data[i_root]
-                            if np.array_equal(trees[i], trees[j]):
+                            if np.array_equal(trees[i][0], trees[j][0]) and np.array_equal(trees[i][1], trees[j][1]):
                                 forest.data[j_root] = lexicon[Lexicon.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
                                 #unique_collected[id_unique].append(j_root)
                             else:

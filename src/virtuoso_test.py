@@ -277,7 +277,7 @@ def process_current_contexts(idx, nlp, lexicon, graph, current_contexts, out_pat
     for c in current_contexts:
         try:
             nif_context_data = prepare_context_data(graph, c)
-            forest.append(create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp))
+            forest.extend(create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp))
         except Exception as e:
             failed.append((c, e))
 
@@ -403,7 +403,7 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
                 failed.append(c)
             else:
                 forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
-                forest.append(forest_current)
+                forest.extend(forest_current)
         except Exception as e:
             failed.extend((c[-1], e))
         q_context_data.task_done()
@@ -494,7 +494,7 @@ def process_contexts(nlp, batch_idx, contexts, graph, out_path):
             t_start = datetime.now()
             tree_context = create_context_forest(lexicon=lexicon, nlp=nlp, graph=graph, nif_contexts=[context])
             t_parse += datetime.now() - t_start
-            forest.append(tree_context)
+            forest.extend(tree_context)
             # logger.debug('leafs: %i' % len(tree_context))
         except Exception as e:
             failed.append((context, e))

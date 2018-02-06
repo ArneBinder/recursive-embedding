@@ -6,7 +6,7 @@ import numpy as np
 
 import constants
 import mytools
-import sequence_trees
+from sequence_trees import DTYPE_DATA_HASH
 
 #MARKER_DEP_EDGE = 'DEP/'
 
@@ -611,7 +611,7 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
                 seq_parents[new_root] = parent_root_pos - new_root
 
     logging.debug('sentences read: ' + str(sen_count))
-    data = np.array(seq_data, dtype=np.uint64)
+    data = np.array(seq_data, dtype=DTYPE_DATA_HASH)
     parents = np.array(seq_parents)
 
     return data, parents
