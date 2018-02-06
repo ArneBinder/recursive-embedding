@@ -242,7 +242,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         nlp = spacy.load('en_core_web_md')
 
         logging.info('extract lexicon and vecs from spacy vocab ...')
-        lexicon = Lexicon(nlp_vocab=nlp.vocab)
+        #lexicon = Lexicon(nlp_vocab=nlp.vocab)
+        lexicon = Lexicon()
         if reader_roots_args is None:
             reader_roots_args = {'root_labels': constants.vocab_manual[constants.ROOT_EMBEDDING]}
 
@@ -274,9 +275,15 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         forest = Forest(forest=np.concatenate(_forests, axis=1), lexicon=lexicon)
         scores = np.concatenate(_scores)
 
-        converter, new_counts, new_idx_unknown = lexicon.sort_and_cut_and_fill_dict(data=forest.data,
-                                                                                    count_threshold=FLAGS.count_threshold)
-        forest.convert_data(converter=converter, new_idx_unknown=new_idx_unknown)
+        logging.info('add vocab_manual ... ')
+        lexicon.add_all(constants.vocab_manual.values())
+
+        logging.info('sort and cut lexicon ... ')
+        converter, new_counts = lexicon.sort_and_cut_and_fill_dict(data=forest.data, count_threshold=FLAGS.count_threshold)
+        forest.convert_data(converter=converter, new_idx_unknown=lexicon[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]])
+
+        logging.info('init vecs: use nlp vocab and fill missing ...')
+        lexicon.init_vecs(vocab=nlp.vocab)
 
         if FLAGS.one_hot_dep:
             lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])

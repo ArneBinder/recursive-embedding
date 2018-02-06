@@ -8,13 +8,13 @@ import logging
 import os
 
 import model_fold
-import preprocessing
+from preprocessing import read_data, as_lexeme
 #import sequence_trees as sequ_trees
 from sequence_trees import DTYPE_FOREST, Forest
 
 
 # TODO: adapt for StringStore
-def sort_and_cut_and_fill_dict(seq_data, vecs, strings, types, count_threshold=1):
+def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_threshold=1):
     logging.info('sort, cut and fill embeddings ...')
     new_max_size = len(strings)
     logging.info('initial vecs shape: %s ' % str(vecs.shape))
@@ -87,6 +87,43 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, strings, types, count_threshold=1
     new_strings = StringStore([strings[t] for t in new_types])
 
     return converter, new_vecs, new_strings, new_counts, new_idx_unknown
+
+
+def sort_and_cut_dict(seq_data, strings, types, count_threshold=1, keep=constants.vocab_manual.values()):
+    logging.info('sort, cut and fill ...')
+    new_max_size = len(strings)
+    logging.info('initial strings size: %i' % len(strings))
+    # count types
+    logging.debug('calculate counts ...')
+    counts = np.zeros(shape=new_max_size, dtype=np.int32)
+    for d in seq_data:
+        counts[d] += 1
+
+    logging.debug('argsort ...')
+    sorted_indices = np.argsort(counts)
+
+    new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
+    new_types = np.zeros(shape=(new_max_size,), dtype=np.uint64)
+    converter = -np.ones(shape=new_max_size, dtype=np.int32)
+
+    logging.debug('process reversed(sorted_indices) ...')
+    new_idx = 0
+    for old_idx in reversed(sorted_indices):
+        if counts[old_idx] < count_threshold and strings[types[old_idx]] not in keep:
+            continue
+
+        new_types[new_idx] = types[old_idx]
+        new_counts[new_idx] = counts[old_idx]
+        converter[old_idx] = new_idx
+        new_idx += 1
+
+    # cut arrays
+    new_counts = new_counts[:new_idx]
+    new_types = new_types[:new_idx]
+
+    new_strings = StringStore([strings[t] for t in new_types])
+
+    return converter, new_strings, new_counts
 
 
 def fill_vecs(vecs, new_size):
@@ -306,7 +343,7 @@ def dump(out_path, vecs=None, types=None, counts=None):
 
 FE_TYPES = 'type'
 FE_VECS = 'vec'
-FE_VECS_FIXED = 'fix'
+FE_IDS_VECS_FIXED = 'fix'
 FE_STRINGS = 'string'
 
 
@@ -337,9 +374,9 @@ class Lexicon(object):
             else:
                 # set dummy vecs
                 self.init_vecs()
-            if os.path.isfile('%s.%s' % (filename, FE_VECS_FIXED)):
-                logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_VECS_FIXED))
-                self._ids_fixed = set(np.load('%s.%s' % (filename, FE_VECS_FIXED)))
+            if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
+                logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
+                self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
                 self._ids_fixed_dict = None
                 self._ids_var_dict = None
         elif types is not None:
@@ -353,11 +390,16 @@ class Lexicon(object):
         elif nlp_vocab is not None:
             self._vecs, types_dep = get_dict_from_vocab(nlp_vocab)
             self._strings = StringStore(types_dep)
-        elif strings is not None:
-            pass
-        else:
-            raise ValueError('Not enough arguments to instantiate Lexicon object. Please provide a filename or '
-                             'strings (StringStore) or a types list or a nlp_vocab.')
+
+        if self._strings is None:
+            self._strings = StringStore()
+            self.init_vecs()
+
+        #elif strings is not None:
+        #    pass
+        #else:
+        #    raise ValueError('Not enough arguments to instantiate Lexicon object. Please provide a filename or '
+        #                     'strings (StringStore) or a types list or a nlp_vocab.')
 
     # deprecated use StringStore
     @staticmethod
@@ -387,7 +429,7 @@ class Lexicon(object):
 
         # TODO: check _fixed
         if len(self._ids_fixed) > 0:
-            self.ids_fixed.dump('%s.%s' % (filename, FE_VECS_FIXED))
+            self.ids_fixed.dump('%s.%s' % (filename, FE_IDS_VECS_FIXED))
         #self._dumped_vecs = dump_vecs or len(self.vecs) == 0
         #self._dumped_types = True
         #self._filename = filename
@@ -413,8 +455,17 @@ class Lexicon(object):
                 new_vecs_fixed = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_FIX)
             assert new_vecs is not None or new_vecs_fixed is not None, 'no vecs and no vecs_fixed found in checkpoint'
         elif vocab is not None:
-            # TODO: implement
-            raise NotImplementedError
+            assert new_vecs_fixed is None, 'no new_vecs_fixed allowed when initializing from vocab. set vecs_fixed ' \
+                                           'indices afterwards.'
+            new_vecs = np.zeros(shape=(len(self), vocab.vectors_length), dtype=vocab.vectors.data.dtype)
+            count_added = 0
+            for i, s in enumerate(self.strings):
+                if vocab.has_vector(as_lexeme(s)):
+                    new_vecs[i] = vocab.get_vector(as_lexeme(s))
+                    count_added += 1
+                else:
+                    new_vecs[i] = np.zeros(shape=(vocab.vectors_length,), dtype=vocab.vectors.data.dtype)
+            logging.info('added %i vecs from vocab and set %i to zero.' % (count_added, len(self) - count_added))
 
         # TODO: check _fixed
         if new_vecs_fixed is not None:
@@ -442,27 +493,30 @@ class Lexicon(object):
     #    self._types = revert_mapping_to_list(mapping)
     #    #self._dumped_types = False
 
-    # TODO: adapt for StringStore! Test!
-    def sort_and_cut_and_fill_dict(self, data, count_threshold=1):
-        converter, self._vecs, self._strings, new_counts, new_idx_unknown = sort_and_cut_and_fill_dict(seq_data=data,
-                                                                                                   vecs=self.vecs,
-                                                                                                   strings=self.strings,
-                                                                                                   types=self.types,
-                                                                                                   count_threshold=count_threshold)
-        #self._strings = StringStore(types_dep)
+    def sort_and_cut_and_fill_dict(self, data, keep=constants.vocab_manual.values(),  count_threshold=1):
+        converter, self._strings, new_counts = sort_and_cut_dict(seq_data=data,
+                                                                 strings=self.strings,
+                                                                 types=self.types,
+                                                                 count_threshold=count_threshold,
+                                                                 keep=keep)
         self.clear_cached_values()
 
-        # TODO: check _fixed
+        # convert vecs, if available
+        if self.vecs is not None:
+            vecs_new = np.zeros(shape=(len(converter), self.vec_size), dtype=self.vecs.dtype)
+            for i in range(len(vecs_new)):
+                if i < len(converter):
+                    vecs_new[converter[i]] = self.vecs[i]
+
+        # convert fixed indices
         self._ids_fixed = set([converter[i] for i in self._ids_fixed])
         self._ids_fixed_dict = None
         self._ids_var_dict = None
 
-        #self._dumped_vecs = False
-        #self._dumped_types = False
-        return converter, new_counts, new_idx_unknown
+        return converter, new_counts
 
     def get_ids_for_prefix(self, prefix):
-        res = [self[t] for t in self._types if t.startswith(prefix + constants.SEPARATOR)]
+        res = [self.mapping[self.strings[s]] for s in self.strings if s.startswith(prefix + constants.SEPARATOR)]
         if len(res) == 0:
             logging.warning('no indices found for prefix=%s' % prefix)
         return res
@@ -557,25 +611,27 @@ class Lexicon(object):
             self._ids_fixed_dict = None
             self._ids_var_dict = None
 
-    def convert_data_strings_to_indices(self, data):
+    def convert_data_hashes_to_indices(self, data):
         for i in range(len(data)):
             d = data[i]
             data[i] = self.mapping[d]
 
-    def read_data(self, *args, **kwargs):
-        #logging.getLogger().setLevel(logging.DEBUG)
-        #logging.debug('len(lexicon) before read_data: %i' % len(self))
-        data, parents = preprocessing.read_data(*args, strings=self.strings, **kwargs)
+    def read_data(self, return_hashes=False, *args, **kwargs):
+        data, parents = read_data(*args, strings=self.strings, **kwargs)
         self.clear_cached_values()
-        #logging.debug('len(lexicon) after read_data: %i' % len(self))
-        self.convert_data_strings_to_indices(data)
-        #self.update_fix_ids_and_abs_data(new_data=data)
-        #self._types = revert_mapping_to_list(self.mapping)
-        #self._dumped_types = False
-        return Forest(data=data.astype(dtype=DTYPE_FOREST), parents=parents.astype(dtype=DTYPE_FOREST), lexicon=self)
+        if return_hashes:
+            return data, parents
+        else:
+            self.convert_data_hashes_to_indices(data)
+            return Forest(data=data.astype(dtype=DTYPE_FOREST), parents=parents.astype(dtype=DTYPE_FOREST), lexicon=self)
 
     def is_fixed(self, idx):
         return idx in self._ids_fixed
+
+    def add_all(self, new_strings):
+        for s in new_strings:
+            self._strings.add(s)
+        self.clear_cached_values()
 
     @staticmethod
     def vocab_prefix(man_vocab_id):
@@ -623,7 +679,6 @@ class Lexicon(object):
     def len_var(self):
         return len(self) - self.len_fixed
 
-    # deprecated
     @property
     def vecs(self):
         return self._vecs

@@ -94,6 +94,10 @@ def get_annotations_for_token(annotations, token):
     return data, parents
 
 
+def as_lexeme(s):
+    return constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR + s
+
+
 # embeddings for:
 # word
 def process_sentence1(sentence, parsed_data, strings, dict_unknown=None,
@@ -105,8 +109,7 @@ def process_sentence1(sentence, parsed_data, strings, dict_unknown=None,
     for i in range(sentence.start, sentence.end):
         token = parsed_data[i]
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
 
         parent_offset = token.head.i - i
         root_parents.append(parent_offset)
@@ -143,8 +146,7 @@ def process_sentence2(sentence, parsed_data, strings, dict_unknown=None,
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
         # add word embedding embedding
         sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING], dict_unknown))
@@ -172,7 +174,7 @@ def process_sentence3_dep(sentence, parsed_data, strings, dict_unknown=None, con
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
         sen_data.append(mytools.getOrAdd(strings, token.dep_, dict_unknown))
@@ -199,8 +201,7 @@ def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
         sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.DEPENDENCY_EMBEDDING]
@@ -228,8 +229,7 @@ def process_sentence4(sentence, parsed_data, strings, dict_unknown=None, concat_
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
         # add word embedding embedding
         sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING], dict_unknown))
@@ -264,8 +264,7 @@ def process_sentence5(sentence, parsed_data, strings, dict_unknown=None, concat_
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
         sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.DEPENDENCY_EMBEDDING]
@@ -299,8 +298,7 @@ def process_sentence6(sentence, parsed_data, strings, dict_unknown=None, concat_
         # save root offset
         root_offsets.append(len(sen_parents))
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
 
         # add word type type embedding
@@ -345,8 +343,7 @@ def process_sentence7(sentence, parsed_data, strings, dict_unknown=None, concat_
         root_offset = len(sen_parents)
         root_offsets.append(root_offset)
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
 
         # add edge type embedding
@@ -393,8 +390,7 @@ def process_sentence8(sentence, parsed_data, strings, dict_unknown=None, concat_
         root_offset = len(sen_parents)
         root_offsets.append(root_offset)
         # add word embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(0)
 
         # add word type type embedding
@@ -459,8 +455,7 @@ def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat
                                          + constants.SEPARATOR + token.dep_, dict_unknown))
         sen_parents.append(0)
         # add edge type embedding
-        sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                         + constants.SEPARATOR + token.orth_, dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.orth_), dict_unknown))
         sen_parents.append(-1)
 
     new_root_id = mytools.getOrAdd(strings, constants.vocab_manual[constants.SENTENCE_EMBEDDING], dict_unknown)
@@ -493,8 +488,7 @@ def process_sentence9(sentence, parsed_data, strings, dict_unknown=None, concat_
             root_offsets.append(len(sen_parents))
             # add word embedding
             #sen_data.append(mytools.getOrAdd(data_maps, token.lemma_, dict_unknown))
-            sen_data.append(mytools.getOrAdd(strings, constants.vocab_manual[constants.LEXEME_EMBEDDING]
-                                             + constants.SEPARATOR + token.lemma_, dict_unknown))
+            sen_data.append(mytools.getOrAdd(strings, as_lexeme(token.lemma_), dict_unknown))
             sen_parents.append(0)
             # add edge type embedding
             # sen_data.append(mytools.getOrAdd(data_maps, token.pos_, dict_unknown))
