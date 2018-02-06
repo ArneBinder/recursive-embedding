@@ -136,7 +136,8 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str):
+def prepare_context_data(graph, nif_context,
+                         ref_type_str=u"http://www.w3.org/2005/11/its/rdf#taIdentRef", max_see_also_refs=50):
     see_also_refs, children_typed, terminals, link_refs, nif_context_str = query_context_data(graph, nif_context)
     if len(see_also_refs) > max_see_also_refs:
         see_also_refs = []
@@ -161,58 +162,33 @@ def prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str):
         ref_list.append((begin_index - offset, end_index - offset, [ref_type_str, target_str], [0, -1]))
         refs[super_string] = ref_list
 
-    return tree_context_data_strings, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions
+    return tree_context_data_strings, \
+           tree_context_parents, \
+           terminal_strings, \
+           terminal_uri_strings, \
+           terminal_types, \
+           refs, \
+           terminal_parent_positions, \
+           nif_context
 
 
-def create_context_forest(nlp, lexicon, graph, nif_contexts, link_ref_type=u"http://www.w3.org/2005/11/its/rdf#taIdentRef",
-                          max_see_also_refs=50):
-    failed = []
-    ref_type_str = unicode(link_ref_type)
-
-    q = Queue.Queue()
-
-    def add_queried_context_data(graph, nif_contexts, max_see_also_refs, ref_type_str):
-        for nif_context in nif_contexts:
-            #print('put: ' + unicode(nif_context))
-            item = list(prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str))
-            item.append(nif_context)
-            q.put(item)
-        q.put(None)
-
-    t = Thread(target=add_queried_context_data, args=(graph, nif_contexts, max_see_also_refs, ref_type_str))
-    t.start()
+def create_context_forest(nif_context_data, nlp, lexicon):
 
     def terminal_reader():
-        #for nif_context in nif_contexts:
-        while True:
-            item = q.get()
-            if item is None:
-                break
-            tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions, nif_context = tuple(item)
-            #print('get: '+unicode(nif_context))
-            try:
-                #tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, terminal_parent_positions = prepare_context_data(graph, nif_context, max_see_also_refs, ref_type_str)
-                prepend = (tree_context_data, tree_context_parents)
-                for i in range(len(terminal_strings)):
-                    yield (terminal_strings[i], {'root_type': terminal_types[i],
-                                                 'annotations': refs.get(terminal_uri_strings[i], None),
-                                                 'prepend_tree': prepend,
-                                                 'parent_prepend_offset': terminal_parent_positions[terminal_uri_strings[i]]})
-                    prepend = None
-            except Exception as e:
-                failed.append((nif_context, e))
-                #raise e
-            #q.task_done()
+        tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
+        terminal_parent_positions, nif_context = tuple(nif_context_data)
+        prepend = (tree_context_data, tree_context_parents)
+        for i in range(len(terminal_strings)):
+            yield (terminal_strings[i], {'root_type': terminal_types[i],
+                                         'annotations': refs.get(terminal_uri_strings[i], None),
+                                         'prepend_tree': prepend,
+                                         'parent_prepend_offset': terminal_parent_positions[terminal_uri_strings[i]]})
+            prepend = None
 
-    #logger.debug('parse data ...')
     forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
                                parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
                                expand_dict=True, as_tuples=True)
-    #logger.debug('parsed data: %s' % str(datetime.now() - t_start))
-    #if logger.level <= logging.DEBUG:
-    #    forest.visualize('../tmp.svg')
-
-    return forest, failed
+    return forest
 
 
 def query_context_data(graph, context):
@@ -285,7 +261,9 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     t_start = datetime.now()
     nlp = spacy.load('en_core_web_md')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
-    tree_context = create_context_forest(lexicon=lexicon, nlp=nlp, graph=graph, nif_contexts=[context])
+
+    nif_context_data = prepare_context_data(graph, context)
+    tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
     logger.info('leafs: %i' % len(tree_context))
 
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
@@ -293,7 +271,16 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
 
 def process_current_contexts(idx, nlp, lexicon, graph, current_contexts, out_path, steps_save):
     t_start_batch = datetime.now()
-    forest, failed = create_context_forest(nlp=nlp, lexicon=lexicon, graph=graph, nif_contexts=current_contexts)
+    failed = []
+    forest = Forest(data=[], parents=[], lexicon=lexicon)
+    for c in current_contexts:
+        try:
+            nif_context_data = prepare_context_data(graph, c)
+            forest.append(create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp))
+        except Exception as e:
+            failed.append((c, e))
+
+    #forest, failed = create_context_forest(nlp=nlp, lexicon=lexicon, graph=graph, nif_contexts=current_contexts)
     fn = os.path.join(out_path, 'forest-%i' % idx)
     forest.dump(fn)
     lexicon.dump(fn, types_only=True)
@@ -339,14 +326,45 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
     process_current_contexts(i, nlp, lexicon, graph, current_contexts, out_path, steps_save)
 
 
-def process_all_contexts_dep(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
+def save_current_forest(i, forest, failed, lexicon, out_path, steps_save, skip, t_start_batch):
+    #if i > 0:
+    logger.info('%i: %s (failed: %i, forest_size: %i, lexicon size: %i) %s'
+                % (i, str(datetime.now() - t_start_batch), len(failed), len(forest), len(lexicon),
+                   ' LOADED' if skip else ''))
+    if not skip:
+        fn = os.path.join(out_path, 'forest-%i' % i)
+        forest.dump(fn)
+        lexicon.dump(fn, types_only=True)
+        with open(fn + '.failed', 'w', ) as f:
+            for uri, e in failed:
+                f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
+        fn_prev = os.path.join(out_path, 'forest-%i' % (i - steps_save))
+        Lexicon.delete(fn_prev, types_only=True)
+
+    # check, if next ones are already available
+    fn_next = os.path.join(out_path, 'forest-%i' % (i + steps_save))
+    if Forest.exist(fn_next):
+        skip = True
+    else:
+        skip = False
+    return skip
+
+
+def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
     logger.setLevel(logging.INFO)
 
+    start = 0
+    lexicon = Lexicon(types=[])
     if not os.path.exists(out_path):
         os.mkdir(out_path)
+        # create empty lexicon
+    else:
+        type_indices = [int(f[:-len('.type')].split('-')[-1]) for f in os.listdir(out_path) if f.endswith('.type')]
+        if len(type_indices) > 0:
+            max_index = max(type_indices)
+            lexicon = Lexicon(filename=os.path.join(out_path, 'forest-%i' % max_index))
+            start = max_index
 
-    # create empty lexicon
-    lexicon = Lexicon(types=[])
     logger.info('lexicon size: %i' % len(lexicon))
 
     logger.info('load spacy ...')
@@ -357,59 +375,40 @@ def process_all_contexts_dep(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
     logger.info('start parsing ...')
     failed = []
     t_start_batch = datetime.now()
-    t_query = timedelta(microseconds=0)
-    t_parse = timedelta(microseconds=0)
-    skip = False
-    i = 0
-    for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
+
+    q_context_data = Queue.Queue(10)
+
+    def add_contexts(q_context_data, graph):
+        for j, c in enumerate(graph.subjects(RDF.type, NIF.Context)):
+            if j > start:
+                q_context_data.put(prepare_context_data(graph, c))
+        q_context_data.put(None)
+
+    t = Thread(target=add_contexts, args=(q_context_data, graph))
+    t.start()
+
+    # skip first
+    skip = True
+    i = start
+    forest = Forest(data=[], parents=[], lexicon=lexicon)
+    while True:
         if i % steps_save == 0:
-            if i > 0:
-                logger.info('%i: %s (failed: %i, forest_size: %i) t_query: %s t_parse: %s%s'
-                            % (i, str(datetime.now() - t_start_batch), len(failed), len(forest), str(t_query), str(t_parse), ' LOADED' if skip else ''))
-                t_query = timedelta(microseconds=0)
-                t_parse = timedelta(microseconds=0)
-                if not skip:
-                    fn = os.path.join(out_path, 'forest-%i' % i)
-                    forest.dump(fn)
-                    lexicon.dump(fn, types_only=True)
-                    with open(fn+'.failed', 'w', ) as f:
-                        #f.writelines([(unicode(uri) + u'\t' + unicode(e)).encode('utf8') for uri, e in failed])
-                        for uri, e in failed:
-                            f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
-                    fn_prev = os.path.join(out_path, 'forest-%i' % (i - steps_save))
-                    Lexicon.delete(fn_prev, types_only=True)
-
-            # check, if next ones are already available
-            fn_next = os.path.join(out_path, 'forest-%i' % (i + steps_save))
-            if Forest.exist(fn_next):
-                skip = True
-            else:
-                skip = False
-                failed = []
-                forest = None #Forest(data=[], parents=[], lexicon=lexicon)
-
+            skip = save_current_forest(i, forest, failed, lexicon, out_path, steps_save, skip, t_start_batch)
+            forest = Forest(data=[], parents=[], lexicon=lexicon)
+            failed = []
             t_start_batch = datetime.now()
-        #contexts.append(context)
+
+        c = q_context_data.get()
+        if c is None:
+            break
         if not skip:
-            #try:
-            #t_start = datetime.now()
-            ##res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
-            #t_query += datetime.now() - t_start
-            t_start = datetime.now()
-            #tree_context = create_context_tree(lexicon=lexicon, nlp=nlp, children_typed=children_typed, terminals=terminals,
-            #                                   see_also_refs=res_context_seealsos, link_refs=refs, nif_context_str=context_str,
-            #                                   nif_context=context)
-            forest_current, failed_current = create_context_forest(lexicon=lexicon, nlp=nlp, graph=graph, nif_contexts=[context])
-            if forest is None:
-                forest = forest_current
-            else:
+            try:
+                forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
                 forest.append(forest_current)
-            t_parse += datetime.now() - t_start
-            #forest.append(tree_context)
-            #logger.debug('leafs: %i' % len(tree_context))
-            #except Exception as e:
-            #failed.append((context, e))
-            failed.extend(failed_current)
+            except Exception as e:
+                failed.extend((c[-1], e))
+        q_context_data.task_done()
+        i += 1
 
     # save remaining
     if i % steps_save > 0:
@@ -564,7 +563,7 @@ if __name__ == '__main__':
     #test_context_tree(g, context=URIRef(u'http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context'))
     #test_utf8_context(g)
 
-    process_all_contexts(g)
+    process_all_contexts_new(g)
     #test_process_all_contexts_parallel(g)
 
 
