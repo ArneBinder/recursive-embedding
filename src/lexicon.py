@@ -540,7 +540,7 @@ class Lexicon(object):
             self._ids_var_dict = None
 
     def read_data(self, *args, **kwargs):
-        data, parents = preprocessing.read_data(*args, data_maps=self.mapping, **kwargs)
+        data, parents = preprocessing.read_data(*args, strings=self.mapping, **kwargs)
         self.update_fix_ids_and_abs_data(new_data=data)
         self._types = revert_mapping_to_list(self.mapping)
         #self._dumped_types = False

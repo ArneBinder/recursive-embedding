@@ -628,7 +628,7 @@ class Forest(object):
                     color = "dodgerblue"
                 else:
                     color = "limegreen"
-                l = self.lexicon[d]
+                l = Forest.filter_and_shorten_label(self.lexicon[d], do_filter=True)
                 nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
 
             for node in nodes:
@@ -650,25 +650,28 @@ class Forest(object):
         # print(graph.to_string())
         graph.write_svg(filename)
 
+    @staticmethod
+    def filter_and_shorten_label(l, blacklist=[], do_filter=True):
+        if do_filter:
+            for b in blacklist:
+                if l.startswith(b + constants.SEPARATOR):
+                    return None
+
+            for embedding_prefix in constants.vocab_manual.values():
+                if l.startswith(embedding_prefix + constants.SEPARATOR):
+                    return l[len(embedding_prefix + constants.SEPARATOR):]
+            return l
+        else:
+            return l
+
     def get_text_plain(self, blacklist=None):
         assert self.lexicon is not None, 'lexicon is not set'
         result = []
         if len(self.data) > 0:
             for d in self.data:
-                l = self.lexicon[d]
-                if blacklist is not None:
-                    found = False
-                    for b in blacklist:
-                        if l.startswith(b + constants.SEPARATOR):
-                            found = True
-                            break
-                    if found:
-                        continue
-                    else:
-                        result.append(constants.SEPARATOR.join(l.split(constants.SEPARATOR)[1:]))
-                else:
+                l = Forest.filter_and_shorten_label(self.lexicon[d], blacklist, do_filter=blacklist is not None)
+                if l is not None:
                     result.append(l)
-
         return result
 
     def __str__(self):

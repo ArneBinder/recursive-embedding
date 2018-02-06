@@ -30,7 +30,6 @@ import constants
 import corpus_simtuple
 import model_fold
 import preprocessing
-import visualize as vis
 import lexicon as lex
 from config import Config
 
