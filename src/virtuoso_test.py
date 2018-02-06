@@ -371,7 +371,11 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
     def add_contexts(q_context_data, graph):
         for j, c in enumerate(graph.subjects(RDF.type, NIF.Context)):
             if j >= start:
-                q_context_data.put(prepare_context_data(graph, c))
+                try:
+                    q_context_data.put(prepare_context_data(graph, c))
+                except Exception as e:
+                    # put (context, exception) to queue
+                    q_context_data.put((c, e))
         q_context_data.put(None)
 
     t = Thread(target=add_contexts, args=(q_context_data, graph))
@@ -394,8 +398,12 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
         if c is None:
             break
         try:
-            forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
-            forest.append(forest_current)
+            # contains (context, exception)?
+            if len(c) == 2:
+                failed.extend(c)
+            else:
+                forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
+                forest.append(forest_current)
         except Exception as e:
             failed.extend((c[-1], e))
         q_context_data.task_done()
