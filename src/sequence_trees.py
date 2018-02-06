@@ -5,7 +5,7 @@ import os
 
 import pydot
 
-from lexicon import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX
+from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_DATA, DTYPE_PARENT, DTYPE_DEPTH
 import constants
 
 
@@ -356,11 +356,6 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
-DTYPE_DATA = np.int64
-DTYPE_PARENT = np.int64
-DTYPE_DEPTH = np.int16
-
-
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None,
                  data_as_hashes=False):
@@ -643,11 +638,17 @@ class Forest(object):
         if len(self) > 0:
             nodes = []
             for i, d in enumerate(self.data[start:end]):
-                if self.lexicon.is_fixed(d):
+                if not self.data_as_hashes:
+                    h = self.lexicon.types[d]
+                    idx = d
+                else:
+                    idx = self.lexicon.mapping[d]
+                    h = d
+                if self.lexicon.is_fixed(idx):
                     color = "dodgerblue"
                 else:
                     color = "limegreen"
-                l = Forest.filter_and_shorten_label(self.lexicon[d], do_filter=True)
+                l = Forest.filter_and_shorten_label(self.lexicon.strings[h], do_filter=True)
                 nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
 
             for node in nodes:
@@ -688,7 +689,10 @@ class Forest(object):
         result = []
         if len(self.data) > 0:
             for d in self.data:
-                l = Forest.filter_and_shorten_label(self.lexicon[d], blacklist, do_filter=blacklist is not None)
+                if not self.data_as_hashes:
+                   d = self.lexicon.types[d]
+                s = self.lexicon.strings[d]
+                l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
                     result.append(l)
         return result

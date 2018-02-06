@@ -1,4 +1,6 @@
 
+import numpy as np
+
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
 
@@ -32,6 +34,14 @@ concat_modes = [None, CM_SEQUENCE, CM_AGGREGATE, CM_TREE]
 
 default_concat_mode = CM_SEQUENCE
 default_inner_concat_mode = CM_TREE
+
+DTYPE_DATA = np.int64
+DTYPE_PARENT = np.int64
+DTYPE_DEPTH = np.int16
+DTYPE_HASH = np.uint64
+DTYPE_VECS = np.int32
+DTYPE_COUNT = np.int32
+DTYPE_IDX = np.int32
 
 #DEPRECATED
 

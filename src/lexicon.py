@@ -10,12 +10,8 @@ import os
 import model_fold
 from preprocessing import read_data, as_lexeme
 #import sequence_trees as sequ_trees
-from sequence_trees import DTYPE_DATA, DTYPE_PARENT, Forest
-
-DTYPE_HASH = np.uint64
-DTYPE_VECS = np.int32
-DTYPE_COUNT = np.int32
-DTYPE_IDX = np.int32
+from constants import DTYPE_DATA, DTYPE_PARENT, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX
+from sequence_trees import Forest
 
 
 # TODO: adapt for StringStore
