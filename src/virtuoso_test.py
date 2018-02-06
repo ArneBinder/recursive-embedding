@@ -400,7 +400,7 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
         try:
             # contains (context, exception)?
             if len(c) == 2:
-                failed.extend(c)
+                failed.append(c)
             else:
                 forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
                 forest.append(forest_current)
