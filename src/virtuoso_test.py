@@ -269,6 +269,7 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
+# deprecated
 def process_current_contexts(idx, nlp, lexicon, graph, current_contexts, out_path, steps_save):
     t_start_batch = datetime.now()
     failed = []
@@ -292,6 +293,7 @@ def process_current_contexts(idx, nlp, lexicon, graph, current_contexts, out_pat
     logger.info('%i: %s (failed: %i, forest_size: %i)' % (idx, str(datetime.now() - t_start_batch), len(failed), len(forest)))
 
 
+# deprecated
 def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
     logger.setLevel(logging.INFO)
 
@@ -326,28 +328,20 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
     process_current_contexts(i, nlp, lexicon, graph, current_contexts, out_path, steps_save)
 
 
-def save_current_forest(i, forest, failed, lexicon, out_path, steps_save, skip, t_start_batch):
-    #if i > 0:
-    logger.info('%i: %s (failed: %i, forest_size: %i, lexicon size: %i) %s'
-                % (i, str(datetime.now() - t_start_batch), len(failed), len(forest), len(lexicon),
-                   ' LOADED' if skip else ''))
-    if not skip:
+def save_current_forest(i, forest, failed, lexicon, out_path, last_fn, t_start_batch):
+    if len(forest) > 0:
+        logger.info('%i: %s (failed: %i, forest_size: %i, lexicon size: %i)'
+                    % (i, str(datetime.now() - t_start_batch), len(failed), len(forest), len(lexicon)))
         fn = os.path.join(out_path, 'forest-%i' % i)
         forest.dump(fn)
         lexicon.dump(fn, types_only=True)
         with open(fn + '.failed', 'w', ) as f:
             for uri, e in failed:
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
-        fn_prev = os.path.join(out_path, 'forest-%i' % (i - steps_save))
-        Lexicon.delete(fn_prev, types_only=True)
-
-    # check, if next ones are already available
-    fn_next = os.path.join(out_path, 'forest-%i' % (i + steps_save))
-    if Forest.exist(fn_next):
-        skip = True
+        Lexicon.delete(last_fn, types_only=True)
+        return fn
     else:
-        skip = False
-    return skip
+        return last_fn
 
 
 def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
@@ -372,28 +366,26 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
     nlp = spacy.load('en_core_web_md')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
 
-    logger.info('start parsing ...')
-    failed = []
-    t_start_batch = datetime.now()
-
     q_context_data = Queue.Queue(10)
 
     def add_contexts(q_context_data, graph):
         for j, c in enumerate(graph.subjects(RDF.type, NIF.Context)):
-            if j > start:
+            if j >= start:
                 q_context_data.put(prepare_context_data(graph, c))
         q_context_data.put(None)
 
     t = Thread(target=add_contexts, args=(q_context_data, graph))
     t.start()
 
-    # skip first
-    skip = True
     i = start
+    last_fn = os.path.join(out_path, 'forest-%i' % start)
     forest = Forest(data=[], parents=[], lexicon=lexicon)
+    failed = []
+    logger.info('start parsing ...')
+    t_start_batch = datetime.now()
     while True:
         if i % steps_save == 0:
-            skip = save_current_forest(i, forest, failed, lexicon, out_path, steps_save, skip, t_start_batch)
+            last_fn = save_current_forest(i, forest, failed, lexicon, out_path, last_fn, t_start_batch)
             forest = Forest(data=[], parents=[], lexicon=lexicon)
             failed = []
             t_start_batch = datetime.now()
@@ -401,20 +393,16 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
         c = q_context_data.get()
         if c is None:
             break
-        if not skip:
-            try:
-                forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
-                forest.append(forest_current)
-            except Exception as e:
-                failed.extend((c[-1], e))
+        try:
+            forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
+            forest.append(forest_current)
+        except Exception as e:
+            failed.extend((c[-1], e))
         q_context_data.task_done()
         i += 1
 
     # save remaining
-    if i % steps_save > 0:
-        fn = os.path.join(out_path, 'forest-%i' % i)
-        forest.dump(fn)
-        lexicon.dump(fn, types_only=True)
+    save_current_forest(i, forest, failed, lexicon, out_path, steps_save, t_start_batch)
 
 
 def test_utf8_context(graph, context=URIRef(u"http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context")):
