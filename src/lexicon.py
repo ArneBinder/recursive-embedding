@@ -1,6 +1,7 @@
 import csv
 
 import numpy as np
+from spacy.strings import StringStore
 
 import constants
 import logging
@@ -214,6 +215,7 @@ def get_dict_from_vocab(vocab):
     return vecs, types
 
 
+# unused
 def read_types(out_path):
     logging.debug('read types from file: ' + out_path + '.type ...')
     with open(out_path + '.type') as csvfile:
@@ -253,6 +255,7 @@ def revert_mapping_to_np(mapping):
     return temp
 
 
+# unused
 def load(fn):
     logging.debug('load vecs from file: ' + fn + '.vec ...')
     v = np.load(fn + '.vec')
@@ -260,11 +263,12 @@ def load(fn):
     logging.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
     return v, t
 
-
+# unused
 def exist(filename):
     return os.path.isfile('%s.vec' % filename) and os.path.isfile('%s.type' % filename)
 
 
+# unused
 def create_or_read_dict(fn, vocab=None, dont_read=False):
     if os.path.isfile(fn + '.vec') and os.path.isfile(fn + '.type'):
         if dont_read:
@@ -292,45 +296,44 @@ def dump(out_path, vecs=None, types=None, counts=None):
         counts.dump(out_path + '.count')
 
 
-def vocab_prefix(man_vocab_id):
-    return constants.vocab_manual[man_vocab_id] + constants.SEPARATOR
-
-
-def has_vocab_prefix(s, man_vocab_id):
-    return s.startswith(vocab_prefix(man_vocab_id))
+FE_TYPES = 'type'
+FE_VECS = 'vec'
+FE_VECS_FIXED = 'fix'
+FE_STRINGS = 'string'
 
 
 class Lexicon(object):
-    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None):
+    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None):
         """
-        Create a Lexicon from file, from types (and optionally from vecs), or from spacy vocabulary.
+        Create a Lexicon from file, from types (and optionally from vecs), from spacy vocabulary or from spacy
+        StringStore.
         :param filename: load types from file <filename>.type and, if the file exists exists, vecs from <filename>.vec
         :param types: a list of unicode strings
         :param vecs: word embeddings, a numpy array of shape [vocab_size, vector_length]
         :param nlp_vocab: a spacy vocabulary. It has to contain embedding vectors.
+        :param strings: a spacy StringStore, see https://spacy.io/api/stringstore
         """
-        #self._dummy_vec_size = 300
-        self._filename = filename
         self._mapping = None
-        #self._dumped_vecs = False
-        #self._dumped_types = False
         self._ids_fixed = set()
         self._ids_fixed_dict = None
         self._ids_var_dict = None
         if filename is not None:
-            self._types = read_types(filename)
-            #self._dumped_types = True
-            if os.path.isfile('%s.vec' % filename):
-                self._vecs = np.load('%s.vec' % filename)
-                #self._dumped_vecs = True
+            self._types = Lexicon.read_types(filename)
+            if os.path.isfile('%s.%s' % (filename, FE_VECS)):
+                self._vecs = np.load('%s.%s' % (filename, FE_VECS))
             else:
                 # set dummy vecs
                 self.init_vecs()
-            if os.path.isfile('%s.fix' % filename):
-                logging.debug('load ids_fixed from "%s.fix"' % filename)
-                self._ids_fixed = set(np.load('%s.fix' % filename))
+            if os.path.isfile('%s.%s' % (filename, FE_VECS_FIXED)):
+                logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_VECS_FIXED))
+                self._ids_fixed = set(np.load('%s.%s' % (filename, FE_VECS_FIXED)))
                 self._ids_fixed_dict = None
                 self._ids_var_dict = None
+            if os.path.isfile('%s.%s' % (filename, FE_STRINGS)):
+                self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
+            else:
+                self._strings = None
+
         elif types is not None:
             self._types = types
             if vecs is not None:
@@ -340,9 +343,55 @@ class Lexicon(object):
                 self.init_vecs()
         elif nlp_vocab is not None:
             self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
-            #print(self.filled)
+        elif strings is not None:
+            self._strings = strings
+            self._types = None
         else:
-            raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or (vecs array and types list) or a nlp_vocab.')
+            raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or '
+                             '(vecs array and types list) or a nlp_vocab.')
+
+    @staticmethod
+    def read_types(filename):
+        logging.debug('read types from file: %s.%s ...' % (filename, FE_TYPES))
+        with open('%s.%s' % (filename, FE_TYPES)) as csvfile:
+            reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
+            types = [row[0].decode("utf-8") for row in reader]
+        return types
+
+    def write_types(self, filename):
+        logging.debug('write types (len=%i) to: %s.%s ...' % (len(self.types), filename, FE_TYPES))
+        with open('%s.%s' % (filename, FE_TYPES), 'wb') as f:
+            writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            for t in self.types:
+                writer.writerow([t.encode("utf-8")])
+
+    def dump(self, filename, types_only=False):
+        self.write_types(filename)
+        if not types_only:
+            logging.debug('dump embeddings (shape=%s) to: %s.%s ...' % (str(self.vecs.shape), filename, FE_VECS))
+            self.vecs.dump('%s.%s' % (filename, FE_VECS))
+
+        if self.strings is not None:
+            self.strings.to_disk('%s.%s' % (filename, FE_STRINGS))
+
+        # TODO: check _fixed
+        if len(self._ids_fixed) > 0:
+            self.ids_fixed.dump('%s.%s' % (filename, FE_VECS_FIXED))
+        #self._dumped_vecs = dump_vecs or len(self.vecs) == 0
+        #self._dumped_types = True
+        #self._filename = filename
+
+    @staticmethod
+    def exist(filename, types_only=False):
+        return os.path.isfile('%s.%s' % (filename, FE_TYPES)) and (types_only or os.path.isfile('%s.%s'
+                                                                                                % (filename, FE_VECS)))
+
+    @staticmethod
+    def delete(filename, types_only=False):
+        if Lexicon.exist(filename, types_only=types_only):
+            os.remove('%s.%s' % (filename, FE_TYPES))
+            if not types_only:
+                os.remove('%s.%s' % (filename, FE_VECS))
 
     def init_vecs(self, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None):
         if checkpoint_reader is not None:
@@ -363,10 +412,12 @@ class Lexicon(object):
         #    logging.warning('overwrite unsaved vecs')
         # TODO: check _fixed
         if new_vecs_fixed is not None:
-            assert new_vecs_fixed.shape[0] == self.len_fixed, 'amount of vecs in new_vecs_fixed=%i is different then len_fixed=%i' \
-                                                     % (new_vecs_fixed.shape[0], self.len_fixed)
+            assert new_vecs_fixed.shape[0] == self.len_fixed, \
+                'amount of vecs in new_vecs_fixed=%i is different then len_fixed=%i' \
+                % (new_vecs_fixed.shape[0], self.len_fixed)
             count_total = new_vecs.shape[0] + new_vecs_fixed.shape[0]
-            assert count_total <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs + new_vecs_fixed)==%i > len(types)==%i)' \
+            assert count_total <= len(self), 'can not set more vecs than amount of existing types ' \
+                                             '(len(new_vecs + new_vecs_fixed)==%i > len(types)==%i)' \
                                              % (count_total, len(self))
 
             self._vecs = np.zeros(shape=(count_total, new_vecs_fixed.shape[1]), dtype=np.float32)
@@ -375,33 +426,10 @@ class Lexicon(object):
             for idx_source, idx_target in enumerate(self.ids_var):
                 self._vecs[idx_target] = new_vecs[idx_source]
         else:
-            assert new_vecs is None or len(new_vecs) <= len(self), 'can not set more vecs than amount of existing types (len(new_vecs)==%i > len(types)==%i)' \
-                                               % (len(new_vecs), len(self))
+            assert new_vecs is None or len(new_vecs) <= len(self), 'can not set more vecs than amount of existing ' \
+                                                                   'types (len(new_vecs)==%i > len(types)==%i)' \
+                                                                   % (len(new_vecs), len(self))
             self._vecs = new_vecs
-
-    def dump(self, filename, types_only=False):
-        #dump_vecs = (not self._dumped_vecs or filename != self._filename) and not types_only
-        #dump_types = not self._dumped_types or filename != self._filename
-        dump(filename,
-             vecs=None if types_only else self.vecs, #if dump_vecs else None,
-             types=self.types) #if dump_types else None)
-        # TODO: check _fixed
-        if len(self._ids_fixed) > 0:
-            self.ids_fixed.dump('%s.fix' % filename)
-        #self._dumped_vecs = dump_vecs or len(self.vecs) == 0
-        #self._dumped_types = True
-        self._filename = filename
-
-    @staticmethod
-    def exist(filename, types_only=False):
-        return os.path.isfile('%s.type' % filename) and (types_only or os.path.isfile('%s.vec' % filename))
-
-    @staticmethod
-    def delete(filename, types_only=False):
-        if Lexicon.exist(filename, types_only=types_only):
-            os.remove('%s.type' % filename)
-            if not types_only:
-                os.remove('%s.vec' % filename)
 
     # compatibility
     def set_types_with_mapping(self, mapping):
@@ -521,6 +549,14 @@ class Lexicon(object):
     def is_fixed(self, idx):
         return idx in self._ids_fixed
 
+    @staticmethod
+    def vocab_prefix(man_vocab_id):
+        return constants.vocab_manual[man_vocab_id] + constants.SEPARATOR
+
+    @staticmethod
+    def has_vocab_prefix(s, man_vocab_id):
+        return s.startswith(Lexicon.vocab_prefix(man_vocab_id))
+
     def __getitem__(self, item):
         if type(item) == unicode or type(item) == str:
             try:
@@ -589,6 +625,10 @@ class Lexicon(object):
     @property
     def types(self):
         return self._types
+
+    @property
+    def strings(self):
+        return self._strings
 
     @property
     def mapping(self):

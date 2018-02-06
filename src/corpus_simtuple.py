@@ -1,33 +1,18 @@
-import fnmatch
 import logging
-import ntpath
 import os
-import random
 from collections import Counter
 from functools import partial
 
 import numpy as np
 import spacy
 import tensorflow as tf
-#import tensorflow_fold as td
 
 import constants
-import corpus
-import lexicon as lex
+from lexicon import Lexicon
 import preprocessing
-#import scored_tree_pb2
-import sequence_trees as sequ_trees
-#import similarity_tree_tuple_pb2
+from sequence_trees import Forest
 import mytools
 
-#PROTO_PACKAGE_NAME = 'recursive_dependency_embedding'
-#s_root = os.path.dirname(__file__)
-# Make sure serialized_message_to_tree can find the similarity_tree_tuple proto:
-import visualize
-
-#td.proto_tools.map_proto_source_tree_path('', os.path.dirname(__file__))
-#td.proto_tools.import_proto_file('similarity_tree_tuple.proto')
-#td.proto_tools.import_proto_file('scored_tree.proto')
 
 tf.flags.DEFINE_string('corpora_source_root',
                        '/home/arne/devel/ML/data/corpora',
@@ -252,12 +237,11 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     if FLAGS.random_vecs:
         out_path = out_path + '_randomvecs'
 
-    if (not corpus.exist(out_path) and not os.path.isfile(out_path + '.score')) or overwrite:
+    if not (Forest.exist(out_path) and Lexicon.exist(out_path) and os.path.isfile(out_path + '.score')) or overwrite:
         logging.info('load spacy ...')
         nlp = spacy.load('en_core_web_md')
-        #nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
-        lexicon = lex.Lexicon(nlp_vocab=nlp.vocab)
+        lexicon = Lexicon(nlp_vocab=nlp.vocab)
         if reader_roots_args is None:
             reader_roots_args = {'root_labels': constants.vocab_manual[constants.ROOT_EMBEDDING]}
 
@@ -286,7 +270,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         logging.debug('sizes: %s' % str(sizes))
         np.array(sizes).dump(out_path + '.size')
 
-        forest = sequ_trees.Forest(forest=np.concatenate(_forests, axis=1), lexicon=lexicon)
+        forest = Forest(forest=np.concatenate(_forests, axis=1), lexicon=lexicon)
         scores = np.concatenate(_scores)
 
         converter, new_counts, new_idx_unknown = lexicon.sort_and_cut_and_fill_dict(data=forest.data,
@@ -303,8 +287,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             lexicon.set_to_random()
         lexicon.dump(out_path)
     else:
-        lexicon = lex.Lexicon(filename=out_path)
-        forest = sequ_trees.Forest(filename=out_path, lexicon=lexicon)
+        lexicon = Lexicon(filename=out_path)
+        forest = Forest(filename=out_path, lexicon=lexicon)
         scores = np.load(out_path + '.score')
         sizes = np.load(out_path + '.size')
 
@@ -318,7 +302,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     if FLAGS.create_unique:
         # use unique by now
         out_path += '.unique'
-        if not corpus.exist(out_path) or overwrite:
+        if not (Forest.exist(out_path) and Lexicon.exist(out_path)) or overwrite:
             # separate into trees (e.g. sentences)
             logging.debug('split into trees ...')
             trees = list(forest.trees())
@@ -328,16 +312,16 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             #unique_collected = {}
             for i, i_root in enumerate(forest.roots):
                 #logging.debug('i_root: %i' % i_root)
-                if not lex.has_vocab_prefix(lexicon[forest.data[i_root]], constants.UNIQUE_EMBEDDING):
-                    forest.data[i_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
+                if not Lexicon.has_vocab_prefix(lexicon[forest.data[i_root]], constants.UNIQUE_EMBEDDING):
+                    forest.data[i_root] = lexicon[Lexicon.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
                     #unique_collected[id_unique] = unique_collected.get(id_unique, []).append(i_root)
                     for _j, j_root in enumerate(forest.roots[i:]):
                         j = i + _j
-                        if not lex.has_vocab_prefix(lexicon[forest.data[j_root]], constants.UNIQUE_EMBEDDING):
+                        if not Lexicon.has_vocab_prefix(lexicon[forest.data[j_root]], constants.UNIQUE_EMBEDDING):
                             j_root_data_backup = forest.data[j_root]
                             forest.data[j_root] = forest.data[i_root]
                             if np.array_equal(trees[i], trees[j]):
-                                forest.data[j_root] = lexicon[lex.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
+                                forest.data[j_root] = lexicon[Lexicon.vocab_prefix(constants.UNIQUE_EMBEDDING) + str(id_unique)]
                                 #unique_collected[id_unique].append(j_root)
                             else:
                                 forest.data[j_root] = j_root_data_backup
@@ -349,7 +333,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             lexicon.dump(out_path)
             forest.dump(out_path)
         else:
-            forest = sequ_trees.Forest(filename=out_path)
+            forest = Forest(filename=out_path)
 
         # write out unique
         sim_tuples = [[forest.roots[tuple_idx * 2], forest.roots[tuple_idx * 2 + 1], scores[tuple_idx]]
@@ -466,13 +450,13 @@ def merge_into_corpus(corpus_fn1, corpus_fn2):
     :return:
     """
     #vecs, types = lex.load(corpus_fn1)
-    lexicon1 = lex.Lexicon(filename=corpus_fn1)
+    lexicon1 = Lexicon(filename=corpus_fn1)
     #vecs2, types2 = lex.load(corpus_fn2)
-    lexicon2 = lex.Lexicon(filename=corpus_fn2)
+    lexicon2 = Lexicon(filename=corpus_fn2)
     #vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
     data_converter = lexicon1.merge(lexicon2, add=True, remove=False)
     #data2, parents2 = sequ_trees.load(corpus_fn2)
-    sequence_trees2 = sequ_trees.Forest(filename=corpus_fn2, lexicon=lexicon1)
+    sequence_trees2 = Forest(filename=corpus_fn2, lexicon=lexicon1)
     #m = lex.mapping_from_list(types)
     #mapping = {i: m[t] for i, t in enumerate(types2)}
     #converter = [m[t] for t in types2]
