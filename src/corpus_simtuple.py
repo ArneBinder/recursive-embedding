@@ -241,6 +241,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         logging.info('load spacy ...')
         nlp = spacy.load('en_core_web_md')
 
+        logging.info('extract lexicon and vecs from spacy vocab ...')
         lexicon = Lexicon(nlp_vocab=nlp.vocab)
         if reader_roots_args is None:
             reader_roots_args = {'root_labels': constants.vocab_manual[constants.ROOT_EMBEDDING]}
@@ -439,6 +440,7 @@ def load_sim_tuple_indices(filename, extensions=None):
     return np.concatenate(indices).T, np.concatenate(probs).T
 
 
+# unused
 # TODO: check changes
 def merge_into_corpus(corpus_fn1, corpus_fn2):
     """

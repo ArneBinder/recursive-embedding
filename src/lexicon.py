@@ -9,14 +9,16 @@ import os
 
 import model_fold
 import preprocessing
-import sequence_trees as sequ_trees
+#import sequence_trees as sequ_trees
+from sequence_trees import DTYPE_FOREST, Forest
 
 
-def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
+# TODO: adapt for StringStore
+def sort_and_cut_and_fill_dict(seq_data, vecs, strings, types, count_threshold=1):
     logging.info('sort, cut and fill embeddings ...')
-    new_max_size = len(types)
-    logging.info('initial vecs shape: ' + str(vecs.shape))
-    logging.info('initial types size: ' + str(len(types)))
+    new_max_size = len(strings)
+    logging.info('initial vecs shape: %s ' % str(vecs.shape))
+    logging.info('initial strings size: %i' % len(strings))
     # count types
     logging.debug('calculate counts ...')
     counts = np.zeros(shape=new_max_size, dtype=np.int32)
@@ -32,7 +34,8 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
     # new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
     new_counts = np.zeros(shape=new_max_size, dtype=np.int32)
-    new_types = [None] * new_max_size
+    #new_types = [None] * new_max_size
+    new_types = np.zeros(shape=(new_max_size,), dtype=np.uint64)
     converter = -np.ones(shape=new_max_size, dtype=np.int32)
 
     logging.debug('process reversed(sorted_indices) ...')
@@ -42,11 +45,11 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     added_types = []
     for old_idx in reversed(sorted_indices):
         # keep unknown and save new unknown index
-        if types[old_idx] == constants.vocab_manual[constants.UNKNOWN_EMBEDDING]:
+        if types[old_idx] == strings[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]:
             logging.debug('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
             new_idx_unknown = new_idx
         # skip vecs with count < threshold, but keep vecs from vocab_manual
-        elif counts[old_idx] < count_threshold and types[old_idx] not in constants.vocab_manual.values():
+        elif counts[old_idx] < count_threshold and strings[types[old_idx]] not in constants.vocab_manual.values():
             continue
         if old_idx < vecs.shape[0]:
             new_vecs[new_idx] = vecs[old_idx]
@@ -62,7 +65,7 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
             #                        % vecs.shape[1])
             #    new_vecs[new_idx][new_count % vecs.shape[1]] = 1.0
             new_count += 1
-            added_types.append(types[old_idx])
+            added_types.append(strings[types[old_idx]])
             # print(types[old_idx] + '\t'+str(counts[old_idx]))
 
         new_types[new_idx] = types[old_idx]
@@ -81,7 +84,9 @@ def sort_and_cut_and_fill_dict(seq_data, vecs, types, count_threshold=1):
     new_counts = new_counts[:new_idx]
     new_types = new_types[:new_idx]
 
-    return converter, new_vecs, new_types, new_counts, new_idx_unknown
+    new_strings = StringStore([strings[t] for t in new_types])
+
+    return converter, new_vecs, new_strings, new_counts, new_idx_unknown
 
 
 def fill_vecs(vecs, new_size):
@@ -116,6 +121,8 @@ def add_and_get_idx(vecs, types, new_type, new_vec=None, overwrite=False):
     return vecs, types, idx
 
 
+# TODO: adapt for StringStore
+# deprecated
 def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
     """
     Replace all embeddings in vecs1 which are contained in vecs2 (indexed via types).
@@ -263,6 +270,7 @@ def load(fn):
     logging.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
     return v, t
 
+
 # unused
 def exist(filename):
     return os.path.isfile('%s.vec' % filename) and os.path.isfile('%s.type' % filename)
@@ -319,7 +327,11 @@ class Lexicon(object):
         self._ids_var_dict = None
         self._strings = strings
         if filename is not None:
-            self._types = Lexicon.read_types(filename)
+            if os.path.isfile('%s.%s' % (filename, FE_STRINGS)):
+                self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
+            else:
+                types_dep = Lexicon.read_types(filename)
+                self._strings = StringStore(types_dep)
             if os.path.isfile('%s.%s' % (filename, FE_VECS)):
                 self._vecs = np.load('%s.%s' % (filename, FE_VECS))
             else:
@@ -330,26 +342,24 @@ class Lexicon(object):
                 self._ids_fixed = set(np.load('%s.%s' % (filename, FE_VECS_FIXED)))
                 self._ids_fixed_dict = None
                 self._ids_var_dict = None
-            if os.path.isfile('%s.%s' % (filename, FE_STRINGS)):
-                self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
-            else:
-                self._strings = None
-
         elif types is not None:
-            self._types = types
+            types_dep = types
+            self._strings = StringStore(types_dep)
             if vecs is not None:
                 self._vecs = vecs
             else:
                 # set dummy vecs
                 self.init_vecs()
         elif nlp_vocab is not None:
-            self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
+            self._vecs, types_dep = get_dict_from_vocab(nlp_vocab)
+            self._strings = StringStore(types_dep)
         elif strings is not None:
             pass
         else:
-            raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or '
-                             '(vecs array and types list) or a nlp_vocab.')
+            raise ValueError('Not enough arguments to instantiate Lexicon object. Please provide a filename or '
+                             'strings (StringStore) or a types list or a nlp_vocab.')
 
+    # deprecated use StringStore
     @staticmethod
     def read_types(filename):
         logging.debug('read types from file: %s.%s ...' % (filename, FE_TYPES))
@@ -358,6 +368,7 @@ class Lexicon(object):
             types = [row[0].decode("utf-8") for row in reader]
         return types
 
+    # deprecated
     def write_types(self, filename):
         logging.debug('write types (len=%i) to: %s.%s ...' % (len(self.types), filename, FE_TYPES))
         with open('%s.%s' % (filename, FE_TYPES), 'wb') as f:
@@ -366,13 +377,13 @@ class Lexicon(object):
                 writer.writerow([t.encode("utf-8")])
 
     def dump(self, filename, types_only=False):
-        self.write_types(filename)
+        #self.write_types(filename)
+        if self.strings:
+            self.strings.to_disk('%s.%s' % (filename, FE_STRINGS))
+
         if not types_only:
             logging.debug('dump embeddings (shape=%s) to: %s.%s ...' % (str(self.vecs.shape), filename, FE_VECS))
             self.vecs.dump('%s.%s' % (filename, FE_VECS))
-
-        if self.strings is not None:
-            self.strings.to_disk('%s.%s' % (filename, FE_STRINGS))
 
         # TODO: check _fixed
         if len(self._ids_fixed) > 0:
@@ -393,7 +404,7 @@ class Lexicon(object):
             if not types_only:
                 os.remove('%s.%s' % (filename, FE_VECS))
 
-    def init_vecs(self, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None):
+    def init_vecs(self, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None):
         if checkpoint_reader is not None:
             saved_shapes = checkpoint_reader.get_variable_to_shape_map()
             if model_fold.VAR_NAME_LEXICON_VAR in saved_shapes:
@@ -401,15 +412,10 @@ class Lexicon(object):
             if model_fold.VAR_NAME_LEXICON_FIX in saved_shapes:
                 new_vecs_fixed = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_FIX)
             assert new_vecs is not None or new_vecs_fixed is not None, 'no vecs and no vecs_fixed found in checkpoint'
-        #if new_vecs is None and new_vecs_fixed is None:
-            #assert vec_size is not None, 'provide a vec_size to init empty vecs'
-            #new_vecs = np.zeros(shape=(0, vec_size), dtype=np.float32)
-            #new_vecs = None
-            #self._dumped_vecs = True
-        #else:
-            #self._dumped_vecs = False
-        #if not self._dumped_vecs:
-        #    logging.warning('overwrite unsaved vecs')
+        elif vocab is not None:
+            # TODO: implement
+            raise NotImplementedError
+
         # TODO: check _fixed
         if new_vecs_fixed is not None:
             assert new_vecs_fixed.shape[0] == self.len_fixed, \
@@ -432,21 +438,25 @@ class Lexicon(object):
             self._vecs = new_vecs
 
     # compatibility
-    def set_types_with_mapping(self, mapping):
-        self._types = revert_mapping_to_list(mapping)
-        #self._dumped_types = False
+    #def set_types_with_mapping(self, mapping):
+    #    self._types = revert_mapping_to_list(mapping)
+    #    #self._dumped_types = False
 
+    # TODO: adapt for StringStore! Test!
     def sort_and_cut_and_fill_dict(self, data, count_threshold=1):
-        converter, self._vecs, self._types, new_counts, new_idx_unknown = sort_and_cut_and_fill_dict(seq_data=data,
-                                                                                                     vecs=self.vecs,
-                                                                                                     types=self.types,
-                                                                                                     count_threshold=count_threshold)
+        converter, self._vecs, self._strings, new_counts, new_idx_unknown = sort_and_cut_and_fill_dict(seq_data=data,
+                                                                                                   vecs=self.vecs,
+                                                                                                   strings=self.strings,
+                                                                                                   types=self.types,
+                                                                                                   count_threshold=count_threshold)
+        #self._strings = StringStore(types_dep)
+        self.clear_cached_values()
+
         # TODO: check _fixed
         self._ids_fixed = set([converter[i] for i in self._ids_fixed])
         self._ids_fixed_dict = None
         self._ids_var_dict = None
 
-        self._mapping = None
         #self._dumped_vecs = False
         #self._dumped_types = False
         return converter, new_counts, new_idx_unknown
@@ -516,9 +526,14 @@ class Lexicon(object):
         else:
             raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
 
+    # TODO: adapt for StringStore! does not work like this!
     def merge(self, other, add=True, remove=True):
-        self._vecs, self._types = merge_dicts(vecs1=self.vecs, types1=self.types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
-        self._mapping = None
+        #self._vecs, types_dep = merge_dicts(vecs1=self.vecs, types1=self.types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
+        #self._strings = StringStore(types_dep)
+        raise NotImplementedError
+
+        #self._mapping = None
+        self.clear_cached_values()
         #self._dumped_vecs = False
         #self._dumped_types = False
         if add:
@@ -529,7 +544,10 @@ class Lexicon(object):
 
     def replicate_types(self, prefix='', suffix=''):
         assert len(prefix) + len(suffix) > 0, 'please provide a prefix or a suffix.'
-        self._types.extend([prefix + t + suffix for t in self.types])
+        #self._types.extend([prefix + t + suffix for t in self.types])
+        for s in self.strings:
+            self._strings.add(prefix + s + suffix)
+        self.clear_cached_values()
 
     def update_fix_ids_and_abs_data(self, new_data):
         new_ids_fix = new_data[new_data < 0]
@@ -539,12 +557,22 @@ class Lexicon(object):
             self._ids_fixed_dict = None
             self._ids_var_dict = None
 
+    def convert_data_strings_to_indices(self, data):
+        for i in range(len(data)):
+            d = data[i]
+            data[i] = self.mapping[d]
+
     def read_data(self, *args, **kwargs):
-        data, parents = preprocessing.read_data(*args, strings=self.mapping, **kwargs)
-        self.update_fix_ids_and_abs_data(new_data=data)
-        self._types = revert_mapping_to_list(self.mapping)
+        #logging.getLogger().setLevel(logging.DEBUG)
+        #logging.debug('len(lexicon) before read_data: %i' % len(self))
+        data, parents = preprocessing.read_data(*args, strings=self.strings, **kwargs)
+        self.clear_cached_values()
+        #logging.debug('len(lexicon) after read_data: %i' % len(self))
+        self.convert_data_strings_to_indices(data)
+        #self.update_fix_ids_and_abs_data(new_data=data)
+        #self._types = revert_mapping_to_list(self.mapping)
         #self._dumped_types = False
-        return sequ_trees.Forest(data=data, parents=parents, lexicon=self)
+        return Forest(data=data.astype(dtype=DTYPE_FOREST), parents=parents.astype(dtype=DTYPE_FOREST), lexicon=self)
 
     def is_fixed(self, idx):
         return idx in self._ids_fixed
@@ -557,24 +585,30 @@ class Lexicon(object):
     def has_vocab_prefix(s, man_vocab_id):
         return s.startswith(Lexicon.vocab_prefix(man_vocab_id))
 
+    def clear_cached_values(self):
+        self._types = None
+        self._mapping = None
+
     def __getitem__(self, item):
         if type(item) == unicode or type(item) == str:
             try:
-                res = self.mapping[item]
+                res = self.mapping[self.strings[item]]
             # word doesnt occur in dictionary
             except KeyError:
                 res = len(self)
-                self._mapping[item] = res
-                self._types.append(item)
+                self._strings.add(item)
+                self.clear_cached_values()
+                #self._mapping[new_h] = res
+                #self._types.append(item)
             return res
         else:
             idx = abs(item)
             if idx >= len(self):
                 return constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-            return self.types[abs(item)]
+            return self.strings[self.types[abs(item)]]
 
     def __len__(self):
-        return len(self.types)
+        return len(self.strings)
 
     @property
     def vec_size(self):
@@ -624,6 +658,12 @@ class Lexicon(object):
 
     @property
     def types(self):
+        # maps positions to hashes
+        #return self._types
+        if self._types is None:
+            self._types = np.zeros(shape=(len(self.strings),), dtype=np.uint64)
+            for i, s in enumerate(self.strings):
+                self._types[i] = self.strings[s]
         return self._types
 
     @property
@@ -632,8 +672,12 @@ class Lexicon(object):
 
     @property
     def mapping(self):
+        # maps hashes to positions
         if self._mapping is None:
-            self._mapping = mapping_from_list(self._types)
+            #self._mapping = mapping_from_list(self._types)
+            self._mapping = {}
+            for i, s in enumerate(self.strings):
+                self._mapping[self.strings[s]] = i
         return self._mapping
 
     @property

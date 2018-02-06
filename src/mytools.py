@@ -111,23 +111,11 @@ def avg_dif(a):
     return sum(l) / len(l)
 
 
-def getOrAdd(d, idx, idx_alt=None):
-    try:
-        res = d[idx]
-    # word doesnt occur in dictionary
-    except KeyError:
-        if idx_alt is not None:
-            return d[idx_alt]
-        res = len(d)
-        d[idx] = res
-        #try:
-        #    if idx >= 0:
-        #        print('add to dict: ' + str(idx) + ' (' + nlp.vocab[idx].orth_ + ') -> ' + str(res))
-        #    else:
-        #        print('add to dict: ' + str(idx) + ' (' + constants.vocab_manual[idx] + ') -> ' + str(res))
-        #except IndexError:
-        #    print('add to dict: ' + str(idx) + ' () -> ' + str(res))
-    return res
+def getOrAdd(strings, s, idx_alt=None):
+    if idx_alt is None:
+        return strings.add(s)
+    else:
+        return strings[s] if s in strings else idx_alt
 
 
 def getOrAdd2(mapping, types, type, type_alt=None):

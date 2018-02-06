@@ -543,15 +543,17 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
     # init as list containing an empty dummy array with dtype=int16 to allow numpy concatenation even if empty
     #depth_list = [np.ndarray(shape=(0,), dtype=np.int16)]
 
-    assert concat_mode in constants.concat_modes, 'unknown concat_mode="' + concat_mode + '". Please use one of: ' + ', '.join(
-        [str(s) for s in constants.concat_modes])
-    assert inner_concat_mode in constants.concat_modes, 'unknown inner_concat_mode="' + inner_concat_mode + '". Please use one of: ' + ', '.join(
-        [str(s) for s in constants.concat_modes])
+    assert concat_mode in constants.concat_modes, 'unknown concat_mode="%s". Please use one of: %s' \
+                                                  % (concat_mode, ', '.join([str(s) for s in constants.concat_modes]))
+    assert inner_concat_mode in constants.concat_modes, 'unknown inner_concat_mode="%s". Please use one of: %s' \
+                                                        % (inner_concat_mode, ', '.join([str(s) for s in constants.concat_modes]))
 
     if expand_dict:
-        unknown_default = None
+        idx_unknown = None
     else:
-        unknown_default = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+        assert constants.vocab_manual[constants.UNKNOWN_EMBEDDING] in strings, '"%s" is not in StringStore.' \
+                                                                               % constants.UNKNOWN_EMBEDDING
+        idx_unknown = strings[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]
 
     if reader_roots is None:
         if 'root_labels' in reader_roots_args:
@@ -590,7 +592,7 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
                 for annot in annotations:
                     if (sent_start <= annot[0] <= sent_end) or (sent_start <= annot[1] <= sent_end):
                         sent_annots.append(annot)
-            processed_sen = sentence_processor(sentence, parsed_data, strings, unknown_default, inner_concat_mode,
+            processed_sen = sentence_processor(sentence, parsed_data, strings, idx_unknown, inner_concat_mode,
                                                annotations=sent_annots)
             # skip not processed sentences (see process_sentence)
             if processed_sen is None:
@@ -606,7 +608,7 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
 
             sen_count += 1
 
-        new_root_id = mytools.getOrAdd(strings, root_type, unknown_default)
+        new_root_id = mytools.getOrAdd(strings, root_type, idx_unknown)
         seq_data, seq_parents, new_roots = concat_roots(data=seq_data, parents=seq_parents, root_offsets=temp_roots,
                                                         concat_mode=concat_mode,  new_root_id=new_root_id)
         # add links to prepended data/parents
@@ -615,7 +617,7 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
                 seq_parents[new_root] = parent_root_pos - new_root
 
     logging.debug('sentences read: ' + str(sen_count))
-    data = np.array(seq_data)
+    data = np.array(seq_data, dtype=np.uint64)
     parents = np.array(seq_parents)
 
     return data, parents
