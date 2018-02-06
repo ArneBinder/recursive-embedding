@@ -47,7 +47,7 @@ tf.flags.DEFINE_string('external_lexicon',
                        'If not None, load embeddings from numpy array located at "<external_lexicon>.vec" and type '
                        'string mappings from "<external_lexicon>.type" file and merge them into the embeddings '
                        'from the loaded model ("<data_source>/[model].type").')
-tf.flags.DEFINE_string('default_sentence_processor', 'process_sentence3',
+tf.flags.DEFINE_string('default_sentence_processor', 'process_sentence1',
                        'Defines which NLP features are taken into the embedding trees.')
 tf.flags.DEFINE_string('default_concat_mode',
                        'sequence',

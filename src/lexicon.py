@@ -317,6 +317,7 @@ class Lexicon(object):
         self._ids_fixed = set()
         self._ids_fixed_dict = None
         self._ids_var_dict = None
+        self._strings = strings
         if filename is not None:
             self._types = Lexicon.read_types(filename)
             if os.path.isfile('%s.%s' % (filename, FE_VECS)):
@@ -344,8 +345,7 @@ class Lexicon(object):
         elif nlp_vocab is not None:
             self._vecs, self._types = get_dict_from_vocab(nlp_vocab)
         elif strings is not None:
-            self._strings = strings
-            self._types = None
+            pass
         else:
             raise ValueError('Not enouth arguments to instantiate Lexicon object. Please provide a filename or '
                              '(vecs array and types list) or a nlp_vocab.')

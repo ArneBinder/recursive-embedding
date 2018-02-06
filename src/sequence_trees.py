@@ -363,8 +363,9 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
 
 
 class Forest(object):
-    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None):
+    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None, string_ids=False):
         self.reset_cache_values()
+        self._string_ids = string_ids
         self._lexicon = None
         if lexicon is not None:
             self._lexicon = lexicon
