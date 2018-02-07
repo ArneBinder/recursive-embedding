@@ -100,6 +100,11 @@ def sort_and_cut_dict(seq_data, keep, count_threshold=1):
     #for d in seq_data:
     #    counts[d] += 1
     unique, counts = np.unique(seq_data, return_counts=True)
+    # add keep
+    keep_new = np.array([k for k in keep if k not in unique], dtype=unique.dtype)
+    unique = np.concatenate([unique, keep_new])
+    counts = np.concatenate([counts, np.zeros(shape=len(keep_new), dtype=counts.dtype)])
+    logging.debug('count unique: %i' % len(unique))
 
     logging.debug('argsort ...')
     sorted_indices = np.argsort(counts)
@@ -504,14 +509,16 @@ class Lexicon(object):
         if self._vecs is not None:
             self.freeze()
 
-    def sort_and_cut_and_fill_dict(self, data, keep_values, count_threshold=1):
+    def sort_and_cut_and_fill_dict(self, data, keep_values, count_threshold=10):
         assert self.frozen is False, 'can not sort and cut frozen lexicon'
         #keep_values = [self.strings[k] if self. for k in keep_strings]
+        logging.debug('lexicon size before cut and sort: %i' % len(self.strings))
         new_values, removed, converter, new_counts = sort_and_cut_dict(seq_data=data, count_threshold=count_threshold,
                                                                        keep=keep_values)
+        logging.debug('removed (first 100): %s' % ','.join([self.strings[v] for v in removed][:100]))
         # recreate strings without removed ones, in sorted order
         self._strings = StringStore([self.strings[v] for v in new_values if v not in removed])
-        logging.debug('removed: %s' % ','.join([self.strings[v] for v in removed]))
+        logging.debug('new lexicon size: %i' % len(self.strings))
         self.clear_cached_values()
 
         ## convert vecs, if available
@@ -639,8 +646,12 @@ class Lexicon(object):
 
     def convert_data_hashes_to_indices(self, data):
         for i in range(len(data)):
+            #try:
             d = data[i]
             data[i] = self.mapping[d]
+            #except KeyError as e:
+            #    logging.error('i: %i, d: %i' % (i, d))
+            #    raise e
         self.freeze()
         return data.astype(DTYPE_DATA)
 

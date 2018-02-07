@@ -278,17 +278,19 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         scores = np.concatenate(_scores)
 
         logging.info('add vocab_manual ... ')
+        #logging.debug('a: %i' % len(lexicon))
         lexicon.add_all(constants.vocab_manual.values())
+        #logging.debug('b: %i' % len(lexicon))
 
         logging.info('sort and cut lexicon ... ')
 
-        # TODO: fix this!
         keep_hash_values = [lexicon.strings[s] for s in constants.vocab_manual.values()]
         #converter, new_counts = lexicon.sort_and_cut_and_fill_dict(data=forest.data, keep_values=keep_hash_values,
         #                                                           count_threshold=FLAGS.count_threshold)
         #forest.convert_data(converter=converter,
         #                    new_idx_unknown=lexicon[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]])
-        #lexicon.sort_and_cut_and_fill_dict(data=forest.data, keep_values=keep_hash_values, count_threshold=FLAGS.count_threshold)
+        # TODO: fix this!
+        lexicon.sort_and_cut_and_fill_dict(data=forest.data, keep_values=keep_hash_values, count_threshold=FLAGS.count_threshold)
 
         logging.info('init vecs: use nlp vocab and fill missing ...')
         lexicon.init_vecs(vocab=nlp.vocab)
