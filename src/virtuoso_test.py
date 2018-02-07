@@ -186,8 +186,8 @@ def create_context_forest(nif_context_data, nlp, lexicon):
             prepend = None
 
     forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
-                               parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
-                               expand_dict=True, as_tuples=True)
+                               parser=nlp, batch_size=100, concat_mode='sequence', inner_concat_mode='tree',
+                               expand_dict=True, as_tuples=True, return_hashes=True)
     return forest
 
 
@@ -284,7 +284,7 @@ def process_current_contexts(idx, nlp, lexicon, graph, current_contexts, out_pat
     #forest, failed = create_context_forest(nlp=nlp, lexicon=lexicon, graph=graph, nif_contexts=current_contexts)
     fn = os.path.join(out_path, 'forest-%i' % idx)
     forest.dump(fn)
-    lexicon.dump(fn, types_only=True)
+    lexicon.dump(fn, strings_only=True)
     with open(fn + '.failed', 'w', ) as f:
         for uri, e in failed:
             f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
@@ -328,20 +328,22 @@ def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', 
     process_current_contexts(i, nlp, lexicon, graph, current_contexts, out_path, steps_save)
 
 
-def save_current_forest(i, forest, failed, lexicon, out_path, last_fn, t_start_batch):
-    if len(forest) > 0:
+def save_current_forest(i, forest, failed, lexicon, filename, t_start_batch):
+
+    #fn = os.path.join(out_path, 'forest-%i' % i)
+    if forest is not None:
+        forest.dump(filename)
+        lexicon.dump(filename, strings_only=True)
         logger.info('%i: %s (failed: %i, forest_size: %i, lexicon size: %i)'
                     % (i, str(datetime.now() - t_start_batch), len(failed), len(forest), len(lexicon)))
-        fn = os.path.join(out_path, 'forest-%i' % i)
-        forest.dump(fn)
-        lexicon.dump(fn, types_only=True)
-        with open(fn + '.failed', 'w', ) as f:
+    else:
+        logger.info('%i: %s (failed: %i, forest_size: %i, lexicon size: %i)'
+                    % (i, str(datetime.now() - t_start_batch), len(failed), 0, len(lexicon)))
+    if failed is not None and len(failed) > 0:
+        with open('%s.failed' % filename, 'w', ) as f:
             for uri, e in failed:
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
-        Lexicon.delete(last_fn, types_only=True)
-        return fn
-    else:
-        return last_fn
+    #Lexicon.delete(last_fn, types_only=True)
 
 
 def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
@@ -411,6 +413,87 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
 
     # save remaining
     save_current_forest(i, forest, failed, lexicon, out_path, steps_save, t_start_batch)
+
+
+def process_context_batch(contexts, nlp, graph, begin_idx, out_path):
+
+    fn = os.path.join(out_path, 'forest-%i' % begin_idx)
+    if not (Forest.exist(fn) and Lexicon.exist(fn)):
+        t_start_batch = datetime.now()
+        lexicon = Lexicon()
+        tree_contexts = []
+        failed = []
+
+        for context in contexts:
+            try:
+                nif_context_data = prepare_context_data(graph, context)
+                tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
+                tree_contexts.append(tree_context)
+            except Exception as e:
+                failed.append((context, e))
+
+        if len(tree_contexts) > 0:
+            forest = Forest.concatenate(tree_contexts)
+        else:
+            forest = None
+        save_current_forest(i=begin_idx + len(contexts), forest=forest, failed=failed, lexicon=lexicon, filename=fn,
+                            t_start_batch=t_start_batch)
+
+
+def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', batch_size=10):
+
+    logger.info('set up connection ...')
+    Virtuoso = plugin("Virtuoso", Store)
+    store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+    default_graph_uri = "http://dbpedia.org/nif"
+    graph = Graph(store, identifier=URIRef(default_graph_uri))
+    logger.info('connected')
+
+    def do_stuff(_q, _nlp, _g, _out_path):
+        while True:
+            begin_idx, contexts = _q.get()
+            print('%i: start batch' % begin_idx)
+            try:
+                process_context_batch(contexts=contexts, nlp=_nlp, graph=_g, begin_idx=begin_idx, out_path=_out_path)
+            except Exception as e:
+                print('%s: failed' % str(e))
+            _q.task_done()
+
+    q = Queue.Queue(maxsize=100)
+    num_threads = 2
+
+    logger.info('initialize worker ...')
+    for i in range(num_threads):
+        store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+        g = Graph(store, identifier=URIRef(default_graph_uri))
+        logger.info('load spacy ...')
+        nlp = spacy.load('en_core_web_md')
+
+        worker = Thread(target=do_stuff, args=(q, nlp, g, out_path))
+        worker.setDaemon(True)
+        worker.start()
+
+    logger.info('fill context queue ...')
+    current_contexts = []
+    batch_start = 0
+    for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
+        # debug
+        if i > 10 * batch_size:
+            break
+
+        if i % batch_size == 0:
+            if len(current_contexts) > 0:
+
+                q.put((batch_start, current_contexts))
+                current_contexts = []
+            batch_start = i
+        current_contexts.append(context)
+
+    if len(current_contexts) > 0:
+        q.put((batch_start, current_contexts))
+
+    q.join()
+    logging.info('finished')
 
 
 def test_utf8_context(graph, context=URIRef(u"http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context")):
@@ -501,7 +584,7 @@ def process_contexts(nlp, batch_idx, contexts, graph, out_path):
 
     fn = os.path.join(out_path, 'forest-%i' % batch_idx)
     forest.dump(fn)
-    lexicon.dump(fn, types_only=True)
+    lexicon.dump(fn, strings_only=True)
     with open(fn + '.failed', 'w', ) as f:
         for uri, e in failed:
             f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
@@ -547,19 +630,19 @@ def test_process_all_contexts_parallel(graph,
 
 if __name__ == '__main__':
     #test_connect_utf8()
-
-    logger.info('set up connection ...')
-    Virtuoso = plugin("Virtuoso", Store)
-    store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
-    default_graph_uri = "http://dbpedia.org/nif"
-    g = Graph(store, identifier=URIRef(default_graph_uri))
-    logger.info('connected')
+    process_contexts_multi()
+    #logger.info('set up connection ...')
+    #Virtuoso = plugin("Virtuoso", Store)
+    #store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+    #default_graph_uri = "http://dbpedia.org/nif"
+    #g = Graph(store, identifier=URIRef(default_graph_uri))
+    #logger.info('connected')
 
     #test_context_tree(g)
     #test_context_tree(g, context=URIRef(u'http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context'))
     #test_utf8_context(g)
 
-    process_all_contexts_new(g)
+    #process_all_contexts_new(g)
     #test_process_all_contexts_parallel(g)
 
 

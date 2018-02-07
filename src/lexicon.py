@@ -419,11 +419,11 @@ class Lexicon(object):
             for t in self.types:
                 writer.writerow([t.encode("utf-8")])
 
-    def dump(self, filename, types_only=False):
+    def dump(self, filename, strings_only=False):
         if self.strings:
             self.strings.to_disk('%s.%s' % (filename, FE_STRINGS))
 
-        if not types_only:
+        if not strings_only:
             logging.debug('dump embeddings (shape=%s) to: %s.%s ...' % (str(self.vecs.shape), filename, FE_VECS))
             self.vecs.dump('%s.%s' % (filename, FE_VECS))
 
