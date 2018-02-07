@@ -211,6 +211,7 @@ def get_or_calc_sequence_data(params):
             indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
             start = params.get('start', 0)
             end = params.get('end', len(indices))
+            params['data_as_hashes'] = forest.data_as_hashes
             for i, sim_tuple_indices in enumerate(indices[start: end]):
                 for idx in sim_tuple_indices:
                     params['data_sequences'].append(forest.trees([idx]).next())
@@ -219,7 +220,7 @@ def get_or_calc_sequence_data(params):
 
             params['scores_gold'] = np.array(params['scores_gold'])
             for data_sequence in params['data_sequences']:
-                token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon).get_text_plain(blacklist=params.get('prefix_blacklist', None))
+                token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes']).get_text_plain(blacklist=params.get('prefix_blacklist', None))
                 params['sequences'].append(" ".join(token_list))
         else:
             raise IOError('could not open "%s"' % fn)
@@ -424,7 +425,7 @@ def visualize():
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
             for i, data_sequence in enumerate(params['data_sequences']):
-                forest_temp = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon)
+                forest_temp = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'])
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i))
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
@@ -600,10 +601,10 @@ def main(data_source):
     # has to happen after integration of additional lexicon data (external_lexicon or merge_nlp_lexicon)
     if not checkpoint:
         lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+    else:
         lexicon.pad()
-
-    assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
-                              (len(lexicon), len(lexicon.vecs))
+        assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
+                                  (len(lexicon), len(lexicon.vecs))
 
     # load model
     if checkpoint:

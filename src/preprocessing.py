@@ -98,6 +98,13 @@ def as_lexeme(s):
     return constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR + s
 
 
+def from_lexeme(s):
+    l = len(constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR)
+    if l >= len(s):
+        return None
+    return s[l:]
+
+
 # embeddings for:
 # word
 def process_sentence1(sentence, parsed_data, strings, dict_unknown=None,

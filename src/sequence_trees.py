@@ -16,20 +16,6 @@ def load(fn):
     return data, parents
 
 
-# deprecated, use Forest.dump
-def dump(fn, data=None, parents=None):
-    if data is not None:
-        logging.debug('dump data ...')
-        data.dump('%s.data' % fn)
-    if parents is not None:
-        logging.debug('dump parents ...')
-        parents.dump('%s.parent' % fn)
-
-
-def exist(fn):
-    return os.path.isfile('%s.data' % fn) and os.path.isfile('%s.parent' % fn)
-
-
 def get_root(parents, idx):
     i = idx
     while parents[i] != 0:
@@ -356,6 +342,11 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
+FE_DATA = 'data'
+FE_PARENTS = 'parent'
+FE_DATA_HASHES = 'data.hash'
+
+
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None,
                  data_as_hashes=False):
@@ -366,14 +357,8 @@ class Forest(object):
         self._parents = None
         if lexicon is not None:
             self._lexicon = lexicon
-        self._filename = filename
-        if filename is not None:
-            if exist(filename):
-                self.set_forest(*load(filename))
-            else:
-                raise IOError('could not load sequence_trees from "%s"' % filename)
-        elif (data is not None and parents is not None) or forest is not None:
-            self.set_forest(data=data, parents=parents, forest=forest)
+        if (data is not None and parents is not None) or forest is not None or filename is not None:
+            self.set_forest(filename=filename, data=data, parents=parents, forest=forest, data_as_hashes=data_as_hashes)
         elif tree_dict is not None:
             _data, _parents = sequence_node_to_sequence_trees(tree_dict)
             self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes)
@@ -389,8 +374,19 @@ class Forest(object):
         self._depths_collected = None
         self._dicts = {}
 
-    def set_forest(self, data=None, parents=None, forest=None, data_as_hashes=False):
-        if data_as_hashes:
+    def set_forest(self, filename=None, data=None, parents=None, forest=None, data_as_hashes=False):
+        if filename is not None:
+            logging.debug('load data and parents from %s ...' % filename)
+            if os.path.exists('%s.%s' % (filename, FE_DATA)):
+                data = np.load('%s.%s' % (filename, FE_DATA))
+            elif os.path.exists('%s.%s' % (filename, FE_DATA_HASHES)):
+                data = np.load('%s.%s' % (filename, FE_DATA_HASHES))
+                data_as_hashes = True
+            else:
+                raise IOError('data file (%s.%s or %s.%s) not found' % (filename, FE_DATA, filename, FE_DATA_HASHES))
+            parents = np.load('%s.%s' % (filename, FE_PARENTS))
+        self._as_hashes = data_as_hashes
+        if self.data_as_hashes:
             data_dtype = DTYPE_HASH
         else:
             data_dtype = DTYPE_DATA
@@ -412,41 +408,33 @@ class Forest(object):
         self._lexicon = lexicon
 
     def dump(self, filename):
-        #dump(fn=filename, data=self.data, parents=self.parents)
-        #if data is not None:
         logging.debug('dump data ...')
-        self.data.dump('%s.data' % filename)
-        #if parents is not None:
+        if self.data_as_hashes:
+            self.data.dump('%s.%s' % (filename, FE_DATA_HASHES))
+        else:
+            self.data.dump('%s.%s' % (filename, FE_DATA))
         logging.debug('dump parents ...')
-        self.parents.dump('%s.parent' % filename)
-        self._filename = filename
+        self.parents.dump('%s.%s' % (filename, FE_PARENTS))
 
     @staticmethod
     def exist(filename):
-        return os.path.exists('%s.data' % filename) and os.path.exists('%s.parent' % filename)
+        return (os.path.exists('%s.%s' % (filename, FE_DATA)) or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES))) \
+               and os.path.exists('%s.%s' % (filename, FE_PARENTS))
 
-    def reload(self):
-        assert self._filename is not None, 'no filename set'
+    def reload(self, filename):
         self.reset_cache_values()
-        self.set_forest(*load(self._filename))
+        self.set_forest(*load(filename))
 
-    # deprecated
-    def write_tuple_idx_data(self, sizes, factor=1, out_path_prefix='', root_scores=None, root_index_converter=None):
-        if len(out_path_prefix) > 0:
-            out_path_prefix = '.' + out_path_prefix
-        if root_index_converter is None:
-            root_index_converter = range(sum(sizes) * factor)
-        start = 0
-        for idx, end in enumerate(np.cumsum(sizes)):
-            current_sim_tuples = [(self.roots[(i / factor) * 2],
-                                   self.roots[root_index_converter[i] * 2 + 1],
-                                   0.0 if root_scores is None else root_scores[i]) for i in range(start * factor, end * factor)]
-            logging.info('write sim_tuple_indices to: %s.idx.%i%s ...' % (self._filename, idx, out_path_prefix))
-            np.array(current_sim_tuples).dump('%s.idx.%i%s' % (self._filename, idx, out_path_prefix))
-            start = end
+    def hashes_to_indices(self):
+        assert self.lexicon is not None, 'no lexicon available'
+        assert self.data_as_hashes, 'data consists already of indices'
+        self._data = self.lexicon.convert_data_hashes_to_indices(self.data)
+        self._as_hashes = False
 
     def convert_data(self, converter, new_idx_unknown):
+        #assert not self.data_as_hashes, 'can not convert data hashes'
         assert self.lexicon is not None, 'lexicon is not set'
+        #assert self.lexicon.frozen, 'lexicon has to be frozen to convert data'
         convert_data(data=self.data, converter=converter, lex_size=len(self.lexicon), new_idx_unknown=new_idx_unknown)
         self._dicts = None
 
@@ -480,6 +468,8 @@ class Forest(object):
 
     # TODO: check!
     def sample_all(self, sample_count=1, retry_count=10):
+        if self.data_as_hashes:
+            raise NotImplementedError('sample_all not implemented for data hashes')
         logging.info('create negative samples for all data points ...')
         sampled_sim_tuples = []
         max_depth = np.max(self.depths)

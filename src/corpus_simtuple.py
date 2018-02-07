@@ -249,14 +249,15 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
 
         def read_data(file_name):
             logging.info('convert texts scored ...')
-            logging.debug('len(lexicon)=%i' % len(lexicon))
+            logging.debug('lexicon size: %i' % len(lexicon))
             _forest = lexicon.read_data(reader=reader_sentences, sentence_processor=sentence_processor,
                                         parser=nlp, reader_args={'filename': file_name},
                                         batch_size=10000, concat_mode=FLAGS.concat_mode,
                                         inner_concat_mode=FLAGS.inner_concat_mode, expand_dict=True,
                                         reader_roots=reader_roots,
-                                        reader_roots_args=reader_roots_args)
-            logging.debug('len(lexicon)=%i (after parsing)' % len(lexicon))
+                                        reader_roots_args=reader_roots_args,
+                                        return_hashes=True)
+            logging.debug('lexicon size: %i (after parsing)' % len(lexicon))
             _s = np.fromiter(reader_scores(file_name), np.float)
             logging.info('scores read: %i' % len(_s))
             assert 2 * len(_s) == len(_forest.roots), 'len(roots): %i != 2 * len(scores): %i' % (
@@ -280,14 +281,23 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         lexicon.add_all(constants.vocab_manual.values())
 
         logging.info('sort and cut lexicon ... ')
-        converter, new_counts = lexicon.sort_and_cut_and_fill_dict(data=forest.data, count_threshold=FLAGS.count_threshold)
-        forest.convert_data(converter=converter, new_idx_unknown=lexicon[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]])
+
+        # TODO: fix this!
+        keep_hash_values = [lexicon.strings[s] for s in constants.vocab_manual.values()]
+        #converter, new_counts = lexicon.sort_and_cut_and_fill_dict(data=forest.data, keep_values=keep_hash_values,
+        #                                                           count_threshold=FLAGS.count_threshold)
+        #forest.convert_data(converter=converter,
+        #                    new_idx_unknown=lexicon[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]])
+        #lexicon.sort_and_cut_and_fill_dict(data=forest.data, keep_values=keep_hash_values, count_threshold=FLAGS.count_threshold)
 
         logging.info('init vecs: use nlp vocab and fill missing ...')
         lexicon.init_vecs(vocab=nlp.vocab)
 
         if FLAGS.one_hot_dep:
             lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])
+
+        # convert data: hashes to indices
+        forest.hashes_to_indices()
 
         forest.dump(out_path)
         scores.dump(out_path + '.score')
@@ -309,6 +319,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     logging.info('the dataset contains %i scored text tuples' % n)
 
     if FLAGS.create_unique:
+        if forest.data_as_hashes:
+            raise NotImplementedError('create_unique not implemented for data_as_hashes')
         # use unique by now
         out_path += '.unique'
         if not (Forest.exist(out_path) and Lexicon.exist(out_path)) or overwrite:
@@ -443,43 +455,4 @@ def load_sim_tuple_indices(filename, extensions=None):
         probs.append(_probs)
         indices.append(_indices)
 
-    #loaded = zip(ids1, ids2, _loaded[2])
-    #return loaded
     return np.concatenate(indices).T, np.concatenate(probs).T
-
-
-# unused
-# TODO: check changes
-def merge_into_corpus(corpus_fn1, corpus_fn2):
-    """
-    Merges corpus2 into corpus1 e.g. merges types and vecs and converts data2 according to new types dict and writes
-    training files from index files (file extension: .idx.<id>)
-
-    :param corpus_fn1: file name of source corpus
-    :param corpus_fn2: file name of target corpus
-    :return:
-    """
-    #vecs, types = lex.load(corpus_fn1)
-    lexicon1 = Lexicon(filename=corpus_fn1)
-    #vecs2, types2 = lex.load(corpus_fn2)
-    lexicon2 = Lexicon(filename=corpus_fn2)
-    #vecs, types = lex.merge_dicts(vecs, types, vecs2, types2, add=True, remove=False)
-    data_converter = lexicon1.merge(lexicon2, add=True, remove=False)
-    #data2, parents2 = sequ_trees.load(corpus_fn2)
-    sequence_trees2 = Forest(filename=corpus_fn2, lexicon=lexicon1)
-    #m = lex.mapping_from_list(types)
-    #mapping = {i: m[t] for i, t in enumerate(types2)}
-    #converter = [m[t] for t in types2]
-    #data2_converted = np.array([mapping[d] for d in data2], dtype=data2.dtype)
-    sequence_trees2.convert_data(converter=data_converter,
-                                 new_idx_unknown=lexicon1[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]])
-    #dir2 = os.path.abspath(os.path.join(corpus_fn2, os.pardir))
-    #indices2_fnames = fnmatch.filter(os.listdir(dir2), ntpath.basename(corpus_fn2) + '.idx.[0-9]*')
-    #indices2 = [load_sim_tuple_indices(os.path.join(dir2, fn)) for fn in indices2_fnames]
-    #children2, roots2 = sequ_trees.children_and_roots(parents2)
-    #for i, sim_tuples in enumerate(indices2):
-    #    write_sim_tuple_data('%s.merged.train.%i' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
-    #    write_sim_tuple_data_single('%s.merged.train.%i.single' % (corpus_fn1, i), sim_tuples, data2_converted, children2)
-    #lex.dump('%s.merged' % corpus_fn1, vecs=vecs, types=types)
-    sequence_trees2.dump('%s.merged' % corpus_fn1)
-    lexicon1.dump('%s.merged' % corpus_fn1)
