@@ -645,13 +645,14 @@ class Lexicon(object):
             self._ids_var_dict = None
 
     def convert_data_hashes_to_indices(self, data):
+        s_uk = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+        assert s_uk in self.strings, '%s not in lexicon' % s_uk
         for i in range(len(data)):
-            #try:
             d = data[i]
-            data[i] = self.mapping[d]
-            #except KeyError as e:
-            #    logging.error('i: %i, d: %i' % (i, d))
-            #    raise e
+            if d in self.mapping:
+                data[i] = self.mapping[d]
+            else:
+                data[i] = self.mapping[self.strings[s_uk]]
         self.freeze()
         return data.astype(DTYPE_DATA)
 
