@@ -8,7 +8,7 @@ import constants
 import mytools
 from constants import DTYPE_HASH
 
-#MARKER_DEP_EDGE = 'DEP/'
+PREFIX_LEX = constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR
 
 
 # unused
@@ -95,14 +95,14 @@ def get_annotations_for_token(annotations, token):
 
 
 def as_lexeme(s):
-    return constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR + s
+    return PREFIX_LEX + s
 
 
-def from_lexeme(s):
-    l = len(constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR)
-    if l >= len(s):
+def without_prefix(s, prefix=PREFIX_LEX):
+    if s.startswith(prefix):
+        return s[len(prefix):]
+    else:
         return None
-    return s[l:]
 
 
 # embeddings for:

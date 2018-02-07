@@ -8,12 +8,13 @@ import logging
 import os
 
 import model_fold
-from preprocessing import read_data, from_lexeme
+from preprocessing import read_data, without_prefix, PREFIX_LEX
 #import sequence_trees as sequ_trees
 from constants import DTYPE_DATA, DTYPE_PARENT, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX
 from sequence_trees import Forest
 
 
+# DEPRECATED
 # TODO: adapt for StringStore
 def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_threshold=1):
     logging.info('sort, cut and fill embeddings ...')
@@ -442,7 +443,8 @@ class Lexicon(object):
             if not types_only:
                 os.remove('%s.%s' % (filename, FE_VECS))
 
-    def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None):
+    def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
+                  vocab_prefix=PREFIX_LEX):
         if filename is not None:
             self._vecs = np.load('%s.%s' % (filename, FE_VECS))
             if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
@@ -463,16 +465,21 @@ class Lexicon(object):
             new_vecs = np.zeros(shape=(len(self), vocab.vectors_length), dtype=vocab.vectors.data.dtype)
             count_added = 0
             not_found = []
+            found_indices = []
             for i, s in enumerate(self.strings):
-                s_cut = from_lexeme(s)
+                s_cut = without_prefix(s, vocab_prefix)
                 if s_cut is not None and vocab.has_vector(s_cut):
                     new_vecs[i] = vocab.get_vector(s_cut)
+                    found_indices.append(i)
                     count_added += 1
                 else:
                     not_found.append(s)
                     new_vecs[i] = np.zeros(shape=(vocab.vectors_length,), dtype=vocab.vectors.data.dtype)
             logging.info('added %i vecs from vocab and set %i to zero' % (count_added, len(self) - count_added))
             logging.debug('zero (first 100): %s' % ', '.join(not_found[:100]))
+
+            # fix loaded vecs
+            self._ids_fixed = np.array(found_indices, dtype=DTYPE_IDX)
 
         # TODO: check _fixed
         if new_vecs_fixed is not None:
