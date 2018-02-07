@@ -415,10 +415,9 @@ def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANI
     save_current_forest(i, forest, failed, lexicon, out_path, steps_save, t_start_batch)
 
 
-def process_context_batch(contexts, nlp, graph, begin_idx, out_path):
+def process_context_batch(contexts, nlp, graph, begin_idx, filename):
 
-    fn = os.path.join(out_path, 'forest-%i' % begin_idx)
-    if not (Forest.exist(fn) and Lexicon.exist(fn)):
+    if not (Forest.exist(filename) and Lexicon.exist(filename)):
         t_start_batch = datetime.now()
         lexicon = Lexicon()
         tree_contexts = []
@@ -436,11 +435,12 @@ def process_context_batch(contexts, nlp, graph, begin_idx, out_path):
             forest = Forest.concatenate(tree_contexts)
         else:
             forest = None
-        save_current_forest(i=begin_idx + len(contexts), forest=forest, failed=failed, lexicon=lexicon, filename=fn,
+        save_current_forest(i=begin_idx + len(contexts), forest=forest, failed=failed, lexicon=lexicon, filename=filename,
                             t_start_batch=t_start_batch)
 
 
-def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', batch_size=10):
+def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', batch_size=1000, num_threads=4,
+                           debug_stop=4000):
 
     logger.info('set up connection ...')
     Virtuoso = plugin("Virtuoso", Store)
@@ -453,14 +453,14 @@ def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', batch
         while True:
             begin_idx, contexts = _q.get()
             print('%i: start batch' % begin_idx)
+            fn = os.path.join(out_path, 'forest-%i' % begin_idx)
             try:
-                process_context_batch(contexts=contexts, nlp=_nlp, graph=_g, begin_idx=begin_idx, out_path=_out_path)
+                process_context_batch(contexts=contexts, nlp=_nlp, graph=_g, begin_idx=begin_idx, filename=fn)
             except Exception as e:
                 print('%s: failed' % str(e))
             _q.task_done()
 
     q = Queue.Queue(maxsize=100)
-    num_threads = 2
 
     logger.info('initialize worker ...')
     for i in range(num_threads):
@@ -473,12 +473,13 @@ def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', batch
         worker.setDaemon(True)
         worker.start()
 
+    t_start = datetime.now()
     logger.info('fill context queue ...')
     current_contexts = []
     batch_start = 0
     for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
         # debug
-        if i > 10 * batch_size:
+        if 0 < debug_stop <= i:
             break
 
         if i % batch_size == 0:
@@ -493,7 +494,7 @@ def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', batch
         q.put((batch_start, current_contexts))
 
     q.join()
-    logging.info('finished')
+    print('%s finished' % str(datetime.now() - t_start))
 
 
 def test_utf8_context(graph, context=URIRef(u"http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context")):
