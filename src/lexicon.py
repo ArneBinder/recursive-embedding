@@ -692,6 +692,18 @@ class Lexicon(object):
     def unfreeze(self):
         self._frozen = False
 
+    def get_s(self, d, data_as_hashes):
+        if data_as_hashes:
+            if d in self.mapping:
+                return self.strings[d]
+            else:
+                return constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+        else:
+            if d < len(self):
+                return self.strings[self.types[d]]
+            else:
+                return constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+
     def __getitem__(self, item):
         if type(item) == unicode or type(item) == str:
             try:

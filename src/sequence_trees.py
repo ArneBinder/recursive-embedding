@@ -628,17 +628,14 @@ class Forest(object):
         if len(self) > 0:
             nodes = []
             for i, d in enumerate(self.data[start:end]):
-                if not self.data_as_hashes:
-                    h = self.lexicon.types[d]
-                    idx = d
-                else:
-                    idx = self.lexicon.mapping[d]
-                    h = d
-                if self.lexicon.is_fixed(idx):
+                s = self.lexicon.get_s(d, self.data_as_hashes)
+                if self.data_as_hashes:
+                    d = self.lexicon.mapping[self.lexicon.strings[s]]
+                if self.lexicon.is_fixed(d):
                     color = "dodgerblue"
                 else:
                     color = "limegreen"
-                l = Forest.filter_and_shorten_label(self.lexicon.strings[h], do_filter=True)
+                l = Forest.filter_and_shorten_label(s, do_filter=True)
                 nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
 
             for node in nodes:
@@ -679,9 +676,7 @@ class Forest(object):
         result = []
         if len(self.data) > 0:
             for d in self.data:
-                if not self.data_as_hashes:
-                   d = self.lexicon.types[d]
-                s = self.lexicon.strings[d]
+                s = self.lexicon.get_s(d, self.data_as_hashes)
                 l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
                     result.append(l)

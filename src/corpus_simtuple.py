@@ -299,7 +299,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])
 
         # convert data: hashes to indices
-        forest.hashes_to_indices()
+        #forest.hashes_to_indices()
 
         forest.dump(out_path)
         scores.dump(out_path + '.score')
