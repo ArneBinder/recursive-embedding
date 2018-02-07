@@ -91,14 +91,9 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
 
 
 def sort_and_cut_dict(seq_data, keep, count_threshold=1):
-    logging.info('sort, cut and fill ...')
-    #new_max_size = len(strings)
-    #logging.info('initial strings size: %i' % len(strings))
+    logging.debug('sort, cut and fill ...')
     # count types
     logging.debug('calculate counts ...')
-    #counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
-    #for d in seq_data:
-    #    counts[d] += 1
     unique, counts = np.unique(seq_data, return_counts=True)
     # add keep
     keep_new = np.array([k for k in keep if k not in unique], dtype=unique.dtype)
@@ -111,32 +106,26 @@ def sort_and_cut_dict(seq_data, keep, count_threshold=1):
 
     new_counts = np.zeros(shape=len(unique), dtype=DTYPE_COUNT)
     new_values = np.zeros(shape=len(unique), dtype=unique.dtype)
-    #new_types = np.zeros(shape=(new_max_size,), dtype=DTYPE_HASH)
     converter = -np.ones(shape=len(unique), dtype=DTYPE_IDX)
 
     logging.debug('process reversed(sorted_indices) ...')
     new_idx = 0
     removed = []
     for old_idx in reversed(sorted_indices):
-        #if counts[old_idx] < count_threshold and strings[types[old_idx]] not in keep:
         if counts[old_idx] < count_threshold and unique[old_idx] not in keep:
             removed.append(unique[old_idx])
             continue
         new_values[new_idx] = unique[old_idx]
-        #new_types[new_idx] = types[old_idx]
         new_counts[new_idx] = counts[old_idx]
         converter[old_idx] = new_idx
         new_idx += 1
 
     # cut arrays
     new_counts = new_counts[:new_idx]
-    #new_types = new_types[:new_idx]
     new_values = new_values[:new_idx]
     converter = converter[:new_idx]
 
-    #new_strings = StringStore([strings[t] for t in new_types])
-
-    logging.info('removed %i lexicon entries' % len(removed))
+    logging.debug('removed %i lexicon entries' % len(removed))
 
     return new_values, removed, converter, new_counts
 
@@ -511,8 +500,6 @@ class Lexicon(object):
 
     def sort_and_cut_and_fill_dict(self, data, keep_values, count_threshold=10):
         assert self.frozen is False, 'can not sort and cut frozen lexicon'
-        #keep_values = [self.strings[k] if self. for k in keep_strings]
-        logging.debug('lexicon size before cut and sort: %i' % len(self.strings))
         new_values, removed, converter, new_counts = sort_and_cut_dict(seq_data=data, count_threshold=count_threshold,
                                                                        keep=keep_values)
         logging.debug('removed (first 100): %s' % ','.join([self.strings[v] for v in removed][:100]))
