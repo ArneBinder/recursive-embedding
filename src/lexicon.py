@@ -7,7 +7,6 @@ import constants
 import logging
 import os
 
-import model_fold
 from preprocessing import read_data, without_prefix, PREFIX_LEX
 #import sequence_trees as sequ_trees
 from constants import DTYPE_DATA, DTYPE_PARENT, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX
@@ -453,6 +452,7 @@ class Lexicon(object):
                 self._ids_fixed_dict = None
                 self._ids_var_dict = None
         elif checkpoint_reader is not None:
+            import model_fold
             saved_shapes = checkpoint_reader.get_variable_to_shape_map()
             if model_fold.VAR_NAME_LEXICON_VAR in saved_shapes:
                 new_vecs = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_VAR)

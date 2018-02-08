@@ -1,0 +1,20 @@
+version: '3'
+services:
+  virt-dbpedia-nif:
+    #build: ./docker/create_corpus/dbpedia-nif/Dockerfile
+    image: "joernhees/virtuoso:latest"
+    ports:
+    - "8890:8890"
+    - "1111:1111"
+    volumes:
+    - /home/arne/virtuoso_db:/var/lib/virtuoso-opensource-7
+    environment:
+    #6gb $((6*85000)) # 680000
+    - NumberOfBuffers=680000
+    #stdin_open: true
+    #tty: true
+  corpus-dbpedia-nif:
+    build:
+      context: ./
+      dockerfile: docker/create_corpus/dbpedia-nif/Dockerfile
+    container_name: corpus_dbpedianif

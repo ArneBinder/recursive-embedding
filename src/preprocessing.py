@@ -517,7 +517,7 @@ def identity_reader(content):
 
 def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch_size=1000,
               concat_mode=constants.default_concat_mode, inner_concat_mode=constants.default_inner_concat_mode,
-              expand_dict=True, reader_roots=None, reader_roots_args={}, as_tuples=False):
+              expand_dict=True, reader_roots=None, reader_roots_args={}, as_tuples=False, n_threads=4):
     """
 
     :param reader:
@@ -570,7 +570,7 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
     annotations = None
     last_prepend_offset = None
     parent_root_pos = None
-    for parsed_data in parser.pipe(reader(**reader_args), n_threads=4, batch_size=batch_size, as_tuples=as_tuples):
+    for parsed_data in parser.pipe(reader(**reader_args), n_threads=n_threads, batch_size=batch_size, as_tuples=as_tuples):
         if as_tuples:
             parsed_data, context = parsed_data
             prepend = context.get('prepend_tree', None)

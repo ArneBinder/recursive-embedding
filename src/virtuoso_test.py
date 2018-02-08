@@ -16,7 +16,7 @@ from rdflib.term import URIRef
 from rdflib import Namespace
 from rdflib.namespace import RDF, RDFS
 from toolz import partition_all
-from joblib import Parallel, delayed
+#from joblib import Parallel, delayed
 
 from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples
@@ -37,7 +37,7 @@ prerequisites:
             pip install -r requirements.txt
             python setup.py install
       * fix connection encoding: due libvirtodbc0 knows only utf-8, the connections settings in virtuoso.vstore of the 
-        virtuoso-python package has to be adapted. Change the line that is commented out below with the other one:
+        virtuoso-python package has to be adapted. Change the line ~234 that is commented out below with the other one:
             #connection.setencoding(unicode, 'utf-32LE', pyodbc.SQL_WCHAR)
             connection.setencoding(unicode, 'utf-8', pyodbc.SQL_CHAR)
         and further change line ~353:
@@ -187,7 +187,7 @@ def create_context_forest(nif_context_data, nlp, lexicon):
             prepend = None
 
     forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
-                               parser=nlp, batch_size=100, concat_mode='sequence', inner_concat_mode='tree',
+                               parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
                                expand_dict=True, as_tuples=True, return_hashes=True)
     return forest
 
@@ -494,8 +494,13 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
-def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', batch_size=100, num_threads=2,
-                           debug_stop=1000):
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=10, num_threads=4,
+                           debug_stop=100):
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+    out_path = os.path.join(out_path, str(batch_size))
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
 
     q_query = Queue.Queue(maxsize=100)
     q_parse = Queue.Queue(maxsize=100)

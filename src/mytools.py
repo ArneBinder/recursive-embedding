@@ -2,7 +2,6 @@ import time
 from functools import wraps
 import errno
 import os
-import tensorflow as tf
 import sys
 import logging
 from tqdm import tqdm
@@ -153,6 +152,7 @@ def get_default(l, idx, default):
 
 
 def logging_init():
+    import tensorflow as tf
     logging_format = '%(asctime)s %(levelname)s %(message)s'
     tf.logging._logger.propagate = False
     tf.logging._handler.setFormatter(logging.Formatter(logging_format))
