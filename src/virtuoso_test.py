@@ -572,7 +572,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             if len(current_contexts) > 0:
                 fn = os.path.join(out_path, 'forest-%i' % batch_start)
                 if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
-                    logger.warn(fn)
+                    #logger.warn(fn)
                     q_query.put((batch_start, current_contexts))
                     debug_stop -= 1
                     debug_stop = max([debug_stop, -1])
