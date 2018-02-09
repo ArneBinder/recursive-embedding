@@ -5,6 +5,7 @@ import logging
 import threading
 from datetime import datetime, timedelta
 import time
+import plac
 
 import os
 from threading import Thread
@@ -275,65 +276,6 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
-# deprecated
-def process_current_contexts(idx, nlp, lexicon, graph, current_contexts, out_path, steps_save):
-    t_start_batch = datetime.now()
-    failed = []
-    forest = Forest(data=[], parents=[], lexicon=lexicon)
-    for c in current_contexts:
-        try:
-            nif_context_data = prepare_context_data(graph, c)
-            forest.extend(create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp))
-        except Exception as e:
-            failed.append((c, e))
-
-    #forest, failed = create_context_forest(nlp=nlp, lexicon=lexicon, graph=graph, nif_contexts=current_contexts)
-    fn = os.path.join(out_path, 'forest-%i' % idx)
-    forest.dump(fn)
-    lexicon.dump(fn, strings_only=True)
-    with open(fn + '.failed', 'w', ) as f:
-        for uri, e in failed:
-            f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
-    fn_prev = os.path.join(out_path, 'forest-%i' % (idx - steps_save))
-    Lexicon.delete(fn_prev, types_only=True)
-    logger.info('%i: %s (failed: %i, forest_size: %i)' % (idx, str(datetime.now() - t_start_batch), len(failed), len(forest)))
-
-
-# deprecated
-def process_all_contexts(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
-    logger.setLevel(logging.INFO)
-
-    if not os.path.exists(out_path):
-        os.mkdir(out_path)
-
-    # create empty lexicon
-    lexicon = Lexicon(types=[])
-    logger.info('lexicon size: %i' % len(lexicon))
-
-    logger.info('load spacy ...')
-    t_start = datetime.now()
-    nlp = spacy.load('en_core_web_md')
-    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
-    skip = False
-    current_contexts = []
-    logger.info('start parsing ...')
-    i = 0
-    for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
-        if i % steps_save == 0:
-            if len(current_contexts) > 0:
-                process_current_contexts(i, nlp, lexicon, graph, current_contexts, out_path, steps_save)
-            # check, if next ones are already available
-            fn_next = os.path.join(out_path, 'forest-%i' % (i + steps_save))
-            if Forest.exist(fn_next):
-                skip = True
-            else:
-                skip = False
-        if not skip:
-            current_contexts.append(context)
-
-    process_current_contexts(i, nlp, lexicon, graph, current_contexts, out_path, steps_save)
-
-
 def save_current_forest(i, forest, failed, lexicon, filename, t_parse, t_query):
 
     #fn = os.path.join(out_path, 'forest-%i' % i)
@@ -350,75 +292,6 @@ def save_current_forest(i, forest, failed, lexicon, filename, t_parse, t_query):
             for uri, e in failed:
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
     #Lexicon.delete(last_fn, types_only=True)
-
-
-def process_all_contexts_new(graph, out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF', steps_save=1000):
-    logger.setLevel(logging.INFO)
-
-    start = 0
-    lexicon = Lexicon(types=[])
-    if not os.path.exists(out_path):
-        os.mkdir(out_path)
-        # create empty lexicon
-    else:
-        type_indices = [int(f[:-len('.type')].split('-')[-1]) for f in os.listdir(out_path) if f.endswith('.type')]
-        if len(type_indices) > 0:
-            max_index = max(type_indices)
-            lexicon = Lexicon(filename=os.path.join(out_path, 'forest-%i' % max_index))
-            start = max_index
-
-    logger.info('lexicon size: %i' % len(lexicon))
-
-    logger.info('load spacy ...')
-    t_start = datetime.now()
-    nlp = spacy.load('en_core_web_md')
-    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
-
-    q_context_data = Queue.Queue(10)
-
-    def add_contexts(q_context_data, graph):
-        for j, c in enumerate(graph.subjects(RDF.type, NIF.Context)):
-            if j >= start:
-                try:
-                    q_context_data.put(prepare_context_data(graph, c))
-                except Exception as e:
-                    # put (context, exception) to queue
-                    q_context_data.put((c, e))
-        q_context_data.put(None)
-
-    t = Thread(target=add_contexts, args=(q_context_data, graph))
-    t.start()
-
-    i = start
-    last_fn = os.path.join(out_path, 'forest-%i' % start)
-    forest = Forest(data=[], parents=[], lexicon=lexicon)
-    failed = []
-    logger.info('start parsing ...')
-    t_start_batch = datetime.now()
-    while True:
-        if i % steps_save == 0:
-            last_fn = save_current_forest(i, forest, failed, lexicon, out_path, last_fn, t_start_batch)
-            forest = Forest(data=[], parents=[], lexicon=lexicon)
-            failed = []
-            t_start_batch = datetime.now()
-
-        c = q_context_data.get()
-        if c is None:
-            break
-        try:
-            # contains (context, exception)?
-            if len(c) == 2:
-                failed.append(c)
-            else:
-                forest_current = create_context_forest(c, lexicon=lexicon, nlp=nlp)
-                forest.extend(forest_current)
-        except Exception as e:
-            failed.extend((c[-1], e))
-        q_context_data.task_done()
-        i += 1
-
-    # save remaining
-    save_current_forest(i, forest, failed, lexicon, out_path, steps_save, t_start_batch)
 
 
 class ThreadParse(threading.Thread):
@@ -499,7 +372,14 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
-def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, debug_stop=100):
+@plac.annotations(
+    out_path=('corpora out path', 'option', 'o', str),
+    batch_size=('amount of articles to query before fed to parser', 'option', 'b', int),
+    num_threads=('total number of threads used for querying and parsing', 'option', 't', int),
+    start_offset=('index of articles to start with', 'option', 's', int),
+    batch_count=('if batch_count > 0 process only this amount of articles', 'option', 'c', int)
+)
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0, batch_count=0):
 #def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
@@ -568,23 +448,26 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     logger.info('fill query queue ...')
     current_contexts = []
     batch_start = 0
+    current_batch_count = 0
     for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
+        if i < start_offset:
+            continue
         if i % batch_size == 0:
             if len(current_contexts) > 0:
                 fn = os.path.join(out_path, 'forest-%i' % batch_start)
                 if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
                     #logger.warn(fn)
                     q_query.put((batch_start, current_contexts))
-                    debug_stop -= 1
-                    debug_stop = max([debug_stop, -1])
-                    if debug_stop == 0:
+                    current_batch_count += 1
+                    if current_batch_count >= batch_count > 0:
                         current_contexts = []
                         break
                 current_contexts = []
             batch_start = i
         current_contexts.append(context)
 
-    if len(current_contexts) > 0:
+    fn = os.path.join(out_path, 'forest-%i' % batch_start)
+    if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
         q_query.put((batch_start, current_contexts))
 
     q_query.join()
@@ -592,141 +475,10 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     print('%s finished' % str(datetime.now() - t_start))
 
 
-def test_utf8_context(graph, context=URIRef(u"http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context")):
-    logger.setLevel(logging.DEBUG)
-    logger_virtuoso.setLevel(logging.DEBUG)
-    #for s, p, o in graph.triples((context, None, None)):
-    #    print(s, p, o)
-    #test_context_tree(graph, context)
-    res = graph.query(u'select distinct ?p ?o where { <http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context> ?p ?o . } LIMIT 10')
-    print(res)
-
-
-def test_connect_utf8(dns="DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y",
-                 #q=u'SPARQL select distinct ?p ?o where { <http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context> ?p ?o . } LIMIT 10'
-                 q=u'SPARQL select distinct ?s ?p ?o where { ?s ?p ?o . VALUES ?s {<http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context>}} LIMIT 10'
-                 ):
-    import pyodbc
-
-    def _sparql_select(q, cursor, must_close):
-        from virtuoso.vstore import EagerIterator, VirtuosoResultRow, Variable, resolve
-        logger.debug("_sparql_select")
-        results = cursor.execute(q)
-        vars = [Variable(col[0]) for col in results.description]
-        var_dict = VirtuosoResultRow.prepare_var_dict(vars)
-
-        def f():
-            try:
-                for r in results:
-                    try:
-                        yield VirtuosoResultRow([resolve(cursor, x) for x in r],
-                                                var_dict)
-                    except Exception as e:
-                        logger.debug("skip row, because of %s", e)
-                        pass
-            finally:
-                if must_close:
-                    cursor.close()
-
-        e = EagerIterator(f())
-        e.vars = vars
-        e.selectionF = e.vars
-        return e
-
-    logger.setLevel(logging.DEBUG)
-    logger_virtuoso.setLevel(logging.DEBUG)
-    connection = pyodbc.connect(dns)
-    connection.setdecoding(pyodbc.SQL_CHAR, 'utf-8', pyodbc.SQL_CHAR)
-    connection.setdecoding(pyodbc.SQL_WCHAR, 'utf-32LE', pyodbc.SQL_WCHAR, unicode)
-    connection.setdecoding(pyodbc.SQL_WMETADATA, 'utf-32LE', pyodbc.SQL_WCHAR, unicode)
-    #connection.setdecoding(pyodbc.SQL_WCHAR, 'utf-8', pyodbc.SQL_WCHAR, unicode)
-    #connection.setdecoding(pyodbc.SQL_WMETADATA, 'utf-8', pyodbc.SQL_WCHAR, unicode)
-
-    #connection.setencoding(unicode, 'utf-32LE', pyodbc.SQL_WCHAR)
-    connection.setencoding(unicode, 'utf-8', pyodbc.SQL_CHAR)
-    connection.setencoding(str, 'utf-8', pyodbc.SQL_CHAR)
-
-    cursor = connection.cursor()
-    res = _sparql_select(q, cursor, True)
-    for s, p, o in res:
-        print(s, p, o)
-    #results = cursor.execute(q)
-    #cursor.close()
-    return res
-
-
-def process_contexts(nlp, batch_idx, contexts, graph, out_path):
-    logger.debug('start batch: %i' % batch_idx)
-    t_start = datetime.now()
-    lexicon = Lexicon(types=[])
-    forest = Forest(data=[], parents=[], lexicon=lexicon)
-    failed = []
-
-    t_query = timedelta(microseconds=0)
-    t_parse = timedelta(microseconds=0)
-
-    for context in contexts:
-        try:
-            t_start = datetime.now()
-            #res_context_seealsos, children_typed, terminals, refs, context_str = query_context_data(graph, context)
-            t_query += datetime.now() - t_start
-            t_start = datetime.now()
-            tree_context = create_context_forest(lexicon=lexicon, nlp=nlp, graph=graph, nif_contexts=[context])
-            t_parse += datetime.now() - t_start
-            forest.extend(tree_context)
-            # logger.debug('leafs: %i' % len(tree_context))
-        except Exception as e:
-            failed.append((context, e))
-
-    fn = os.path.join(out_path, 'forest-%i' % batch_idx)
-    forest.dump(fn)
-    lexicon.dump(fn, strings_only=True)
-    with open(fn + '.failed', 'w', ) as f:
-        for uri, e in failed:
-            f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
-
-    logger.debug('finished batch %i: %s (failed: %i) t_query: %s t_parse: %s' % (batch_idx, str(datetime.now() - t_start), len(failed), str(t_query), str(t_parse)))
-
-
-def test_process_all_contexts_parallel(graph,
-                                       out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF_parallel',
-                                       steps_save=1000,
-                                       n_jobs=4):
-    logger.setLevel(logging.DEBUG)
-
-    if not os.path.exists(out_path):
-        os.mkdir(out_path)
-
-    # create empty lexicon
-    #lexicon = Lexicon(types=[])
-    #logger.info('lexicon size: %i' % len(lexicon))
-
-    logger.info('load spacy ...')
-    t_start = datetime.now()
-    nlp = spacy.load('en_core_web_md')
-    logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
-
-    # debug
-    # query all contexts takes 4min @4gb for virtuoso
-    t_start = datetime.now()
-    logger.info('query all contexts ... ')
-    contexts = list(graph.subjects(RDF.type, NIF.Context))
-    logger.info('contexts queried: %s' % str(datetime.now() - t_start))
-
-    t_start = datetime.now()
-    logger.info('create context partitions ... ')
-    partitions = partition_all(steps_save, contexts)
-    logger.info('partitions created: %s' % str(datetime.now() - t_start))
-    executor = Parallel(n_jobs=n_jobs)
-    do = delayed(process_contexts)
-    logger.info('start processing ... ')
-    tasks = (do(nlp, i, batch, graph, out_path) for i, batch in enumerate(partitions))
-    executor(tasks)
-
-
 if __name__ == '__main__':
     #test_connect_utf8()
-    process_contexts_multi()
+    #process_contexts_multi()
+    plac.call(process_contexts_multi)
     #logger.info('set up connection ...')
     #Virtuoso = plugin("Virtuoso", Store)
     #store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")

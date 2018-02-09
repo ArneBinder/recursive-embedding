@@ -29,6 +29,7 @@ tqdm
 #-e git+https://github.com/maparent/virtuoso-python.git#egg=virtuoso
 -e git+https://github.com/ArneBinder/virtuoso-python.git@virtuoso7.2-python2#egg=virtuoso
 rdflib
+plac
 
 # from python:
 # csv json itertools functools errno math copy logging fnmatch os ntpath re random sys time math multiprocessing datetime

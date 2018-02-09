@@ -4,7 +4,7 @@ services:
     image: "joernhees/virtuoso:latest"
     ports:
       - "8890:8890"
-    #  - "1111:1111"
+      - "1111:1111"
     volumes:
       - ${HOST_VIRTUOSO_DATA}:/var/lib/virtuoso-opensource-7
     environment:
