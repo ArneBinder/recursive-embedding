@@ -177,7 +177,7 @@ def prepare_context_data(graph, nif_context,
            nif_context
 
 
-def create_context_forest(nif_context_data, nlp, lexicon):
+def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
 
     def terminal_reader():
         tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
@@ -192,7 +192,7 @@ def create_context_forest(nif_context_data, nlp, lexicon):
 
     forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
                                parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
-                               expand_dict=True, as_tuples=True, return_hashes=True)
+                               expand_dict=True, as_tuples=True, return_hashes=True, n_threads=n_threads)
     return forest
 
 
@@ -498,7 +498,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
-def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100, num_threads=4, debug_stop=1000):
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100, num_threads=4, debug_stop=10):
 #def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
@@ -562,15 +562,15 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     current_contexts = []
     batch_start = 0
     for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
-        # debug
-        if 0 < debug_stop <= i:
-            break
-
         if i % batch_size == 0:
             if len(current_contexts) > 0:
                 fn = os.path.join(out_path, 'forest-%i' % batch_start)
                 if not (Forest.exist(fn) and Lexicon.exist(fn)):
                     q_query.put((batch_start, current_contexts))
+                    debug_stop -= 1
+                    if debug_stop == 0:
+                        current_contexts = []
+                        break
                 current_contexts = []
             batch_start = i
         current_contexts.append(context)

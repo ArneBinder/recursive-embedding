@@ -22,4 +22,4 @@ services:
     network_mode: host
     volumes:
       - ./src:/root/recursive-embedding/src
-      - /mnt/WIN/ML/data/corpora/DBPEDIANIF-test:/root/corpora_out
+      - /mnt/WIN/ML/data/corpora:/root/corpora_out
