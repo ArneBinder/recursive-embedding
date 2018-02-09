@@ -11,6 +11,7 @@ RUN mkdir "$ROOT"
 
 # get virtuoso ODBC driver
 # RUN curl -O http://packages.comsode.eu/pool/main/v/virtuoso-opensource/libvirtodbc0_7.2.4_amd64.deb
+# TODO: try libvirtodbc0_7.2_amd64.deb
 COPY "$OWN_LOCATION"/libvirtodbc0_7.2.4_amd64.deb "$TMP"/libvirtodbc0_7.2.4_amd64.deb
 
 RUN apt-get update \
@@ -57,8 +58,8 @@ COPY src "$ROOT"/src
 
 #ENV LD_LIBRARY_PATH "$LD_LIBRARY_PATH:/usr/local/lib"
 #COPY "$OWN_LOCATION"/odbc.ini /usr/local/etc/odbc.ini
-COPY "$OWN_LOCATION"/odbc.ini /root/.odbc.ini
-COPY "$OWN_LOCATION"/odbcinst.ini /root/.odbcinst.ini
+#COPY "$OWN_LOCATION"/odbc.ini /root/.odbc.ini
+#COPY "$OWN_LOCATION"/odbcinst.ini /root/.odbcinst.ini
 COPY "$OWN_LOCATION"/etc_odbcinst.ini /etc/odbcinst.ini
 COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
 

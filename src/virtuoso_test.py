@@ -60,7 +60,7 @@ prerequisites:
         docker run -it -p 8890:8890 -p 1111:1111 -v ~/virtuoso_db:/var/lib/virtuoso-opensource-7 -e "NumberOfBuffers=$((8*85000))" joernhees/virtuoso
         
     # debug
-    # docker rm test; docker build -t test -f docker/create_corpus/dbpedia-nif/Dockerfile . && docker run --name test -v /mnt/WIN/ML/data/corpora:/root/corpora_out -it test bash  
+    # docker rm test; docker build -t test -f docker/create_corpus/dbpedia-nif/Dockerfile . && docker run --name test --net="host" -v /mnt/WIN/ML/data/corpora:/root/corpora_out -it test bash  
         
     ATTENTION:
         DO NOT PUT A FILE virtuoso.py IN THE SAME FOLDER!
