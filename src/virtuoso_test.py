@@ -510,10 +510,16 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     q_parse = Queue.Queue(maxsize=100)
 
     logger.info('set up connection ...')
-    Virtuoso = plugin("Virtuoso", Store)
-    store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
-    default_graph_uri = "http://dbpedia.org/nif"
-    graph = Graph(store, identifier=URIRef(default_graph_uri))
+    while True:
+        try:
+            Virtuoso = plugin("Virtuoso", Store)
+            store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+            default_graph_uri = "http://dbpedia.org/nif"
+            graph = Graph(store, identifier=URIRef(default_graph_uri))
+            break
+        except Exception as e:
+            logger.warn('connection failed: %s wait %i seconds ...' % (str(e), 10))
+            time.sleep(10)
     logger.info('connected')
 
     def do_query(_q_in, _q_out, _g):
@@ -568,6 +574,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
                 if not (Forest.exist(fn) and Lexicon.exist(fn)):
                     q_query.put((batch_start, current_contexts))
                     debug_stop -= 1
+                    debug_stop = max([debug_stop, -1])
                     if debug_stop == 0:
                         current_contexts = []
                         break
