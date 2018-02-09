@@ -498,7 +498,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
-def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100, num_threads=4, debug_stop=1000):
 #def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
