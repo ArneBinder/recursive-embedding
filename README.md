@@ -1,5 +1,3 @@
-# THIS IS OUTDATED
-
 # recursive-embedding
 
 Train embeddings for hierarchical structures.
