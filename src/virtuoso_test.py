@@ -20,13 +20,14 @@ from toolz import partition_all
 
 from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples
-from src import preprocessing
+import preprocessing
 
 """
 prerequisites:
     set up / install:
       * virtuoso docker image: 
             see https://joernhees.de/blog/2015/11/23/setting-up-a-linked-data-mirror-from-rdf-dumps-dbpedia-2015-04-freebase-wikidata-linkedgeodata-with-virtuoso-7-2-1-and-docker-optional/
+      * unixODBC
       * virtuoso odbc driver (libvirtodbc0) included in libvirtodbc0_7.2_amd64.deb (e.g. from https://github.com/Dockerizing/triplestore-virtuoso7)
             wget https://github.com/Dockerizing/triplestore-virtuoso7/raw/master/libvirtodbc0_7.2_amd64.deb
             sudo apt install /PATH/TO/libvirtodbc0_7.2_amd64.deb
@@ -57,6 +58,9 @@ prerequisites:
     
     start virtuoso docker image (use 8gb of ram):
         docker run -it -p 8890:8890 -p 1111:1111 -v ~/virtuoso_db:/var/lib/virtuoso-opensource-7 -e "NumberOfBuffers=$((8*85000))" joernhees/virtuoso
+        
+    # debug
+    # docker rm test; docker build -t test -f docker/create_corpus/dbpedia-nif/Dockerfile . && docker run --name test -v /mnt/WIN/ML/data/corpora:/root/corpora_out -it test bash  
         
     ATTENTION:
         DO NOT PUT A FILE virtuoso.py IN THE SAME FOLDER!
@@ -494,8 +498,8 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
-def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=10, num_threads=4,
-                           debug_stop=100):
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
+#def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
     out_path = os.path.join(out_path, str(batch_size))
