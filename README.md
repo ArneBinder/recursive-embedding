@@ -1,17 +1,16 @@
 # THIS IS OUTDATED
 
-# recursive-dependency-embedding
+# recursive-embedding
 
-Train embeddings for syntactic dependency edges. This enables recursive calculation of sentence embeddings with regard to syntactic dependency parses.
+Train embeddings for hierarchical structures.
 
-## prerequisites
-
-The preprocessing expects a comma separated csv file with two columns representing IDs and contents, where content can be any utf-8 decodable kind of text.
-For an example corpus, have a look at [the data](https://storage.googleapis.com/lateral-datadumps/wikipedia_utf8_filtered_20pageviews.csv.gz) represented in the article [The Unknown Perils of Mining Wikipedia](https://blog.lateral.io/2015/06/the-unknown-perils-of-mining-wikipedia/).
+The docker folder provides several starting points:
+ * [preprocessing of DBpedia-NIF data](docker/create-corpus/dbpedia-nif/README.md)
+ * tensorflow_fold tf1.3 mkl
 
 ## License
 
-Copyright 2017 Arne Binder
+Copyright 2018 Arne Binder
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
