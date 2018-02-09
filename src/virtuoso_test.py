@@ -498,7 +498,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
-def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100, num_threads=4, debug_stop=10):
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100, num_threads=2, debug_stop=10):
 #def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
@@ -571,7 +571,8 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         if i % batch_size == 0:
             if len(current_contexts) > 0:
                 fn = os.path.join(out_path, 'forest-%i' % batch_start)
-                if not (Forest.exist(fn) and Lexicon.exist(fn)):
+                if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
+                    logger.warn(fn)
                     q_query.put((batch_start, current_contexts))
                     debug_stop -= 1
                     debug_stop = max([debug_stop, -1])

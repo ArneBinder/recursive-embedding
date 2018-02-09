@@ -432,8 +432,9 @@ class Lexicon(object):
 
     @staticmethod
     def exist(filename, types_only=False):
-        return os.path.isfile('%s.%s' % (filename, FE_TYPES)) and (types_only or os.path.isfile('%s.%s'
-                                                                                                % (filename, FE_VECS)))
+        a = os.path.isfile('%s.%s' % (filename, FE_TYPES))
+        b = (types_only or os.path.isfile('%s.%s' % (filename, FE_VECS)))
+        return a and b
 
     @staticmethod
     def delete(filename, types_only=False):
