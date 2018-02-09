@@ -291,7 +291,7 @@ if __name__ == "__main__":
     # text_elements = html_content.find_all('p') #+ html_content.find_all('span')
 
     print('load spacy ...')
-    nlp = spacy.load('en_core_web_md')
+    nlp = spacy.load('en')
     print('modify ...')
     annotate_nlp(soup, nlp)
     with open('%s.nlp.html' % fn, "w") as file:

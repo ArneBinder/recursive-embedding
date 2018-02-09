@@ -7,11 +7,11 @@ pprint
 six
 
 # embedding_api
-sklearn
-scipy
-ast
-flask
-flask_cors
+#sklearn
+#scipy
+#ast
+#flask
+#flask_cors
 
 # visualization
 svgutils
@@ -30,4 +30,3 @@ plac
 
 # from python:
 # csv json itertools functools errno math copy logging fnmatch os ntpath re random sys time math multiprocessing datetime
-

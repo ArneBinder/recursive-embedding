@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from collections import Counter
 from functools import partial
 
@@ -87,7 +88,12 @@ tf.flags.DEFINE_boolean(
 )
 
 FLAGS = tf.flags.FLAGS
-mytools.logging_init()
+#mytools.logging_init()
+logging_format = '%(asctime)s %(levelname)s %(message)s'
+#tf.logging._logger.propagate = False
+#tf.logging._handler.setFormatter(logging.Formatter(logging_format))
+#tf.logging._logger.format = logging_format
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
 
 
 # Does not consider multiple mentions! Use MultiSet instead?
@@ -239,7 +245,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
 
     if not (Forest.exist(out_path) and Lexicon.exist(out_path) and os.path.isfile(out_path + '.score')) or overwrite:
         logging.info('load spacy ...')
-        nlp = spacy.load('en_core_web_md')
+        nlp = spacy.load('en')
 
         logging.info('extract lexicon and vecs from spacy vocab ...')
         #lexicon = Lexicon(nlp_vocab=nlp.vocab)

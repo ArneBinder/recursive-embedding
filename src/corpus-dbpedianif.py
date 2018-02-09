@@ -266,7 +266,7 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
 
     logger.info('load spacy ...')
     t_start = datetime.now()
-    nlp = spacy.load('en_core_web_md')
+    nlp = spacy.load('en')
     logger.info('loaded spacy: %s' % str(datetime.now() - t_start))
 
     nif_context_data = prepare_context_data(graph, context)
@@ -304,7 +304,7 @@ class ThreadParse(threading.Thread):
         self._nlp = nlp
         if self._nlp is None:
             logger.info('load spacy ...')
-            self._nlp = spacy.load('en_core_web_md')
+            self._nlp = spacy.load('en')
 
     def run(self):
         while True:
@@ -434,7 +434,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
         g = Graph(store, identifier=URIRef(default_graph_uri))
         logger.info('load spacy ...')
-        nlp = spacy.load('en_core_web_md')
+        nlp = spacy.load('en')
 
         worker_query = Thread(target=do_query, args=(q_query, q_parse, g))
         worker_query.setDaemon(True)

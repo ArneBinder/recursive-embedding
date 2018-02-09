@@ -23,18 +23,12 @@ VOLUME /root/corpora_out
 
 ########################################################################################################################
 
-ARG OWN_LOCATION=docker/create-corpus/dbpedia-nif
-
-# get virtuoso ODBC driver
-# RUN curl -O http://packages.comsode.eu/pool/main/v/virtuoso-opensource/libvirtodbc0_7.2.4_amd64.deb
-COPY "$OWN_LOCATION"/libvirtodbc0_7.2.4_amd64.deb "$TMP"/libvirtodbc0_7.2.4_amd64.deb
-RUN dpkg -i "$TMP"/libvirtodbc0_7.2.4_amd64.deb
+ARG OWN_LOCATION=docker/create-corpus/sick
 
 COPY "$OWN_LOCATION"/requirements.txt "$ROOT"/requirements.txt
 RUN pip install --no-cache-dir -r "$ROOT"/requirements.txt
 
-COPY src "$ROOT"/src
-COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
+COPY "$OWN_LOCATION"/data /root/corpora_in/SICK
 
 COPY src "$ROOT"/src
 WORKDIR "$ROOT"/src
