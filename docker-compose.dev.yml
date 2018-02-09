@@ -1,26 +1,21 @@
 version: '3'
 services:
   virt-dbpedia-nif:
-    #build: ./docker/create_corpus/dbpedia-nif/Dockerfile
     image: "joernhees/virtuoso:latest"
     ports:
       - "8890:8890"
       - "1111:1111"
     volumes:
-      - /home/arne/virtuoso_db:/var/lib/virtuoso-opensource-7
+      - ${HOST_VIRTUOSO_DATA}:/var/lib/virtuoso-opensource-7
     environment:
-    #6gb $((6*85000)) # 680000
-      - NumberOfBuffers=680000
-    #stdin_open: true
-    #tty: true
+      - NumberOfBuffers=${DB_NUMBER_OF_BUFFERS}
   corpus-dbpedia-nif:
     build:
-      context: ./
-      dockerfile: docker/create_corpus/dbpedia-nif/Dockerfile
+      context: ../../..
+      dockerfile: docker/create-corpus/dbpedia-nif/Dockerfile
     depends_on:
       - virt-dbpedia-nif
-    network_mode: host
     volumes:
-      - ./src:/root/recursive-embedding/src
-      - /mnt/WIN/ML/data/corpora:/root/corpora_out
-    #command: python virtuoso_test.py
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: python corpus-virtuoso.py
