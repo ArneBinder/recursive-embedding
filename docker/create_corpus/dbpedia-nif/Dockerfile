@@ -9,9 +9,11 @@ ARG ROOT=/root/recursive-embedding
 RUN mkdir "$TMP"
 RUN mkdir "$ROOT"
 
+# see for connection issues:
+# https://stackoverflow.com/questions/24319662/from-inside-of-a-docker-container-how-do-i-connect-to-the-localhost-of-the-mach
+
 # get virtuoso ODBC driver
 # RUN curl -O http://packages.comsode.eu/pool/main/v/virtuoso-opensource/libvirtodbc0_7.2.4_amd64.deb
-# TODO: try libvirtodbc0_7.2_amd64.deb
 COPY "$OWN_LOCATION"/libvirtodbc0_7.2.4_amd64.deb "$TMP"/libvirtodbc0_7.2.4_amd64.deb
 
 RUN apt-get update \
@@ -22,6 +24,8 @@ RUN apt-get update \
         #libiodbc2 \
         python-dev \
         python-pip \
+        unixodbc \
+        unixodbc-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/* \
     && pip install --upgrade pip \
@@ -41,7 +45,7 @@ RUN apt-get update \
 #ENV LD_LIBRARY_PATH "$LD_LIBRARY_PATH:/usr/local/lib"
 
 # TODO: move to other apt-get
-RUN apt-get update && apt-get install unixodbc unixodbc-dev -y
+#RUN apt-get update && apt-get install unixodbc unixodbc-dev -y
 
 RUN dpkg -i "$TMP"/libvirtodbc0_7.2.4_amd64.deb
 
@@ -49,7 +53,7 @@ RUN dpkg -i "$TMP"/libvirtodbc0_7.2.4_amd64.deb
 
 COPY requirements.txt "$ROOT"/requirements.txt
 RUN pip install --no-cache-dir -r "$ROOT"/requirements.txt
-#RUN python -m spacy download en_core_web_md
+RUN python -m spacy download en_core_web_md
 
 # debug
 #RUN apt-get update && apt-get install iodbc -y
@@ -60,7 +64,7 @@ COPY src "$ROOT"/src
 #COPY "$OWN_LOCATION"/odbc.ini /usr/local/etc/odbc.ini
 #COPY "$OWN_LOCATION"/odbc.ini /root/.odbc.ini
 #COPY "$OWN_LOCATION"/odbcinst.ini /root/.odbcinst.ini
-COPY "$OWN_LOCATION"/etc_odbcinst.ini /etc/odbcinst.ini
+#COPY "$OWN_LOCATION"/etc_odbcinst.ini /etc/odbcinst.ini
 COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
 
 VOLUME /root/corpora_out
