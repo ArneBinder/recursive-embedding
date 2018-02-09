@@ -17,6 +17,6 @@ services:
     build:
       context: ./
       dockerfile: docker/create_corpus/dbpedia-nif/Dockerfile
-    container_name: corpus_dbpedianif
+    #container_name: corpus_dbpedianif
     volumes:
       - ./src:/root/recursive-embedding/src
