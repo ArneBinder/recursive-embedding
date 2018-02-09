@@ -20,3 +20,4 @@ services:
     #container_name: corpus_dbpedianif
     volumes:
       - ./src:/root/recursive-embedding/src
+    network_mode: host
