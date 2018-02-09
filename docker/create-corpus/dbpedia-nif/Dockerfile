@@ -2,7 +2,7 @@
 FROM ubuntu:16.04
 #FROM python:2.7-alpine
 
-ARG OWN_LOCATION=docker/create_corpus/dbpedia-nif
+ARG OWN_LOCATION=docker/create-corpus/dbpedia-nif
 ARG TMP=/tmp/dbpedia-nif
 ARG ROOT=/root/recursive-embedding
 
