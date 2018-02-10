@@ -209,10 +209,10 @@ def get_or_calc_sequence_data(params):
             params['scores_gold'] = []
             init_forest(data_path)
             indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
-            start = params.get('start', 0)
-            end = params.get('end', len(indices))
+            root_start = params.get('start', 0)
+            root_end = params.get('end', len(indices))
             params['data_as_hashes'] = forest.data_as_hashes
-            for i, sim_tuple_indices in enumerate(indices[start: end]):
+            for i, sim_tuple_indices in enumerate(indices[root_start: root_end]):
                 for idx in sim_tuple_indices:
                     tree = forest.trees([idx]).next()
                     params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
@@ -231,15 +231,27 @@ def get_or_calc_sequence_data(params):
         init_forest(data_path)
         params['data_as_hashes'] = forest.data_as_hashes
         roots = forest.roots
-        start = params.get('root_start', 0)
-        end = params.get('root_end', len(roots))
-        for tree in forest.trees(root_indices=roots[start:end]):
+        root_start = params.get('root_start', 0)
+        root_end = params.get('root_end', len(roots))
+        for tree in forest.trees(root_indices=roots[root_start:root_end]):
             params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
         for data_sequence in params['data_sequences']:
             token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon,
                                            data_as_hashes=params['data_as_hashes']).get_text_plain(
                 blacklist=params.get('prefix_blacklist', None))
             params['sequences'].append(" ".join(token_list))
+    elif 'idx_start' in params:
+        params['sequences'] = []
+        params['data_sequences'] = []
+        init_forest(data_path)
+        params['data_as_hashes'] = forest.data_as_hashes
+        roots = forest.roots
+        idx_start = params.get('idx_start', 0)
+        idx_end = params.get('idx_end', len(roots))
+        data_sequence = [forest.data[idx_start:idx_end].tolist(), forest.parents[idx_start:idx_end].tolist()]
+        params['data_sequences'] = [data_sequence]
+        token_list = forest.get_text_plain(blacklist=params.get('prefix_blacklist', None), start=idx_start, end=idx_end)
+        params['sequences'] = [token_list]
     elif 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
         concat_mode = FLAGS.default_concat_mode

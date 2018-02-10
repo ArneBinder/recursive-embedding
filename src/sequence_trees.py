@@ -756,11 +756,13 @@ class Forest(object):
         else:
             return l
 
-    def get_text_plain(self, blacklist=None):
+    def get_text_plain(self, blacklist=None, start=0, end=None):
         assert self.lexicon is not None, 'lexicon is not set'
+        if end is None:
+            end = len(self)
         result = []
         if len(self.data) > 0:
-            for d in self.data:
+            for d in self.data[start:end]:
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
