@@ -358,7 +358,7 @@ class Forest(object):
         self._data = None
         self._parents = None
         self._children = None
-        self._children_offset = None
+        self._children_pos = None
         if lexicon is not None:
             self._lexicon = lexicon
         if (data is not None and parents is not None) or forest is not None or filename is not None:
@@ -419,7 +419,7 @@ class Forest(object):
             if not isinstance(children_offset, np.ndarray) or not children_offset.dtype == DTYPE_IDX:
                 children_offset = np.array(children_offset, dtype=DTYPE_IDX)
             self._children = children
-            self._children_offset = children_offset
+            self._children_pos = children_offset
 
     def set_lexicon(self, lexicon):
         self._lexicon = lexicon
@@ -433,9 +433,9 @@ class Forest(object):
         logging.debug('dump parents ...')
         self.parents.dump('%s.%s' % (filename, FE_PARENTS))
 
-        if self._children is not None and self._children_offset is not None:
+        if self._children is not None and self._children_pos is not None:
             self._children.dump('%s.%s' % (filename, FE_CHILDREN))
-            self._children_offset.dump('%s.%s' % (filename, FE_CHILDREN_OFFSET))
+            self._children_pos.dump('%s.%s' % (filename, FE_CHILDREN_OFFSET))
 
     @staticmethod
     def exist(filename):
@@ -616,36 +616,36 @@ class Forest(object):
         return result
 
     def children_dict_to_arrays(self):
-        _children_offset = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
+        _children_pos = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
         # initialize with maximal size possible (if forest is a list)
         _children = np.zeros(shape=2*len(self), dtype=constants.DTYPE_OFFSET)
 
-        pos_target = 0
+        pos = 0
         for idx in range(len(self)):
             if idx in self.children:
-                _children_offset[idx] = pos_target
+                _children_pos[idx] = pos
                 current_children = self.children[idx]
                 l = len(current_children)
-                _children[pos_target] = l
-                #self._children[pos_target + 1:pos_target + 1 + l] = np.array(current_children, dtype=self._children.dtype)
-                _children[pos_target + 1:pos_target + 1 + l] = current_children
-                pos_target += l + 1
+                _children[pos] = l
+                #self._children[pos + 1:pos + 1 + l] = np.array(current_children, dtype=self._children.dtype)
+                _children[pos + 1:pos + 1 + l] = current_children
+                pos += l + 1
             else:
-                _children_offset[idx] = -1
+                _children_pos[idx] = -1
 
-        self._children = _children[:pos_target]
-        self._children_offset = _children_offset
+        self._children = _children[:pos]
+        self._children_pos = _children_pos
 
     def children_array_to_dict(self, clear_arrays=False):
-        assert self._children is not None and self._children_offset is not None, '_children or _children_offset arrays not set'
+        assert self._children is not None and self._children_pos is not None, '_children or _children_pos arrays not set'
         self._children_dict = {}
-        for idx, pos in enumerate(self._children_offset):
+        for idx, pos in enumerate(self._children_pos):
             if pos >= 0:
                 l = self._children[pos]
                 self._children_dict[idx] = self._children[pos+1:pos+1+l].tolist()
         if clear_arrays:
             self._children = None
-            self._children_offset = None
+            self._children_pos = None
 
     @staticmethod
     def meta_matches(a, b, operation):
@@ -653,44 +653,54 @@ class Forest(object):
         assert a.data.dtype == b.data.dtype, 'dtype of data arrays do not match, can not %s.' % operation
         assert a.parents.dtype == b.parents.dtype, 'dtype of parent arrays do not match, can not %s.' % operation
         assert a.data_as_hashes == b.data_as_hashes, 'data_as_hash do not match, can not %s.' % operation
-        if a._children is not None and a._children_offset is not None:
-            assert b._children is not None and b._children_offset is not None, 'if children arrays of first forest ' \
+        if a._children is not None and a._children_pos is not None:
+            assert b._children is not None and b._children_pos is not None, 'if children arrays of first forest ' \
                                                                                 'are set, the children arrays of second ' \
                                                                                 'forest have to be set, too, can not ' \
                                                                                 '%s.' % operation
 
     def extend(self, others):
-        if type(others) == list:
+        if type(others) != list:
             others = [others]
         for other in others:
             Forest.meta_matches(self, other, 'extend')
         self.reset_cache_values()
-        if self._children is not None and self._children_offset is not None:
+        if self._children is not None and self._children_pos is not None:
             new_children = np.concatenate([f._children for f in [self] + others])
-            new_children_offset = np.concatenate([f._children_offset for f in [self] + others])
+            new_children_pos_list = []
+            offset = 0
+            for forest in [self] + others:
+                new_children_pos_list.append(forest._children_pos + offset)
+                offset += len(forest._children_pos)
+            new_children_pos = np.concatenate(new_children_pos_list)
         else:
             new_children = None
-            new_children_offset = None
+            new_children_pos = None
         self.set_forest(data=np.concatenate([f.data for f in [self] + others]),
                         parents=np.concatenate([f.parents for f in [self] + others]),
                         children=new_children,
-                        children_offset=new_children_offset)
+                        children_offset=new_children_pos)
 
     @staticmethod
     def concatenate(forests):
         assert len(forests) > 0, 'can not concatenate empty list of forests'
         for f in forests[1:]:
             Forest.meta_matches(forests[0], f, 'concatenate')
-        if forests[0]._children is not None and forests[0]._children_offset is not None:
+        if forests[0]._children is not None and forests[0]._children_pos is not None:
             new_children = np.concatenate([f._children for f in forests])
-            new_children_offset = np.concatenate([f._children_offset for f in forests])
+            new_children_pos_list = []
+            offset = 0
+            for forest in forests:
+                new_children_pos_list.append(forest._children_pos + offset)
+                offset += len(forest._children_pos)
+            new_children_pos = np.concatenate(new_children_pos_list)
         else:
             new_children = None
-            new_children_offset = None
+            new_children_pos = None
         return Forest(data=np.concatenate([f.data for f in forests]),
                       parents=np.concatenate([f.parents for f in forests]),
                       children=new_children,
-                      children_offset=new_children_offset,
+                      children_offset=new_children_pos,
                       data_as_hashes=forests[0].data_as_hashes,
                       lexicon=forests[0].lexicon)
 
@@ -778,7 +788,7 @@ class Forest(object):
     @property
     def children(self):
         if self._children_dict is None:
-            if self._children is not None and self._children_offset is not None:
+            if self._children is not None and self._children_pos is not None:
                 self.children_array_to_dict()
             else:
                 self._children_dict, self._roots = children_and_roots(self.parents)
