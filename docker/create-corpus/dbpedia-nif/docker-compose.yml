@@ -17,8 +17,8 @@ services:
       - virt-dbpedia-nif
     volumes:
       - ../../../src:/root/recursive-embedding/src
-      - ${HOST_CORPORA_OUT}:/root/corpora_out/DBPEDIANIF
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      python corpus-dbpedianif.py --out-path /root/corpora_out --batch-size ${BATCH_SIZE}
+      python corpus-dbpedianif.py --out-path /root/corpora_out/DBPEDIANIF --batch-size ${BATCH_SIZE}
                                   --num-threads ${NUM_THREADS} --start-offset ${START}
                                   --batch-count=${BATCH_COUNT}

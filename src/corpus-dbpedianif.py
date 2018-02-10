@@ -358,7 +358,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
         try:
             #nif_context_data = prepare_context_data(graph, context)
             tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
-            tree_context.children_dict_to_arrays()
+            #tree_context.children_dict_to_arrays()
             tree_contexts.append(tree_context)
         except Exception as e:
             context = nif_context_data[-1]
@@ -380,13 +380,18 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
     start_offset=('index of articles to start with', 'option', 's', int),
     batch_count=('if batch_count > 0 process only this amount of articles', 'option', 'c', int)
 )
-def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0, batch_count=0):
-#def process_contexts_multi(out_path='/mnt/WIN/ML/data/corpora/DBPEDIANIF-test', batch_size=10, num_threads=4, debug_stop=100):
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0,
+                           batch_count=0):
+    assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
+    logger.info('batch-size=%i num-threads=%i start-offset=%i batch-count=%i' % (batch_size, num_threads, start_offset, batch_count))
+
     if not os.path.exists(out_path):
         os.mkdir(out_path)
     out_path = os.path.join(out_path, str(batch_size))
     if not os.path.exists(out_path):
         os.mkdir(out_path)
+    #logger.info('out_path=%s' % out_path)
+    #logger.warn(os.path.exists(out_path))
 
     q_query = Queue.Queue(maxsize=100)
     q_parse = Queue.Queue(maxsize=100)
