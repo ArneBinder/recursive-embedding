@@ -358,7 +358,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
         try:
             #nif_context_data = prepare_context_data(graph, context)
             tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
-            #tree_context.children_dict_to_arrays()
+            tree_context.children_dict_to_arrays()
             tree_contexts.append(tree_context)
         except Exception as e:
             context = nif_context_data[-1]

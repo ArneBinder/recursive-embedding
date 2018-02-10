@@ -370,11 +370,11 @@ class Lexicon(object):
         self._ids_var_dict = None
         self._strings = strings
         if filename is not None:
-            if os.path.isfile('%s.%s' % (filename, FE_STRINGS)):
-                self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
-            else:
-                types_dep = Lexicon.read_types(filename)
-                self._strings = StringStore(types_dep)
+            #if os.path.isfile('%s.%s' % (filename, FE_STRINGS)):
+            self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
+            #else:
+            #    types_dep = Lexicon.read_types(filename)
+            #    self._strings = StringStore(types_dep)
             if os.path.isfile('%s.%s' % (filename, FE_VECS)):
                 self.init_vecs(filename=filename)
             else:

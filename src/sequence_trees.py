@@ -637,7 +637,7 @@ class Forest(object):
         self._children_offset = _children_offset
 
     def children_array_to_dict(self, clear_arrays=False):
-        assert self._children is not None and self._children_offset is not None, '_children or _children_offsets arrays not set'
+        assert self._children is not None and self._children_offset is not None, '_children or _children_offset arrays not set'
         self._children_dict = {}
         for idx, pos in enumerate(self._children_offset):
             if pos >= 0:
@@ -653,8 +653,8 @@ class Forest(object):
         assert a.data.dtype == b.data.dtype, 'dtype of data arrays do not match, can not %s.' % operation
         assert a.parents.dtype == b.parents.dtype, 'dtype of parent arrays do not match, can not %s.' % operation
         assert a.data_as_hashes == b.data_as_hashes, 'data_as_hash do not match, can not %s.' % operation
-        if a._children is not None and a._children_offsets is not None:
-            assert b._children is not None and b._children_offsets is not None, 'if children arrays of first forest ' \
+        if a._children is not None and a._children_offset is not None:
+            assert b._children is not None and b._children_offset is not None, 'if children arrays of first forest ' \
                                                                                 'are set, the children arrays of second ' \
                                                                                 'forest have to be set, too, can not ' \
                                                                                 '%s.' % operation
