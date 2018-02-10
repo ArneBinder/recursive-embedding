@@ -420,7 +420,7 @@ class Forest(object):
     def exist(filename):
         a = (os.path.exists('%s.%s' % (filename, FE_DATA)) or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES)))
         b = os.path.exists('%s.%s' % (filename, FE_PARENTS))
-        return  a and b
+        return a and b
 
     def reload(self, filename):
         self.reset_cache_values()

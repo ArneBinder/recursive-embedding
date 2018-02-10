@@ -214,7 +214,8 @@ def get_or_calc_sequence_data(params):
             params['data_as_hashes'] = forest.data_as_hashes
             for i, sim_tuple_indices in enumerate(indices[start: end]):
                 for idx in sim_tuple_indices:
-                    params['data_sequences'].append(forest.trees([idx]).next())
+                    tree = forest.trees([idx]).next()
+                    params['data_sequences'].append(tree)
                 for prob in probs[i]:
                     params['scores_gold'].append(prob)
 
@@ -224,7 +225,21 @@ def get_or_calc_sequence_data(params):
                 params['sequences'].append(" ".join(token_list))
         else:
             raise IOError('could not open "%s"' % fn)
-
+    elif 'root_start' in params:
+        params['sequences'] = []
+        params['data_sequences'] = []
+        init_forest(data_path)
+        params['data_as_hashes'] = forest.data_as_hashes
+        roots = forest.roots
+        start = params.get('root_start', 0)
+        end = params.get('root_end', len(roots))
+        for tree in forest.trees(root_indices=roots[start:end]):
+            params['data_sequences'].append(tree)
+        for data_sequence in params['data_sequences']:
+            token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon,
+                                           data_as_hashes=params['data_as_hashes']).get_text_plain(
+                blacklist=params.get('prefix_blacklist', None))
+            params['sequences'].append(" ".join(token_list))
     elif 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
         concat_mode = FLAGS.default_concat_mode
