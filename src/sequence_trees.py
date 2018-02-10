@@ -671,7 +671,7 @@ class Forest(object):
             offset = 0
             for forest in [self] + others:
                 new_children_pos_list.append(forest._children_pos + offset)
-                offset += len(forest._children_pos)
+                offset += len(forest._children)
             new_children_pos = np.concatenate(new_children_pos_list)
         else:
             new_children = None
@@ -692,7 +692,7 @@ class Forest(object):
             offset = 0
             for forest in forests:
                 new_children_pos_list.append(forest._children_pos + offset)
-                offset += len(forest._children_pos)
+                offset += len(forest._children)
             new_children_pos = np.concatenate(new_children_pos_list)
         else:
             new_children = None
