@@ -215,7 +215,7 @@ def get_or_calc_sequence_data(params):
             for i, sim_tuple_indices in enumerate(indices[start: end]):
                 for idx in sim_tuple_indices:
                     tree = forest.trees([idx]).next()
-                    params['data_sequences'].append(tree)
+                    params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
                 for prob in probs[i]:
                     params['scores_gold'].append(prob)
 
@@ -234,7 +234,7 @@ def get_or_calc_sequence_data(params):
         start = params.get('root_start', 0)
         end = params.get('root_end', len(roots))
         for tree in forest.trees(root_indices=roots[start:end]):
-            params['data_sequences'].append(tree)
+            params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
         for data_sequence in params['data_sequences']:
             token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon,
                                            data_as_hashes=params['data_as_hashes']).get_text_plain(

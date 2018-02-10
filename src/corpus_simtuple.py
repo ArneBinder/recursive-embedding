@@ -299,6 +299,9 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         # convert data: hashes to indices
         forest.hashes_to_indices()
 
+        # convert and set children arrays
+        forest.children_dict_to_arrays()
+
         forest.dump(out_path)
         scores.dump(out_path + '.score')
         lexicon.set_man_vocab_vec(man_vocab_id=constants.IDENTITY_EMBEDDING)

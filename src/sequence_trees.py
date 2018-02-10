@@ -5,7 +5,7 @@ import os
 
 import pydot
 
-from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_DATA, DTYPE_PARENT, DTYPE_DEPTH
+from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH
 import constants
 
 
@@ -345,20 +345,25 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
 FE_DATA = 'data'
 FE_PARENTS = 'parent'
 FE_DATA_HASHES = 'data.hash'
+FE_CHILDREN = 'child'
+FE_CHILDREN_OFFSET = 'child.offset'
 
 
 class Forest(object):
-    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None,
-                 data_as_hashes=False):
+    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None, children=None,
+                 children_offset=None, data_as_hashes=False):
         self.reset_cache_values()
         self._as_hashes = data_as_hashes
         self._lexicon = None
         self._data = None
         self._parents = None
+        self._children = None
+        self._children_offset = None
         if lexicon is not None:
             self._lexicon = lexicon
         if (data is not None and parents is not None) or forest is not None or filename is not None:
-            self.set_forest(filename=filename, data=data, parents=parents, forest=forest, data_as_hashes=data_as_hashes)
+            self.set_forest(filename=filename, data=data, parents=parents, forest=forest,
+                            children=children, children_offset=children_offset, data_as_hashes=data_as_hashes)
         elif tree_dict is not None:
             _data, _parents = sequence_node_to_sequence_trees(tree_dict)
             self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes)
@@ -368,13 +373,14 @@ class Forest(object):
         #self._sorted = np.zeros(len(self), dtype=bool)
 
     def reset_cache_values(self):
-        self._children = None
+        self._children_dict = None
         self._roots = None
         self._depths = None
         self._depths_collected = None
         self._dicts = {}
 
-    def set_forest(self, filename=None, data=None, parents=None, forest=None, data_as_hashes=False):
+    def set_forest(self, filename=None, data=None, parents=None, forest=None, children=None, children_offset=None,
+                   data_as_hashes=False):
         if filename is not None:
             logging.debug('load data and parents from %s ...' % filename)
             if os.path.exists('%s.%s' % (filename, FE_DATA)):
@@ -385,11 +391,14 @@ class Forest(object):
             else:
                 raise IOError('data file (%s.%s or %s.%s) not found' % (filename, FE_DATA, filename, FE_DATA_HASHES))
             parents = np.load('%s.%s' % (filename, FE_PARENTS))
+            if os.path.exists('%s.%s' % (filename, FE_CHILDREN)) and os.path.exists('%s.%s' % (filename, FE_CHILDREN_OFFSET)):
+                children = np.load('%s.%s' % (filename, FE_CHILDREN))
+                children_offset = np.load('%s.%s' % (filename, FE_CHILDREN_OFFSET))
         self._as_hashes = data_as_hashes
         if self.data_as_hashes:
             data_dtype = DTYPE_HASH
         else:
-            data_dtype = DTYPE_DATA
+            data_dtype = DTYPE_IDX
         if forest is not None:
             assert len(forest) == 2, 'Wrong array count: %i. Trees array has to contain exactly the parents and data ' \
                                      'arrays: len=2' % str(len(forest))
@@ -399,10 +408,18 @@ class Forest(object):
             'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
         if not isinstance(data, np.ndarray) or not data.dtype == data_dtype:
             data = np.array(data, dtype=data_dtype)
-        if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_PARENT:
-            parents = np.array(parents, dtype=DTYPE_PARENT)
+        if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_OFFSET:
+            parents = np.array(parents, dtype=DTYPE_OFFSET)
         self._data = data
         self._parents = parents
+
+        if children is not None and children_offset is not None:
+            if not isinstance(children, np.ndarray) or not children.dtype == DTYPE_OFFSET:
+                children = np.array(children, dtype=DTYPE_OFFSET)
+            if not isinstance(children_offset, np.ndarray) or not children_offset.dtype == DTYPE_IDX:
+                children_offset = np.array(children_offset, dtype=DTYPE_IDX)
+            self._children = children
+            self._children_offset = children_offset
 
     def set_lexicon(self, lexicon):
         self._lexicon = lexicon
@@ -415,6 +432,10 @@ class Forest(object):
             self.data.dump('%s.%s' % (filename, FE_DATA))
         logging.debug('dump parents ...')
         self.parents.dump('%s.%s' % (filename, FE_PARENTS))
+
+        if self._children is not None and self._children_offset is not None:
+            self._children.dump('%s.%s' % (filename, FE_CHILDREN))
+            self._children_offset.dump('%s.%s' % (filename, FE_CHILDREN_OFFSET))
 
     @staticmethod
     def exist(filename):
@@ -594,12 +615,49 @@ class Forest(object):
                 break
         return result
 
+    def children_dict_to_arrays(self):
+        _children_offset = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
+        # initialize with maximal size possible (if forest is a list)
+        _children = np.zeros(shape=2*len(self), dtype=constants.DTYPE_OFFSET)
+
+        pos_target = 0
+        for idx in range(len(self)):
+            if idx in self.children:
+                _children_offset[idx] = pos_target
+                current_children = self.children[idx]
+                l = len(current_children)
+                _children[pos_target] = l
+                #self._children[pos_target + 1:pos_target + 1 + l] = np.array(current_children, dtype=self._children.dtype)
+                _children[pos_target + 1:pos_target + 1 + l] = current_children
+                pos_target += l + 1
+            else:
+                _children_offset[idx] = -1
+
+        self._children = _children[:pos_target]
+        self._children_offset = _children_offset
+
+    def children_array_to_dict(self, clear_arrays=False):
+        assert self._children is not None and self._children_offset is not None, '_children or _children_offsets arrays not set'
+        self._children_dict = {}
+        for idx, pos in enumerate(self._children_offset):
+            if pos >= 0:
+                l = self._children[pos]
+                self._children_dict[idx] = self._children[pos+1:pos+1+l].tolist()
+        if clear_arrays:
+            self._children = None
+            self._children_offset = None
+
     @staticmethod
     def meta_matches(a, b, operation):
         assert a.lexicon == b.lexicon or b.lexicon is None, 'lexica do not match, can not %s.' % operation
         assert a.data.dtype == b.data.dtype, 'dtype of data arrays do not match, can not %s.' % operation
         assert a.parents.dtype == b.parents.dtype, 'dtype of parent arrays do not match, can not %s.' % operation
         assert a.data_as_hashes == b.data_as_hashes, 'data_as_hash do not match, can not %s.' % operation
+        if a._children is not None and a._children_offsets is not None:
+            assert b._children is not None and b._children_offsets is not None, 'if children arrays of first forest ' \
+                                                                                'are set, the children arrays of second ' \
+                                                                                'forest have to be set, too, can not ' \
+                                                                                '%s.' % operation
 
     def extend(self, others):
         if type(others) == list:
@@ -607,16 +665,32 @@ class Forest(object):
         for other in others:
             Forest.meta_matches(self, other, 'extend')
         self.reset_cache_values()
+        if self._children is not None and self._children_offset is not None:
+            new_children = np.concatenate([f._children for f in [self] + others])
+            new_children_offset = np.concatenate([f._children_offset for f in [self] + others])
+        else:
+            new_children = None
+            new_children_offset = None
         self.set_forest(data=np.concatenate([f.data for f in [self] + others]),
-                        parents=np.concatenate([f.parents for f in [self] + others]))
+                        parents=np.concatenate([f.parents for f in [self] + others]),
+                        children=new_children,
+                        children_offset=new_children_offset)
 
     @staticmethod
     def concatenate(forests):
         assert len(forests) > 0, 'can not concatenate empty list of forests'
         for f in forests[1:]:
             Forest.meta_matches(forests[0], f, 'concatenate')
+        if forests[0]._children is not None and forests[0]._children_offset is not None:
+            new_children = np.concatenate([f._children for f in forests])
+            new_children_offset = np.concatenate([f._children_offset for f in forests])
+        else:
+            new_children = None
+            new_children_offset = None
         return Forest(data=np.concatenate([f.data for f in forests]),
                       parents=np.concatenate([f.parents for f in forests]),
+                      children=new_children,
+                      children_offset=new_children_offset,
                       data_as_hashes=forests[0].data_as_hashes,
                       lexicon=forests[0].lexicon)
 
@@ -703,9 +777,12 @@ class Forest(object):
 
     @property
     def children(self):
-        if self._children is None:
-            self._children, self._roots = children_and_roots(self.parents)
-        return self._children
+        if self._children_dict is None:
+            if self._children is not None and self._children_offset is not None:
+                self.children_array_to_dict()
+            else:
+                self._children_dict, self._roots = children_and_roots(self.parents)
+        return self._children_dict
 
     @property
     def roots(self):

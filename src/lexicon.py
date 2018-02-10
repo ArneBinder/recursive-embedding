@@ -9,7 +9,7 @@ import os
 
 from preprocessing import read_data, without_prefix, PREFIX_LEX
 #import sequence_trees as sequ_trees
-from constants import DTYPE_DATA, DTYPE_PARENT, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX
+from constants import DTYPE_OFFSET, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX
 from sequence_trees import Forest
 
 
@@ -364,6 +364,7 @@ class Lexicon(object):
         """
         self._frozen = False
         self._mapping = None
+        self._types = None
         self._ids_fixed = set()
         self._ids_fixed_dict = None
         self._ids_var_dict = None
@@ -649,7 +650,7 @@ class Lexicon(object):
             else:
                 data[i] = self.mapping[self.strings[s_uk]]
         self.freeze()
-        return data.astype(DTYPE_DATA)
+        return data.astype(DTYPE_IDX)
 
     def read_data(self, return_hashes=False, *args, **kwargs):
         data, parents = read_data(*args, strings=self.strings, **kwargs)
