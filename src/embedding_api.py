@@ -209,10 +209,12 @@ def get_or_calc_sequence_data(params):
             params['scores_gold'] = []
             init_forest(data_path)
             indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
-            root_start = params.get('start', 0)
-            root_end = params.get('end', len(indices))
+            tuple_start = params.get('tuple_start', 0)
+            tuple_end = params.get('tuple_end', len(indices))
+            assert tuple_start <= tuple_end, 'ERROR: tuple_start=%i > tuple_end=%i' % (tuple_start, tuple_end)
+            assert tuple_end <= len(indices), 'ERROR: tuple_end=%i > len(roots)=%i' % (tuple_end, len(indices))
             params['data_as_hashes'] = forest.data_as_hashes
-            for i, sim_tuple_indices in enumerate(indices[root_start: root_end]):
+            for i, sim_tuple_indices in enumerate(indices[tuple_start:tuple_end]):
                 for idx in sim_tuple_indices:
                     tree = forest.trees([idx]).next()
                     params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
@@ -233,6 +235,8 @@ def get_or_calc_sequence_data(params):
         roots = forest.roots
         root_start = params.get('root_start', 0)
         root_end = params.get('root_end', len(roots))
+        assert root_start <= root_end, 'ERROR: root_start=%i > root_end=%i' % (root_start, root_end)
+        assert root_end <= len(roots), 'ERROR: root_end=%i > len(roots)=%i' % (root_end, len(roots))
         for tree in forest.trees(root_indices=roots[root_start:root_end]):
             params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
         for data_sequence in params['data_sequences']:
@@ -245,9 +249,10 @@ def get_or_calc_sequence_data(params):
         params['data_sequences'] = []
         init_forest(data_path)
         params['data_as_hashes'] = forest.data_as_hashes
-        roots = forest.roots
         idx_start = params.get('idx_start', 0)
-        idx_end = params.get('idx_end', len(roots))
+        idx_end = params.get('idx_end', len(forest))
+        assert idx_start <= idx_end, 'ERROR: idx_start=%i > idx_end=%i' % (idx_start, idx_end)
+        assert idx_end <= len(forest), 'ERROR: root_end=%i > len(roots)=%i' % (idx_end, len(forest))
         data_sequence = [forest.data[idx_start:idx_end].tolist(), forest.parents[idx_start:idx_end].tolist()]
         params['data_sequences'] = [data_sequence]
         token_list = forest.get_text_plain(blacklist=params.get('prefix_blacklist', None), start=idx_start, end=idx_end)
