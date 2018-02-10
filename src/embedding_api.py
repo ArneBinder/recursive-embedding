@@ -36,7 +36,8 @@ from config import Config
 TEMP_FN_SVG = 'temp_forest.svg'
 
 tf.flags.DEFINE_string('data_source',
-                       '/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       #'/media/arne/WIN/ML/data/corpora/SICK/process_sentence3_marked/SICK_CMaggregate',
+                       None,
                        #'/home/arne/ML_local/tf/supervised/log/SA/FINETUNE/PPDB/restoreFALSE_batchs100_keepprob0.9_leaffc0_learningr0.05_lextrainTRUE_optADADELTAOPTIMIZER_rootfc0_smSIMCOSINE_state50_testfilei1_dataPROCESSSENTENCE3MARKEDSICKCMAGGREGATE_teTREEEMBEDDINGFLATLSTM',
                        'Directory containing the model and a checkpoint file or the direct path to a '
                        'model (without extension) and the model.type file containing the string dict.')
@@ -601,6 +602,10 @@ def main(data_source):
     lexicon = None
     forest = None
     data_path = None
+
+    if data_source is None:
+        logging.info('Start api without data source. Use /api/load before any other request.')
+        return
 
     # We retrieve our checkpoint fullpath
     checkpoint = tf.train.get_checkpoint_state(data_source)
