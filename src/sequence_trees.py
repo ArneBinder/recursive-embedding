@@ -746,7 +746,7 @@ class Forest(object):
     def filter_and_shorten_label(l, blacklist=[], do_filter=True):
         if do_filter:
             for b in blacklist:
-                if l.startswith(b + constants.SEPARATOR):
+                if l.startswith(b):
                     return None
 
             for embedding_prefix in constants.vocab_manual.values():
