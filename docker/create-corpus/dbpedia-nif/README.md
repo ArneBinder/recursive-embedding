@@ -126,19 +126,15 @@ To start the processing, execute from project root:
 cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif
 ```
 
-or (rebuilds image):
-
-```bash
-cd docker/create-corpus/dbpedia-nif && docker-compose up --build corpus-dbpedia-nif
-```
+NOTE: The processing can be interrupted any time, restarting continues from the latest position. (TODO: Verify that order of triples in main loop does not change!)
 
 
 ## TODO:
  * forest (batches): generate **children arrays** from parent DONE
  * forest (batches): calc **resource_offsets**: get root_offsets -> add 1 (positions of resource_ids) -> get data (resource_id) -> generate mapping {resource_id: root_offset} -> save as numpy
  * forest (batches): **count values**:  `np.unique(data, return_counts=True)` -> `unique.dump` and `count.dump`
- * lexicon: **merge** lexica
- * counts: **merge** counts 
+ * lexicon: **merge**
+ * counts: **merge**
  * lexicon & counts & forest (batches): set low frequency **words to UNKNOWN** (differentiate between resource_ids and other data)
- * lexicon: add **embedding vectors** to lexicon (from spacy nlp)
- * lexicon & forest (batches): convert string hashes to ids
+ * lexicon: add **embedding vectors** to lexicon (from spacy nlp) -> *freezes* the lexicon (no more addition of entries, etc. possible)
+ * lexicon & forest (batches): convert string hashes to ids (would also *freezes* the lexicon)
