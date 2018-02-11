@@ -590,6 +590,8 @@ def init_nlp():
 def init_forest(data_path):
     global forest
     if forest is None:
+        assert data_path is not None, 'No data loaded. Use /api/load to load a corpus.'
+        assert Forest.exist(data_path), 'Could not open corpus: %s' % data_path
         forest = Forest(filename=data_path, lexicon=lexicon)
 
 
@@ -620,6 +622,7 @@ def main(data_source):
     else:
         data_path = data_source
         logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
+        assert Lexicon.exist(data_source), 'No lexicon found at: %s' % data_source
         lexicon = Lexicon(filename=data_source)
 
     if FLAGS.external_lexicon:
