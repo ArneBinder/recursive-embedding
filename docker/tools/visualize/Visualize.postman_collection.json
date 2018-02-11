@@ -1,0 +1,238 @@
+{
+	"info": {
+		"name": "Recursive Embedding",
+		"_postman_id": "49506acd-8ac7-44a6-46b0-12ee4c30f1d5",
+		"description": "",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "visualize corpus",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "text/plain",
+						"disabled": true
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\"sequences\":[\"I like very hard stuff very much.\"]}"
+				},
+				"url": {
+					"raw": "127.0.0.1:5000/api/visualize?concat_mode=sequence&inner_concat_mode=tree&sentence_processor=process_sentence1&vis_mode=text&whitelist=[\"sequences\", \"scores_gold\", \"embeddings\"]&prefix_blacklist=[\"DEPENDENCY\", \"http://purl.org/olia/olia.owl\", \"http://www.w3.org/2005/11/its/rdf\", \"http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core\"]&root_start=0&root_end=10",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"api",
+						"visualize"
+					],
+					"query": [
+						{
+							"key": "concat_mode",
+							"value": "sequence",
+							"equals": true
+						},
+						{
+							"key": "inner_concat_mode",
+							"value": "tree",
+							"equals": true
+						},
+						{
+							"key": "sentence_processor",
+							"value": "process_sentence1",
+							"equals": true
+						},
+						{
+							"key": "blacklist",
+							"value": "[\"embeddings\"]",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "vis_mode",
+							"value": "text",
+							"equals": true
+						},
+						{
+							"key": "whitelist",
+							"value": "[\"sequences\", \"scores_gold\", \"embeddings\"]",
+							"equals": true
+						},
+						{
+							"key": "new_format",
+							"value": "",
+							"equals": false,
+							"disabled": true
+						},
+						{
+							"key": "train_file",
+							"value": "train.0",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "data_sequences",
+							"value": "[[[1, 3, 7, 9, 7, 9, 0, 10, 0, 11, 0, 14, 8, 15, 6, 16, 6, 16, 18, 19, 6, 25, 4, 28, 17, 41, 0, 60, 8, 94, 2, 162, 2, 251, 13, 304, 2, 350, 2459], [1, 37, 1, 35, 1, 33, 1, 31, 1, 29, 1, 27, 1, 25, 1, 23, 1, 21, 1, 19, 1, 17, 1, 15, 1, 13, 1, 11, 1, 9, 1, 7, 1, 5, 1, 3, 1, 1, 0]]\n]",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "sequences",
+							"value": "[\"The boy likes beer. A girl loves pasta.\"]",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "prefix_blacklist",
+							"value": "[\"DEPENDENCY\", \"http://purl.org/olia/olia.owl\", \"http://www.w3.org/2005/11/its/rdf\", \"http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core\"]",
+							"equals": true
+						},
+						{
+							"key": "idx_tuple_file",
+							"value": "idx.0",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "tuple_start",
+							"value": "-100",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "tuple_end",
+							"value": "3",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "idx_start",
+							"value": "0",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "idx_end",
+							"value": "200",
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "root_start",
+							"value": "0",
+							"equals": true
+						},
+						{
+							"key": "root_end",
+							"value": "10",
+							"equals": true
+						}
+					]
+				},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "load corpus SICK",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "127.0.0.1:5000/api/load?path=/media/arne/WIN/Users/Arne/ML/data/test/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"api",
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "/media/arne/WIN/Users/Arne/ML/data/test/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
+							"equals": true
+						}
+					]
+				},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "load corpus DBPEDIANIF",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "127.0.0.1:5000/api/load?path=/mnt/WIN/ML/data/corpora/DBPEDIANIF-test/100/forest-0",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"api",
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "/mnt/WIN/ML/data/corpora/DBPEDIANIF-test/100/forest-0",
+							"equals": true
+						}
+					]
+				},
+				"description": ""
+			},
+			"response": []
+		},
+		{
+			"name": "load corpus SICK docker",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {},
+				"url": {
+					"raw": "127.0.0.1:5000/api/load?path=/root/corpora_out/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"api",
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "/root/corpora_out/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
+							"equals": true
+						}
+					]
+				},
+				"description": ""
+			},
+			"response": []
+		}
+	]
+}

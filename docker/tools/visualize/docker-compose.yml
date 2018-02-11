@@ -1,0 +1,13 @@
+version: '3'
+services:
+  visualize:
+    build:
+      context: ../../..
+      dockerfile: docker/tools/visualize/Dockerfile
+    ports:
+      - "5000:5000"
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      python embedding_api.py

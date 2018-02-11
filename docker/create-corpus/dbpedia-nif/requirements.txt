@@ -18,7 +18,7 @@ svgutils
 pydot
 
 # misc
-tqdm
+#tqdm
 
 # virtuoso (dbpedia-nif)
 -e git+https://github.com/maparent/pyodbc.git@v4-virtuoso#egg=pyodbc

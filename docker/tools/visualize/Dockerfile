@@ -21,14 +21,16 @@ VOLUME /root/corpora_out
 
 ########################################################################################################################
 
-ARG OWN_LOCATION=docker/create-corpus/sick
-#ARG TMP=/tmp/sick
-#RUN mkdir "$TMP"
+ARG OWN_LOCATION=docker/tools/visualize
+
+# install graphiz (used by pydot)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends graphviz \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY "$OWN_LOCATION"/requirements.txt "$ROOT"/requirements.txt
 RUN pip install --no-cache-dir -r "$ROOT"/requirements.txt
-
-COPY "$OWN_LOCATION"/data /root/corpora_in/SICK
 
 COPY src "$ROOT"/src
 WORKDIR "$ROOT"/src

@@ -4,8 +4,6 @@ import errno
 import os
 import sys
 import logging
-from tqdm import tqdm
-#from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import Pool
 from itertools import product
 
@@ -15,8 +13,11 @@ def parallel_process_simple(input, func):
 
     return p.map(func, input)
 
+
 # unused
 def parallel_process(array, function, n_jobs=4, use_kwargs=False, front_num=3):
+    from tqdm import tqdm
+    from concurrent.futures import ProcessPoolExecutor, as_completed
     """
         A parallel version of the map function with a progress bar.
 

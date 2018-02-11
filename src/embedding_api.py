@@ -12,8 +12,6 @@ import numpy as np
 import spacy
 import tensorflow as tf
 
-# import mytools
-import sequence_trees as sequ_trees
 from flask import Flask, request, send_file, jsonify, Response
 from flask_cors import CORS
 from sklearn import metrics
@@ -28,9 +26,9 @@ import svgutils.transform as sg
 
 import constants
 import corpus_simtuple
-import model_fold
 import preprocessing
-import lexicon as lex
+from lexicon import Lexicon
+from sequence_trees import Forest
 from config import Config
 
 TEMP_FN_SVG = 'temp_forest.svg'
@@ -224,7 +222,7 @@ def get_or_calc_sequence_data(params):
 
             params['scores_gold'] = np.array(params['scores_gold'])
             for data_sequence in params['data_sequences']:
-                token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes']).get_text_plain(blacklist=params.get('prefix_blacklist', None))
+                token_list = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes']).get_text_plain(blacklist=params.get('prefix_blacklist', None))
                 params['sequences'].append(" ".join(token_list))
         else:
             raise IOError('could not open "%s"' % fn)
@@ -241,7 +239,7 @@ def get_or_calc_sequence_data(params):
         for tree in forest.trees(root_indices=roots[root_start:root_end]):
             params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
         for data_sequence in params['data_sequences']:
-            token_list = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon,
+            token_list = Forest(forest=data_sequence, lexicon=lexicon,
                                            data_as_hashes=params['data_as_hashes']).get_text_plain(
                 blacklist=params.get('prefix_blacklist', None))
             params['sequences'].append(" ".join(token_list))
@@ -293,7 +291,7 @@ def get_or_calc_embeddings(params):
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
 
-        batch = [[[sequ_trees.Forest(forest=parsed_data, lexicon=lexicon).get_tree_dict(max_depth=max_depth, transform=True)], []]
+        batch = [[[Forest(forest=parsed_data, lexicon=lexicon).get_tree_dict(max_depth=max_depth, transform=True)], []]
                  for parsed_data in data_sequences]
 
         if len(batch) > 0:
@@ -458,7 +456,7 @@ def visualize():
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
             for i, data_sequence in enumerate(params['data_sequences']):
-                forest_temp = sequ_trees.Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'])
+                forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'])
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i))
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
@@ -485,7 +483,7 @@ def show_rooted_tree_dict():
         idx = params['idx']
         max_depth = params.get('max_depth', 9999)
         rerooted_dict = forest.get_tree_dict_rooted(idx, max_depth=max_depth)
-        rerooted_forest = sequ_trees.Forest(tree_dict=rerooted_dict, lexicon=lexicon)
+        rerooted_forest = Forest(tree_dict=rerooted_dict, lexicon=lexicon)
 
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
@@ -514,7 +512,7 @@ def show_enhanced_tree_dict():
         context = params.get('context', 0)
         max_depth = params.get('max_depth', 9999)
         tree_dict = forest.get_tree_dict(forest.roots[root], max_depth=max_depth, context=context)
-        _forest = sequ_trees.Forest(tree_dict=tree_dict, lexicon=lexicon)
+        _forest = Forest(tree_dict=tree_dict, lexicon=lexicon)
 
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
@@ -592,7 +590,7 @@ def init_nlp():
 def init_forest(data_path):
     global forest
     if forest is None:
-        forest = sequ_trees.Forest(filename=data_path, lexicon=lexicon)
+        forest = Forest(filename=data_path, lexicon=lexicon)
 
 
 def main(data_source):
@@ -614,7 +612,7 @@ def main(data_source):
         logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % data_source)
         # use latest checkpoint in data_source
         input_checkpoint = checkpoint.model_checkpoint_path
-        lexicon = lex.Lexicon(filename=os.path.join(data_source, 'model'))
+        lexicon = Lexicon(filename=os.path.join(data_source, 'model'))
         reader = tf.train.NewCheckpointReader(input_checkpoint)
         logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
         lexicon.init_vecs(checkpoint_reader=reader)
@@ -622,16 +620,16 @@ def main(data_source):
     else:
         data_path = data_source
         logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
-        lexicon = lex.Lexicon(filename=data_source)
+        lexicon = Lexicon(filename=data_source)
 
     if FLAGS.external_lexicon:
         logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
-        lexicon_external = lex.Lexicon(filename=FLAGS.external_lexicon)
+        lexicon_external = Lexicon(filename=FLAGS.external_lexicon)
         lexicon.merge(lexicon_external, add=True, remove=False)
     if FLAGS.merge_nlp_lexicon:
         logging.info('extract nlp embeddings and types ...')
         init_nlp()
-        lexicon_nlp = lex.Lexicon(nlp_vocab=nlp.vocab)
+        lexicon_nlp = Lexicon(nlp_vocab=nlp.vocab)
         logging.info('merge nlp embeddings into loaded embeddings ...')
         lexicon.merge(lexicon_nlp, add=True, remove=False)
 
@@ -645,6 +643,7 @@ def main(data_source):
 
     # load model
     if checkpoint:
+        import model_fold
         model_config = Config(logdir_continue=data_source)
         data_path = model_config.train_data_path
         tree_embedder = getattr(model_fold, model_config.tree_embedder)
@@ -711,4 +710,4 @@ if __name__ == '__main__':
     FLAGS._parse_flags()
     main(FLAGS.data_source)
     logging.info('Starting the API')
-    app.run()
+    app.run(host='0.0.0.0', port=5000)

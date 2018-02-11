@@ -4,16 +4,21 @@
 
 spacy>=2.0.0
 pprint
-six
-tensorflow
+#six
+tensorflow==1.3
 
 # visualization
 svgutils
 pydot
+flask
+flask_cors
+ast
+scipy
+sklearn
 
 # misc
 #tqdm
-plac
+#plac
 
 # from python:
 # csv json itertools functools errno math copy logging fnmatch os ntpath re random sys time math multiprocessing datetime

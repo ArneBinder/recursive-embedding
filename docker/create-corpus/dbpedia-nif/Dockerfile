@@ -16,14 +16,14 @@ RUN apt-get update \
 RUN pip install --no-cache-dir spacy && python -m spacy download en_core_web_md && python -m spacy link en_core_web_md en
 
 ARG ROOT=/root/recursive-embedding
-ARG TMP=/tmp/sick
-RUN mkdir "$TMP"
 RUN mkdir "$ROOT"
 VOLUME /root/corpora_out
 
 ########################################################################################################################
 
 ARG OWN_LOCATION=docker/create-corpus/dbpedia-nif
+ARG TMP=/tmp/dbpedia-nif
+RUN mkdir "$TMP"
 
 # get virtuoso ODBC driver
 # RUN curl -O http://packages.comsode.eu/pool/main/v/virtuoso-opensource/libvirtodbc0_7.2.4_amd64.deb
