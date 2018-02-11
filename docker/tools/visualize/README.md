@@ -26,7 +26,7 @@ cd docker/tools/visualize && docker-compose up
 
 Optional:
  * install [Postman](https://www.getpostman.com/)
- * load [this Postman Collection](https://raw.githubusercontent.com/ArneBinder/recursive-embedding/master/docker/tools/visualize/Visualize.postman_collection.json) into Postman
+ * load [this Postman Collection](https://raw.githubusercontent.com/ArneBinder/recursive-embedding/master/docker/tools/visualize/Visualize.postman_collection.json) into Postman: File \> Import \> Import from Link
 
 
 
