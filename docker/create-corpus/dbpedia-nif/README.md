@@ -20,9 +20,9 @@ In its current state, the service uses only the first section of every article. 
 
 ## HOW TO build the corpus
 
-ATTENTION: The Virtuoso database files (`$db_dir`) grow to a substantial size, i.e. ~100gb.
+ATTENTION: The Virtuoso database files (in location `db_dir`) grow to a substantial size, i.e. ~100 GB.
 
-install:
+Install:
  * docker
  * docker compose
 
@@ -58,7 +58,7 @@ wget http://downloads.dbpedia.org/2016-10/core-i18n/en/nif_page_structure_en.ttl
 wget http://downloads.dbpedia.org/2016-10/core-i18n/en/nif_text_links_en.ttl.bz2
 ```
 
-Repack (Virtuoso does not accept .bz2 files). Execute from the folder containing the downloaded files:
+Repack (Virtuoso does not accept .bz2 files):
 ```bash
 cd "$dump_dir"/en
 apt-get install pigz pbzip2
@@ -118,7 +118,7 @@ git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding
 ```
 
-Configure parameters in [`docker/create-corpus/dbpedia-nif/.env`](.env), especially `HOST_VIRTUOSO_DATA` and `HOST_CORPORA_OUT`
+Configure parameters in [`docker/create-corpus/dbpedia-nif/.env`](.env), especially set `HOST_VIRTUOSO_DATA` to the value of `db_dir` and `HOST_CORPORA_OUT` to the directory you want to output the corpus files (size: ~30 GB).
 
 To start the processing, execute from project root:
 
