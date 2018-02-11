@@ -1,6 +1,6 @@
 # Create corpus from DBpedia-NIF data
 
-The [2016-10 release of DBpedia](http://wiki.dbpedia.org/datasets/dbpedia-version-2016-10) contains RDF [NIF](https://site.nlp2rdf.org/) data ([DBpedia NLP Datasets](http://wiki.dbpedia.org/services-resources/datasets/nlp)) covering the following: 
+The [2016-10 release of DBpedia](http://wiki.dbpedia.org/datasets/dbpedia-version-2016-10) contains RDF [NIF](https://site.nlp2rdf.org/) data (see section 5. NLP Datasets of [Downloads 2016-10](http://wiki.dbpedia.org/downloads-2016-10)) covering the following: 
  * nif-context.ttl: The full text of a wiki page as the context for all subsequent information about this page.
  * nif-page-structure​.ttl: The structure of the wiki page as nif:Structure instances, such as Section, Paragraph and Title.
  * nif-text-links.ttl: All in-text links of a wiki page as nif:Word or nif:Phrase.
