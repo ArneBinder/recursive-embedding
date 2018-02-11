@@ -129,6 +129,11 @@ cd docker/create-corpus/dbpedia-nif && docker-compose up --build corpus-dbpedia-
 
 
 ## TODO:
- * lexicon: merge lexica & set low frequency words to UNKNOWN
- * lexicon: add embedding vectors to lexicon (from spacy nlp)
- * forest: convert string hashes to ids (with lexicon)
+ * forest (batches): generate **children arrays** from parent DONE
+ * forest (batches): calc **resource_offsets**: get root_offsets -> add 1 (positions of resource_ids) -> get data (resource_id) -> generate mapping {resource_id: root_offset} -> save as numpy
+ * forest (batches): **count values**:  `np.unique(data, return_counts=True)` -> `unique.dump` and `count.dump`
+ * lexicon: **merge** lexica
+ * counts: **merge** counts 
+ * lexicon & counts & forest (batches): set low frequency **words to UNKNOWN** (differentiate between resource_ids and other data)
+ * lexicon: add **embedding vectors** to lexicon (from spacy nlp)
+ * lexicon & forest (batches): convert string hashes to ids
