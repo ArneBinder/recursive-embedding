@@ -4,7 +4,7 @@ TODO: add description
 
 Useful Postman collection: [Visualize](Visualize.postman_collection.json)
 
-## HOW TO build the corpus
+## HOW TO visualize
 
 Install:
  * docker
