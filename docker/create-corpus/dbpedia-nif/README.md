@@ -136,5 +136,5 @@ NOTE: The processing can be interrupted any time, restarting continues from the 
  * lexicon: **merge**
  * counts: **merge**
  * lexicon & counts & forest (batches): set low frequency **words to UNKNOWN** (differentiate between resource_ids and other data)
- * lexicon: add **embedding vectors** to lexicon (from spacy nlp) -> *freezes* the lexicon (no more addition of entries, etc. possible)
- * lexicon & forest (batches): convert string hashes to ids (would also *freezes* the lexicon)
+ * lexicon: add **embedding vectors** to lexicon (from spacy nlp) -> *freezes* the lexicon (no more addition of entries, merging, etc. possible)
+ * lexicon & forest (batches): convert string hashes to ids (would also *freeze* the lexicon)
