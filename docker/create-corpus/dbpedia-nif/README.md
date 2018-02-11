@@ -5,9 +5,14 @@ The [2016-10 release of DBpedia](http://wiki.dbpedia.org/datasets/dbpedia-versio
  * nif-page-structure​.ttl: The structure of the wiki page as nif:Structure instances, such as Section, Paragraph and Title.
  * nif-text-links.ttl: All in-text links of a wiki page as nif:Word or nif:Phrase.
 
-This docker-compose service converts this triple data into a simple tree serialization optimized for hierarchical neural network training. The corpus consists of:
+This docker-compose service converts this triple data into a simple tree serialization optimized for hierarchical neural 
+network training. The corpus consists of:
  * a lexicon: it holds id-string mappings, id-stringhash mappings and embedding vectors
- * a forest: a serialized forest consists of two numpy arrays. One is holding the leaf data as ids or string hashes (can be switched when a lexicon is provided), the other parent offsets for every data point.
+ * a forest: a serialized forest consists of two numpy arrays. One **data** array is holding the leaf ids or string hashes (can 
+ be switched when a lexicon is provided), the other holds **parent** offsets for every data point. For training, the parent array 
+ can be converted into two arrays, **children** and **children position**. The children array holds amounts of children for 
+ every data point followed by the child offsets. The children position array indicates for every data point, where to look 
+ in the children array or holds a negative value, if the data point has no children.
 
 The workflow is as follows. Each article is split into its terminal NIF structure objects: nif:Paragraph or nif:Title. The terminals are parsed and serialized into trees by using the dependency structure. Thereby, artificial link nodes are appended to word nodes, that are contained in hyperlinks to other DBpedia resources. If a words parent links to the same resource, the link node is append to the parent only. Then, terminal trees are combined in means of the NIF structure elements that they contain (nif:Section). Note that nif:Structure elements can embed several nif:Structure elements again.
 In its current state, the service uses only the first section of every article. To query the respective data, it is loaded into a local Virtuoso triple store.
