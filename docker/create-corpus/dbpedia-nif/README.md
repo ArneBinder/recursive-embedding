@@ -130,9 +130,9 @@ NOTE: The processing can be interrupted any time, restarting continues from the 
 
 
 ## TODO:
- * forest (batches): generate **children arrays** from parent DONE
- * forest (batches): calc **resource_offsets**: get root_offsets -> add 1 (positions of resource_ids) -> get data (resource_id) -> generate mapping {resource_id: root_offset} -> save as numpy
- * forest (batches): **count values**:  `np.unique(data, return_counts=True)` -> `unique.dump` and `count.dump`
+ * DONE forest (batches): generate **children arrays** from parent
+ * DONE forest (batches): calc **resource_offsets**: get root_offsets -> dump (evtl. check against resource_hashes array: add 1 to root_offsets (gets positions of resource_ids) -> get data (resource_id hashes))
+ * DONE forest (batches): **count values**:  `np.unique(data, return_counts=True)` -> `unique.dump` and `count.dump`
  * lexicon: **merge**
  * counts: **merge**
  * lexicon & counts & forest (batches): set low frequency **words to UNKNOWN** (differentiate between resource_ids and other data)

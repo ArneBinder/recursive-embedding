@@ -81,6 +81,9 @@ PREFIX_CONTEXT = '?dbpv=2016-10&nif=context'
 FE_RESOURCE_HASHES = 'resource.hash'
 FE_RESOURCE_HASHES_FAILED = 'resource.hash.failed'
 FE_FAILED = 'failed'
+FE_ROOTS = 'root'
+FE_UNIQUE_HASHES = 'unique.hash'
+FE_COUNTS = 'count'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.INFO)
@@ -290,7 +293,16 @@ def save_current_forest(i, forest, resource_hashes, failed, resource_hashes_fail
     if forest is not None:
         forest.dump(filename)
         lexicon.dump(filename, strings_only=True)
+        roots = forest.roots
+        roots.dump('%s.%s' % (filename, FE_ROOTS))
         resource_hashes.dump('%s.%s' % (filename, FE_RESOURCE_HASHES))
+        # consistency check
+        resource_hashes_check = forest.data[roots + 1]
+        assert np.array_equal(resource_hashes_check, resource_hashes), 'data[roots+1] does not match resource_hashes'
+        # consistency check end
+        unique, counts = np.unique(forest.data, return_counts=True)
+        unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
+        counts.dump('%s.%s' % (filename, FE_COUNTS))
         logger.info('%i: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
                     % (i, str(t_query), str(t_parse), len(failed), len(forest), len(lexicon)))
     else:
@@ -426,7 +438,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         except Exception as e:
             logger.warn('connection failed: %s wait %i seconds ...' % (str(e), 10))
             time.sleep(10)
-    logger.info('connected')
+    logger.info('THREAD MAIN: connected')
 
     def do_query(_q_in, _q_out, thread_id):
         logger.info('THREAD %i QUERY: set up connection ...' % thread_id)
@@ -472,7 +484,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         worker_parse.start()
 
     t_start = datetime.now()
-    logger.info('fill query queue ...')
+    logger.info('THREAD MAIN: fill query queue ...')
     current_contexts = []
     resource_hashes = []
     batch_start = 0
@@ -484,7 +496,6 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             if len(current_contexts) > 0:
                 fn = os.path.join(out_path, 'forest-%i' % batch_start)
                 if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
-                    #logger.warn(fn)
                     q_query.put((batch_start, current_contexts))
                     current_batch_count += 1
                     current_contexts = []
@@ -502,7 +513,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
                     hashes_current = np.sort(np.array(resource_hashes, dtype=hashes_prev.dtype))
                     assert np.array_equal(hashes_prev, hashes_current), 'order has changed. batch %i does not match ' \
                                                                         'previously calculated one.' % current_batch_count
-
+                    # consistency check end
                     current_contexts = []
                     resource_hashes = []
             batch_start = i
