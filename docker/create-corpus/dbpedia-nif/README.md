@@ -118,7 +118,7 @@ git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding
 ```
 
-Configure parameters in [`docker/create-corpus/dbpedia-nif/.env`](.env), especially set `HOST_VIRTUOSO_DATA` to the value of `db_dir` and `HOST_CORPORA_OUT` to the directory you want to output the corpus files (size: ~32 GB).
+Configure parameters in [`docker/create-corpus/dbpedia-nif/.env`](.env), especially set `HOST_VIRTUOSO_DATA` to the value of `db_dir` and `HOST_CORPORA_OUT` to the directory you want to output the corpus files (ATTENTION: expected corpus size: ~32 GB (batches) + X GB (final)).
 
 To start the processing, execute from repository root:
 
@@ -126,7 +126,7 @@ To start the processing, execute from repository root:
 cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif
 ```
 
-NOTE: The processing can be interrupted any time, restarting continues from the latest position. (TODO: Verify that order of triples in main loop does not change!)
+NOTE: The processing can be interrupted any time, restarting continues from the latest position.
 
 
 ## TODO:
