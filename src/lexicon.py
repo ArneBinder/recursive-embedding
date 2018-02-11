@@ -380,11 +380,12 @@ class Lexicon(object):
             else:
                 # set dummy vecs
                 self.init_vecs()
-            if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
-                logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
-                self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
-                self._ids_fixed_dict = None
-                self._ids_var_dict = None
+            # already done by init_vecs
+            #if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
+            #    logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
+            #    self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
+            #    self._ids_fixed_dict = None
+            #    self._ids_var_dict = None
         elif types is not None:
             types_dep = types
             self._strings = StringStore(types_dep)
