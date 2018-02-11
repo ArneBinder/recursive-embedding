@@ -118,7 +118,7 @@ git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding
 ```
 
-Configure parameters in `docker/create-corpus/dbpedia-nif/.env`, especially `HOST_VIRTUOSO_DATA` and `HOST_CORPORA_OUT`
+Configure parameters in [`docker/create-corpus/dbpedia-nif/.env`](docker/create-corpus/dbpedia-nif/.env), especially `HOST_VIRTUOSO_DATA` and `HOST_CORPORA_OUT`
 
 To start the processing, execute from project root:
 
