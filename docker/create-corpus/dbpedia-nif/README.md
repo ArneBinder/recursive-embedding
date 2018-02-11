@@ -14,8 +14,8 @@ network training. The corpus consists of:
  every data point followed by the child offsets. The children position array indicates for every data point, where to look 
  in the children array or holds a negative value, if the data point has no children.
 
-The workflow is as follows. Each article is split into its terminal NIF structure objects: nif:Paragraph or nif:Title. The terminals are parsed and serialized into trees by using the dependency structure. Thereby, artificial link nodes are appended to word nodes, that are contained in hyperlinks to other DBpedia resources. If a words parent links to the same resource, the link node is append to the parent only. Then, terminal trees are combined in means of the NIF structure elements that they contain (nif:Section). Note that nif:Structure elements can embed several nif:Structure elements again.
-In its current state, the service uses only the first section of every article. To query the respective data, it is loaded into a local Virtuoso triple store.
+The workflow is as follows. Each article is split into its terminal NIF structure objects: nif:Paragraph\[s\] and nif:Title\[s\]. The terminals are parsed and converted into trees by using its dependency structure. Thereby, an artificial link node is appended to every word node, that is contained in a hyperlink to another DBpedia resource. If a words parent links to the same resource, the link node is appended to the parent only. Then, terminal trees are combined in means of the NIF structure elements that they contain (nif:Section). Note that nif:Section elements can embed several nif:Section elements again.
+In its current state, the service uses only the first section of every article, that corresponds to the article abstract, if it is available. To query the respective data, it is loaded into a local Virtuoso triple store.
 
 
 ## HOW TO build the corpus
