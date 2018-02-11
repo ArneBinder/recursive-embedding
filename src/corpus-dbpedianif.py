@@ -6,11 +6,13 @@ import threading
 from datetime import datetime, timedelta
 import time
 import plac
+import numpy as np
 
 import os
 from threading import Thread
 
 import spacy
+from spacy.strings import hash_string
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
@@ -22,6 +24,7 @@ from toolz import partition_all
 
 from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples
+from constants import DTYPE_HASH
 import preprocessing
 
 """
@@ -72,6 +75,12 @@ DBR = Namespace("http://dbpedia.org/resource/")
 DBO = Namespace("http://dbpedia.org/ontology/")
 ITSRDF = Namespace("http://www.w3.org/2005/11/its/rdf#")
 ns_dict = {'nif': NIF, 'dbr': DBR, 'itsrdf': ITSRDF, 'rdf': RDF, 'rdfs': RDFS, 'dbo': DBO}
+
+PREFIX_CONTEXT = '?dbpv=2016-10&nif=context'
+
+FE_RESOURCE_HASHES = 'resource.hash'
+FE_RESOURCE_HASHES_FAILED = 'resource.hash.failed'
+FE_FAILED = 'failed'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.INFO)
@@ -151,7 +160,7 @@ def prepare_context_data(graph, nif_context,
     tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
         children_typed,
         see_also_refs=see_also_refs,
-        root_id=unicode(nif_context)[:-len('?dbpv=2016-10&nif=context')])
+        root_id=unicode(nif_context)[:-len(PREFIX_CONTEXT)])
     terminal_uri_strings, terminal_strings = zip(
         *[(unicode(uri), nif_context_str[int(begin):int(end)]) for uri, begin, end in terminals])
 
@@ -276,22 +285,25 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
-def save_current_forest(i, forest, failed, lexicon, filename, t_parse, t_query):
+def save_current_forest(i, forest, resource_hashes, failed, resource_hashes_failed, lexicon, filename, t_parse, t_query):
 
-    #fn = os.path.join(out_path, 'forest-%i' % i)
     if forest is not None:
         forest.dump(filename)
         lexicon.dump(filename, strings_only=True)
+        resource_hashes.dump('%s.%s' % (filename, FE_RESOURCE_HASHES))
         logger.info('%i: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
                     % (i, str(t_query), str(t_parse), len(failed), len(forest), len(lexicon)))
     else:
         logger.info('%i: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
                     % (i, str(t_query), str(t_parse), len(failed), 0, len(lexicon)))
     if failed is not None and len(failed) > 0:
-        with open('%s.failed' % filename, 'w', ) as f:
+        with open('%s.%s' % (filename, FE_FAILED), 'w', ) as f:
             for uri, e in failed:
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
-    #Lexicon.delete(last_fn, types_only=True)
+        assert len(resource_hashes_failed) > 0, 'entries in "failed" list, but resource_hashes_failed is empty'
+        resource_hashes_failed.dump('%s.%s' % (filename, FE_RESOURCE_HASHES_FAILED))
+    else:
+        assert len(resource_hashes_failed) == 0, 'entries in resource_hashes_failed, but "failed" list is empty'
 
 
 class ThreadParse(threading.Thread):
@@ -353,24 +365,31 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
     t_start = datetime.now()
     lexicon = Lexicon()
     tree_contexts = []
+    resource_hashes = []
+    resource_hashes_failed = []
 
     for nif_context_data in nif_context_datas:
+        context = nif_context_data[-1]
+        res_hash = hash_string(unicode(context)[:-len(PREFIX_CONTEXT)])
         try:
             #nif_context_data = prepare_context_data(graph, context)
             tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
             tree_context.children_dict_to_arrays()
             tree_contexts.append(tree_context)
+            resource_hashes.append(res_hash)
         except Exception as e:
-            context = nif_context_data[-1]
             failed.append((context, e))
+            resource_hashes_failed.append(res_hash)
 
     if len(tree_contexts) > 0:
         forest = Forest.concatenate(tree_contexts)
     else:
         forest = None
 
-    save_current_forest(i=begin_idx + len(nif_context_datas) + len(failed), forest=forest, failed=failed,
-                        lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
+    save_current_forest(i=begin_idx + len(nif_context_datas) + len(failed), forest=forest,
+                        resource_hashes=np.array(resource_hashes, dtype=DTYPE_HASH), failed=failed,
+                        resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH), lexicon=lexicon,
+                        filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
 @plac.annotations(
@@ -396,7 +415,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     q_query = Queue.Queue(maxsize=100)
     q_parse = Queue.Queue(maxsize=100)
 
-    logger.info('set up connection ...')
+    logger.info('THREAD MAIN: set up connection ...')
     while True:
         try:
             Virtuoso = plugin("Virtuoso", Store)
@@ -409,7 +428,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             time.sleep(10)
     logger.info('connected')
 
-    def do_query(_q_in, _q_out, _g):
+    def do_query(_q_in, _q_out, thread_id):
+        logger.info('THREAD %i QUERY: set up connection ...' % thread_id)
+        store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+        _g = Graph(store, identifier=URIRef(default_graph_uri))
+        logger.info('THREAD %i QUERY: connected' % thread_id)
         while True:
             begin_idx, contexts = _q_in.get()
             t_start = datetime.now()
@@ -424,7 +447,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             _q_out.put((begin_idx, nif_context_datas, failed, datetime.now() - t_start))
             _q_in.task_done()
 
-    def do_parse(_q, _nlp, _path_out):
+    def do_parse(_q, _path_out, thread_id):
+        logger.info('THREAD %i PARSE: load spacy ...' % thread_id)
+        _nlp = spacy.load('en')
+        logger.info('THREAD %i PARSE: loaded' % thread_id)
+
         while True:
             begin_idx, nif_context_datas, failed, t_query = _q.get()
             fn = os.path.join(out_path, 'forest-%i' % begin_idx)
@@ -436,23 +463,18 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             _q.task_done()
 
     for i in range(num_threads / 2):
-        logger.info('set up connection ...')
-        store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
-        g = Graph(store, identifier=URIRef(default_graph_uri))
-        logger.info('load spacy ...')
-        nlp = spacy.load('en')
-
-        worker_query = Thread(target=do_query, args=(q_query, q_parse, g))
+        worker_query = Thread(target=do_query, args=(q_query, q_parse, i / 2))
         worker_query.setDaemon(True)
         worker_query.start()
 
-        worker_parse = Thread(target=do_parse, args=(q_parse, nlp, out_path))
+        worker_parse = Thread(target=do_parse, args=(q_parse, out_path, i / 2 + 1))
         worker_parse.setDaemon(True)
         worker_parse.start()
 
     t_start = datetime.now()
     logger.info('fill query queue ...')
     current_contexts = []
+    resource_hashes = []
     batch_start = 0
     current_batch_count = 0
     for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
@@ -465,12 +487,27 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
                     #logger.warn(fn)
                     q_query.put((batch_start, current_contexts))
                     current_batch_count += 1
+                    current_contexts = []
+                    resource_hashes = []
                     if current_batch_count >= batch_count > 0:
-                        current_contexts = []
                         break
-                current_contexts = []
+                else:
+                    # consistency check of previously processed batches
+                    loaded_resource_hashes = np.load('%s.%s' % (fn, FE_RESOURCE_HASHES))
+                    if os.path.isfile('%s.%s' % (fn, FE_RESOURCE_HASHES_FAILED)):
+                        loaded_resource_hashes_failed = np.load('%s.%s' % (fn, FE_RESOURCE_HASHES_FAILED))
+                        hashes_prev = np.sort(np.concatenate([loaded_resource_hashes, loaded_resource_hashes_failed]))
+                    else:
+                        hashes_prev = np.sort(loaded_resource_hashes)
+                    hashes_current = np.sort(np.array(resource_hashes, dtype=hashes_prev.dtype))
+                    assert np.array_equal(hashes_prev, hashes_current), 'order has changed. batch %i does not match ' \
+                                                                        'previously calculated one.' % current_batch_count
+
+                    current_contexts = []
+                    resource_hashes = []
             batch_start = i
         current_contexts.append(context)
+        resource_hashes.append(hash_string(unicode(context)[:-len(PREFIX_CONTEXT)]))
 
     fn = os.path.join(out_path, 'forest-%i' % batch_start)
     if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
