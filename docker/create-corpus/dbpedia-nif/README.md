@@ -112,7 +112,7 @@ docker run --name dbpedia \
     joernhees/virtuoso run
 ``` 
 
-Clone this repo:
+Clone this repository:
 ```bash
 git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding
@@ -120,7 +120,7 @@ cd recursive-embedding
 
 Configure parameters in [`docker/create-corpus/dbpedia-nif/.env`](.env), especially set `HOST_VIRTUOSO_DATA` to the value of `db_dir` and `HOST_CORPORA_OUT` to the directory you want to output the corpus files (size: ~30 GB).
 
-To start the processing, execute from project root:
+To start the processing, execute from repository root:
 
 ```bash
 cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif
