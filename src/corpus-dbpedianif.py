@@ -475,11 +475,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             _q.task_done()
 
     for i in range(num_threads / 2):
-        worker_query = Thread(target=do_query, args=(q_query, q_parse, i / 2))
+        worker_query = Thread(target=do_query, args=(q_query, q_parse, i * 2))
         worker_query.setDaemon(True)
         worker_query.start()
 
-        worker_parse = Thread(target=do_parse, args=(q_parse, out_path, i / 2 + 1))
+        worker_parse = Thread(target=do_parse, args=(q_parse, out_path, i * 2 + 1))
         worker_parse.setDaemon(True)
         worker_parse.start()
 
