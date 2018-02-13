@@ -42,7 +42,7 @@ This tuple is scored with a relatedness of $0.0$. However, one might expect that
 	\ex \label{ex:no_sick} A woman is chopping an onion \\
 		A man is washing his feet
 \end{exe}
-Of course, different segments of a sentence, like the verbal parts, could be more important to the total meaning then other. But denying the fact, that the actor in Example~\ref{ex:sick} is identical, \todo{AB: "despite \textit{woman} is conceptional not very specific,} seems to be too shallow\todo{AB: better??}. This could be an instance of priming \autocite{weingarten_primed_2016}, i.e., that reading one sentence influences the perception of a following one unconsciously. It leads to the question if relatedness expressed at the beginning of the sentences is systematically underrated in the SICK corpus.
+Of course, different segments of a sentence, like the verbal parts, can be more important to the total meaning then other. But denying the fact, that the actor in Example~\ref{ex:sick} is identical, \todo{AB: "despite \textit{woman} is conceptional not very specific,} seems to be too shallow\todo{AB: better??}. This could be an instance of priming \autocite{weingarten_primed_2016}, i.e., that reading one sentence influences the perception of a following one unconsciously. It leads to the question if relatedness expressed at the beginning of the sentences is systematically underrated in the SICK corpus.
 
 We discarded the evaluation result in means of Pearson's $r$ because it shows same strange behavior that we traced back to a deviation bias along the parameter Order Aware. To determine the origin of these circumstances, further investigations are necessary. Especially, the impact of switching to a loss function based on Pearson correlation should be examined.
 
@@ -70,3 +70,10 @@ We discarded the evaluation result in means of Pearson's $r$ because it shows sa
 % strange Pearson scores
 
 \section{Conclusion}
+
+This work shows that simple neural composition models perform well for sentence relatedness prediction by implementing an \ac{RNN} based sequential approach and an averaging model that transforms the embeddings individually with a \ac{FC} layer. Our results are comparable with the best submissions for SemEval-2014 Task 1. However, recent models outperform these results.
+
+We demonstrated that composition based on sequential processing outperforms averaging of individually processed embeddings when keeping the amounts of trainable parameters equal. 
+
+Furthermore, we argued that dependency type data encodes context information that is important for semantic aware token composition. Despite sequential processing outperforms the sole usage of dependency type data, there are cases in which the later is superior, like negation. %Whether there is a correlation between the relationship of sequential processing and dependency information and the flexibility of a language's word order is open for debate.
+
