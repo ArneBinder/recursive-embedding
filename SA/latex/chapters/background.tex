@@ -1,11 +1,12 @@
 \section{Theoretical Background}
 
-This chapter provides an overview of base concepts regarding semantic aware vector space representations and neural machine learning models to produce them. Furthermore, we briefly introduce the concept of linguistic dependency types.
+This chapter provides an overview of base concepts regarding semantic aware vector space representations and neural machine learning models that produce them. Furthermore, we briefly introduce the concept of linguistic dependency types.
 
 \subsection{Evaluation of Semantic Awareness} \label{subsec:eval_semantic_awareness}
-Following the Distributional Hypothesis \autocite{sahlgren_distributional_2008,harris_distributional_1954}\todo{AB:check references}, that linguistic items with similar distributions have similar meanings, a conceptional space should be arranged in a way, that distances of concepts follow the human intuition. By doing so, the meaning of these concepts should be as expected as by humans.
+%sahlgren_distributional_2008
+Following the Distributional Hypothesis \autocite{harris_distributional_1954}, that linguistic items with similar distributions have similar meanings, a conceptional space should be arranged in a way, that distances of concepts follow the human intuition. By doing so, the meaning of these concepts should be as expected as by humans.
 
-We define semantic awareness as a property describing how much meaning a representational space is able to convoy with respect to the space of origin, textual natural language. Furthermore, the state of being semantically aware references the maximal achievable semantic awareness, i.e. convoying the same meaning as the origin of the representation. % move (<-) to previous chapter?
+We define semantic awareness as a property describing how much meaning a representational space is able to convoy with respect to the space of origin, textual natural language. Furthermore, the theoretical state of being semantic aware references the maximal achievable semantic awareness, i.e. convoying the same meaning as the origin of the representation. % move (<-) to previous chapter?
 
 With regard to the Distributional Hypothesis semantic awareness can be measured by the correlation of the distances between different concepts in the representational space and the distances between its source concept representations in the original space. Despite the concept of \textit{distance} seems to be more intuitive in the context of representational spaces, its inverse, the concept of \textit{similarity}, commonly serves as base of comparison.  
 
@@ -340,7 +341,7 @@ f_T^{GLOVE}(t_i) = f_C^{GLOVE}(c_i) = w \cdot e_i + b_i
 \end{equation}
 
 \subsubsection{Composition Models}
-\acfp{CDSM} \todo{AB:REF!} intend to produce document embeddings $\hat{d}$ from a sequence of term embeddings $\hat{s} = [\hat{t}_1, ..., \hat{t}_\kappa]$ with $\forall \hat{t} \in \hat{s}: \hat{t} = f_T(t), t \in T, \hat{t} \subseteq \mathbb{R}^{\hat{m}}$. They can be expressed recursively by:
+\acfp{CDSM} \autocite{clark_compositional_2008,grefenstette_experimental_2011} intend to produce document embeddings $\hat{d}$ from a sequence of term embeddings $\hat{s} = [\hat{t}_1, ..., \hat{t}_\kappa]$ with $\forall \hat{t} \in \hat{s}: \hat{t} = f_T(t), t \in T, \hat{t} \subseteq \mathbb{R}^{\hat{m}}$. They can be expressed recursively by:
 \begin{equation}
 \begin{split}
 f_{CM}(\hat{s}) & = f_N(f_{Rec}(\hat{s}; h_I); |\hat{s}|) \quad \text{and} \\
