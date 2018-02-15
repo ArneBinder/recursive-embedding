@@ -747,7 +747,7 @@ class Forest(object):
 
         logging.debug('graph created. write to file ...')
         # print(graph.to_string())
-        graph.write_svg(filename)
+        graph.write_svg(filename, encoding='utf-8')
 
     @staticmethod
     def filter_and_shorten_label(l, blacklist=[], do_filter=True):
