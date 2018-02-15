@@ -19,6 +19,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      python corpus-dbpedianif.py --out-path /root/corpora_out/DBPEDIANIF --batch-size ${BATCH_SIZE}
+      python corpus-dbpedianif.py CREATE_BATCHES
+                                  --out-path /root/corpora_out/DBPEDIANIF --batch-size ${BATCH_SIZE}
                                   --num-threads ${NUM_THREADS} --start-offset ${START}
                                   --batch-count=${BATCH_COUNT}

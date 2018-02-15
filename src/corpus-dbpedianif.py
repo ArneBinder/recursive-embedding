@@ -529,10 +529,26 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     print('%s finished' % str(datetime.now() - t_start))
 
 
+def process_batches():
+    pass
+
+
+@plac.annotations(
+    mode=('processing mode', 'positional', None, str, ['CREATE_BATCHES', 'MERGE_BATCHES']),
+    args='the parameters for the underlying processing method')
+def main(mode, *args):
+    if mode == 'CREATE_BATCHES':
+        plac.call(process_contexts_multi, args)
+    elif mode == 'MERGE_BATCHES':
+        plac.call(process_batches, args)
+    else:
+        raise ValueError('unknown mode. use one of CREATE_BATCHES or MERGE_BATCHES.')
+
+
 if __name__ == '__main__':
     #test_connect_utf8()
     #process_contexts_multi()
-    plac.call(process_contexts_multi)
+    plac.call(main)
     #logger.info('set up connection ...')
     #Virtuoso = plugin("Virtuoso", Store)
     #store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
