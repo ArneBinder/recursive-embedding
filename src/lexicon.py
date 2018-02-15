@@ -643,15 +643,17 @@ class Lexicon(object):
 
     def convert_data_hashes_to_indices(self, data):
         s_uk = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-        assert s_uk in self.strings, '%s not in lexicon' % s_uk
+        data_new = np.zeros(shape=data.shape, dtype=DTYPE_IDX)
+        #assert s_uk in self.strings, '%s not in lexicon' % s_uk
         for i in range(len(data)):
             d = data[i]
             if d in self.mapping:
-                data[i] = self.mapping[d]
+                data_new[i] = self.mapping[d]
             else:
-                data[i] = self.mapping[self.strings[s_uk]]
+                data_new[i] = self.mapping[self.strings[s_uk]]
         self.freeze()
-        return data.astype(DTYPE_IDX)
+        #return data.astype(DTYPE_IDX)
+        return data_new
 
     def read_data(self, return_hashes=False, *args, **kwargs):
         data, parents = read_data(*args, strings=self.strings, **kwargs)

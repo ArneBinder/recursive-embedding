@@ -256,6 +256,23 @@ def get_or_calc_sequence_data(params):
         params['data_sequences'] = [data_sequence]
         token_list = forest.get_text_plain(blacklist=params.get('prefix_blacklist', None), start=idx_start, end=idx_end)
         params['sequences'] = [token_list]
+    elif 'idx' in params:
+        params['sequences'] = []
+        params['data_sequences'] = []
+        init_forest(data_path)
+
+        max_depth = params.get('max_depth', 10)
+        context = params.get('context', 0)
+        idx = params['idx']
+        if forest.data_as_hashes:
+            forest.hashes_to_indices()
+        tree_dict = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False)
+        vis_forest = Forest(tree_dict=tree_dict, lexicon=forest.lexicon, data_as_hashes=forest.data_as_hashes)
+        params['data_as_hashes'] = vis_forest.data_as_hashes
+        params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]
+        token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None))
+        params['sequences'] = [token_list]
+
     elif 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
         concat_mode = FLAGS.default_concat_mode
@@ -622,7 +639,7 @@ def main(data_source):
     else:
         data_path = data_source
         logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
-        assert Lexicon.exist(data_source), 'No lexicon found at: %s' % data_source
+        assert Lexicon.exist(data_source, types_only=True), 'No lexicon found at: %s' % data_source
         lexicon = Lexicon(filename=data_source)
 
     if FLAGS.external_lexicon:
