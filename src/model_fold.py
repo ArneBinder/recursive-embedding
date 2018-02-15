@@ -510,6 +510,17 @@ class TreeEmbedding_reduceAVG(TreeEmbedding_reduce):
         return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Mean())
 
 
+class TreeEmbedding_reduceMAX(TreeEmbedding_reduce):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_reduceMAX, self).__init__(name='reduceMAXG_' + name, **kwargs)
+
+    @property
+    def reduce(self):
+        return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Max())
+
+
 class TreeEmbedding_HTUrev(TreeEmbedding_reduce, TreeEmbedding_map):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
