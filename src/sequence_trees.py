@@ -346,7 +346,7 @@ FE_DATA = 'data'
 FE_PARENTS = 'parent'
 FE_DATA_HASHES = 'data.hash'
 FE_CHILDREN = 'child'
-FE_CHILDREN_OFFSET = 'child.offset'
+FE_CHILDREN_OFFSET = 'child.pos'
 
 
 class Forest(object):
