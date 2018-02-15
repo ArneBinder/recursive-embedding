@@ -285,7 +285,8 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
                                     root_type="http://dbpedia.org/resource",
                                     anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
                                     terminal_types=None,
-                                    see_also_link_type="http://dbpedia.org/ontology/seeAlsoWikiPageWikiLink"
+                                    see_also_ref_type="http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso",
+                                    see_also_section_type = "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso"
                                     #see_also_type="http://dbpedia.org/ontology/wikiPageWikiLink"
                                     ):
     """
@@ -307,12 +308,13 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     root_type_str = unicode(root_type)
     root_id_str = unicode(root_id)
     anchor_type_str = unicode(anchor_type)
-    see_also_link_type_str = unicode(see_also_link_type)
-    temp_data = [root_type_str, root_id_str, anchor_type_str]
-    temp_parents = [0, -1, -2]
+    see_also_link_type_str = unicode(see_also_ref_type)
+    see_also_section_type_str = unicode(see_also_section_type)
+    temp_data = [root_type_str, root_id_str, anchor_type_str, see_also_section_type_str]
+    temp_parents = [0, -1, -2, -3]
     for see_also_ref, in see_also_refs:
         temp_data.append(see_also_link_type_str)
-        temp_parents.append(-len(temp_parents))
+        temp_parents.append(3 - len(temp_parents))
         temp_data.append(unicode(see_also_ref))
         temp_parents.append(-1)
     pre_len = len(temp_data)
