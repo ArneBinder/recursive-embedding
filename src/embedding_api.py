@@ -478,6 +478,7 @@ def visualize():
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
             response = send_file(TEMP_FN_SVG)
+            os.remove(TEMP_FN_SVG)
         elif mode == 'text':
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
             json_data = json.dumps(filter_result(make_serializable(params)))
