@@ -5,7 +5,7 @@ We conduct several experiments for the four settings to evaluate the influence o
 We use the SICK corpus\footnote{\url{http://alt.qcri.org/semeval2014/task1/index.php?id=data-and-tools}} \autocite{marelli_sick_2014} for model training and evaluation. The corpus consists of about approximately 10.000 pairs of English sentences based on the 8K ImageFlickr data set\footnote{\url{http://nlp.cs.illinois.edu/
 HockenmaierGroup/data.html}} \autocite{hodosh_framing_2013} and the SemEval 2012 STS MSR-Video Description data set\footnote{\url{https://www.cs.york.ac.uk/semeval-2012/task6/index.php\%3Fid=data.html}} \autocite{agirre_semeval-2012_2012} that contain sentences describing the same picture or video. These sentences were linguistically normalized, so Named Entities and complex verb constructions are replaced or subordinates are turned into coordinates, for instance. Furthermore, they are manually expanded to generate candidate pairs that were labeled by 5 annotators with one to five point relatedness ratings that are averaged to produce a relatedness score. We rescaled the scores into the interval $[0.0, 1.0]$ to let them fit into our definition of a similarity measure. Table~\ref{tab:sick_examples} shows some examples of the dataset. The mean of the score for both train and test set is approximately $0.63$. The sentences contain $2408$ different token types and have an average length of $9.6$ words.  
 
-We chose the SICK corpus because it was used in the SemEval 2014 task 1, thus it is widely studied and various reference systems exist. Furthermore, as stated in \textcite{marelli_semeval-2014_2014}, this corpus was created to evaluate semantical aware composition without relying on too many external tools and resources (e.g., named-entity recognizers, gazetteers, ontologies).
+We chose the SICK corpus because it was used in the SemEval 2014 task 1\footnote{\url{http://alt.qcri.org/semeval2014/task1/}}, thus it is widely studied and various reference systems exist. Furthermore, as stated by \textcite{marelli_semeval-2014_2014}, this corpus was created to evaluate semantical aware composition without relying on too many external tools and resources (e.g., named-entity recognizers, gazetteers, ontologies).
 %mean score: 0.63 * 4.0 + 1.0 = 3.53
 
 \begin{table*}[!htb]
@@ -55,10 +55,11 @@ We measured performance using the Pearson correlation coefficient and \ac{MSE} b
 \begin{table}[htb!]
   	\centering
   	%\begin{tabular}{|l|l|l|}
- \begin{tabularx}{\textwidth}{|X X|X|X|}
+ \begin{tabularx}{
+ 		\textwidth}{|p{0.26\textwidth} p{0.25\textwidth}|X|X|}%{|X X|X|X|}
  %\begin{tabularx}{\textwidth}{|p{0.21\textwidth} p{0.15\textwidth}|X|X|} %{p{0.4\textwidth}|p{0.4\textwidth}|c}
 		\hline
-		dependency type & order aware & mse & pearson \\ \hline \hline
+		\texttt{dependency available} & \texttt{order aware} & mse & pearson \\ \hline \hline
 		NO & NO & 0.0284 & 0.8382 \\ 
 		NO & YES & 0.0206 & 0.8375 \\
 		YES & NO & 0.0274 & 0.8413 \\
@@ -108,7 +109,7 @@ Adding \textbf{dependency types} improves the overall \ac{MSE} by $0.05\%$ and P
 		order aware & YES & 0.0206 & $+0.75\%$ & 0.8379 & $-0.21\%$ \\ \hline	   		
 	\end{tabularx}
 	%\captionsetup{width=0.9\linewidth}
-	\caption{Scores aggregated by individual parameter assignment and percentage improvement when enabling the feature. The improvement marked with (*) is not significant.}
+	\caption{Scores aggregated by individual parameter assignment and improvement when enabling the feature. The improvement marked with (*) is not significant.}
 	\label{tab:results_merged}
 \end{table}
 
@@ -190,7 +191,7 @@ that:
 %\subsubsection{Pretraining}
 
 \subsubsection{Value of Dependency Types}
-In order to further investigate the value of dependency type data for semantic aware composition we have taken a closer look at the sentence pairs in which only adding this data outperforms the setting in which parameter Order Aware is enabled exclusively. Table~\ref{tab:results_benefit_DA} lists the top 10 of these data points. Trying to examine the reasons behind cases of superior performance reveals two main classes of constructions (see column \textit{remarks} of Table~\ref{tab:results_benefit_DA}). At first, half of the top 10 sentence pairs contains passive constructions. Secondly, three sentence pairs are related to negation. 
+In order to further investigate the value of dependency type data for semantic aware composition we have taken a closer look at the sentence pairs in which only adding this data outperforms the setting in which parameter \texttt{order aware} is enabled exclusively. Table~\ref{tab:results_benefit_DA} lists the top 10 of these data points. Trying to examine the reasons behind cases of superior performance reveals two main classes of constructions (see column \textit{remarks} of Table~\ref{tab:results_benefit_DA}). At first, half of the top 10 sentence pairs contains passive constructions. Secondly, three sentence pairs are related to negation. 
 
 As it turns out, dependency type data is indeed beneficial to handle composition of tokens involved in passive constructions. We filtered the test data set for dependency types indicating these constructions (\textit{auxpass}: passive auxiliary; \textit{nsubjpass}: passive nominal subject; \textit{csubjpass}: passive clausal subject) and calculated \ac{MSE} scores\footnote{We used the relatedness scores predicted by the best model for each setting with respect to train/test split and run.}. Table~\ref{tab:mse_passive} and Figure~\ref{fig:fig_mse_passive} present the resulting data. The Dependency Available setting ([YES, NO]) significantly ($p < 0.0001$) outperforms the Order Aware setting ([NO, YES]) in the presence of passive constructions. Furthermore, negation seems to be hard in general. Similar to the passive check, we selected a subset of the test dataset, but filtered by dependency type \textit{neg} and words like "no" or "nobody". For all four settings, the performance dropped significantly when switching from the subset without negation to the negation subset. Despite initial thoughts, negation favors Order Awareness (e.g., performance drop of $-0.2\%$ for [NO, YES] vs. $-0.5\%$ for [YES, NO]) as visualized in Figure~\ref{fig:fig_mse_passive}. Again, Table~\ref{tab:mse_passive} displays the specific evaluation scores and, in addition, relative performance differences with respect to the considered data split.
 
