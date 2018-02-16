@@ -9,6 +9,17 @@ from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DE
 import constants
 
 
+FE_DATA = 'data'
+FE_PARENTS = 'parent'
+FE_DATA_HASHES = 'data.hash'
+FE_CHILDREN = 'child'
+FE_CHILDREN_OFFSET = 'child.pos'
+#FE_ROOTS = 'root'
+FE_ROOT_ID = 'root.id'
+
+MAX_DEPTH = 9999
+
+
 def load(fn):
     logging.debug('load data and parents ...')
     data = np.load('%s.data' % fn)
@@ -344,17 +355,9 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
-FE_DATA = 'data'
-FE_PARENTS = 'parent'
-FE_DATA_HASHES = 'data.hash'
-FE_CHILDREN = 'child'
-FE_CHILDREN_OFFSET = 'child.pos'
-#FE_ROOTS = 'root'
-
-
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None, children=None,
-                 children_offset=None, data_as_hashes=False):
+                 children_offset=None, data_as_hashes=False, root_ids=None):
         self.reset_cache_values()
         self._as_hashes = data_as_hashes
         self._lexicon = None
@@ -362,17 +365,20 @@ class Forest(object):
         self._parents = None
         self._children = None
         self._children_pos = None
+
         if lexicon is not None:
             self._lexicon = lexicon
-        if (data is not None and parents is not None) or forest is not None or filename is not None:
-            self.set_forest(filename=filename, data=data, parents=parents, forest=forest,
-                            children=children, children_offset=children_offset, data_as_hashes=data_as_hashes)
+        if filename is not None:
+            self.load(filename=filename)
+        elif (data is not None and parents is not None) or forest is not None:
+            self.set_forest(data=data, parents=parents, forest=forest, children=children,
+                            children_offset=children_offset, data_as_hashes=data_as_hashes, root_ids=root_ids)
         elif tree_dict is not None:
             _data, _parents = sequence_node_to_sequence_trees(tree_dict)
-            self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes)
+            self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes, root_ids=root_ids)
         else:
             raise ValueError(
-                'Not enouth arguments to instantiate SequenceTrees object. Please provide a filename or data and parent arrays.')
+                'Not enouth arguments to instantiate Forest object. Please provide a filename or data and parent arrays.')
         #self._sorted = np.zeros(len(self), dtype=bool)
 
     def reset_cache_values(self):
@@ -382,21 +388,31 @@ class Forest(object):
         self._depths_collected = None
         self._dicts = {}
 
-    def set_forest(self, filename=None, data=None, parents=None, forest=None, children=None, children_offset=None,
-                   data_as_hashes=False):
-        if filename is not None:
-            logging.debug('load data and parents from %s ...' % filename)
-            if os.path.exists('%s.%s' % (filename, FE_DATA)):
-                data = np.load('%s.%s' % (filename, FE_DATA))
-            elif os.path.exists('%s.%s' % (filename, FE_DATA_HASHES)):
-                data = np.load('%s.%s' % (filename, FE_DATA_HASHES))
-                data_as_hashes = True
-            else:
-                raise IOError('data file (%s.%s or %s.%s) not found' % (filename, FE_DATA, filename, FE_DATA_HASHES))
-            parents = np.load('%s.%s' % (filename, FE_PARENTS))
-            if os.path.exists('%s.%s' % (filename, FE_CHILDREN)) and os.path.exists('%s.%s' % (filename, FE_CHILDREN_OFFSET)):
-                children = np.load('%s.%s' % (filename, FE_CHILDREN))
-                children_offset = np.load('%s.%s' % (filename, FE_CHILDREN_OFFSET))
+    def load(self, filename):
+        logging.debug('load data and parents from %s ...' % filename)
+        if os.path.exists('%s.%s' % (filename, FE_DATA)):
+            self._data = np.load('%s.%s' % (filename, FE_DATA))
+            self._as_hashes = False
+        elif os.path.exists('%s.%s' % (filename, FE_DATA_HASHES)):
+            self._data = np.load('%s.%s' % (filename, FE_DATA_HASHES))
+            self._as_hashes = True
+        else:
+            raise IOError('data file (%s.%s or %s.%s) not found' % (filename, FE_DATA, filename, FE_DATA_HASHES))
+        self._parents = np.load('%s.%s' % (filename, FE_PARENTS))
+        if os.path.exists('%s.%s' % (filename, FE_CHILDREN)) and os.path.exists(
+                '%s.%s' % (filename, FE_CHILDREN_OFFSET)):
+            self._children = np.load('%s.%s' % (filename, FE_CHILDREN))
+            self._children_offset = np.load('%s.%s' % (filename, FE_CHILDREN_OFFSET))
+        else:
+            self._children = None
+            self._children_offset = None
+        if os.path.exists('%s.%s' % (filename, FE_ROOT_ID)):
+            self._root_ids = np.load('%s.%s' % (filename, FE_ROOT_ID))
+        else:
+            self._root_ids = None
+
+    def set_forest(self, data=None, parents=None, forest=None, children=None, children_offset=None,
+                   data_as_hashes=False, root_ids=None):
         self._as_hashes = data_as_hashes
         if self.data_as_hashes:
             data_dtype = DTYPE_HASH
@@ -421,11 +437,23 @@ class Forest(object):
                 children = np.array(children, dtype=DTYPE_OFFSET)
             if not isinstance(children_offset, np.ndarray) or not children_offset.dtype == DTYPE_IDX:
                 children_offset = np.array(children_offset, dtype=DTYPE_IDX)
-            self._children = children
-            self._children_pos = children_offset
+        self._children = children
+        self._children_pos = children_offset
+        self._root_ids = root_ids
 
     def set_lexicon(self, lexicon):
         self._lexicon = lexicon
+
+    def set_root_ids(self, root_ids):
+        assert len(root_ids) == len(self.roots), 'wrong amount of root ids=%i (amount of roots=%i)' \
+                                                 % (len(root_ids), len(self.roots))
+        if self.data_as_hashes:
+            assert root_ids.dtype == DTYPE_HASH, 'wrong dtype of new root_ids=%s (expected: %s)' \
+                                                 % (str(root_ids.dtype), str(DTYPE_HASH))
+        else:
+            assert root_ids.dtype == DTYPE_IDX, 'wrong dtype of new root_ids=%s (expected: %s)' \
+                                                % (str(root_ids.dtype), str(DTYPE_IDX))
+        self._root_ids = root_ids
 
     def dump(self, filename):
         logging.debug('dump data ...')
@@ -440,20 +468,25 @@ class Forest(object):
             self._children.dump('%s.%s' % (filename, FE_CHILDREN))
             self._children_pos.dump('%s.%s' % (filename, FE_CHILDREN_OFFSET))
 
+        if self._root_ids is not None:
+            self._root_ids.dump('%s.%s' % (filename, FE_ROOT_ID))
+
+
     @staticmethod
     def exist(filename):
         a = (os.path.exists('%s.%s' % (filename, FE_DATA)) or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES)))
         b = os.path.exists('%s.%s' % (filename, FE_PARENTS))
         return a and b
 
-    def reload(self, filename):
-        self.reset_cache_values()
-        self.set_forest(*load(filename))
+    #def reload(self, filename):
+    #    self.reset_cache_values()
+    #    self.set_forest(*load(filename))
 
     def hashes_to_indices(self):
         assert self.lexicon is not None, 'no lexicon available'
         assert self.data_as_hashes, 'data consists already of indices'
         self._data = self.lexicon.convert_data_hashes_to_indices(self.data)
+        self._root_ids = self.lexicon.convert_data_hashes_to_indices(self._root_ids)
         self._as_hashes = False
 
     def convert_data(self, converter, new_idx_unknown):
@@ -556,7 +589,7 @@ class Forest(object):
             return idx_trans
         raise ValueError('idx=%i not in ids_fixed and not in ids_var' % idx)
 
-    def get_tree_dict(self, idx=None, max_depth=9999, context=0, transform=False):
+    def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, link_costs={}):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -569,13 +602,23 @@ class Forest(object):
         if idx is None:
             idx = self.roots[0]
         data_head = self.data[idx]
+
+        link_cost = link_costs.get(data_head, MAX_DEPTH)
+
         if transform:
             data_head = self.transform_data(data_head)
         seq_node = {'head': data_head, 'children': []}
         if idx in self.children and max_depth > 0:
             for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
-                                                               context=context, transform=transform))
+                if link_cost < max_depth:
+                    data_child = idx + child_offset
+
+                    idx_link = 99999
+                    seq_node['children'].append(self.get_tree_dict(idx=idx_link, max_depth=max_depth - link_cost,
+                                                                   context=context, transform=transform))
+                else:
+                    seq_node['children'].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
+                                                                   context=context, transform=transform))
         if self.parents[idx] != 0 and context > 0:
             seq_node['children'].append(self.get_tree_dict_parent(idx, context-1, transform=transform))
         return seq_node
@@ -666,6 +709,9 @@ class Forest(object):
                                                                                 'are set, the children arrays of second ' \
                                                                                 'forest have to be set, too, can not ' \
                                                                                 '%s.' % operation
+        if a._root_ids is not None:
+            assert b._root_ids is not None, 'root_ids of first forest is set, but not of the second, can not %s.' \
+                                            % operation
 
     def extend(self, others):
         if type(others) != list:
@@ -684,10 +730,15 @@ class Forest(object):
         else:
             new_children = None
             new_children_pos = None
+        if self._root_ids is not None:
+            new_root_ids = np.concatenate([f._root_ids for f in [self] + others])
+        else:
+            new_root_ids = None
         self.set_forest(data=np.concatenate([f.data for f in [self] + others]),
                         parents=np.concatenate([f.parents for f in [self] + others]),
                         children=new_children,
-                        children_offset=new_children_pos)
+                        children_offset=new_children_pos,
+                        root_ids=new_root_ids)
 
     @staticmethod
     def concatenate(forests):
@@ -705,12 +756,18 @@ class Forest(object):
         else:
             new_children = None
             new_children_pos = None
+
+        if forests[0]._root_ids is not None:
+            new_root_ids = np.concatenate([f._root_ids for f in forests])
+        else:
+            new_root_ids = None
         return Forest(data=np.concatenate([f.data for f in forests]),
                       parents=np.concatenate([f.parents for f in forests]),
                       children=new_children,
                       children_offset=new_children_pos,
                       data_as_hashes=forests[0].data_as_hashes,
-                      lexicon=forests[0].lexicon)
+                      lexicon=forests[0].lexicon,
+                      root_ids=new_root_ids)
 
     def visualize(self, filename, start=0, end=None):
         if end is None:

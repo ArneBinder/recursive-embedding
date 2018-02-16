@@ -287,17 +287,17 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
-def save_current_forest(i, forest, resource_hashes, failed, resource_hashes_failed, lexicon, filename, t_parse, t_query):
+def save_current_forest(i, forest, failed, resource_hashes_failed, lexicon, filename, t_parse, t_query):
 
     if forest is not None:
         forest.dump(filename)
         lexicon.dump(filename, strings_only=True)
         roots = forest.roots
         #roots.dump('%s.%s' % (filename, FE_ROOTS))
-        resource_hashes.dump('%s.%s' % (filename, FE_RESOURCE_HASHES))
+        #resource_hashes.dump('%s.%s' % (filename, FE_RESOURCE_HASHES))
         # consistency check
-        resource_hashes_check = forest.data[roots + 1]
-        assert np.array_equal(resource_hashes_check, resource_hashes), 'data[roots+1] does not match resource_hashes'
+        #resource_hashes_check = forest.data[roots + 1]
+        #assert np.array_equal(resource_hashes_check, resource_hashes), 'data[roots+1] does not match resource_hashes'
         # consistency check end
         unique, counts = np.unique(forest.data, return_counts=True)
         unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
@@ -394,13 +394,14 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
 
     if len(tree_contexts) > 0:
         forest = Forest.concatenate(tree_contexts)
+        forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
     else:
         forest = None
 
     save_current_forest(i=begin_idx + len(nif_context_datas) + len(failed), forest=forest,
-                        resource_hashes=np.array(resource_hashes, dtype=DTYPE_HASH), failed=failed,
-                        resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH), lexicon=lexicon,
-                        filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
+                        #resource_hashes=np.array(resource_hashes, dtype=DTYPE_HASH),
+                        failed=failed, resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH),
+                        lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
 @plac.annotations(
