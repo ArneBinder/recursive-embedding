@@ -199,90 +199,8 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
 
 def get_or_calc_sequence_data(params):
     global data_path
-    if 'data_sequences' in params:
-        pass
-    elif 'idx_tuple_file' in params:
-        fn = '%s.%s' % (data_path, params['idx_tuple_file'])
-        if os.path.isfile(fn):
-            params['sequences'] = []
-            params['data_sequences'] = []
-            params['scores_gold'] = []
-            init_forest(data_path)
-            indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
-            tuple_start = params.get('tuple_start', 0)
-            tuple_end = params.get('tuple_end', len(indices))
-            assert tuple_start <= tuple_end, 'ERROR: tuple_start=%i > tuple_end=%i' % (tuple_start, tuple_end)
-            assert tuple_end <= len(indices), 'ERROR: tuple_end=%i > len(roots)=%i' % (tuple_end, len(indices))
-            params['data_as_hashes'] = forest.data_as_hashes
-            for i, sim_tuple_indices in enumerate(indices[tuple_start:tuple_end]):
-                for idx in sim_tuple_indices:
-                    tree = forest.trees([idx]).next()
-                    params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
-                for prob in probs[i]:
-                    params['scores_gold'].append(prob)
 
-            params['scores_gold'] = np.array(params['scores_gold'])
-            for data_sequence in params['data_sequences']:
-                token_list = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes']).get_text_plain(blacklist=params.get('prefix_blacklist', None))
-                params['sequences'].append(" ".join(token_list))
-        else:
-            raise IOError('could not open "%s"' % fn)
-    elif 'root_start' in params:
-        params['sequences'] = []
-        params['data_sequences'] = []
-        init_forest(data_path)
-        params['data_as_hashes'] = forest.data_as_hashes
-        roots = forest.roots
-        root_start = params.get('root_start', 0)
-        root_end = params.get('root_end', len(roots))
-        assert root_start <= root_end, 'ERROR: root_start=%i > root_end=%i' % (root_start, root_end)
-        assert root_end <= len(roots), 'ERROR: root_end=%i > len(roots)=%i' % (root_end, len(roots))
-        for tree in forest.trees(root_indices=roots[root_start:root_end]):
-            params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
-        for data_sequence in params['data_sequences']:
-            token_list = Forest(forest=data_sequence, lexicon=lexicon,
-                                           data_as_hashes=params['data_as_hashes']).get_text_plain(
-                blacklist=params.get('prefix_blacklist', None))
-            params['sequences'].append(" ".join(token_list))
-    elif 'idx_start' in params:
-        params['sequences'] = []
-        params['data_sequences'] = []
-        init_forest(data_path)
-        params['data_as_hashes'] = forest.data_as_hashes
-        idx_start = params.get('idx_start', 0)
-        idx_end = params.get('idx_end', len(forest))
-        assert idx_start <= idx_end, 'ERROR: idx_start=%i > idx_end=%i' % (idx_start, idx_end)
-        assert idx_end <= len(forest), 'ERROR: root_end=%i > len(roots)=%i' % (idx_end, len(forest))
-        data_sequence = [forest.data[idx_start:idx_end].tolist(), forest.parents[idx_start:idx_end].tolist()]
-        params['data_sequences'] = [data_sequence]
-        token_list = forest.get_text_plain(blacklist=params.get('prefix_blacklist', None), start=idx_start, end=idx_end)
-        params['sequences'] = [token_list]
-    elif 'idx' in params:
-        params['sequences'] = []
-        params['data_sequences'] = []
-        init_forest(data_path)
-
-        max_depth = params.get('max_depth', 10)
-        context = params.get('context', 0)
-        idx = params['idx']
-        link_costs = {}
-        if forest.data_as_hashes:
-            forest.hashes_to_indices()
-        if 'link_cost_ref' in params:
-            d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
-            link_costs[d_ref] = params['link_cost_ref']
-        if 'link_cost_ref_seealso' in params:
-            d_ref = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
-            link_costs[d_ref] = params['link_cost_ref_seealso']
-        tree_dict = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False,
-                                         link_costs=link_costs)
-        vis_forest = Forest(tree_dict=tree_dict, lexicon=forest.lexicon, data_as_hashes=forest.data_as_hashes)
-        params['data_as_hashes'] = vis_forest.data_as_hashes
-        params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]
-        token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None))
-        params['sequences'] = [token_list]
-
-    elif 'sequences' in params:
+    if 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
         concat_mode = FLAGS.default_concat_mode
         inner_concat_mode = FLAGS.default_inner_concat_mode
@@ -302,8 +220,96 @@ def get_or_calc_sequence_data(params):
 
         params['data_sequences'] = list(parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode))
 
+    if 'data_sequences' in params:
+        d_list, p_list = zip(*params['data_sequences'])
+        data_as_hashes = params.get('data_as_hashes', False)
+        current_forest = Forest(data=sum(d_list, []), parents=sum(p_list, []), lexicon=lexicon,
+                                data_as_hashes=data_as_hashes)
     else:
-        raise ValueError('no sequences or data_sequences found in request')
+        init_forest(data_path)
+        current_forest = forest
+
+    if 'idx_tuple_file' in params:
+        fn = '%s.%s' % (data_path, params['idx_tuple_file'])
+        if os.path.isfile(fn):
+            params['sequences'] = []
+            params['data_sequences'] = []
+            params['scores_gold'] = []
+            # init_forest(data_path)
+            indices, probs = corpus_simtuple.load_sim_tuple_indices(fn)
+            tuple_start = params.get('tuple_start', 0)
+            tuple_end = params.get('tuple_end', len(indices))
+            assert tuple_start <= tuple_end, 'ERROR: tuple_start=%i > tuple_end=%i' % (tuple_start, tuple_end)
+            assert tuple_end <= len(indices), 'ERROR: tuple_end=%i > len(roots)=%i' % (tuple_end, len(indices))
+            params['data_as_hashes'] = current_forest.data_as_hashes
+            for i, sim_tuple_indices in enumerate(indices[tuple_start:tuple_end]):
+                for idx in sim_tuple_indices:
+                    tree = current_forest.trees([idx]).next()
+                    params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
+                for prob in probs[i]:
+                    params['scores_gold'].append(prob)
+
+            params['scores_gold'] = np.array(params['scores_gold'])
+            for data_sequence in params['data_sequences']:
+                token_list = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes']).get_text_plain(blacklist=params.get('prefix_blacklist', None))
+                params['sequences'].append(" ".join(token_list))
+        else:
+            raise IOError('could not open "%s"' % fn)
+    elif 'root_start' in params:
+        params['sequences'] = []
+        params['data_sequences'] = []
+        #init_forest(data_path)
+        params['data_as_hashes'] = current_forest.data_as_hashes
+        roots = current_forest.roots
+        root_start = params.get('root_start', 0)
+        root_end = params.get('root_end', len(roots))
+        assert root_start <= root_end, 'ERROR: root_start=%i > root_end=%i' % (root_start, root_end)
+        assert root_end <= len(roots), 'ERROR: root_end=%i > len(roots)=%i' % (root_end, len(roots))
+        for tree in current_forest.trees(root_indices=roots[root_start:root_end]):
+            params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
+        for data_sequence in params['data_sequences']:
+            token_list = Forest(forest=data_sequence, lexicon=lexicon,
+                                           data_as_hashes=params['data_as_hashes']).get_text_plain(
+                blacklist=params.get('prefix_blacklist', None))
+            params['sequences'].append(" ".join(token_list))
+    elif 'idx_start' in params:
+        params['sequences'] = []
+        params['data_sequences'] = []
+        #init_forest(data_path)
+        params['data_as_hashes'] = current_forest.data_as_hashes
+        idx_start = params.get('idx_start', 0)
+        idx_end = params.get('idx_end', len(current_forest))
+        assert idx_start <= idx_end, 'ERROR: idx_start=%i > idx_end=%i' % (idx_start, idx_end)
+        assert idx_end <= len(current_forest), 'ERROR: root_end=%i > len(roots)=%i' % (idx_end, len(current_forest))
+        data_sequence = [current_forest.data[idx_start:idx_end].tolist(), current_forest.parents[idx_start:idx_end].tolist()]
+        params['data_sequences'] = [data_sequence]
+        token_list = current_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None), start=idx_start, end=idx_end)
+        params['sequences'] = [token_list]
+    elif 'idx' in params:
+        params['sequences'] = []
+        params['data_sequences'] = []
+        #init_forest(data_path)
+        max_depth = params.get('max_depth', 10)
+        context = params.get('context', 0)
+        idx = params['idx']
+        link_costs = {}
+        if current_forest.data_as_hashes:
+            current_forest.hashes_to_indices()
+        if 'link_cost_ref' in params:
+            d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
+            link_costs[d_ref] = params['link_cost_ref']
+        if 'link_cost_ref_seealso' in params:
+            d_ref = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
+            link_costs[d_ref] = params['link_cost_ref_seealso']
+        tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False,
+                                         link_costs=link_costs)
+        vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes)
+        params['data_as_hashes'] = vis_forest.data_as_hashes
+        params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]
+        token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None))
+        params['sequences'] = [token_list]
+    #else:
+    #    raise ValueError('no sequences or data_sequences found in request')
 
 
 def get_or_calc_embeddings(params):
@@ -655,6 +661,7 @@ def main(data_source):
         data_path = data_source
         logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
         assert Lexicon.exist(data_source, types_only=True), 'No lexicon found at: %s' % data_source
+        logging.info('load lexicon from: %s' % data_source)
         lexicon = Lexicon(filename=data_source)
 
     if FLAGS.external_lexicon:
