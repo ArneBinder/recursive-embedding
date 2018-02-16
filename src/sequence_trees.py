@@ -598,7 +598,8 @@ class Forest(object):
             return idx_trans
         raise ValueError('idx=%i not in ids_fixed and not in ids_var' % idx)
 
-    def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, link_costs={}):
+    def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, link_costs={},
+                      link_content_offset=2):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -610,6 +611,9 @@ class Forest(object):
                          values indicating fixed embeddings are negative
         :param link_costs contains mappings from data ids or hashes to costs that are subtracted, if following a link
                           with this id or hash. NOTE: Link following requires max_depth != MAX_DEPTH.
+        :param link_content_offset If a link is followed, this offset is added to the root position of the target, e.g.
+                                   link_content_offset=2 means, that the subtree at target_root_position+2 is inserted
+                                   beneath the link
         :return: the dict version of the subtree
         """
         if idx is None:
@@ -625,7 +629,7 @@ class Forest(object):
             for child_offset in self.children[idx]:
                 data_child = idx + child_offset
                 if link_cost < max_depth and data_child in self.root_id_pos:
-                    target_idx = self.root_id_pos[data_child] + 2
+                    target_idx = self.root_id_pos[data_child] + link_content_offset
                     seq_node['children'].append(self.get_tree_dict(idx=target_idx,
                                                                    max_depth=max_depth - link_cost,
                                                                    context=context, transform=transform,
