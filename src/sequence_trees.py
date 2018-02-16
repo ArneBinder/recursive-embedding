@@ -293,10 +293,10 @@ def _compare_tree_dicts(tree1, tree2):
 
 def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
                                     see_also_refs,
+                                    see_also_ref_type,
                                     root_type="http://dbpedia.org/resource",
                                     anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
                                     terminal_types=None,
-                                    see_also_ref_type="http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso",
                                     see_also_section_type = "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso"
                                     #see_also_type="http://dbpedia.org/ontology/wikiPageWikiLink"
                                     ):
@@ -365,6 +365,7 @@ class Forest(object):
         self._parents = None
         self._children = None
         self._children_pos = None
+        self._root_id_pos = None
 
         if lexicon is not None:
             self._lexicon = lexicon
@@ -387,6 +388,7 @@ class Forest(object):
         self._depths = None
         self._depths_collected = None
         self._dicts = {}
+        self._root_id_pos = None
 
     def load(self, filename):
         logging.debug('load data and parents from %s ...' % filename)
@@ -610,17 +612,20 @@ class Forest(object):
         seq_node = {'head': data_head, 'children': []}
         if idx in self.children and max_depth > 0:
             for child_offset in self.children[idx]:
-                if link_cost < max_depth:
-                    data_child = idx + child_offset
-
-                    idx_link = 99999
-                    seq_node['children'].append(self.get_tree_dict(idx=idx_link, max_depth=max_depth - link_cost,
-                                                                   context=context, transform=transform))
+                data_child = idx + child_offset
+                if link_cost < max_depth and data_child in self.root_id_pos:
+                    target_idx = self.root_id_pos[data_child] + 2
+                    seq_node['children'].append(self.get_tree_dict(idx=target_idx,
+                                                                   max_depth=max_depth - link_cost,
+                                                                   context=context, transform=transform,
+                                                                   link_costs=link_costs))
                 else:
                     seq_node['children'].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
-                                                                   context=context, transform=transform))
+                                                                   context=context, transform=transform,
+                                                                   link_costs=link_costs))
         if self.parents[idx] != 0 and context > 0:
-            seq_node['children'].append(self.get_tree_dict_parent(idx, context-1, transform=transform))
+            seq_node['children'].append(self.get_tree_dict_parent(idx=idx, max_depth=context-1, transform=transform,
+                                                                  link_costs=link_costs))
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False):
@@ -633,7 +638,7 @@ class Forest(object):
         assert not self.data_as_hashes, 'can not calculate data_id for back link if data_as_hashes'
         return data + len(self.lexicon) / 2
 
-    def get_tree_dict_parent(self, idx, max_depth=9999, transform=False):
+    def get_tree_dict_parent(self, idx, max_depth=9999, transform=False, link_costs={}):
         assert self.lexicon is not None, 'lexicon is not set'
 
         if self.parents[idx] == 0:
@@ -650,7 +655,8 @@ class Forest(object):
             for c in self.children[current_id]:
                 c_id = current_id + c
                 if c_id != previous_id:
-                    current_dict_tree['children'].append(self.get_tree_dict(c_id, max_depth=max_depth - 1, transform=transform))
+                    current_dict_tree['children'].append(self.get_tree_dict(c_id, max_depth=max_depth - 1,
+                                                                            transform=transform, link_costs=link_costs))
             # go up
             if self.parents[current_id] != 0:
                 previous_id = current_id
@@ -891,3 +897,10 @@ class Forest(object):
     @property
     def data_as_hashes(self):
         return self._as_hashes
+
+    @property
+    def root_id_pos(self):
+        if self._root_id_pos is None:
+            assert self._root_ids is not None, 'root_ids not set'
+            self._root_id_pos = {v: i for i, v in enumerate(self._root_ids)}
+        return self._root_id_pos

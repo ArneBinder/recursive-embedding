@@ -26,6 +26,7 @@ from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples
 from constants import DTYPE_HASH
 import preprocessing
+from constants import TYPE_REF, TYPE_REF_SEEALSO
 
 """
 prerequisites:
@@ -154,15 +155,15 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def prepare_context_data(graph, nif_context,
-                         ref_type_str=u"http://www.w3.org/2005/11/its/rdf#taIdentRef", max_see_also_refs=50):
+def prepare_context_data(graph, nif_context, ref_type_str=TYPE_REF, max_see_also_refs=50):
     see_also_refs, children_typed, terminals, link_refs, nif_context_str = query_context_data(graph, nif_context)
     if len(see_also_refs) > max_see_also_refs:
         see_also_refs = []
     tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
         children_typed,
         see_also_refs=see_also_refs,
-        root_id=unicode(nif_context)[:-len(PREFIX_CONTEXT)])
+        root_id=unicode(nif_context)[:-len(PREFIX_CONTEXT)],
+        see_also_ref_type=TYPE_REF_SEEALSO)
     terminal_uri_strings, terminal_strings = zip(
         *[(unicode(uri), nif_context_str[int(begin):int(end)]) for uri, begin, end in terminals])
 

@@ -43,6 +43,9 @@ DTYPE_VECS = np.float32
 DTYPE_COUNT = np.int32
 DTYPE_IDX = np.int64
 
+TYPE_REF_SEEALSO = u'http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso'
+TYPE_REF = u'http://www.w3.org/2005/11/its/rdf#taIdentRef'
+
 #DEPRECATED
 
 # edges

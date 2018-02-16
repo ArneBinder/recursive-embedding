@@ -30,6 +30,7 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
+from constants import TYPE_REF, TYPE_REF_SEEALSO
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -264,9 +265,17 @@ def get_or_calc_sequence_data(params):
         max_depth = params.get('max_depth', 10)
         context = params.get('context', 0)
         idx = params['idx']
+        link_costs = {}
         if forest.data_as_hashes:
             forest.hashes_to_indices()
-        tree_dict = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False)
+        if 'link_cost_ref' in params:
+            d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
+            link_costs[d_ref] = params['link_cost_ref']
+        if 'link_cost_ref_seealso' in params:
+            d_ref = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
+            link_costs[d_ref] = params['link_cost_ref_seealso']
+        tree_dict = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False,
+                                         link_costs=link_costs)
         vis_forest = Forest(tree_dict=tree_dict, lexicon=forest.lexicon, data_as_hashes=forest.data_as_hashes)
         params['data_as_hashes'] = vis_forest.data_as_hashes
         params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]

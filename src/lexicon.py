@@ -703,6 +703,18 @@ class Lexicon(object):
             else:
                 return constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
 
+    def get_d(self, s, data_as_hashes):
+
+        if s in self.strings:
+            d = self.strings[s]
+        else:
+            d = self.strings[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]
+
+        if data_as_hashes:
+            return d
+        else:
+            return self.mapping[d]
+
     def __getitem__(self, item):
         if type(item) == unicode or type(item) == str:
             try:
