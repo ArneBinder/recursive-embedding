@@ -909,5 +909,5 @@ class Forest(object):
     def root_id_pos(self):
         if self._root_id_pos is None:
             assert self._root_ids is not None, 'root_ids not set'
-            self._root_id_pos = {v: i for i, v in enumerate(self._root_ids)}
+            self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
         return self._root_id_pos
