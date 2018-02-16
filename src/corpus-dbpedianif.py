@@ -81,7 +81,6 @@ PREFIX_CONTEXT = '?dbpv=2016-10&nif=context'
 FE_RESOURCE_HASHES = 'resource.hash'
 FE_RESOURCE_HASHES_FAILED = 'resource.hash.failed'
 FE_FAILED = 'failed'
-FE_ROOTS = 'root'
 FE_UNIQUE_HASHES = 'unique.hash'
 FE_COUNTS = 'count'
 
@@ -294,7 +293,7 @@ def save_current_forest(i, forest, resource_hashes, failed, resource_hashes_fail
         forest.dump(filename)
         lexicon.dump(filename, strings_only=True)
         roots = forest.roots
-        roots.dump('%s.%s' % (filename, FE_ROOTS))
+        #roots.dump('%s.%s' % (filename, FE_ROOTS))
         resource_hashes.dump('%s.%s' % (filename, FE_RESOURCE_HASHES))
         # consistency check
         resource_hashes_check = forest.data[roots + 1]
