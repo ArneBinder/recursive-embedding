@@ -30,7 +30,7 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
-from constants import TYPE_REF, TYPE_REF_SEEALSO
+from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -200,7 +200,7 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
 def get_or_calc_sequence_data(params):
     global data_path
     if 'data_sequences' in params:
-        params['data_sequences'] = np.array(params['data_sequences'])
+        pass
     elif 'idx_tuple_file' in params:
         fn = '%s.%s' % (data_path, params['idx_tuple_file'])
         if os.path.isfile(fn):
@@ -482,7 +482,12 @@ def visualize():
         mode = params.get('vis_mode', 'image')
         if mode == 'image':
             for i, data_sequence in enumerate(params['data_sequences']):
-                forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'])
+                if 'root_ids' in params:
+                    root_ids = params['root_ids'][i]
+                else:
+                    root_ids = None
+                forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'],
+                                     root_ids=root_ids)
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i))
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 

@@ -441,6 +441,12 @@ class Forest(object):
                 children_offset = np.array(children_offset, dtype=DTYPE_IDX)
         self._children = children
         self._children_pos = children_offset
+        if root_ids is not None:
+            if not isinstance(root_ids, np.ndarray):
+                root_ids = np.array(root_ids, dtype=data_dtype)
+            else:
+                assert root_ids.dtype == data_dtype, 'root_ids has wrong dtype (%s), expected: %s' \
+                                                     % (root_ids.dtype, data_dtype)
         self._root_ids = root_ids
 
     def set_lexicon(self, lexicon):
