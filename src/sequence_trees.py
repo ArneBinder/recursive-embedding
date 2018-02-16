@@ -606,6 +606,10 @@ class Forest(object):
         :param idx: root of the subtree
         :param max_depth: stop if this depth is exceeded
         :param context depth of context tree (walk up parents) to add to all nodes
+        :param transform transform data ids (does not work for hashes) to ids regarding fixed / variable embeddings;
+                         values indicating fixed embeddings are negative
+        :param link_costs contains mappings from data ids or hashes to costs that are subtracted, if following a link
+                          with this id or hash. NOTE: Link following requires max_depth != MAX_DEPTH.
         :return: the dict version of the subtree
         """
         if idx is None:
