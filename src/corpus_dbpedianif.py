@@ -577,7 +577,7 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
             counts_merged[uniques[i]] = _c + c
     logger.info('finished. %s' % str(datetime.now()-t_start))
 
-    logger.info('collect rood_ids ...')
+    logger.info('collect root_ids ...')
     t_start = datetime.now()
     root_ids = []
     for fn in f_paths:
