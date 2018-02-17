@@ -614,6 +614,7 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     t_start = datetime.now()
     uniques_filtered_set = set(uniques_filtered)
     lexicon = Lexicon()
+    lexicon.add_all(vocab_manual.values())
     lexicon_discarded = Lexicon()
     for fn in f_paths:
         lex = Lexicon(filename=fn)
