@@ -33,3 +33,5 @@ services:
     command: >
       python corpus_dbpedianif.py MERGE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF/${BATCH_SIZE}
+                                  --min-count ${MIN_COUNT}
+                                  --min-count-root-id ${MIN_COUNT_ROOT_ID}

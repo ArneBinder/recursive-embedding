@@ -84,12 +84,16 @@ FE_ROOT_ID_FAILED = 'root.id.failed'
 FE_FAILED = 'failed'
 FE_UNIQUE_HASHES = 'unique.hash'
 FE_COUNTS = 'count'
+FE_UNIQUE_HASHES_FILTERED = 'unique.hash.filtered'
+FE_UNIQUE_HASHES_DISCARDED = 'unique.hash.discarded'
+FE_UNIQUE_COUNTS_FILTERED = 'count.hash.filtered'
+FE_UNIQUE_COUNTS_DISCARDED = 'count.hash.discarded'
 
 DIR_BATCHES = 'batches'
 DIR_BATCHES_CONVERTED = 'batches_converted'
-FN_MERGED = 'merged'
+DIR_MERGED = 'merged'
 
-PREFIX_FN = 'forest-'
+PREFIX_FN = 'forest'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.INFO)
@@ -338,7 +342,7 @@ class ThreadParse(threading.Thread):
     def run(self):
         while True:
             begin_idx, nif_context_datas, failed, t_query = self._queue.get()
-            fn = os.path.join(self._out_path, '%s%i' % (PREFIX_FN, begin_idx))
+            fn = os.path.join(self._out_path, '%s.%i' % (PREFIX_FN, begin_idx))
             try:
                 parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=self._nlp, begin_idx=begin_idx,
                                     filename=fn, t_query=t_query)
@@ -420,7 +424,8 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
 def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0,
                            batch_count=0):
     assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
-    logger.info('batch-size=%i num-threads=%i start-offset=%i batch-count=%i' % (batch_size, num_threads, start_offset, batch_count))
+    logger.info('batch-size=%i num-threads=%i start-offset=%i batch-count=%i out_path=%s'
+                % (batch_size, num_threads, start_offset, batch_count, out_path))
 
     if not os.path.exists(out_path):
         os.mkdir(out_path)
@@ -430,8 +435,6 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     out_path = os.path.join(out_path, DIR_BATCHES)
     if not os.path.exists(out_path):
         os.mkdir(out_path)
-    #logger.info('out_path=%s' % out_path)
-    #logger.warn(os.path.exists(out_path))
 
     q_query = Queue.Queue(maxsize=100)
     q_parse = Queue.Queue(maxsize=100)
@@ -475,7 +478,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
         while True:
             begin_idx, nif_context_datas, failed, t_query = _q.get()
-            fn = os.path.join(out_path, '%s%i' % (PREFIX_FN, begin_idx))
+            fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, begin_idx))
             try:
                 parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp, begin_idx=begin_idx,
                                     filename=fn, t_query=t_query)
@@ -503,7 +506,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             continue
         if i % batch_size == 0:
             if len(current_contexts) > 0:
-                fn = os.path.join(out_path, '%s%i' % (PREFIX_FN, batch_start))
+                fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
                 if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
                     q_query.put((batch_start, current_contexts))
                     current_batch_count += 1
@@ -529,7 +532,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         current_contexts.append(context)
         resource_hashes.append(hash_string(unicode(context)[:-len(PREFIX_CONTEXT)]))
 
-    fn = os.path.join(out_path, '%s%i' % (PREFIX_FN, batch_start))
+    fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
     if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
         q_query.put((batch_start, current_contexts))
 
@@ -544,11 +547,13 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
 def process_batches(out_path, min_count=10, min_count_root_id=2):
+    logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
 
     out_path_batches = os.path.join(out_path, DIR_BATCHES)
-    out_path_merged = os.path.join(out_path, FN_MERGED)
-    #if not os.path.exists(out_path_merged):
-    #    os.mkdir(out_path_merged)
+    out_path_merged = os.path.join(out_path, DIR_MERGED)
+    if not os.path.exists(out_path_merged):
+        os.mkdir(out_path_merged)
+    out_path_merged = os.path.join(out_path_merged, PREFIX_FN)
 
     logger.info('collect file names ...')
     t_start = datetime.now()
@@ -557,7 +562,7 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     for file in os.listdir(out_path_batches):
         if file.endswith('.'+FE_COUNTS):
             f_names.append(file[:-l])
-    f_names = sorted(f_names, key=lambda fn: int(fn[len(PREFIX_FN):]))
+    f_names = sorted(f_names, key=lambda fn: int(fn[len(PREFIX_FN)+1:]))
     f_paths = [os.path.join(out_path_batches, f) for f in f_names]
     logger.info('finished. %s' % str(datetime.now()-t_start))
 
@@ -578,6 +583,7 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     for fn in f_paths:
         root_ids.append(np.load('%s.%s' % (fn, FE_ROOT_ID)))
     root_ids = np.concatenate(root_ids)
+    root_ids.dump('%s.%s' % (out_path_merged, FE_UNIQUE_HASHES))
     logger.info('finished. %s' % str(datetime.now()-t_start))
 
     logger.info('filter uniques by count ...')
@@ -601,10 +607,10 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     uniques_discarded = uniques_discarded[:i_discarded]
     counts_filtered = counts_filtered[:i_filtered]
     counts_discarded = counts_discarded[:i_discarded]
-    uniques_filtered.dump('%s.%s' % (out_path_merged, 'hash.filtered'))
-    uniques_discarded.dump('%s.%s' % (out_path_merged, 'hash.discarded'))
-    counts_filtered.dump('%s.%s' % (out_path_merged, 'count.filtered'))
-    counts_discarded.dump('%s.%s' % (out_path_merged, 'count.discarded'))
+    uniques_filtered.dump('%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_FILTERED))
+    uniques_discarded.dump('%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_DISCARDED))
+    counts_filtered.dump('%s.%s' % (out_path_merged, FE_UNIQUE_COUNTS_FILTERED))
+    counts_discarded.dump('%s.%s' % (out_path_merged, FE_UNIQUE_COUNTS_DISCARDED))
     logger.info('finished. %s' % str(datetime.now()-t_start))
 
     logger.info('merge and filter lexicon ...')
@@ -644,7 +650,19 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     nlp = spacy.load('en')
     lexicon.init_vecs(vocab=nlp.vocab)
     lexicon.dump(filename=out_path_merged)
+    nlp = None
     logger.info('finished. %s' % str(datetime.now() - t_start))
+
+    logger.info('merge converted batches ...')
+    t_start = datetime.now()
+    out_path_batches_converted = os.path.join(out_path, DIR_BATCHES_CONVERTED)
+    forests = []
+    for fn in f_names:
+        fn_path_out = os.path.join(out_path_batches_converted, fn)
+        forests.append(Forest(filename=fn_path_out))
+    forest_merged = Forest.concatenate(forests)
+    forest_merged.dump(filename=out_path_merged)
+    logger.info('finished. %s' % str(datetime.now()-t_start))
 
 
 @plac.annotations(
