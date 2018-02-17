@@ -9,7 +9,7 @@ services:
       - ${HOST_VIRTUOSO_DATA}:/var/lib/virtuoso-opensource-7
     environment:
       - NumberOfBuffers=${DB_NUMBER_OF_BUFFERS}
-  corpus-dbpedia-nif:
+  corpus-dbpedia-nif-batches:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/dbpedia-nif/Dockerfile
@@ -19,7 +19,17 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      python corpus-dbpedianif.py CREATE_BATCHES
+      python corpus_dbpedianif.py CREATE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF --batch-size ${BATCH_SIZE}
                                   --num-threads ${NUM_THREADS} --start-offset ${START}
                                   --batch-count=${BATCH_COUNT}
+  corpus-dbpedia-nif-merge:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/dbpedia-nif/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      python corpus_dbpedianif.py MERGE_BATCHES
+                                  --out-path /root/corpora_out/DBPEDIANIF/${BATCH_SIZE}

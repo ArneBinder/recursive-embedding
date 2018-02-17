@@ -5,7 +5,8 @@ import os
 
 import pydot
 
-from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH
+from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, TYPE_ROOT, TYPE_ANCHOR, \
+    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO
 import constants
 
 
@@ -293,12 +294,11 @@ def _compare_tree_dicts(tree1, tree2):
 
 def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
                                     see_also_refs,
-                                    see_also_ref_type,
-                                    root_type="http://dbpedia.org/resource",
-                                    anchor_type="http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
+                                    see_also_ref_type=TYPE_REF_SEEALSO,
+                                    root_type=TYPE_ROOT,
+                                    anchor_type=TYPE_ANCHOR,
                                     terminal_types=None,
-                                    see_also_section_type = "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso"
-                                    #see_also_type="http://dbpedia.org/ontology/wikiPageWikiLink"
+                                    see_also_section_type=TYPE_SECTION_SEEALSO
                                     ):
     """
     Constructs a tree from triples.
@@ -313,18 +313,17 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     :return: the tree data strings, parents, position mappings ({str(uri): offset}) and list of terminal types
     """
     if terminal_types is None:
-        terminal_types = [u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph',
-                          u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title']
+        terminal_types = [TYPE_PARAGRAPH, TYPE_TITLE]
     #ids_terminal_types = [lexicon[unicode(terminal_type)] for terminal_type in terminal_types]
-    root_type_str = unicode(root_type)
-    root_id_str = unicode(root_id)
-    anchor_type_str = unicode(anchor_type)
-    see_also_link_type_str = unicode(see_also_ref_type)
-    see_also_section_type_str = unicode(see_also_section_type)
-    temp_data = [root_type_str, root_id_str, anchor_type_str, see_also_section_type_str]
+    #root_type_str = unicode(root_type)
+    #root_id_str = unicode(root_id)
+    #anchor_type_str = unicode(anchor_type)
+    #see_also_link_type_str = unicode(see_also_ref_type)
+    #see_also_section_type_str = unicode(see_also_section_type)
+    temp_data = [root_type, root_id, anchor_type, see_also_section_type]
     temp_parents = [0, -1, -2, -3]
     for see_also_ref, in see_also_refs:
-        temp_data.append(see_also_link_type_str)
+        temp_data.append(see_also_ref_type)
         temp_parents.append(3 - len(temp_parents))
         temp_data.append(unicode(see_also_ref))
         temp_parents.append(-1)

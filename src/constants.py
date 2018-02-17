@@ -45,6 +45,11 @@ DTYPE_IDX = np.int64
 
 TYPE_REF_SEEALSO = u'http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso'
 TYPE_REF = u'http://www.w3.org/2005/11/its/rdf#taIdentRef'
+TYPE_ROOT = u'http://dbpedia.org/resource'
+TYPE_ANCHOR = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context'
+TYPE_SECTION_SEEALSO = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso'
+TYPE_PARAGRAPH = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph'
+TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title'
 
 #DEPRECATED
 

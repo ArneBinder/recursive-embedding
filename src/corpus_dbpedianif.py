@@ -23,10 +23,10 @@ from toolz import partition_all
 #from joblib import Parallel, delayed
 
 from lexicon import Lexicon
-from sequence_trees import Forest, tree_from_sorted_parent_triples
+from sequence_trees import Forest, tree_from_sorted_parent_triples, FE_ROOT_ID
 from constants import DTYPE_HASH
 import preprocessing
-from constants import TYPE_REF, TYPE_REF_SEEALSO
+from constants import TYPE_REF
 
 """
 prerequisites:
@@ -79,11 +79,16 @@ ns_dict = {'nif': NIF, 'dbr': DBR, 'itsrdf': ITSRDF, 'rdf': RDF, 'rdfs': RDFS, '
 
 PREFIX_CONTEXT = '?dbpv=2016-10&nif=context'
 
-FE_RESOURCE_HASHES = 'resource.hash'
-FE_RESOURCE_HASHES_FAILED = 'resource.hash.failed'
+#FE_RESOURCE_HASHES = 'resource.hash'
+FE_ROOT_ID_FAILED = 'root.id.failed'
 FE_FAILED = 'failed'
 FE_UNIQUE_HASHES = 'unique.hash'
 FE_COUNTS = 'count'
+
+DIR_BATCHES = 'batches'
+DIR_MERGED = 'merged'
+
+FN_PREFIX = 'forest-'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.INFO)
@@ -118,7 +123,7 @@ def query_see_also_links(graph, initBindings=None):
              'LIMIT 1000 '
              'OFFSET 0 '
              )
-    logging.debug(q_str)
+    logger.debug(q_str)
     res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     return res
 
@@ -162,8 +167,7 @@ def prepare_context_data(graph, nif_context, ref_type_str=TYPE_REF, max_see_also
     tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
         children_typed,
         see_also_refs=see_also_refs,
-        root_id=unicode(nif_context)[:-len(PREFIX_CONTEXT)],
-        see_also_ref_type=TYPE_REF_SEEALSO)
+        root_id=unicode(nif_context)[:-len(PREFIX_CONTEXT)])
     terminal_uri_strings, terminal_strings = zip(
         *[(unicode(uri), nif_context_str[int(begin):int(end)]) for uri, begin, end in terminals])
 
@@ -313,7 +317,7 @@ def save_current_forest(i, forest, failed, resource_hashes_failed, lexicon, file
             for uri, e in failed:
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
         assert len(resource_hashes_failed) > 0, 'entries in "failed" list, but resource_hashes_failed is empty'
-        resource_hashes_failed.dump('%s.%s' % (filename, FE_RESOURCE_HASHES_FAILED))
+        resource_hashes_failed.dump('%s.%s' % (filename, FE_ROOT_ID_FAILED))
     else:
         assert len(resource_hashes_failed) == 0, 'entries in resource_hashes_failed, but "failed" list is empty'
 
@@ -333,7 +337,7 @@ class ThreadParse(threading.Thread):
     def run(self):
         while True:
             begin_idx, nif_context_datas, failed, t_query = self._queue.get()
-            fn = os.path.join(self._out_path, 'forest-%i' % begin_idx)
+            fn = os.path.join(self._out_path, '%s%i' % (FN_PREFIX, begin_idx))
             try:
                 parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=self._nlp, begin_idx=begin_idx,
                                     filename=fn, t_query=t_query)
@@ -422,6 +426,9 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     out_path = os.path.join(out_path, str(batch_size))
     if not os.path.exists(out_path):
         os.mkdir(out_path)
+    out_path = os.path.join(out_path, DIR_BATCHES)
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
     #logger.info('out_path=%s' % out_path)
     #logger.warn(os.path.exists(out_path))
 
@@ -467,7 +474,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
         while True:
             begin_idx, nif_context_datas, failed, t_query = _q.get()
-            fn = os.path.join(out_path, 'forest-%i' % begin_idx)
+            fn = os.path.join(out_path, '%s%i' % (FN_PREFIX, begin_idx))
             try:
                 parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp, begin_idx=begin_idx,
                                     filename=fn, t_query=t_query)
@@ -495,7 +502,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             continue
         if i % batch_size == 0:
             if len(current_contexts) > 0:
-                fn = os.path.join(out_path, 'forest-%i' % batch_start)
+                fn = os.path.join(out_path, '%s%i' % (FN_PREFIX, batch_start))
                 if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
                     q_query.put((batch_start, current_contexts))
                     current_batch_count += 1
@@ -505,9 +512,9 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
                         break
                 else:
                     # consistency check of previously processed batches
-                    loaded_resource_hashes = np.load('%s.%s' % (fn, FE_RESOURCE_HASHES))
-                    if os.path.isfile('%s.%s' % (fn, FE_RESOURCE_HASHES_FAILED)):
-                        loaded_resource_hashes_failed = np.load('%s.%s' % (fn, FE_RESOURCE_HASHES_FAILED))
+                    loaded_resource_hashes = np.load('%s.%s' % (fn, FE_ROOT_ID))
+                    if os.path.isfile('%s.%s' % (fn, FE_ROOT_ID_FAILED)):
+                        loaded_resource_hashes_failed = np.load('%s.%s' % (fn, FE_ROOT_ID_FAILED))
                         hashes_prev = np.sort(np.concatenate([loaded_resource_hashes, loaded_resource_hashes_failed]))
                     else:
                         hashes_prev = np.sort(loaded_resource_hashes)
@@ -521,7 +528,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         current_contexts.append(context)
         resource_hashes.append(hash_string(unicode(context)[:-len(PREFIX_CONTEXT)]))
 
-    fn = os.path.join(out_path, 'forest-%i' % batch_start)
+    fn = os.path.join(out_path, '%s%i' % (FN_PREFIX, batch_start))
     if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
         q_query.put((batch_start, current_contexts))
 
@@ -530,7 +537,19 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     print('%s finished' % str(datetime.now() - t_start))
 
 
-def process_batches():
+@plac.annotations(
+    out_path=('corpora out path', 'option', 'o', str),
+)
+def process_batches(out_path):
+    # collect file names
+    out_path_batches = os.path.join(out_path, DIR_BATCHES)
+    l = len('.'+FE_COUNTS)
+    f_names = []
+    for file in os.listdir(out_path_batches):
+        if file.endswith('.'+FE_COUNTS):
+            f_names.append(file[:-l])
+    print(sorted(f_names))
+    # collect uniques and counts
     pass
 
 
