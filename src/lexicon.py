@@ -448,7 +448,7 @@ class Lexicon(object):
     def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
                   vocab_prefix=PREFIX_LEX):
         if filename is not None:
-            self._vecs = np.load('%s.%s' % (filename, FE_VECS))
+            new_vecs = np.load('%s.%s' % (filename, FE_VECS))
             if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
                 logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
                 self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
