@@ -13,15 +13,12 @@ from threading import Thread
 
 import spacy
 from spacy.strings import hash_string
-#from spacy.strings import StringStore
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
 from rdflib.term import URIRef
 from rdflib import Namespace
 from rdflib.namespace import RDF, RDFS
-from toolz import partition_all
-#from joblib import Parallel, delayed
 
 from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples, FE_ROOT_ID
