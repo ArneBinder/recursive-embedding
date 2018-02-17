@@ -120,21 +120,25 @@ cd recursive-embedding
 
 Configure parameters in [`docker/create-corpus/dbpedia-nif/.env`](.env), especially set `HOST_VIRTUOSO_DATA` to the value of `db_dir` and `HOST_CORPORA_OUT` to the directory you want to output the corpus files (ATTENTION: expected corpus size: ~32 GB (batches) + X GB (final)).
 
-To start the processing, execute from repository root:
+To start the (batched) processing, execute from repository root:
 
 ```bash
-cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif
+cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif-batches
 ```
-
 NOTE: The processing can be interrupted any time, restarting continues from the latest position.
+
+This previous command creates batches of processed data. To merge the individual lexica into a final one, convert the string hashes to lexicon indices and finally concatenate all data, execute:
+```bash
+cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif-merge
+```
 
 
 ## TODO:
  * DONE forest (batches): generate **children arrays** from parent
  * DONE forest (batches): calc **resource_offsets**: get root_offsets -> dump (evtl. check against resource_hashes array: add 1 to root_offsets (gets positions of resource_ids) -> get data (resource_id hashes))
  * DONE forest (batches): **count values**:  `np.unique(data, return_counts=True)` -> `unique.dump` and `count.dump`
- * lexicon: **merge**
- * counts: **merge**
- * lexicon & counts & forest (batches): set low frequency **words to UNKNOWN** (differentiate between resource_ids and other data)
- * lexicon: add **embedding vectors** to lexicon (from spacy nlp) -> *freezes* the lexicon (no more addition of entries, merging, etc. possible)
- * lexicon & forest (batches): convert string hashes to ids (would also *freeze* the lexicon)
+ * DONE lexicon: **merge**
+ * DONE counts: **merge**
+ * DONE lexicon & counts & forest (batches): set low frequency **words to UNKNOWN** (differentiate between resource_ids and other data)
+ * DONE lexicon: add **embedding vectors** to lexicon (from spacy nlp) -> *freezes* the lexicon (no more addition of entries, merging, etc. possible)
+ * DONE lexicon & forest (batches): convert string hashes to ids (would also *freeze* the lexicon)

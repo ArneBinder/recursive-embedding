@@ -302,7 +302,7 @@ def save_current_forest(i, forest, failed, resource_hashes_failed, lexicon, file
     if forest is not None:
         forest.dump(filename)
         lexicon.dump(filename, strings_only=True)
-        roots = forest.roots
+        #roots = forest.roots
         #roots.dump('%s.%s' % (filename, FE_ROOTS))
         #resource_hashes.dump('%s.%s' % (filename, FE_RESOURCE_HASHES))
         # consistency check
@@ -583,7 +583,7 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     for fn in f_paths:
         root_ids.append(np.load('%s.%s' % (fn, FE_ROOT_ID)))
     root_ids = np.concatenate(root_ids)
-    root_ids.dump('%s.%s' % (out_path_merged, FE_UNIQUE_HASHES))
+    root_ids.dump('%s.%s' % (out_path_merged, FE_ROOT_ID))
     logger.info('finished. %s' % str(datetime.now()-t_start))
 
     logger.info('filter uniques by count ...')
@@ -617,13 +617,17 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     t_start = datetime.now()
     uniques_filtered_set = set(uniques_filtered)
     lexicon = Lexicon()
+    lexicon_discarded = Lexicon()
     for fn in f_paths:
         lex = Lexicon(filename=fn)
         for s in lex.strings:
             h = hash_string(s)
             if h in uniques_filtered_set:
                 lexicon.strings.add(s)
+            else:
+                lexicon_discarded.strings.add(s)
     lexicon.dump(filename=out_path_merged, strings_only=True)
+    lexicon_discarded.dump(filename='%s.discarded' % out_path_merged, strings_only=True)
     logger.info('finished. %s' % str(datetime.now()-t_start))
 
     logger.info('filter and convert batches ...')
