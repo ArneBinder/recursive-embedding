@@ -13,6 +13,7 @@ from threading import Thread
 
 import spacy
 from spacy.strings import hash_string
+#from spacy.strings import StringStore
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
@@ -24,9 +25,8 @@ from toolz import partition_all
 
 from lexicon import Lexicon
 from sequence_trees import Forest, tree_from_sorted_parent_triples, FE_ROOT_ID
-from constants import DTYPE_HASH
+from constants import DTYPE_HASH, DTYPE_COUNT, TYPE_REF, UNKNOWN_EMBEDDING, vocab_manual
 import preprocessing
-from constants import TYPE_REF
 
 """
 prerequisites:
@@ -86,9 +86,10 @@ FE_UNIQUE_HASHES = 'unique.hash'
 FE_COUNTS = 'count'
 
 DIR_BATCHES = 'batches'
-DIR_MERGED = 'merged'
+DIR_BATCHES_CONVERTED = 'batches_converted'
+FN_MERGED = 'merged'
 
-FN_PREFIX = 'forest-'
+PREFIX_FN = 'forest-'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.INFO)
@@ -337,7 +338,7 @@ class ThreadParse(threading.Thread):
     def run(self):
         while True:
             begin_idx, nif_context_datas, failed, t_query = self._queue.get()
-            fn = os.path.join(self._out_path, '%s%i' % (FN_PREFIX, begin_idx))
+            fn = os.path.join(self._out_path, '%s%i' % (PREFIX_FN, begin_idx))
             try:
                 parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=self._nlp, begin_idx=begin_idx,
                                     filename=fn, t_query=t_query)
@@ -474,7 +475,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
         while True:
             begin_idx, nif_context_datas, failed, t_query = _q.get()
-            fn = os.path.join(out_path, '%s%i' % (FN_PREFIX, begin_idx))
+            fn = os.path.join(out_path, '%s%i' % (PREFIX_FN, begin_idx))
             try:
                 parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp, begin_idx=begin_idx,
                                     filename=fn, t_query=t_query)
@@ -502,7 +503,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             continue
         if i % batch_size == 0:
             if len(current_contexts) > 0:
-                fn = os.path.join(out_path, '%s%i' % (FN_PREFIX, batch_start))
+                fn = os.path.join(out_path, '%s%i' % (PREFIX_FN, batch_start))
                 if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
                     q_query.put((batch_start, current_contexts))
                     current_batch_count += 1
@@ -528,7 +529,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         current_contexts.append(context)
         resource_hashes.append(hash_string(unicode(context)[:-len(PREFIX_CONTEXT)]))
 
-    fn = os.path.join(out_path, '%s%i' % (FN_PREFIX, batch_start))
+    fn = os.path.join(out_path, '%s%i' % (PREFIX_FN, batch_start))
     if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
         q_query.put((batch_start, current_contexts))
 
@@ -539,18 +540,111 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
 @plac.annotations(
     out_path=('corpora out path', 'option', 'o', str),
+    min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
+    min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
-def process_batches(out_path):
-    # collect file names
+def process_batches(out_path, min_count=10, min_count_root_id=2):
+
     out_path_batches = os.path.join(out_path, DIR_BATCHES)
+    out_path_merged = os.path.join(out_path, FN_MERGED)
+    #if not os.path.exists(out_path_merged):
+    #    os.mkdir(out_path_merged)
+
+    logger.info('collect file names ...')
+    t_start = datetime.now()
     l = len('.'+FE_COUNTS)
     f_names = []
     for file in os.listdir(out_path_batches):
         if file.endswith('.'+FE_COUNTS):
             f_names.append(file[:-l])
-    print(sorted(f_names))
-    # collect uniques and counts
-    pass
+    f_names = sorted(f_names, key=lambda fn: int(fn[len(PREFIX_FN):]))
+    f_paths = [os.path.join(out_path_batches, f) for f in f_names]
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+
+    logger.info('collect counts ...')
+    t_start = datetime.now()
+    counts_merged = {}
+    for fn in f_paths:
+        counts = np.load('%s.%s' % (fn, FE_COUNTS))
+        uniques = np.load('%s.%s' % (fn, FE_UNIQUE_HASHES))
+        for i, c in enumerate(counts):
+            _c = counts_merged.get(uniques[i], 0)
+            counts_merged[uniques[i]] = _c + c
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+
+    logger.info('collect rood_ids ...')
+    t_start = datetime.now()
+    root_ids = []
+    for fn in f_paths:
+        root_ids.append(np.load('%s.%s' % (fn, FE_ROOT_ID)))
+    root_ids = np.concatenate(root_ids)
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+
+    logger.info('filter uniques by count ...')
+    t_start = datetime.now()
+    uniques_filtered = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_HASH)
+    uniques_discarded = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_HASH)
+    counts_filtered = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_COUNT)
+    counts_discarded = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_COUNT)
+    i_filtered = 0
+    i_discarded = 0
+    for u in counts_merged.keys():
+        if counts_merged[u] >= min_count or (u in root_ids and counts_merged[u] >= min_count_root_id):
+            uniques_filtered[i_filtered] = u
+            counts_filtered[i_filtered] = counts_merged[u]
+            i_filtered += 1
+        else:
+            uniques_discarded[i_discarded] = u
+            counts_discarded[i_discarded] = counts_merged[u]
+            i_discarded += 1
+    uniques_filtered = uniques_filtered[:i_filtered]
+    uniques_discarded = uniques_discarded[:i_discarded]
+    counts_filtered = counts_filtered[:i_filtered]
+    counts_discarded = counts_discarded[:i_discarded]
+    uniques_filtered.dump('%s.%s' % (out_path_merged, 'hash.filtered'))
+    uniques_discarded.dump('%s.%s' % (out_path_merged, 'hash.discarded'))
+    counts_filtered.dump('%s.%s' % (out_path_merged, 'count.filtered'))
+    counts_discarded.dump('%s.%s' % (out_path_merged, 'count.discarded'))
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+
+    logger.info('merge and filter lexicon ...')
+    t_start = datetime.now()
+    uniques_filtered_set = set(uniques_filtered)
+    lexicon = Lexicon()
+    for fn in f_paths:
+        lex = Lexicon(filename=fn)
+        for s in lex.strings:
+            h = hash_string(s)
+            if h in uniques_filtered_set:
+                lexicon.strings.add(s)
+    lexicon.dump(filename=out_path_merged, strings_only=True)
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+
+    logger.info('filter and convert batches ...')
+    t_start = datetime.now()
+    if lexicon is None:
+        lexicon = Lexicon(filename=out_path_merged)
+    lexicon.strings.add(vocab_manual[UNKNOWN_EMBEDDING])
+    out_path_batches_converted = os.path.join(out_path, DIR_BATCHES_CONVERTED)
+    if not os.path.exists(out_path_batches_converted):
+        os.mkdir(out_path_batches_converted)
+    for fn in f_names:
+        fn_path_in = os.path.join(out_path_batches, fn)
+        fn_path_out = os.path.join(out_path_batches_converted, fn)
+        forest = Forest(filename=fn_path_in, lexicon=lexicon)
+        forest.hashes_to_indices()
+        forest.dump(filename=fn_path_out)
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+
+    logger.info('add vecs ...')
+    t_start = datetime.now()
+    if lexicon is None:
+        lexicon = Lexicon(filename=out_path_merged)
+    logger.info('load spacy ...')
+    nlp = spacy.load('en')
+    lexicon.init_vecs(vocab=nlp.vocab)
+    lexicon.dump(filename=out_path_merged)
+    logger.info('finished. %s' % str(datetime.now() - t_start))
 
 
 @plac.annotations(
