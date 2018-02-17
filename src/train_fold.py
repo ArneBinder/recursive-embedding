@@ -165,8 +165,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             lexicon_old.init_vecs(checkpoint_reader=reader_old)
             lexicon.merge(lexicon_old, add=False, remove=False)
 
-        lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
-        lexicon.pad()
+        #lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+        #lexicon.pad()
 
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
         #if config.data_single:
