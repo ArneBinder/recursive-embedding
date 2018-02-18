@@ -538,32 +538,55 @@ class Lexicon(object):
             logging.warning('no indices found for prefix=%s' % prefix)
         return res
 
-    def set_to_zero(self, indices=None, prefix=None):
+    def get_indices(self, indices=None, prefix=None, indices_as_blacklist=False):
         assert indices is not None or prefix is not None, 'please provide indices or a prefix'
-        if indices is None:
+        if prefix is not None:
             indices = self.get_ids_for_prefix(prefix)
+        if indices is None:
+            indices = np.arange(len(self), dtype=DTYPE_IDX)
+        if indices_as_blacklist:
+            indices_all = np.arange(len(self), dtype=DTYPE_IDX)
+            mask_other = ~np.isin(indices_all, indices)
+            indices = indices_all[mask_other]
+        return indices
+
+    def set_to_zero(self, *args, **kwargs):
+        assert self.vecs is not None, 'vecs is None, can not set to zero'
+        indices = self.get_indices(*args, **kwargs)
         for i in indices:
             self._vecs[i] = np.zeros(self._vecs.shape[1], dtype=self._vecs.dtype)
         if len(indices) > 0:
             logging.info('set %i vecs to zero' % len(indices))
 
-    def set_to_onehot(self, indices=None, prefix=None):
-        assert indices is not None or prefix is not None, 'please provide indices or a prefix'
-        if indices is None:
-            indices = self.get_ids_for_prefix(prefix)
+    def set_to_onehot(self, *args, **kwargs):
+        assert self.vecs is not None, 'vecs is None, can not set to onehot'
+        indices = self.get_indices(*args, **kwargs)
         self.set_to_zero(indices=indices)
         for i, idx in enumerate(indices):
             self._vecs[idx][i] = 1.0
         if len(indices) > 0:
             logging.info('set %i vecs to one-hot' % len(indices))
 
-    def set_to_random(self, indices=None, prefix=None):
-        if prefix is not None:
-            indices = self.get_ids_for_prefix(prefix)
-        if indices is None:
-            indices = range(len(self))
+    def set_to_random(self, *args, **kwargs):
+        assert self.vecs is not None, 'vecs is None, can not set to random'
+        indices = self.get_indices(*args, **kwargs)
         for i in indices:
             self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1])
+        if len(indices) > 0:
+            logging.info('set %i vecs to random' % len(indices))
+
+    def set_to_mean(self, *args, **kwargs):
+        assert self.vecs is not None, 'vecs is None, can not set to mean'
+        indices = self.get_indices(*args, **kwargs)
+        indices_all = np.arange(len(self), dtype=DTYPE_IDX)
+        mask_other = ~np.isin(indices_all, indices)
+        indices_other = indices_all[mask_other]
+
+        vecs_mean = np.mean(self._vecs[indices_other], axis=0)
+        vecs_variance = np.var(self._vecs[indices_other], axis=0)
+
+        for i in indices:
+            self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1]) * vecs_variance + vecs_mean
         if len(indices) > 0:
             logging.info('set %i vecs to random' % len(indices))
 

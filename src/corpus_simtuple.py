@@ -293,6 +293,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         logging.info('init vecs: use nlp vocab and fill missing ...')
         lexicon.init_vecs(vocab=nlp.vocab)
 
+        lexicon.set_to_mean(indices=lexicon.ids_fixed, indices_as_blacklist=True)
+
         if FLAGS.one_hot_dep:
             lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])
 
