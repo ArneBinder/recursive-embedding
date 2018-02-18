@@ -19,9 +19,13 @@ FE_CHILDREN_POS = 'child.pos'
 FE_ROOT_ID = 'root.id'
 FE_ROOT_POS = 'root.pos'
 
+KEY_HEAD = 'h'
+KEY_CHILDREN = 'c'
+
 MAX_DEPTH = 9999
 
 
+# unused
 def load(fn):
     logging.debug('load data and parents ...')
     data = np.load('%s.data' % fn)
@@ -53,6 +57,7 @@ def children_and_roots(seq_parents):
     return children, roots
 
 
+# deprecated
 def children_and_roots_flat(seq_parents):
     # assume, all parents are inside this array!
 
@@ -85,6 +90,7 @@ def children_and_roots_flat(seq_parents):
     return (children_counts, children_offsets, children_indices), roots
 
 
+# deprecated
 def get_children(children, idx):
     children_counts, children_offsets, children_indices = children
     c = children_counts[idx]
@@ -92,6 +98,7 @@ def get_children(children, idx):
     return children_indices[o:o+c]
 
 
+# TODO: move into Forest class
 def get_descendant_indices(children, root):
     leafs = [root]
     if root in children:
@@ -100,6 +107,7 @@ def get_descendant_indices(children, root):
     return leafs
 
 
+# deprecated
 def get_descendant_indices_flat(children, root):
     leafs = [root]
     for c in get_children(children, root):
@@ -225,21 +233,23 @@ def calc_depth(children, parents, depth, start):
         depth[start] = 0
 
 
+# unused
 def build_sequence_tree_dict(seq_data, children, root, max_depth=9999):
     # assume, all parents are inside this array!
 
     """Recursively build a tree of SequenceNode_s"""
 
     def build(pos, max_depth):
-        seq_node = {'head': seq_data[pos], 'children': []}
+        seq_node = {KEY_HEAD: seq_data[pos], KEY_CHILDREN: []}
         if pos in children and max_depth > 0:
             for child_offset in children[pos]:
-                seq_node['children'].append(build(pos + child_offset, max_depth - 1))
+                seq_node[KEY_CHILDREN].append(build(pos + child_offset, max_depth - 1))
         return seq_node
 
     return build(root, max_depth)
 
 
+# unused
 def build_sequence_tree_dict_from_parse(seq_graph, max_depth=9999):
     seq_data, seq_parents = seq_graph
     children, roots = children_and_roots(seq_parents)
@@ -250,7 +260,7 @@ def sequence_node_to_sequence_trees(seq_tree):
     current_data = []
     current_parents = []
     children_roots = []
-    for child in seq_tree['children']:
+    for child in seq_tree[KEY_CHILDREN]:
         child_data, child_parents = sequence_node_to_sequence_trees(child)
         current_data.extend(child_data)
         current_parents.extend(child_parents)
@@ -258,13 +268,13 @@ def sequence_node_to_sequence_trees(seq_tree):
     for child_root in children_roots:
         current_parents[child_root] = len(current_data) - child_root
     # head is the last element
-    current_data.append(seq_tree['head'])
+    current_data.append(seq_tree[KEY_HEAD])
     current_parents.append(0)
 
     return current_data, current_parents
 
 
-def convert_data(data, converter, lex_size, new_idx_unknown):
+def _convert_data(data, converter, lex_size, new_idx_unknown):
     logging.info('convert data ...')
     count_unknown = 0
     for i, d in enumerate(data):
@@ -280,10 +290,10 @@ def convert_data(data, converter, lex_size, new_idx_unknown):
 
 
 def _compare_tree_dicts(tree1, tree2):
-    if tree1['head'] != tree2['head']:
-        return tree1['head'] - tree2['head']
-    c1 = tree1['children']
-    c2 = tree2['children']
+    if tree1[KEY_HEAD] != tree2[KEY_HEAD]:
+        return tree1[KEY_HEAD] - tree2[KEY_HEAD]
+    c1 = tree1[KEY_CHILDREN]
+    c2 = tree2[KEY_CHILDREN]
     if len(c1) != len(c2):
         return len(c1) - len(c2)
     for i in range(len(c1)):
@@ -523,32 +533,47 @@ class Forest(object):
         #assert not self.data_as_hashes, 'can not convert data hashes'
         assert self.lexicon is not None, 'lexicon is not set'
         #assert self.lexicon.frozen, 'lexicon has to be frozen to convert data'
-        convert_data(data=self.data, converter=converter, lex_size=len(self.lexicon), new_idx_unknown=new_idx_unknown)
+        _convert_data(data=self.data, converter=converter, lex_size=len(self.lexicon), new_idx_unknown=new_idx_unknown)
         self._dicts = None
 
+    # deprecated
     def indices_to_forest(self, indices):
         # return np.array(map(lambda idx: self.forest.T[idx], indices)).T
+        #TODO: use and check: return self.data[indices], self.parents[indices]
         return np.array(map(lambda idx: self.data[idx], indices)), \
                np.array(map(lambda idx: self.parents[idx], indices))
+
+    def get_descendant_indices(self, root):
+        leafs = [root]
+        #if root in self.children:
+        if self.has_children(root):
+            #for c in self.children[root]:
+            for c in self.get_children(root):
+                leafs.extend(self.get_descendant_indices(c + root))
+        return leafs
 
     def trees(self, root_indices=None):
         if root_indices is None:
             root_indices = self.roots
         for i in root_indices:
-            descendant_indices = sorted(get_descendant_indices(self.children, i))
+            descendant_indices = sorted(self.get_descendant_indices(i))
             # new_subtree = zip(*[(data[idx], parents[idx]) for idx in descendant_indices])
-            yield self.indices_to_forest(descendant_indices)
+            #yield self.indices_to_forest(descendant_indices)
+            # TODO: check this!
+            yield self.data[descendant_indices], self.parents[descendant_indices]
 
-    def descendant_indices(self, root):
-        return get_descendant_indices(self.children, root)
+    #def descendant_indices(self, root):
+    #    return get_descendant_indices(self.children, root)
 
     def _set_depths(self, indices, current_depth, child_offset=0):
         # depths are counted starting from roots!
         for i in indices:
             idx = i + child_offset
             self._depths[idx] = current_depth
-            if idx in self.children:
-                self._set_depths(self.children[idx], current_depth+1, idx)
+            #if idx in self.children:
+            if self.has_children(idx):
+                #self._set_depths(self.children[idx], current_depth+1, idx)
+                self._set_depths(self.get_children(idx), current_depth + 1, idx)
 
     def trees_equal(self, root1, root2):
         _cmp = _compare_tree_dicts(self.get_tree_dict_cached(root1), self.get_tree_dict_cached(root2))
@@ -600,11 +625,13 @@ class Forest(object):
         """
         if idx in self._dicts:
             return self._dicts[idx]
-        seq_node = {'head': self.data[idx], 'children': []}
-        if idx in self.children:
-            for child_offset in self.children[idx]:
-                seq_node['children'].append(self.get_tree_dict_cached(idx + child_offset))
-        seq_node['children'].sort(cmp=_compare_tree_dicts)
+        seq_node = {KEY_HEAD: self.data[idx], KEY_CHILDREN: []}
+        #if idx in self.children:
+        if self.has_children(idx):
+            #for child_offset in self.children[idx]:
+            for child_offset in self.get_children(idx):
+                seq_node[KEY_CHILDREN].append(self.get_tree_dict_cached(idx + child_offset))
+        seq_node[KEY_CHILDREN].sort(cmp=_compare_tree_dicts)
 
         self._dicts[idx] = seq_node
         return self._dicts[idx]
@@ -645,7 +672,7 @@ class Forest(object):
 
         if transform:
             data_head = self.transform_data(data_head)
-        seq_node = {'head': data_head, 'children': []}
+        seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         #if idx in self.children and max_depth > 0:
         if self.has_children(idx) and max_depth > 0:
             #for child_offset in self.children[idx]:
@@ -653,23 +680,23 @@ class Forest(object):
                 data_child = idx + child_offset
                 if link_cost < max_depth and data_child in self.root_id_pos:
                     target_idx = self.root_id_pos[data_child] + link_content_offset
-                    seq_node['children'].append(self.get_tree_dict(idx=target_idx,
+                    seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
                                                                    max_depth=max_depth - link_cost,
                                                                    context=context, transform=transform,
                                                                    link_costs=link_costs))
                 else:
-                    seq_node['children'].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
+                    seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
                                                                    context=context, transform=transform,
                                                                    link_costs=link_costs))
         if self.parents[idx] != 0 and context > 0:
-            seq_node['children'].append(self.get_tree_dict_parent(idx=idx, max_depth=context-1, transform=transform,
+            seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-1, transform=transform,
                                                                   link_costs=link_costs))
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False):
         result = self.get_tree_dict(idx, max_depth=max_depth, transform=transform)
         if self.parents[idx] != 0 and max_depth > 0:
-            result['children'].append(self.get_tree_dict_parent(idx, max_depth-1, transform=transform))
+            result[KEY_CHILDREN].append(self.get_tree_dict_parent(idx, max_depth-1, transform=transform))
         return result
 
     def data_back(self, data):
@@ -686,15 +713,16 @@ class Forest(object):
         data_head = self.data_back(self.data[current_id])
         if transform:
             data_head = self.transform_data(data_head)
-        result = {'head': data_head, 'children': []}
+        result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         current_dict_tree = result
         while max_depth > 0:
             # add other children
-            for c in self.children[current_id]:
+            #for c in self.children[current_id]:
+            for c in self.get_children(current_id):
                 c_id = current_id + c
                 if c_id != previous_id:
-                    current_dict_tree['children'].append(self.get_tree_dict(c_id, max_depth=max_depth - 1,
-                                                                            transform=transform, link_costs=link_costs))
+                    current_dict_tree[KEY_CHILDREN].append(
+                        self.get_tree_dict(c_id, max_depth=max_depth - 1, transform=transform, link_costs=link_costs))
             # go up
             if self.parents[current_id] != 0:
                 previous_id = current_id
@@ -702,45 +730,13 @@ class Forest(object):
                 data_head = self.data_back(self.data[current_id])
                 if transform:
                     data_head = self.transform_data(data_head)
-                new_parent_child = {'head': data_head, 'children': []}
-                current_dict_tree['children'].append(new_parent_child)
+                new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
+                current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child
                 max_depth -= 1
             else:
                 break
         return result
-
-    def children_dict_to_arrays(self):
-        _children_pos = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
-        # initialize with maximal size possible (if forest is a list)
-        _children = np.zeros(shape=2*len(self), dtype=constants.DTYPE_OFFSET)
-
-        pos = 0
-        for idx in range(len(self)):
-            if idx in self.children:
-                _children_pos[idx] = pos
-                current_children = self.children[idx]
-                l = len(current_children)
-                _children[pos] = l
-                #self._children[pos + 1:pos + 1 + l] = np.array(current_children, dtype=self._children.dtype)
-                _children[pos + 1:pos + 1 + l] = current_children
-                pos += l + 1
-            else:
-                _children_pos[idx] = -1
-
-        self._children = _children[:pos]
-        self._children_pos = _children_pos
-
-    def children_array_to_dict(self, clear_arrays=False):
-        assert self._children is not None and self._children_pos is not None, '_children or _children_pos arrays not set'
-        self._children_dict = {}
-        for idx, pos in enumerate(self._children_pos):
-            if pos >= 0:
-                l = self._children[pos]
-                self._children_dict[idx] = self._children[pos+1:pos+1+l].tolist()
-        if clear_arrays:
-            self._children = None
-            self._children_pos = None
 
     @staticmethod
     def meta_matches(a, b, operation):
@@ -912,19 +908,91 @@ class Forest(object):
                     result.append(l)
         return result
 
+    #def children_dict_to_arrays(self):
+    #    _children_pos = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
+    #    # initialize with maximal size possible (if forest is a list)
+    #    _children = np.zeros(shape=2*len(self), dtype=constants.DTYPE_OFFSET)
+#
+    #    pos = 0
+    #    for idx in range(len(self)):
+    #        if idx in self.children:
+    #            _children_pos[idx] = pos
+    #            current_children = self.children[idx]
+    #            l = len(current_children)
+    #            _children[pos] = l
+    #            #self._children[pos + 1:pos + 1 + l] = np.array(current_children, dtype=self._children.dtype)
+    #            _children[pos + 1:pos + 1 + l] = current_children
+    #            pos += l + 1
+    #        else:
+    #            _children_pos[idx] = -1
+#
+    #    self._children = _children[:pos]
+    #    self._children_pos = _children_pos
+
+    #def children_array_to_dict(self, clear_arrays=False):
+    #    assert self._children is not None and self._children_pos is not None, '_children or _children_pos arrays not set'
+    #    self._children_dict = {}
+    #    for idx, pos in enumerate(self._children_pos):
+    #        if pos >= 0:
+    #            l = self._children[pos]
+    #            self._children_dict[idx] = self._children[pos+1:pos+1+l].tolist()
+    #    if clear_arrays:
+    #        self._children = None
+    #        self._children_pos = None
+
     def has_children(self, idx):
-        if self._children_pos is not None:
-            return self._children_pos[idx] >= 0
-        else:
-            return idx in self.children
+        #if self._children_pos is not None:
+            #return self._children_pos[idx] >= 0
+        c_pos = self._children_pos[idx]
+        return self._children[c_pos] > 0
+        #else:
+        #    return idx in self.children
 
     def get_children(self, idx):
-        if self._children is not None and self._children_pos is not None:
-            child_pos = self._children_pos[idx]
-            c = self._children[child_pos]
-            return self._children[child_pos+1:child_pos+1+c]
-        else:
-            return self.children[idx]
+        assert self._children is not None and self._children_pos is not None, 'children arrays are None'
+        child_pos = self._children_pos[idx]
+        c = self._children[child_pos]
+        return self._children[child_pos+1:child_pos+1+c]
+        #else:
+        #    return self.children[idx]
+
+    def set_parents_with_children(self):
+        logging.info('set_parents_with_children ...')
+        assert self._children is not None and self._children_pos is not None, 'children arrays are None, can not ' \
+                                                                              'create parents'
+        self._parents = np.zeros(shape=len(self), dtype=DTYPE_OFFSET)
+        for p_idx, c_pos in enumerate(self._children_pos):
+            #if c_pos >= 0:
+            c_count = self._children[c_pos]
+            for c_offset in self._children[c_pos+1:c_pos+1+c_count]:
+                c_idx = p_idx + c_offset
+                self._parents[c_idx] = -c_offset
+
+    def set_children_with_parents(self):
+        logging.info('set_children_with_parents ...')
+        assert self._parents is not None, 'parents are None, can not create children arrays'
+        children_dict, _ = children_and_roots(self.parents)
+
+        _children_pos = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
+        # initialize with maximal size possible (if forest is a list)
+        _children = np.zeros(shape=2 * len(self), dtype=constants.DTYPE_OFFSET)
+
+        pos = 0
+        for idx in range(len(self)):
+            _children_pos[idx] = pos
+            if idx in children_dict:
+                current_children = children_dict[idx]
+                l = len(current_children)
+                _children[pos] = l
+                # self._children[pos + 1:pos + 1 + l] = np.array(current_children, dtype=self._children.dtype)
+                _children[pos + 1:pos + 1 + l] = current_children
+                pos += l
+            else:
+                _children[pos] = 0
+            pos += 1
+
+        self._children = _children[:pos]
+        self._children_pos = _children_pos
 
     def __str__(self):
         return self._data.__str__()
@@ -938,22 +1006,24 @@ class Forest(object):
 
     @property
     def parents(self):
-        assert self._parents is not None, 'parents array is None'
+        #assert self._parents is not None, 'parents array is None'
+        if self._parents is None:
+            self.set_parents_with_children()
         return self._parents
 
     @property
     def forest(self):
         return self.data, self.parents
 
-    @property
-    def children(self):
-        if self._children_dict is None:
-            if self._children is not None and self._children_pos is not None:
-                self.children_array_to_dict()
-            else:
-                self._children_dict, root_pos = children_and_roots(self.parents)
-                self._root_pos = np.array(root_pos, dtype=DTYPE_IDX)
-        return self._children_dict
+    #@property
+    #def children(self):
+    #    if self._children_dict is None:
+    #        if self._children is not None and self._children_pos is not None:
+    #            #self.children_array_to_dict()
+    #        else:
+    #            self._children_dict, root_pos = children_and_roots(self.parents)
+    #            self._root_pos = np.array(root_pos, dtype=DTYPE_IDX)
+    #    return self._children_dict
 
     @property
     def roots(self):
