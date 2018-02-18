@@ -663,7 +663,7 @@ def main(data_source):
         logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
         assert Lexicon.exist(data_source, types_only=True), 'No lexicon found at: %s' % data_source
         logging.info('load lexicon from: %s' % data_source)
-        lexicon = Lexicon(filename=data_source)
+        lexicon = Lexicon(filename=data_source, load_vecs=False)
 
     if FLAGS.external_lexicon:
         logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')

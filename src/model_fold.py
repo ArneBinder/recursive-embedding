@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+#from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 # import google3
@@ -8,7 +8,8 @@ from tensorflow_fold.blocks import result_types as tdt
 from tensorflow_fold.blocks import blocks as tdb
 import numpy as np
 import math
-import logging
+
+from constants import KEY_HEAD, KEY_CHILDREN
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
@@ -261,11 +262,11 @@ class TreeEmbedding(object):
             return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_var, x))
 
     def head(self, name='head_embed'):
-        #return td.Pipe(td.GetItem('head'), td.Scalar(dtype='int32'), self.embed(), name=name)
-        return td.Pipe(td.GetItem('head'), self.embed(), self.leaf_fc, name=name)
+        #return td.Pipe(td.GetItem(KEY_HEAD), td.Scalar(dtype='int32'), self.embed(), name=name)
+        return td.Pipe(td.GetItem(KEY_HEAD), self.embed(), self.leaf_fc, name=name)
 
-    def children(self, name='children'):
-        return td.InputTransform(lambda x: x.get('children', []), name=name)
+    def children(self, name=KEY_CHILDREN):
+        return td.InputTransform(lambda x: x.get(KEY_CHILDREN, []), name=name)
 
     @property
     def state_size(self):
@@ -559,16 +560,16 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
         # naive version
         def case(seq_tree):
             # children and head exist: process and aggregate
-            if len(seq_tree['children']) > 0 and 'head' in seq_tree:
+            if len(seq_tree[KEY_CHILDREN]) > 0 and KEY_HEAD in seq_tree:
                 return 0
             # children do not exist (but maybe a head): process (optional) head only
-            if len(seq_tree['children']) == 0:
+            if len(seq_tree[KEY_CHILDREN]) == 0:
                 return 1
             # otherwise (head does not exist): process children only
             return 2
 
         def children(name='children'):
-            return td.Pipe(td.GetItem('children'), td.Map(embed_tree()), td.Sum(), name=name)
+            return td.Pipe(td.GetItem(KEY_CHILDREN), td.Map(embed_tree()), td.Sum(), name=name)
 
         cases = td.OneOf(lambda x: case(x),
                          {0: td.AllOf(self.head(), children()) >> self.map,
@@ -661,20 +662,20 @@ class TreeEmbedding_FLAT2levels(TreeEmbedding_FLAT):
     def children(self, name='children'):
         # return only children that have at least one child themselves
         def get_children(x):
-            if 'children' not in x:
+            if KEY_CHILDREN not in x:
                 return []
-            res = [c for c in x['children'] if 'children' in c and len(c['children']) > 0]
-            #if len(res) != len(x['children']):
+            res = [c for c in x[KEY_CHILDREN] if KEY_CHILDREN in c and len(c[KEY_CHILDREN]) > 0]
+            #if len(res) != len(x[KEY_CHILDREN]):
                 # warn, if children have been removed
-                #logging.warning('removed children: %i' % (len(x['children']) - len(res)))
+                #logging.warning('removed children: %i' % (len(x[KEY_CHILDREN]) - len(res)))
             return res
         return td.InputTransform(get_children, name=name)
 
     def head(self, name='head_embed'):
         # use word embedding and first child embedding
-        return td.Pipe(td.AllOf(td.Pipe(td.GetItem('head'), self.embed(), name='head_level1'),
-                                td.GetItem('children') >> td.InputTransform(lambda s: s[0])
-                                >> td.Pipe(td.GetItem('head'), self.embed(), name='head_level2')),
+        return td.Pipe(td.AllOf(td.Pipe(td.GetItem(KEY_HEAD), self.embed(), name='head_level1'),
+                                td.GetItem(KEY_CHILDREN) >> td.InputTransform(lambda s: s[0])
+                                >> td.Pipe(td.GetItem(KEY_HEAD), self.embed(), name='head_level2')),
                        td.Concat(), self.leaf_fc, name=name)
 
     @property
@@ -805,8 +806,8 @@ def sim_layer_DEP(e1, e2, hidden_size=DIMENSION_SIM_MEASURE):
 
 
 def get_all_heads(tree):
-    current_heads = [tree['head']]
-    for child in tree['children']:
+    current_heads = [tree[KEY_HEAD]]
+    for child in tree[KEY_CHILDREN]:
         current_heads.extend(get_all_heads(child))
     return current_heads
 

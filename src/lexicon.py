@@ -352,7 +352,7 @@ FE_STRINGS = 'string'
 
 
 class Lexicon(object):
-    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None):
+    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, load_vecs=True):
         """
         Create a Lexicon from file, from types (and optionally from vecs), from spacy vocabulary or from spacy
         StringStore.
@@ -375,7 +375,7 @@ class Lexicon(object):
             #else:
             #    types_dep = Lexicon.read_types(filename)
             #    self._strings = StringStore(types_dep)
-            if os.path.isfile('%s.%s' % (filename, FE_VECS)):
+            if load_vecs and os.path.isfile('%s.%s' % (filename, FE_VECS)):
                 self.init_vecs(filename=filename)
             else:
                 # set dummy vecs

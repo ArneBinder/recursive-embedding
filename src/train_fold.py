@@ -21,14 +21,14 @@ import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
 
-import constants
 import corpus_simtuple
 import lexicon as lex
 import model_fold
 
 # model flags (saved in flags.json)
 import mytools
-import sequence_trees as sqt
+from sequence_trees import Forest
+from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING
 from config import Config
 
 # non-saveable flags
@@ -145,8 +145,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
         lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
         #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
-        ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
-        IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
+        ROOT_idx = lexicon[vocab_manual[ROOT_EMBEDDING]]
+        IDENTITY_idx = lexicon[vocab_manual[IDENTITY_EMBEDDING]]
         lexicon.init_vecs(checkpoint_reader=reader)
         # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
         #if config.data_single:
@@ -154,8 +154,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #    ENTRY2_idx = lexicon[u'ENTRY2']
     else:
         lexicon = lex.Lexicon(filename=config.train_data_path)
-        ROOT_idx = lexicon[constants.vocab_manual[constants.ROOT_EMBEDDING]]
-        IDENTITY_idx = lexicon[constants.vocab_manual[constants.IDENTITY_EMBEDDING]]
+        ROOT_idx = lexicon[vocab_manual[ROOT_EMBEDDING]]
+        IDENTITY_idx = lexicon[vocab_manual[IDENTITY_EMBEDDING]]
         if logdir_pretrained:
             logging.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
             old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
@@ -193,8 +193,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     # use this to enable full head dropout
     def set_head_neg(tree):
-        tree['head'] -= len(lexicon)
-        for c in tree['children']:
+        tree[KEY_HEAD] -= len(lexicon)
+        for c in tree[KEY_CHILDREN]:
             set_head_neg(c)
 
     def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tries=10, max_depth=100, **unused):
@@ -218,7 +218,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             _trees = [sequence_trees.get_tree_dict_rooted(idx, max_depth=max_depth, transform=True)]
             for idx_cand in candidate_ids:
                 cand_tree = copy.deepcopy(_trees[0])
-                cand_tree['head'] = sequence_trees.data[idx_cand]
+                cand_tree[KEY_HEAD] = sequence_trees.data[idx_cand]
                 _trees.append(cand_tree)
             _probs = np.zeros(neg_samples + 1)
             _probs[0] = 1.
@@ -253,16 +253,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                 if merge_prob_idx is not None:
                     for i in range(n):
-                        _trees[i]['head'] = subtree_head_ids[i]
-                    new_root = {'head': root_idx, 'children': _trees}
+                        _trees[i][KEY_HEAD] = subtree_head_ids[i]
+                    new_root = {KEY_HEAD: root_idx, KEY_CHILDREN: _trees}
                     _trees = [new_root]
                     _probs = [_probs[merge_prob_idx]]
                 else:
                     if root_idx is not None:
-                        _trees[0]['head'] = root_idx
+                        _trees[0][KEY_HEAD] = root_idx
                     # unify heads
                     for i in range(1, n):
-                        _trees[i]['head'] = _trees[0]['head']
+                        _trees[i][KEY_HEAD] = _trees[0][KEY_HEAD]
 
                 if head_dropout:
                     for t in _trees:
@@ -524,7 +524,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
-            sqt_data = sqt.Forest(filename=config.train_data_path, lexicon=lexicon)
+            sqt_data = Forest(filename=config.train_data_path, lexicon=lexicon)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
 
