@@ -135,7 +135,12 @@ default_config = {'train_data_path': ['DEFINE_string',
                   'model_type': ['DEFINE_string',
                                  'simtuple',
                                  'type of model',
-                                 'model']
+                                 'model'],
+                  'concat_mode': ['DEFINE_string',
+                                  'tree',
+                                  'how to concatenate the tokens (tree: use tree structure, sequence: as ordered '
+                                  'sequence, aggregate: bag-of-tokens)',
+                                  'cm']
                   }
 
 

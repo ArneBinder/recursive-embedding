@@ -274,7 +274,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 else:
                     yield [_trees, _probs]
 
-    def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree', max_depth=9999, context=0,
+    def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, concat_mode='tree', max_depth=9999, context=0,
                                        transform=True, offset_context=2, offset_seealso=3):
         for f_name in index_files:
             indices = np.load(f_name)
@@ -297,9 +297,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
     elif config.model_type == 'tuple':
-        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True}
-        data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
-        data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
+        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+                              'concat_mode': config.concat_mode}
+        data_iterator_train = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
+        data_iterator_dev = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
         tuple_size = 2
     elif config.model_type == 'x':
         # extensions = ['', '.negs1']
