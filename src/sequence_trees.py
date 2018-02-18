@@ -5,8 +5,7 @@ import os
 
 import pydot
 
-from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, TYPE_ROOT, TYPE_ANCHOR, \
-    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, KEY_HEAD, KEY_CHILDREN
+from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN
 import constants
 
 
@@ -133,59 +132,6 @@ def _compare_tree_dicts(tree1, tree2):
         if _comp != 0:
             return _comp
     return 0
-
-
-def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
-                                    see_also_refs,
-                                    see_also_ref_type=TYPE_REF_SEEALSO,
-                                    root_type=TYPE_ROOT,
-                                    anchor_type=TYPE_ANCHOR,
-                                    terminal_types=None,
-                                    see_also_section_type=TYPE_SECTION_SEEALSO
-                                    ):
-    """
-    Constructs a tree from triples.
-    :param sorted_parent_triples: list of triples (uri, uri_type, uri_parent)
-                                  sorted by ?parent_beginIndex DESC(?parent_endIndex) ?beginIndex DESC(?endIndex))
-    :param lexicon: the lexicon used to convert the uri strings into integer ids
-    :param root_id: uri string added as direct root child, e.g. "http://dbpedia.org/resource/Damen_Group"
-    :param root_type: uri string used as root data, e.g. "http://dbpedia.org/resource"
-    :param anchor_type: the tree represented in sorted_parent_triples will be anchored via this uri string to the
-                        root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
-    :param terminal_types: uri strings that are considered as terminals, i.e. are used as roots of parsed string trees
-    :return: the tree data strings, parents, position mappings ({str(uri): offset}) and list of terminal types
-    """
-    if terminal_types is None:
-        terminal_types = [TYPE_PARAGRAPH, TYPE_TITLE]
-    temp_data = [root_type, root_id, anchor_type, see_also_section_type]
-    temp_parents = [0, -1, -2, -3]
-    for see_also_ref, in see_also_refs:
-        temp_data.append(see_also_ref_type)
-        temp_parents.append(3 - len(temp_parents))
-        temp_data.append(unicode(see_also_ref))
-        temp_parents.append(-1)
-    pre_len = len(temp_data)
-    positions = {}
-    parent_uris = {}
-    terminal_parent_positions = {}
-    terminal_types_list = []
-
-    for uri, uri_type, uri_parent in sorted_parent_triples:
-        uri_str = unicode(uri)
-        uri_type_str = unicode(uri_type)
-        uri_parent_str = unicode(uri_parent)
-        if len(temp_data) == pre_len:
-            positions[uri_parent_str] = 2
-        parent_uris[uri_str] = uri_parent_str
-        positions[uri_str] = len(temp_data)
-        if uri_type_str in terminal_types:
-            terminal_types_list.append(uri_type_str)
-            terminal_parent_positions[uri_str] = positions[parent_uris[uri_str]]
-        else:
-            temp_data.append(uri_type_str)
-            temp_parents.append(positions[uri_parent_str] - len(temp_parents))
-
-    return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
 class Forest(object):
@@ -707,13 +653,16 @@ class Forest(object):
         return self._children[c_pos] > 0
 
     def get_children(self, idx):
-        assert self._children is not None and self._children_pos is not None, 'children arrays are None'
         child_pos = self._children_pos[idx]
         c = self._children[child_pos]
         return self._children[child_pos+1:child_pos+1+c]
 
+    def get_children_counts(self, indices):
+        children_pos = self._children_pos[indices]
+        return self._children[children_pos]
+
     def set_parents_with_children(self):
-        logging.info('set_parents_with_children ...')
+        logging.warning('set_parents_with_children ...')
         assert self._children is not None and self._children_pos is not None, 'children arrays are None, can not ' \
                                                                               'create parents'
         self._parents = np.zeros(shape=len(self), dtype=DTYPE_OFFSET)
@@ -724,7 +673,7 @@ class Forest(object):
                 self._parents[c_idx] = -c_offset
 
     def set_children_with_parents(self):
-        logging.info('set_children_with_parents ...')
+        logging.warning('set_children_with_parents ...')
         assert self._parents is not None, 'parents are None, can not create children arrays'
         children_dict, _ = children_and_roots(self.parents)
 

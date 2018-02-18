@@ -21,8 +21,9 @@ from rdflib import Namespace
 from rdflib.namespace import RDF, RDFS
 
 from lexicon import Lexicon
-from sequence_trees import Forest, tree_from_sorted_parent_triples, FE_ROOT_ID
-from constants import DTYPE_HASH, DTYPE_COUNT, TYPE_REF, UNKNOWN_EMBEDDING, vocab_manual
+from sequence_trees import Forest, FE_ROOT_ID
+from constants import DTYPE_HASH, DTYPE_COUNT, TYPE_REF, UNKNOWN_EMBEDDING, vocab_manual, TYPE_ROOT, TYPE_ANCHOR, \
+    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO
 import preprocessing
 
 """
@@ -85,6 +86,7 @@ FE_UNIQUE_HASHES_FILTERED = 'unique.hash.filtered'
 FE_UNIQUE_HASHES_DISCARDED = 'unique.hash.discarded'
 FE_UNIQUE_COUNTS_FILTERED = 'count.hash.filtered'
 FE_UNIQUE_COUNTS_DISCARDED = 'count.hash.discarded'
+FE_ROOT_SEEALSO_COUNT = 'root.seealso.count'
 
 DIR_BATCHES = 'batches'
 DIR_BATCHES_CONVERTED = 'batches_converted'
@@ -160,6 +162,59 @@ def query_first_section_structure(graph, initBindings=None):
     res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     #print(type(res))
     return res
+
+
+def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
+                                    see_also_refs,
+                                    see_also_ref_type=TYPE_REF_SEEALSO,
+                                    root_type=TYPE_ROOT,
+                                    anchor_type=TYPE_ANCHOR,
+                                    terminal_types=None,
+                                    see_also_section_type=TYPE_SECTION_SEEALSO
+                                    ):
+    """
+    Constructs a tree from triples.
+    :param sorted_parent_triples: list of triples (uri, uri_type, uri_parent)
+                                  sorted by ?parent_beginIndex DESC(?parent_endIndex) ?beginIndex DESC(?endIndex))
+    :param lexicon: the lexicon used to convert the uri strings into integer ids
+    :param root_id: uri string added as direct root child, e.g. "http://dbpedia.org/resource/Damen_Group"
+    :param root_type: uri string used as root data, e.g. "http://dbpedia.org/resource"
+    :param anchor_type: the tree represented in sorted_parent_triples will be anchored via this uri string to the
+                        root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
+    :param terminal_types: uri strings that are considered as terminals, i.e. are used as roots of parsed string trees
+    :return: the tree data strings, parents, position mappings ({str(uri): offset}) and list of terminal types
+    """
+    if terminal_types is None:
+        terminal_types = [TYPE_PARAGRAPH, TYPE_TITLE]
+    temp_data = [root_type, root_id, anchor_type, see_also_section_type]
+    temp_parents = [0, -1, -2, -3]
+    for see_also_ref, in see_also_refs:
+        temp_data.append(see_also_ref_type)
+        temp_parents.append(3 - len(temp_parents))
+        temp_data.append(unicode(see_also_ref))
+        temp_parents.append(-1)
+    pre_len = len(temp_data)
+    positions = {}
+    parent_uris = {}
+    terminal_parent_positions = {}
+    terminal_types_list = []
+
+    for uri, uri_type, uri_parent in sorted_parent_triples:
+        uri_str = unicode(uri)
+        uri_type_str = unicode(uri_type)
+        uri_parent_str = unicode(uri_parent)
+        if len(temp_data) == pre_len:
+            positions[uri_parent_str] = 2
+        parent_uris[uri_str] = uri_parent_str
+        positions[uri_str] = len(temp_data)
+        if uri_type_str in terminal_types:
+            terminal_types_list.append(uri_type_str)
+            terminal_parent_positions[uri_str] = positions[parent_uris[uri_str]]
+        else:
+            temp_data.append(uri_type_str)
+            temp_parents.append(positions[uri_parent_str] - len(temp_parents))
+
+    return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
 def prepare_context_data(graph, nif_context, ref_type_str=TYPE_REF, max_see_also_refs=50):
@@ -664,6 +719,12 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
         forests.append(Forest(filename=fn_path_out))
     forest_merged = Forest.concatenate(forests)
     forest_merged.dump(filename=out_path_merged)
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+
+    logger.info('collect root seealso counts ...')
+    t_start = datetime.now()
+    root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + 3)
+    root_seealso_counts.dump('%s.%s' % (out_path_merged, FE_ROOT_SEEALSO_COUNT))
     logger.info('finished. %s' % str(datetime.now()-t_start))
 
 
