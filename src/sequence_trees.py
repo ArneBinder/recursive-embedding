@@ -673,7 +673,7 @@ class Forest(object):
                 self._parents[c_idx] = -c_offset
 
     def set_children_with_parents(self):
-        logging.warning('set_children_with_parents ...')
+        #logging.warning('set_children_with_parents ...')
         assert self._parents is not None, 'parents are None, can not create children arrays'
         children_dict, _ = children_and_roots(self.parents)
 

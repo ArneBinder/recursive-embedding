@@ -354,13 +354,6 @@ def save_current_forest(i, forest, failed, resource_hashes_failed, lexicon, file
     if forest is not None:
         forest.dump(filename)
         lexicon.dump(filename, strings_only=True)
-        #roots = forest.roots
-        #roots.dump('%s.%s' % (filename, FE_ROOTS))
-        #resource_hashes.dump('%s.%s' % (filename, FE_RESOURCE_HASHES))
-        # consistency check
-        #resource_hashes_check = forest.data[roots + 1]
-        #assert np.array_equal(resource_hashes_check, resource_hashes), 'data[roots+1] does not match resource_hashes'
-        # consistency check end
         unique, counts = np.unique(forest.data, return_counts=True)
         unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
         counts.dump('%s.%s' % (filename, FE_COUNTS))
@@ -445,9 +438,8 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
         context = nif_context_data[-1]
         res_hash = hash_string(unicode(context)[:-len(PREFIX_CONTEXT)])
         try:
-            #nif_context_data = prepare_context_data(graph, context)
             tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
-            tree_context.children_dict_to_arrays()
+            tree_context.set_children_with_parents()
             tree_contexts.append(tree_context)
             resource_hashes.append(res_hash)
         except Exception as e:
@@ -461,7 +453,6 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
         forest = None
 
     save_current_forest(i=begin_idx + len(nif_context_datas) + len(failed), forest=forest,
-                        #resource_hashes=np.array(resource_hashes, dtype=DTYPE_HASH),
                         failed=failed, resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH),
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
@@ -706,6 +697,7 @@ def process_batches(out_path, min_count=10, min_count_root_id=2):
     logger.info('load spacy ...')
     nlp = spacy.load('en')
     lexicon.init_vecs(vocab=nlp.vocab)
+    lexicon.set_to_random(indices=lexicon.ids_fixed, indices_as_blacklist=True)
     lexicon.dump(filename=out_path_merged)
     nlp = None
     logger.info('finished. %s' % str(datetime.now() - t_start))
