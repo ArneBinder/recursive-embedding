@@ -107,13 +107,13 @@ default_config = {'train_data_path': ['DEFINE_string',
                                    #   True,
                                    'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
                                    'restore'],
-                  'data_single': ['DEFINE_boolean',
-                                  False,
-                                  #   True,
-                                  'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
-                                  'entries to fixed dummy value (IDENTITY_idx) for test data. Create a dedicated training '
-                                  'and test models.',
-                                  'single'],
+                  #'data_single': ['DEFINE_boolean',
+                  #                False,
+                  #                #   True,
+                  #                'If enabled, use iterate_scored_tree_data to load train data and set roots of sim_tuple '
+                  #                'entries to fixed dummy value (IDENTITY_idx) for test data. Create a dedicated training '
+                  #                'and test models.',
+                  #                'single'],
                   'extensions': ['DEFINE_string',
                                  '',
                                  'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
@@ -132,6 +132,10 @@ default_config = {'train_data_path': ['DEFINE_string',
                               'maximum depth of added context trees',
                               'cntxt'
                               ],
+                  'model_type': ['DEFINE_string',
+                                 'simtuple',
+                                 'type of model',
+                                 'model']
                   }
 
 

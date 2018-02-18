@@ -148,10 +148,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         ROOT_idx = lexicon[vocab_manual[ROOT_EMBEDDING]]
         IDENTITY_idx = lexicon[vocab_manual[IDENTITY_EMBEDDING]]
         lexicon.init_vecs(checkpoint_reader=reader)
-        # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
-        #if config.data_single:
-        #    ENTRY1_idx = lexicon[u'ENTRY1']
-        #    ENTRY2_idx = lexicon[u'ENTRY2']
     else:
         lexicon = lex.Lexicon(filename=config.train_data_path)
         ROOT_idx = lexicon[vocab_manual[ROOT_EMBEDDING]]
@@ -167,12 +163,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
         #lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
         #lexicon.pad()
-
-        # TODO: ENTRY1 and ENTRY2 add to vocab_manual (changes lexicon creation!)
-        #if config.data_single:
-        #    ENTRY1_idx = lexicon[u'ENTRY1']
-        #    ENTRY2_idx = lexicon[u'ENTRY2']
-        #    lexicon.pad()
 
         lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
         assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
@@ -224,7 +214,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             _probs[0] = 1.
             yield [_trees, _probs]
 
-    def data_tuple_iterator(sim_index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False,
+    def data_tuple_iterator(index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None, split=False,
                             head_dropout=False, merge_prob_idx=None, subtree_head_ids=None, count=None, merge=False,
                             max_depth=9999, context=0, transform=True):
         if merge_prob_idx is not None:
@@ -234,7 +224,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             assert not shuffle, 'merge_prob_idx is given (%i), but SHUFFLE is enabled' % merge_prob_idx
             assert not split, 'merge_prob_idx is given (%i), but SPLIT is enabled' % merge_prob_idx
         n_last = None
-        for sim_index_file in sim_index_files:
+        for sim_index_file in index_files:
             indices, probabilities = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
             n = len(indices[0])
             assert n_last is None or n_last == n, 'all (eventually merged) index tuple files have to contain the ' \
@@ -284,7 +274,34 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 else:
                     yield [_trees, _probs]
 
-    if config.data_single:
+    def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree', max_depth=9999, context=0,
+                                       transform=True, offset_context=2, offset_seealso=3):
+        for f_name in index_files:
+            indices = np.load(f_name)
+            for idx in indices:
+                idx_context_root = idx + offset_context
+                idx_seealso_root = idx + offset_seealso
+                if concat_mode == 'tree':
+                    tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
+                                                                context=context, transform=transform)
+                    tree_seealso = sequence_trees.get_tree_dict(idx=idx_seealso_root, max_depth=max_depth,
+                                                                context=context, transform=transform)
+                    yield [[tree_context, tree_seealso], np.ones(shape=2)]
+                else:
+                    raise NotImplementedError('concat_mode=%s not implemented' % concat_mode)
+
+    if config.model_type == 'simtuple':
+        data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
+                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
+        data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
+        data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
+        tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
+    elif config.model_type == 'tuple':
+        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True}
+        data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
+        data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
+        tuple_size = 2
+    elif config.model_type == 'x':
         # extensions = ['', '.negs1']
         #data_iterator_train = partial(data_tuple_iterator, extensions=extensions)
         #data_iterator_dev = partial(data_tuple_iterator, extensions=extensions)
@@ -304,16 +321,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                     extensions=config.extensions.split(','), max_depth=config.max_depth,
                                     context=config.context, transform=True)
     else:
-        data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
-                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
-        data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
-        data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
-        tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
+        raise NotImplementedError('model_type=%s not implemented' % config.model_type)
+
 
     parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
     if test_file is not None:
         test_fname = os.path.join(parent_dir, test_file)
-        test_iterator = partial(data_tuple_iterator, sim_index_files=[test_fname], root_idx=ROOT_idx, split=True)
+        test_iterator = partial(data_tuple_iterator, index_files=[test_fname], root_idx=ROOT_idx, split=True)
     else:
         test_iterator = None
     if not (test_only or init_only):
@@ -329,8 +343,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         test_fname = train_fnames[config.dev_file_index]
         logging.info('use ' + test_fname + ' for testing')
         del train_fnames[config.dev_file_index]
-        train_iterator = partial(data_iterator_train, sim_index_files=train_fnames)
-        dev_iterator = partial(data_iterator_dev, sim_index_files=[test_fname])
+        train_iterator = partial(data_iterator_train, index_files=train_fnames)
+        dev_iterator = partial(data_iterator_dev, index_files=[test_fname])
     elif test_only:
         assert test_iterator is not None, 'flag "test_file" has to be set if flag "test_only" is enabled, but it is None'
         train_iterator = None
@@ -368,7 +382,21 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                       # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                       )
 
-            if config.data_single:
+            if config.model_type == 'simtuple':
+                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                                                                         optimizer=optimizer,
+                                                                         learning_rate=config.learning_rate,
+                                                                         sim_measure=sim_measure,
+                                                                         clipping_threshold=config.clipping)
+                model_train = model_test
+            elif config.model_type == 'tuple':
+                model_test = model_fold.SimilaritySequenceTreeTupleModel_sample(tree_model=model_tree,
+                                                                                optimizer=optimizer,
+                                                                                learning_rate=config.learning_rate,
+                                                                                sim_measure=sim_measure,
+                                                                                clipping_threshold=config.clipping)
+                model_train = model_test
+            elif config.model_type == 'x':
                 # has to be created first #TODO: really?
                 model_train = model_fold.ScoredSequenceTreeTupleModel_independent(tree_model=model_tree,
                                                                                   optimizer=optimizer,
@@ -382,12 +410,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                          clipping_threshold=config.clipping)
                 #model_test = model_train
             else:
-                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                                                                         optimizer=optimizer,
-                                                                         learning_rate=config.learning_rate,
-                                                                         sim_measure=sim_measure,
-                                                                         clipping_threshold=config.clipping)
-                model_train = model_test
+                raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
             # PREPARE TRAINING #########################################################################################
 
@@ -524,14 +547,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
                 return step, loss_all, score_all_, score_all_gold_
 
-            sqt_data = Forest(filename=config.train_data_path, lexicon=lexicon)
+            forest = Forest(filename=config.train_data_path, lexicon=lexicon)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
 
                     if test_iterator is not None:
                         logging.info('create test data set ...')
                         test_set = list(
-                            model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=sqt_data),
+                            model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=forest),
                                                                              ordered=True))
                         logging.info('test data size: ' + str(len(test_set)))
                         if train_iterator is None:
@@ -547,7 +570,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                     logging.info('create dev data set ...')
                     dev_set = list(
-                        model_test.tree_model.compiler.build_loom_inputs(dev_iterator(sequence_trees=sqt_data)))
+                        model_test.tree_model.compiler.build_loom_inputs(dev_iterator(sequence_trees=forest)))
                     logging.info('dev data size: ' + str(len(dev_set)))
 
                 # clear vecs in lexicon to clean up memory
@@ -555,7 +578,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                 logging.info('create train data set ...')
                 # data_train = list(train_iterator)
-                train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=sqt_data))
+                train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
                 # logging.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logging.info('training the model')
@@ -568,13 +591,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                     # train
                     if not config.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch, new_model=config.data_single)
+                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch, new_model=False) #new_model=config.data_single)
 
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
                                                                                train=False, test_step=step_train,
-                                                                               #new_model=config.data_single)
                                                                                new_model=False)
 
                         if loss_test < loss_test_best:

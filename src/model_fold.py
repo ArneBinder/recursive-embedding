@@ -958,6 +958,33 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         return self._scores
 
 
+class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
+    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
+
+    def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
+
+        # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
+        self._scores_gold = tf.reshape(tree_model.probs_gold_shaped, shape=[-1, 2])[:, 1]
+        # pack tree embeddings in pairs of two
+        self._tree_embeddings_reshaped = tf.reshape(tree_model.embeddings_shaped, shape=[-1, 2, tree_model.tree_output_size])
+
+        raise NotImplementedError('implement SimilaritySequenceTreeTupleModel_new')
+
+        # apply sim measure
+        self._scores = sim_measure(self._tree_embeddings_reshaped)
+
+        BaseTrainModel.__init__(self, tree_model=tree_model,
+                                loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
+
+    @property
+    def scores_gold(self):
+        return self._scores_gold
+
+    @property
+    def scores(self):
+        return self._scores
+
+
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
