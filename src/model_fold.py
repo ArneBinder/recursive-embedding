@@ -963,15 +963,29 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 
     def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
 
-        # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
-        self._scores_gold = tf.reshape(tree_model.probs_gold_shaped, shape=[-1, 2])[:, 1]
-        # pack tree embeddings in pairs of two
-        self._tree_embeddings_reshaped = tf.reshape(tree_model.embeddings_shaped, shape=[-1, 2, tree_model.tree_output_size])
+        # unpack scores_gold. Every prob tuple has the format: [1.0, ...]
+        #self._scores_gold = tf.reshape(tree_model.probs_gold_shaped, shape=[-1, 2])[:, 0]
 
-        raise NotImplementedError('implement SimilaritySequenceTreeTupleModel_new')
+        # pack tree embeddings in pairs of two
+        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, 2, tree_model.tree_output_size])
+
+        batch_size = tf.shape(tree_embeddings)[0]
+
+        self._scores_gold = tf.reshape(tf.eye(batch_size), [batch_size**2])
+        embeddings_0_tiled = tf.tile(tree_embeddings[:, 0, :], multiples=[batch_size, 1])
+        embeddings_1_tiled = tf.tile(tree_embeddings[:, 1, :], multiples=[batch_size, 1])
+
+        embeddings_0_m = tf.reshape(embeddings_0_tiled, shape=[batch_size, batch_size, tree_model.tree_output_size])
+        embeddings_1_m = tf.reshape(embeddings_1_tiled, shape=[batch_size, batch_size, tree_model.tree_output_size])
+        embeddings_1_m_trans = tf.transpose(embeddings_1_m, perm=[1, 0, 2])
+
+        embeddings_0_list = tf.reshape(embeddings_0_m, shape=[batch_size**2, tree_model.tree_output_size])
+        embeddings_1_list_trans = tf.reshape(embeddings_1_m_trans, shape=[batch_size ** 2, tree_model.tree_output_size])
+        tree_embeddings_tiled_stacked = dprint(tf.reshape(tf.stack([embeddings_0_list, embeddings_1_list_trans]),
+                                                          shape=[batch_size ** 2, 2, tree_model.tree_output_size]))
 
         # apply sim measure
-        self._scores = sim_measure(self._tree_embeddings_reshaped)
+        self._scores = sim_measure(tree_embeddings_tiled_stacked)
 
         BaseTrainModel.__init__(self, tree_model=tree_model,
                                 loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
