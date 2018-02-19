@@ -345,9 +345,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
                         f_seealso.set_children_with_parents()
                         tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-                        children.append(tree_seealso)
+                        children.append({KEY_HEAD: f_seealso.transform_data(data_ref_seealso), KEY_CHILDREN: [tree_seealso]})
                     if len(children) > 0:
-                        yield [[tree_context, {KEY_HEAD: sequence_trees.data[idx_seealso_root], KEY_CHILDREN: children}],
+                        yield [[tree_context, {KEY_HEAD: f.transform_data(sequence_trees.data[idx_seealso_root]), KEY_CHILDREN: children}],
                                np.ones(shape=2)]
                 else:
                     raise ValueError('unknown concat_mode=%s' % concat_mode)
