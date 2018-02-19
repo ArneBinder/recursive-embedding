@@ -111,10 +111,10 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
     return count
 
 
-def get_tree_naive(root, forest, concat_mode='sequence', content_offset=2):
+def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset=2):
     idx_root = forest.roots[root]
     idx_context = idx_root + content_offset
-    if root < len(forest.roots):
+    if root < len(forest.roots) - 1:
         idx_next_root = forest.roots[root + 1]
     else:
         idx_next_root = len(forest)
@@ -134,7 +134,7 @@ def get_tree_naive(root, forest, concat_mode='sequence', content_offset=2):
             parents[i] = len(parents) - i - 1
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
-    return Forest(data=data, parents=parents)
+    return Forest(data=data, parents=parents, lexicon=lexicon)
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None):
@@ -325,15 +325,19 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                 link_costs=link_costs)
                     yield [[tree_context, tree_seealso], np.ones(shape=2)]
                 elif concat_mode in ['sequence', 'aggregate']:
-                    f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode)
+                    f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
+                    f.set_children_with_parents()
                     tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
                     children = []
                     for c_offset in sequence_trees.get_children(idx_seealso_root):
                         seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
                         seealso_idx = idx_seealso_root + c_offset+seealso_offset
                         seealso_data_id = sequence_trees.data[seealso_idx]
-                        seealso_root = sequence_trees.root_id_pos[seealso_data_id]
-                        f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode)
+                        seealso_root = sequence_trees.root_id_mapping.get(seealso_data_id, None)
+                        if seealso_root is None:
+                            continue
+                        f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
+                        f_seealso.set_children_with_parents()
                         tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
                         children.append(tree_seealso)
                     yield [[tree_context, {KEY_HEAD: sequence_trees.data[idx_seealso_root], KEY_CHILDREN: children}],

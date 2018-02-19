@@ -168,6 +168,7 @@ class Forest(object):
         self._depths_collected = None
         self._dicts = {}
         self._root_id_pos = None
+        self._root_id_mapping = None
 
     def load(self, filename, load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True):
         logging.debug('load data and parents from %s ...' % filename)
@@ -754,3 +755,10 @@ class Forest(object):
             assert self._root_ids is not None, 'root_ids not set'
             self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
         return self._root_id_pos
+
+    @property
+    def root_id_mapping(self):
+        if self._root_id_mapping is None:
+            assert self._root_ids is not None, 'root_ids not set'
+            self._root_id_mapping = {v: i for i, v in enumerate(self._root_ids)}
+        return self._root_id_mapping
