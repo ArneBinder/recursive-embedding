@@ -21,14 +21,16 @@ FE_ROOT_POS = 'root.pos'
 MAX_DEPTH = 9999
 
 
-def get_root(parents, idx):
+
+
+def _get_root(parents, idx):
     i = idx
     while parents[i] != 0:
         i += parents[i]
     return i
 
 
-def children_and_roots(seq_parents):
+def _children_and_roots(seq_parents):
     # assume, all parents are inside this array!
     # collect children
     # children = [[] for _ in xrange(len(seq_parents))]
@@ -46,7 +48,7 @@ def children_and_roots(seq_parents):
 
 
 # unused
-def calc_depth(children, parents, depth, start):
+def _calc_depth(children, parents, depth, start):
     idx = start
     children_idx = list()
     if start in children:
@@ -87,12 +89,12 @@ def calc_depth(children, parents, depth, start):
         depth[start] = 0
 
 
-def sequence_node_to_sequence_trees(seq_tree):
+def _sequence_node_to_sequence_trees(seq_tree):
     current_data = []
     current_parents = []
     children_roots = []
     for child in seq_tree[KEY_CHILDREN]:
-        child_data, child_parents = sequence_node_to_sequence_trees(child)
+        child_data, child_parents = _sequence_node_to_sequence_trees(child)
         current_data.extend(child_data)
         current_parents.extend(child_parents)
         children_roots.append(len(current_data) - 1)
@@ -156,7 +158,7 @@ class Forest(object):
             self.set_forest(data=data, parents=parents, forest=forest, children=children, children_pos=children_pos,
                             data_as_hashes=data_as_hashes, root_ids=root_ids, root_pos=root_pos)
         elif tree_dict is not None:
-            _data, _parents = sequence_node_to_sequence_trees(tree_dict)
+            _data, _parents = _sequence_node_to_sequence_trees(tree_dict)
             self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes, root_ids=root_ids)
         else:
             raise ValueError(
@@ -676,7 +678,7 @@ class Forest(object):
     def set_children_with_parents(self):
         #logging.warning('set_children_with_parents ...')
         assert self._parents is not None, 'parents are None, can not create children arrays'
-        children_dict, _ = children_and_roots(self.parents)
+        children_dict, _ = _children_and_roots(self.parents)
 
         _children_pos = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
         # initialize with maximal size possible (if forest is a list)
