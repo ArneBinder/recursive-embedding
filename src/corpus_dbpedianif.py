@@ -23,7 +23,7 @@ from rdflib.namespace import RDF, RDFS
 from lexicon import Lexicon
 from sequence_trees import Forest, FE_ROOT_ID
 from constants import DTYPE_HASH, DTYPE_COUNT, TYPE_REF, UNKNOWN_EMBEDDING, vocab_manual, TYPE_ROOT, TYPE_ANCHOR, \
-    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO
+    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX
 import preprocessing
 
 """
@@ -730,6 +730,20 @@ def main(mode, *args):
         plac.call(process_batches, args)
     else:
         raise ValueError('unknown mode. use one of CREATE_BATCHES or MERGE_BATCHES.')
+
+
+def create_index_files(p):
+    seealso_counts = np.load('%s.root.seealso.count' % p)
+    # roots = np.load('%s.root.pos' % p)
+    x = np.arange(len(seealso_counts), dtype=DTYPE_IDX)[(seealso_counts > 0) & (seealso_counts < 50)]
+
+    np.random.shuffle(x)
+
+    indices_train = x[:len(x) / 2]
+    indices_test = x[len(x) / 2:]
+
+    indices_train.dump('%s.idx.0' % p)
+    indices_test.dump('%s.idx.1' % p)
 
 
 if __name__ == '__main__':
