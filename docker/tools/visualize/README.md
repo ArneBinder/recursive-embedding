@@ -16,7 +16,7 @@ git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding
 ```
 
-Adapt parameters in [`docker/create-corpus/sick/.env`](.env) file.
+Rename [`docker/tools/visualize/.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
 
 To start the REST endpoint, execute from project root:
 

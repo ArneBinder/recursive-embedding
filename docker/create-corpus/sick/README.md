@@ -15,7 +15,7 @@ git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding
 ```
 
-Adapt parameters in [`docker/create-corpus/sick/.env`](.env) file.
+Rename (or copy) [`docker/create-corpus/sick/.env.dev`](.env.dev) to `.env` and adapt its parameters.
 
 To start the processing, execute from project root:
 
