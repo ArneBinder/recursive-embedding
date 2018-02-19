@@ -29,7 +29,7 @@ import model_fold
 import mytools
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
-    TYPE_REF_SEEALSO
+    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING
 from config import Config
 
 # non-saveable flags
@@ -307,6 +307,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         link_costs = {}
         data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
         data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+        data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
         if link_cost_ref is not None:
             link_costs[data_ref] = link_cost_ref
         link_costs[data_ref_seealso] = link_cost_ref_seealso
@@ -323,6 +324,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     tree_seealso = sequence_trees.get_tree_dict(idx=idx_seealso_root, max_depth=max_depth,
                                                                 context=context, transform=transform,
                                                                 link_costs=link_costs)
+                    # TODO: exclude, if no seealso's
+                    #if len(tree_seealso[KEY_CHILDREN]) == 0:
+                    #    continue
                     yield [[tree_context, tree_seealso], np.ones(shape=2)]
                 elif concat_mode in ['sequence', 'aggregate']:
                     f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
@@ -333,6 +337,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
                         seealso_idx = idx_seealso_root + c_offset+seealso_offset
                         seealso_data_id = sequence_trees.data[seealso_idx]
+                        if seealso_data_id == data_unknown:
+                            continue
                         seealso_root = sequence_trees.root_id_mapping.get(seealso_data_id, None)
                         if seealso_root is None:
                             continue
@@ -340,8 +346,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         f_seealso.set_children_with_parents()
                         tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
                         children.append(tree_seealso)
-                    yield [[tree_context, {KEY_HEAD: sequence_trees.data[idx_seealso_root], KEY_CHILDREN: children}],
-                           np.ones(shape=2)]
+                    if len(children) > 0:
+                        yield [[tree_context, {KEY_HEAD: sequence_trees.data[idx_seealso_root], KEY_CHILDREN: children}],
+                               np.ones(shape=2)]
                 else:
                     raise ValueError('unknown concat_mode=%s' % concat_mode)
 
