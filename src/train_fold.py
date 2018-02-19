@@ -274,21 +274,28 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 else:
                     yield [_trees, _probs]
 
-    def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, concat_mode='tree', max_depth=9999, context=0,
-                                       transform=True, offset_context=2, offset_seealso=3):
+    def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, concat_mode='tree', max_depth=9999,
+                                                       context=0, transform=True, offset_context=2, offset_seealso=3):
         for f_name in index_files:
             indices = np.load(f_name)
-            for idx in indices:
-                idx_context_root = idx + offset_context
-                idx_seealso_root = idx + offset_seealso
+            for root in indices:
+                idx_root = sequence_trees.roots[root]
+                idx_context_root = idx_root + offset_context
+                idx_seealso_root = idx_root + offset_seealso
                 if concat_mode == 'tree':
                     tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
                                                                 context=context, transform=transform)
                     tree_seealso = sequence_trees.get_tree_dict(idx=idx_seealso_root, max_depth=max_depth,
                                                                 context=context, transform=transform)
                     yield [[tree_context, tree_seealso], np.ones(shape=2)]
+                elif concat_mode == 'sequence':
+                    # TODO
+                    raise NotImplementedError('concat_mode=%s not yet implemented' % concat_mode)
+                elif concat_mode == 'aggregate':
+                    # TODO
+                    raise NotImplementedError('concat_mode=%s not yet implemented' % concat_mode)
                 else:
-                    raise NotImplementedError('concat_mode=%s not implemented' % concat_mode)
+                    raise ValueError('unknown concat_mode=%s' % concat_mode)
 
     if config.model_type == 'simtuple':
         data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
