@@ -68,10 +68,15 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
     link_costs = {}
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
-    data_ref_seealso_transformed = sequence_trees.transform_data(data_ref_seealso)
     data_root_seealso = lexicon.get_d(TYPE_SECTION_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
-    data_root_seealso_transformed = sequence_trees.transform_data(data_root_seealso)
     data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
+    if transform:
+        data_ref_seealso_transformed = sequence_trees.transform_data(data_ref_seealso)
+        data_root_seealso_transformed = sequence_trees.transform_data(data_root_seealso)
+    else:
+        data_ref_seealso_transformed = data_ref_seealso
+        data_root_seealso_transformed = data_root_seealso
+
     if link_cost_ref is not None:
         link_costs[data_ref] = link_cost_ref
     link_costs[data_ref_seealso] = link_cost_ref_seealso
