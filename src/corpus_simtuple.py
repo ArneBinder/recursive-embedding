@@ -25,27 +25,27 @@ tf.flags.DEFINE_string(
     'sentence_processor',
     'process_sentence3_marked',
     'Which data types (features) are used to build the data sequence.')
-tf.flags.DEFINE_string(
-    'concat_mode',
-    # 'sequence',
-    'aggregate',
-    # constants.default_inner_concat_mode,
-    'How to concatenate the sentence-trees with each other. '
-    'A sentence-tree represents the information regarding one sentence. '
-    '"sequence" -> roots point to next root, '
-    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
-    '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
-tf.flags.DEFINE_string(
-    'inner_concat_mode',
-    # 'tree',
-    None,
-    # constants.default_inner_concat_mode,
-    'How to concatenate the token-trees with each other. '
-    'A token-tree represents the information regarding one token. '
-    '"tree" -> use dependency parse tree'
-    '"sequence" -> roots point to next root, '
-    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
-    'None -> do not concat at all. This produces one sentence-tree per token.')
+#tf.flags.DEFINE_string(
+#    'concat_mode',
+#    # 'sequence',
+#    'aggregate',
+#    # constants.default_inner_concat_mode,
+#    'How to concatenate the sentence-trees with each other. '
+#    'A sentence-tree represents the information regarding one sentence. '
+#    '"sequence" -> roots point to next root, '
+#    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
+#    '(NOT ALLOWED for similarity scored tuples!) None -> do not concat at all')
+#tf.flags.DEFINE_string(
+#    'inner_concat_mode',
+#    # 'tree',
+#    None,
+#    # constants.default_inner_concat_mode,
+#    'How to concatenate the token-trees with each other. '
+#    'A token-tree represents the information regarding one token. '
+#    '"tree" -> use dependency parse tree'
+#    '"sequence" -> roots point to next root, '
+#    '"aggregate" -> roots point to an added, artificial token (AGGREGATOR) in the end of the token sequence'
+#    'None -> do not concat at all. This produces one sentence-tree per token.')
 tf.flags.DEFINE_integer(
     'count_threshold',
     1,
@@ -231,11 +231,11 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
 
     out_path = os.path.join(out_dir, corpus_name + (output_suffix or ''))
 
-    assert FLAGS.concat_mode is not None and FLAGS.concat_mode != 'tree', \
-        "concat_mode=None or concat_mode='tree' is NOT ALLOWED for similarity scored tuples! Use 'sequence' or 'aggregate'"
-    out_path = out_path + '_cm' + FLAGS.concat_mode.upper()
-    if FLAGS.inner_concat_mode is not None:
-        out_path = out_path + '_icm' + FLAGS.inner_concat_mode.upper()
+    #assert FLAGS.concat_mode is not None and FLAGS.concat_mode != 'tree', \
+    #    "concat_mode=None or concat_mode='tree' is NOT ALLOWED for similarity scored tuples! Use 'sequence' or 'aggregate'"
+    #out_path = out_path + '_cm' + FLAGS.concat_mode.upper()
+    #if FLAGS.inner_concat_mode is not None:
+    #    out_path = out_path + '_icm' + FLAGS.inner_concat_mode.upper()
 
     if FLAGS.one_hot_dep:
         out_path = out_path + '_onehotdep'
@@ -258,8 +258,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             logging.debug('lexicon size: %i' % len(lexicon))
             _forest = lexicon.read_data(reader=reader_sentences, sentence_processor=sentence_processor,
                                         parser=nlp, reader_args={'filename': file_name},
-                                        batch_size=10000, concat_mode=FLAGS.concat_mode,
-                                        inner_concat_mode=FLAGS.inner_concat_mode, expand_dict=True,
+                                        batch_size=10000, concat_mode='sequence',
+                                        inner_concat_mode='tree', expand_dict=True,
                                         reader_roots=reader_roots,
                                         reader_roots_args=reader_roots_args,
                                         return_hashes=True)
