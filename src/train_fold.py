@@ -28,7 +28,8 @@ import model_fold
 # model flags (saved in flags.json)
 import mytools
 from sequence_trees import Forest
-from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING
+from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
+    TYPE_REF_SEEALSO
 from config import Config
 
 # non-saveable flags
@@ -108,6 +109,32 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
         if tensor_name.endswith(selector_suffix):
             count += reduce((lambda x, y: x * y), shapes[tensor_name])
     return count
+
+
+def get_tree_naive(root, forest, concat_mode='sequence', content_offset=2):
+    idx_root = forest.roots[root]
+    idx_context = idx_root + content_offset
+    if root < len(forest.roots):
+        idx_next_root = forest.roots[root + 1]
+    else:
+        idx_next_root = len(forest)
+
+    child_offset = forest.get_children(idx_context)[0]
+    idx_content_root = idx_context + child_offset
+    data = np.zeros(idx_next_root-idx_content_root+1, dtype=forest.data.dtype)
+    data[:-1] = forest.data[idx_content_root:idx_next_root]
+    # append 'nif:context'
+    data[-1] = forest.data[idx_context]
+    if concat_mode == 'sequence':
+        parents = np.ones(len(data), dtype=DTYPE_OFFSET)
+        parents[-1] = 0
+    elif concat_mode == 'aggregate':
+        parents = np.zeros(len(data), dtype=DTYPE_OFFSET)
+        for i in range(len(parents)-1):
+            parents[i] = len(parents) - i - 1
+    else:
+        raise ValueError('unknown concat_mode=%s' % concat_mode)
+    return Forest(data=data, parents=parents)
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None):
@@ -275,25 +302,42 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     yield [_trees, _probs]
 
     def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, concat_mode='tree', max_depth=9999,
-                                                       context=0, transform=True, offset_context=2, offset_seealso=3):
-        for f_name in index_files:
-            indices = np.load(f_name)
+                                                       context=0, transform=True, offset_context=2, offset_seealso=3,
+                                                       link_cost_ref=None, link_cost_ref_seealso=1):
+        link_costs = {}
+        data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
+        data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+        if link_cost_ref is not None:
+            link_costs[data_ref] = link_cost_ref
+        link_costs[data_ref_seealso] = link_cost_ref_seealso
+        for file_name in index_files:
+            indices = np.load(file_name)
             for root in indices:
                 idx_root = sequence_trees.roots[root]
                 idx_context_root = idx_root + offset_context
                 idx_seealso_root = idx_root + offset_seealso
                 if concat_mode == 'tree':
                     tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
-                                                                context=context, transform=transform)
+                                                                context=context, transform=transform,
+                                                                link_costs=link_costs)
                     tree_seealso = sequence_trees.get_tree_dict(idx=idx_seealso_root, max_depth=max_depth,
-                                                                context=context, transform=transform)
+                                                                context=context, transform=transform,
+                                                                link_costs=link_costs)
                     yield [[tree_context, tree_seealso], np.ones(shape=2)]
-                elif concat_mode == 'sequence':
-                    # TODO
-                    raise NotImplementedError('concat_mode=%s not yet implemented' % concat_mode)
-                elif concat_mode == 'aggregate':
-                    # TODO
-                    raise NotImplementedError('concat_mode=%s not yet implemented' % concat_mode)
+                elif concat_mode in ['sequence', 'aggregate']:
+                    f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode)
+                    tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+                    children = []
+                    for c_offset in sequence_trees.get_children(idx_seealso_root):
+                        seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
+                        seealso_idx = idx_seealso_root + c_offset+seealso_offset
+                        seealso_data_id = sequence_trees.data[seealso_idx]
+                        seealso_root = sequence_trees.root_id_pos[seealso_data_id]
+                        f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode)
+                        tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+                        children.append(tree_seealso)
+                    yield [[tree_context, {KEY_HEAD: sequence_trees.data[idx_seealso_root], KEY_CHILDREN: children}],
+                           np.ones(shape=2)]
                 else:
                     raise ValueError('unknown concat_mode=%s' % concat_mode)
 
@@ -304,6 +348,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
     elif config.model_type == 'tuple':
+
         data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode}
         data_iterator_train = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)

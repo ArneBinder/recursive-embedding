@@ -422,16 +422,16 @@ class Forest(object):
                 if link_cost < max_depth and data_child in self.root_id_pos:
                     target_idx = self.root_id_pos[data_child] + link_content_offset
                     seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
-                                                                   max_depth=max_depth - link_cost,
-                                                                   context=context, transform=transform,
-                                                                   link_costs=link_costs))
+                                                                     max_depth=max_depth - link_cost,
+                                                                     context=context, transform=transform,
+                                                                     link_costs=link_costs))
                 else:
                     seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
-                                                                   context=context, transform=transform,
-                                                                   link_costs=link_costs))
+                                                                     context=context, transform=transform,
+                                                                     link_costs=link_costs))
         if self.parents[idx] != 0 and context > 0:
             seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-1, transform=transform,
-                                                                  link_costs=link_costs))
+                                                                    link_costs=link_costs))
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False):
