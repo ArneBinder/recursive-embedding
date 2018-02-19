@@ -172,13 +172,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
         lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
         #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
-        ROOT_idx = lexicon[vocab_manual[ROOT_EMBEDDING]]
-        IDENTITY_idx = lexicon[vocab_manual[IDENTITY_EMBEDDING]]
+        ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
+        IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         lexicon.init_vecs(checkpoint_reader=reader)
     else:
         lexicon = lex.Lexicon(filename=config.train_data_path)
-        ROOT_idx = lexicon[vocab_manual[ROOT_EMBEDDING]]
-        IDENTITY_idx = lexicon[vocab_manual[IDENTITY_EMBEDDING]]
+        ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
+        IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         if logdir_pretrained:
             logging.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
             old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
