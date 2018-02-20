@@ -1,9 +1,11 @@
-# Create corpus from SICK corpus data
+# Create a rec-emb data model from the SICK corpus
 
 TODO: add source corpus description
-TODO: add target data format description (see [dbpedia-nif](../dbpedia-nif/README.md))
 
-## HOW TO build the corpus
+This docker-compose service converts these sentence tuples into a simple tree serialization optimized for hierarchical neural 
+network training (see [main readme](../../../readme.md)).
+
+## HOW TO build the data model
 
 Install:
  * docker

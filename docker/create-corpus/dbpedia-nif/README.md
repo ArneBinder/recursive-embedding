@@ -1,4 +1,4 @@
-# Create corpus from DBpedia-NIF data
+# Create a rec-emb data model from DBpedia-NIF
 
 The [2016-10 release of DBpedia](http://wiki.dbpedia.org/datasets/dbpedia-version-2016-10) contains RDF [NIF](https://site.nlp2rdf.org/) data (see section 5. NLP Datasets of [Downloads 2016-10](http://wiki.dbpedia.org/downloads-2016-10)) covering the following: 
  * nif-context.ttl: The full text of a wiki page as the context for all subsequent information about this page.
@@ -6,20 +6,13 @@ The [2016-10 release of DBpedia](http://wiki.dbpedia.org/datasets/dbpedia-versio
  * nif-text-links.ttl: All in-text links of a wiki page as nif:Word or nif:Phrase.
 
 This docker-compose service converts this triple data into a simple tree serialization optimized for hierarchical neural 
-network training. The corpus consists of:
- * a lexicon: it holds id-string mappings, id-stringhash mappings and embedding vectors
- * a forest: a serialized forest consists of two numpy arrays. One **data** array is holding the leaf ids or string hashes (can 
- be switched when a lexicon is provided), the other holds **parent** offsets for every data point. For training, the parent array 
- can be converted into two arrays, **children** and **children position**. The children array holds amounts of children for 
- every data point followed by the child offsets. The children position array indicates for every data point, where to look 
- in the children array. 
- <!--- or holds a negative value, if the data point has no children. -->
+network training (see [main readme](../../../readme.md)).
 
 The workflow is as follows. Each article is split into its terminal NIF structure objects: nif:Paragraph\[s\] and nif:Title\[s\]. The terminals are parsed and converted into trees by using its dependency structure. Thereby, an artificial link node is appended to every word node, that is contained in a hyperlink to another DBpedia resource. If a words parent links to the same resource, the link node is appended to the parent only. Then, terminal trees are combined in means of the NIF structure elements that they contain (nif:Section). Note that nif:Section elements can embed several nif:Section elements again.
 In its current state, the service uses only the first section of every article, that corresponds to the article abstract, if it is available. To query the respective data, it is loaded into a local Virtuoso triple store.
 
 
-## HOW TO build the corpus
+## HOW TO build the data model
 
 ATTENTION: The Virtuoso database files (in location `db_dir`) grow to a substantial size, i.e. ~100 GB.
 
