@@ -105,7 +105,8 @@ logger.propagate = False
 
 logger_virtuoso = logging.getLogger('virtuoso.vstore')
 logger_virtuoso.setLevel(logging.INFO)
-logger_virtuoso.addHandler(logging.FileHandler('../virtuoso.log', mode='w', encoding='utf-8'))
+# TODO: change back to '../virtuoso.log'
+logger_virtuoso.addHandler(logging.FileHandler('../virtuoso_new.log', mode='w', encoding='utf-8'))
 logger_virtuoso.propagate = False
 
 
