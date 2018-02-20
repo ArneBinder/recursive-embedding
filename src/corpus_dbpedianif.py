@@ -514,10 +514,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             _q_out.put((begin_idx, nif_context_datas, failed, datetime.now() - t_start))
             _q_in.task_done()
 
-    def do_parse(_q, _path_out, thread_id):
-        logger.info('THREAD %i PARSE: load spacy ...' % thread_id)
-        _nlp = spacy.load('en')
-        logger.info('THREAD %i PARSE: loaded' % thread_id)
+    def do_parse(_q, _path_out, thread_id, _nlp):
 
         while True:
             begin_idx, nif_context_datas, failed, t_query = _q.get()
@@ -534,7 +531,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         worker_query.setDaemon(True)
         worker_query.start()
 
-        worker_parse = Thread(target=do_parse, args=(q_parse, out_path, i * 2 + 1))
+        thread_id_parse = i * 2 + 1
+        logger.info('THREAD %i PARSE: load spacy ...' % thread_id_parse)
+        _nlp = spacy.load('en')
+        logger.info('THREAD %i PARSE: loaded' % thread_id_parse)
+        worker_parse = Thread(target=do_parse, args=(q_parse, out_path, thread_id_parse, _nlp))
         worker_parse.setDaemon(True)
         worker_parse.start()
 
