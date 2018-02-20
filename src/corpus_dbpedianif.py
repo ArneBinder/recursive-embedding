@@ -470,14 +470,19 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
 def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0,
                            batch_count=0):
     assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
-    logger.info('batch-size=%i num-threads=%i start-offset=%i batch-count=%i out_path=%s'
-                % (batch_size, num_threads, start_offset, batch_count, out_path))
 
     if not os.path.exists(out_path):
         os.mkdir(out_path)
     out_path = os.path.join(out_path, str(batch_size))
     if not os.path.exists(out_path):
         os.mkdir(out_path)
+
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-batches.log'))
+    logger_fh.setLevel(logging.DEBUG)
+    logger.addHandler(logger_fh)
+    logger.info('batch-size=%i num-threads=%i start-offset=%i batch-count=%i out_path=%s'
+                % (batch_size, num_threads, start_offset, batch_count, out_path))
+
     out_path = os.path.join(out_path, DIR_BATCHES)
     if not os.path.exists(out_path):
         os.mkdir(out_path)
@@ -593,7 +598,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
     min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
-def process_batches(out_path, min_count=10, min_count_root_id=2):
+def process_merge_batches(out_path, min_count=10, min_count_root_id=2):
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
+    logger_fh.setLevel(logging.INFO)
+    logger.addHandler(logger_fh)
+
     logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
 
     out_path_batches = os.path.join(out_path, DIR_BATCHES)
@@ -731,7 +740,7 @@ def main(mode, *args):
     if mode == 'CREATE_BATCHES':
         plac.call(process_contexts_multi, args)
     elif mode == 'MERGE_BATCHES':
-        plac.call(process_batches, args)
+        plac.call(process_merge_batches, args)
     else:
         raise ValueError('unknown mode. use one of CREATE_BATCHES or MERGE_BATCHES.')
 
