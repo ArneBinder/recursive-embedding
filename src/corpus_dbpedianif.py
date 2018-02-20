@@ -95,8 +95,11 @@ DIR_MERGED = 'merged'
 PREFIX_FN = 'forest'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
+logging_format = '%(asctime)s %(levelname)s %(message)s'
 logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler())
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setFormatter(logging.Formatter(logging_format))
+logger.addHandler(logger_streamhandler)
 #logger.addHandler(logging.FileHandler('../virtuoso_test.log', mode='w', encoding='utf-8'))
 logger.propagate = False
 
