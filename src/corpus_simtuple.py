@@ -432,33 +432,4 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         np.array(all_samples).dump('%s.idx.negs%i' % (out_path, FLAGS.sample_count))
 
 
-def load_sim_tuple_indices(filename, extensions=None):
-    if extensions is None:
-        extensions = ['']
-    probs = []
-    indices = []
-    for ext in extensions:
-        if not os.path.isfile(filename + ext):
-            raise IOError('file not found: %s' % filename + ext)
-        logging.debug('load idx file: %s' % filename + ext)
-        _loaded = np.load(filename + ext).T
-        if _loaded.dtype.kind == 'f':
-            n = (len(_loaded) - 1) / 2
-            _correct = _loaded[0].astype(int)
-            _indices = _loaded[1:-n].astype(int)
-            _probs = _loaded[-n:]
-        else:
-            n = (len(_loaded) - 1)
-            _correct = _loaded[0]
-            _indices = _loaded[1:]
-            _probs = np.zeros(shape=(n, len(_correct)), dtype=np.float32)
-        if len(indices) > 0:
-            if not np.array_equal(indices[0][0], _correct):
-                raise ValueError
-        else:
-            indices.append(_correct.reshape((1, len(_correct))))
-            probs.append(np.ones(shape=(1, len(_correct)), dtype=np.float32))
-        probs.append(_probs)
-        indices.append(_indices)
 
-    return np.concatenate(indices).T, np.concatenate(probs).T

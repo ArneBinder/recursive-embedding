@@ -1,10 +1,10 @@
 import logging
 import copy
 import numpy as np
+import os
 
 from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
     vocab_manual, KEY_CHILDREN
-import corpus_simtuple
 from sequence_trees import Forest
 
 
@@ -62,9 +62,11 @@ def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset
     return Forest(data=data, parents=parents, lexicon=lexicon)
 
 
-def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, lexicon, concat_mode='tree',
+def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, concat_mode='tree',
                                                    max_depth=9999, context=0, transform=True, offset_context=2,
-                                                   offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1):
+                                                   offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
+                                                   **unused):
+    lexicon = sequence_trees.lexicon
     link_costs = {}
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
@@ -122,9 +124,43 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
     logging.info('created %i tree tuples' % n)
 
 
-def data_tuple_iterator(index_files, sequence_trees, lexicon, root_idx=None, shuffle=False, extensions=None,
+def load_sim_tuple_indices(filename, extensions=None):
+    if extensions is None:
+        extensions = ['']
+    probs = []
+    indices = []
+    for ext in extensions:
+        if not os.path.isfile(filename + ext):
+            raise IOError('file not found: %s' % filename + ext)
+        logging.debug('load idx file: %s' % filename + ext)
+        _loaded = np.load(filename + ext).T
+        if _loaded.dtype.kind == 'f':
+            n = (len(_loaded) - 1) / 2
+            _correct = _loaded[0].astype(int)
+            _indices = _loaded[1:-n].astype(int)
+            _probs = _loaded[-n:]
+        else:
+            n = (len(_loaded) - 1)
+            _correct = _loaded[0]
+            _indices = _loaded[1:]
+            _probs = np.zeros(shape=(n, len(_correct)), dtype=np.float32)
+        if len(indices) > 0:
+            if not np.array_equal(indices[0][0], _correct):
+                raise ValueError
+        else:
+            indices.append(_correct.reshape((1, len(_correct))))
+            probs.append(np.ones(shape=(1, len(_correct)), dtype=np.float32))
+        probs.append(_probs)
+        indices.append(_indices)
+
+    return np.concatenate(indices).T, np.concatenate(probs).T
+
+
+def data_tuple_iterator(index_files, sequence_trees, root_idx=None, shuffle=False, extensions=None,
                         split=False, head_dropout=False, merge_prob_idx=None, subtree_head_ids=None, count=None,
-                        merge=False, max_depth=9999, context=0, transform=True):
+                        merge=False, max_depth=9999, context=0, transform=True, **unused):
+    lexicon = sequence_trees.lexicon
+
     # use this to enable full head dropout
     def set_head_neg(tree):
         tree[KEY_HEAD] -= len(lexicon)
@@ -139,7 +175,7 @@ def data_tuple_iterator(index_files, sequence_trees, lexicon, root_idx=None, shu
         assert not split, 'merge_prob_idx is given (%i), but SPLIT is enabled' % merge_prob_idx
     n_last = None
     for sim_index_file in index_files:
-        indices, probabilities = corpus_simtuple.load_sim_tuple_indices(sim_index_file, extensions)
+        indices, probabilities = load_sim_tuple_indices(sim_index_file, extensions)
         n = len(indices[0])
         assert n_last is None or n_last == n, 'all (eventually merged) index tuple files have to contain the ' \
                                               'same amount of tuple entries, but entries in %s ' \

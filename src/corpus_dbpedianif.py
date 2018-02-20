@@ -732,18 +732,14 @@ def main(mode, *args):
         raise ValueError('unknown mode. use one of CREATE_BATCHES or MERGE_BATCHES.')
 
 
-def create_index_files(p):
+def create_index_files(p, split_count=2):
     seealso_counts = np.load('%s.root.seealso.count' % p)
     # roots = np.load('%s.root.pos' % p)
-    x = np.arange(len(seealso_counts), dtype=DTYPE_IDX)[(seealso_counts > 0) & (seealso_counts < 50)]
+    indices_filtered = np.arange(len(seealso_counts), dtype=DTYPE_IDX)[(seealso_counts > 0) & (seealso_counts < 50)]
 
-    np.random.shuffle(x)
-
-    indices_train = x[:len(x) / 2]
-    indices_test = x[len(x) / 2:]
-
-    indices_train.dump('%s.idx.0' % p)
-    indices_test.dump('%s.idx.1' % p)
+    np.random.shuffle(indices_filtered)
+    for i, split in enumerate(np.array_split(indices_filtered, split_count)):
+        split.dump('%s.idx.%i' % (p, i))
 
 
 if __name__ == '__main__':

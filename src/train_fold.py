@@ -185,15 +185,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     if config.model_type == 'simtuple':
         data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
-                              'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'lexicon': lexicon}
+                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
         data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
     elif config.model_type == 'tuple':
 
         data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode, 'lexicon': lexicon}
+                              'concat_mode': config.concat_mode}
         data_iterator_train = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
         tuple_size = 2
