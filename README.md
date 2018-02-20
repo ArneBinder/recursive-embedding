@@ -19,8 +19,8 @@ The rec-emb embedding model
 The rec-emb data model
  * is a simple serialization format for data that is structured in trees
  * is optimized for fast training of the rec-emb embedding model
- * identifies data by integer ids or hashes
- * links data with directed, unlabeled edges
+ * identifies data by integer ids or hashes -- i.e. is content agnostic
+ * links data with directed, unlabeled edges -- i.e. is relation agnostic
 
 
 **TL;DR**, the `docker` folder provides several starting points:
