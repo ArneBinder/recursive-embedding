@@ -1,8 +1,6 @@
 # recursive-embedding (rec-emb)
 
-Train embeddings for hierarchical structured data.
-
-recursive-embedding is a research project.
+Train embeddings for hierarchical structured data. recursive-embedding is a research project.
 
 ## Idea
 
@@ -11,7 +9,7 @@ A lot of real world phenomena are structured hierarchically. Modeling them withi
 
 ### The Embedding Model
 
-The rec-emb embedding model
+The **rec-emb embedding model**
  * is a Vector Space Model (VSM)
  * is a Distributional Semantic Model (DSM)
  * is a Compositional Distributional Semantic Model (CDSM)
@@ -19,14 +17,14 @@ The rec-emb embedding model
 
 ### The Data Model
 
-The rec-emb data model
+The **rec-emb data model**
  * is a simple serialization format for data that is structured in trees
  * is optimized for fast training of the rec-emb embedding model
  * identifies data by integer ids or hashes
  * links data with directed, unlabeled edges
 
 
-The `docker` folder provides several starting points:
+**TL;DR**, the `docker` folder provides several starting points:
  * [preprocessing of DBpedia-NIF data](docker/create-corpus/dbpedia-nif/README.md)
  * [preprocessing of SICK corpus data](docker/create-corpus/sick/README.md)
  * [REST endpoint for corpus visualization](docker/tools/visualize/README.md)
@@ -45,7 +43,7 @@ The **rec-emb data model** includes the following:
 
 Currently, the project provides two data sources:
  * [SICK corpus](http://clic.cimec.unitn.it/marco/publications/marelli-etal-sick-lrec2014.pdf) data. The SICK corpus consists of sentence pairs extracted from image descriptions that are annotated 
- with a relatedness score. See [preprocessing of SICK corpus data](docker/create-corpus/sick/README.md) for a docker 
+ with a *relatedness score*. See [preprocessing of SICK corpus data](docker/create-corpus/sick/README.md) for a docker 
  image that assists to create a **rec-emb data model** for SICK.
  * [DBpedia-NIF 2016-10](http://wiki.dbpedia.org/downloads-2016-10) data. This corpus builds on [DBpedia](http://wiki.dbpedia.org/), but includes preprocessed [NIF](http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core/nif-core.html) data. It consists of (1) 
  cleaned full text of wikipedia articles, (2) structural information as segmentation into sections, paragraphs, etc., and (3) 

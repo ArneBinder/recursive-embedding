@@ -6,7 +6,7 @@ The [2016-10 release of DBpedia](http://wiki.dbpedia.org/datasets/dbpedia-versio
  * nif-text-links.ttl: All in-text links of a wiki page as nif:Word or nif:Phrase.
 
 This docker-compose service converts this triple data into a simple tree serialization optimized for hierarchical neural 
-network training (see [main readme](../../../readme.md)).
+network training (see [main readme](../../../README.md)).
 
 The workflow is as follows. Each article is split into its terminal NIF structure objects: nif:Paragraph\[s\] and nif:Title\[s\]. The terminals are parsed and converted into trees by using its dependency structure. Thereby, an artificial link node is appended to every word node, that is contained in a hyperlink to another DBpedia resource. If a words parent links to the same resource, the link node is appended to the parent only. Then, terminal trees are combined in means of the NIF structure elements that they contain (nif:Section). Note that nif:Section elements can embed several nif:Section elements again.
 In its current state, the service uses only the first section of every article, that corresponds to the article abstract, if it is available. To query the respective data, it is loaded into a local Virtuoso triple store.

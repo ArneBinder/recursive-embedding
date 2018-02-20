@@ -3,7 +3,7 @@
 TODO: add source corpus description
 
 This docker-compose service converts these sentence tuples into a simple tree serialization optimized for hierarchical neural 
-network training (see [main readme](../../../readme.md)).
+network training (see [main readme](../../../README.md)).
 
 ## HOW TO build the data model
 
