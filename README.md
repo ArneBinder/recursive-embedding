@@ -85,7 +85,7 @@ Predict, **how strongly** two trees are related.
 
 Predict, **if** two trees belong together or not. 
 
-"Belonging together" can be interpreted in several ways, e.g., in the case of DBpedia-NIF we selected to match article abstracts against abstracts, that are linked within the section "See also".
+"Belonging together" can be interpreted in several ways, e.g., in the case of DBpedia-NIF we selected to match article abstracts against abstracts of other wikipedia articles, that are linked within the section "See also".
 
 
 ## License
