@@ -44,7 +44,7 @@
 				"header": [],
 				"body": {},
 				"url": {
-					"raw": "127.0.0.1:5000/api/load?path=/mnt/WIN/ML/data/corpora/DBPEDIANIF-test/100/forest-0",
+					"raw": "127.0.0.1:5000/api/load?path=/mnt/WIN/ML/data/corpora/DBPEDIANIF/100/merged/forest",
 					"host": [
 						"127",
 						"0",
@@ -59,7 +59,7 @@
 					"query": [
 						{
 							"key": "path",
-							"value": "/mnt/WIN/ML/data/corpora/DBPEDIANIF-test/100/forest-0",
+							"value": "/mnt/WIN/ML/data/corpora/DBPEDIANIF/100/merged/forest",
 							"equals": true
 						}
 					]
@@ -146,7 +146,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "127.0.0.1:5000/api/visualize?concat_mode=sequence&inner_concat_mode=tree&sentence_processor=process_sentence1&prefix_blacklist=[\"DEPENDENCY\", \"http://purl.org/olia/olia.owl\", \"http://www.w3.org/2005/11/its/rdf\", \"http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core\"]&root_start=0&root_end=10&data_as_hashes=1&max_depth=999&link_cost_ref=1",
+					"raw": "127.0.0.1:5000/api/visualize?concat_mode=sequence&idx_tuple_file=idx.0&data_iterator=data_tuple_iterator_dbpedianif_bag_of_seealsos&tuple_start=0&tuple_end=10&max_depth=1000",
 					"host": [
 						"127",
 						"0",
@@ -167,12 +167,14 @@
 						{
 							"key": "inner_concat_mode",
 							"value": "tree",
-							"equals": true
+							"equals": true,
+							"disabled": true
 						},
 						{
 							"key": "sentence_processor",
 							"value": "process_sentence1",
-							"equals": true
+							"equals": true,
+							"disabled": true
 						},
 						{
 							"key": "blacklist",
@@ -219,25 +221,28 @@
 						{
 							"key": "prefix_blacklist",
 							"value": "[\"DEPENDENCY\", \"http://purl.org/olia/olia.owl\", \"http://www.w3.org/2005/11/its/rdf\", \"http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core\"]",
-							"equals": true
+							"equals": true,
+							"disabled": true
 						},
 						{
 							"key": "idx_tuple_file",
 							"value": "idx.0",
-							"equals": true,
-							"disabled": true
+							"equals": true
+						},
+						{
+							"key": "data_iterator",
+							"value": "data_tuple_iterator_dbpedianif_bag_of_seealsos",
+							"equals": true
 						},
 						{
 							"key": "tuple_start",
-							"value": "-100",
-							"equals": true,
-							"disabled": true
+							"value": "0",
+							"equals": true
 						},
 						{
 							"key": "tuple_end",
-							"value": "3",
-							"equals": true,
-							"disabled": true
+							"value": "10",
+							"equals": true
 						},
 						{
 							"key": "idx_start",
@@ -254,12 +259,14 @@
 						{
 							"key": "root_start",
 							"value": "0",
-							"equals": true
+							"equals": true,
+							"disabled": true
 						},
 						{
 							"key": "root_end",
 							"value": "10",
-							"equals": true
+							"equals": true,
+							"disabled": true
 						},
 						{
 							"key": "idx",
@@ -270,12 +277,8 @@
 						{
 							"key": "data_as_hashes",
 							"value": "1",
-							"equals": true
-						},
-						{
-							"key": "max_depth",
-							"value": "999",
-							"equals": true
+							"equals": true,
+							"disabled": true
 						},
 						{
 							"key": "root_ids",
@@ -284,9 +287,21 @@
 							"disabled": true
 						},
 						{
+							"key": "max_depth",
+							"value": "1000",
+							"equals": true
+						},
+						{
 							"key": "link_cost_ref",
 							"value": "1",
-							"equals": true
+							"equals": true,
+							"disabled": true
+						},
+						{
+							"key": "context",
+							"value": "1",
+							"equals": true,
+							"disabled": true
 						}
 					]
 				},
