@@ -1,6 +1,6 @@
 # recursive-embedding (rec-emb)
 
-Train embeddings for hierarchical structured data. recursive-embedding is a research project.
+Train embeddings for hierarchically structured data. recursive-embedding is a research project.
 
 ## Idea
 
@@ -11,8 +11,8 @@ A lot of real world phenomena are structured hierarchically. Modeling them withi
 
 The **rec-emb embedding model**
  * is a Vector Space Model (VSM)
- * is a Distributional Semantic Model (DSM)
- * is a Compositional Distributional Semantic Model (CDSM)
+ * is a Distributional Semantics Model (DSM)
+ * is a Compositional Distributional Semantics Model (CDSM)
  * follows the map-reduce paradigm
 
 ### The Data Model
@@ -54,16 +54,40 @@ Currently, the project provides two data sources:
 
 ## The rec-emb Embedding Model
 
-Use `reduce` to combine children and apply `map` along edges.
+Create a single embedding for any tree in the forest. Use `reduce` to combine children and apply `map` along edges. Both functions *can* depend on the node data.
 
 Selected setting:
  * `reduce`: summation
  * `map`: GRU step
- * application order: `reduce` at first, then `map` (`reduce > map`)
+ * application order: apply `reduce` before `map` (`reduce > map`)
 
+Implemented `reduce` functions:
+ * summation
+ * averaging
+ * max
+ * attention (default: use node data mapped via a FC as attention weights; split: use a dedicated part of the node data as attention weights; single: use attention weights independent of node data)
+ * GRU
+ * LSTM
+ 
+Implemented `map` functions:
+ * FC (fully connected layer)
+ * LSTM
+ * GRU
 
 
 ## Training
+
+### TASK: Predict Relatedness Scores (regression)
+
+Predict, **how strongly** two trees are related.
+
+"Related" can be interpreted in several ways, e.g., in the case of SICK, several annotators scored pairs of sentences intuitively and the resulting scores are averaged.
+
+### TASK: Predict Matches (binary classification)
+
+Predict, **if** two trees belong together or not. 
+
+"Belonging together" can be interpreted in several ways, e.g., in the case of DBpedia-NIF we selected to match article abstracts against abstracts, that are linked within the section "See also".
 
 
 ## License
