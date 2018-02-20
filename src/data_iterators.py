@@ -2,10 +2,14 @@ import logging
 import copy
 import numpy as np
 import os
+import sys
 
 from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
     vocab_manual, KEY_CHILDREN
 from sequence_trees import Forest
+
+RECURSION_LIMIT_MIN = 1000
+RECURSION_LIMIT_ADD = 100
 
 
 def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tries=10, max_depth=100, **unused):
@@ -66,6 +70,9 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                                                    max_depth=9999, context=0, transform=True, offset_context=2,
                                                    offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
                                                    **unused):
+
+    sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
+
     lexicon = sequence_trees.lexicon
     link_costs = {}
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
@@ -89,14 +96,7 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
             idx_root = sequence_trees.roots[root]
             idx_context_root = idx_root + offset_context
             idx_seealso_root = idx_root + offset_seealso
-            if concat_mode == 'tree':
-                tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
-                                                            context=context, transform=transform,
-                                                            link_costs=link_costs)
-            else:
-                f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
-                f.set_children_with_parents()
-                tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+
             children = []
             for c_offset in sequence_trees.get_children(idx_seealso_root):
                 seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
@@ -109,15 +109,23 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                     continue
                 if concat_mode == 'tree':
                     idx_root_seealso = sequence_trees.roots[seealso_root] + offset_context
-                    tree_seealso = sequence_trees.get_tree_dict(idx=idx_root_seealso, max_depth=max_depth,
+                    tree_seealso = sequence_trees.get_tree_dict(idx=idx_root_seealso, max_depth=max_depth-2,
                                                                 context=context, transform=transform,
                                                                 link_costs=link_costs)
                 else:
                     f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
                     f_seealso.set_children_with_parents()
-                    tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+                    tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth-2, context=context, transform=transform)
                 children.append({KEY_HEAD: data_ref_seealso_transformed, KEY_CHILDREN: [tree_seealso]})
             if len(children) > 0:
+                if concat_mode == 'tree':
+                    tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
+                                                                context=context, transform=transform,
+                                                                link_costs=link_costs)
+                else:
+                    f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
+                    f.set_children_with_parents()
+                    tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
                 yield [[tree_context, {KEY_HEAD: data_root_seealso_transformed, KEY_CHILDREN: children}],
                        np.ones(shape=2)]
                 n += 1
