@@ -1,10 +1,10 @@
 # recursive-embedding (rec-emb)
 
-Train embeddings for hierarchically structured data. recursive-embedding is a research project.
+Train embeddings for hierarchically structured data. rec-emb is a research project.
 
 ## Idea
 
-A lot of real world phenomena are structured hierarchically. Modeling them within tree structures seems to be a natural approach.
+A lot of real world phenomena are structured hierarchically. Creating a semantic model that exploits tree structure seems to be a native need.
 
 
 ### The Embedding Model
