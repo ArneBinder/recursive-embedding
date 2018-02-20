@@ -72,6 +72,14 @@ Selected setting:
  * `reduce`: summation
  * `map`: GRU step
  * application order: apply `reduce` before `map` (`reduce > map`)
+ 
+### Scoring
+
+Given two embeddings of trees, calculate a floating point value.
+
+Implemented scoring functions:
+ * cosine
+
 
 ## Training
 
@@ -81,12 +89,15 @@ Predict, **how strongly** two trees are related.
 
 "Related" can be interpreted in several ways, e.g., in the case of SICK, several annotators scored pairs of sentences intuitively and the resulting scores are averaged.
 
+The [score](#Scoring) is used as measure for the strength of the relatedness.
+
 ### TASK: Predict Matches (binary classification)
 
 Predict, **if** two trees belong together or not. 
 
 "Belonging together" can be interpreted in several ways, e.g., in the case of DBpedia-NIF we selected to match article abstracts against abstracts of other wikipedia articles, that are linked within the section "See also".
 
+The [score](#Scoring) is used as probability for the case that the trees belong together.
 
 ## License
 
