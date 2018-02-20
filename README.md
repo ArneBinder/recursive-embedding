@@ -53,7 +53,7 @@ Currently, the project provides two data sources:
 
 ## The rec-emb Embedding Model
 
-Create a single embedding for any tree in the forest. Use `reduce` to combine children and apply `map` along edges. Both functions *can* depend on the node data.
+Create a single embedding for any tree in the forest. Use `reduce` to combine children and apply `map` along edges. Both functions *can* depend on the node data (at least one of them *should* depend on it).
 
 Implemented `reduce` functions:
  * summation
