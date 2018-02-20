@@ -52,6 +52,17 @@ Currently, the project provides two data sources:
  create a **rec-emb data model** for DBpedia-NIF.
 
 
+## The rec-emb Embedding Model
+
+Use `reduce` to combine children and apply `map` along edges.
+
+Selected setting:
+ * `reduce`: summation
+ * `map`: GRU step
+ * application order: `reduce` at first, then `map` (`reduce > map`)
+
+
+
 ## Training
 
 
