@@ -238,7 +238,7 @@ def get_or_calc_sequence_data(params):
         assert 'data_iterator' in params, 'parameter data_iterator is not given, can not iterate idx_tuple_file'
         data_iterator = getattr(data_iterators, params['data_iterator'])
 
-        max_depth = params.get('max_depth', 10)
+        max_depth = params.get('max_depth', 100)
         context = params.get('context', 0)
 
         data_iterator_args = {'index_files': [fn], 'sequence_trees': current_forest, 'max_depth': max_depth,
