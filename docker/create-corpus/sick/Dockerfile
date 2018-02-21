@@ -5,6 +5,7 @@ RUN apt-get update \
         build-essential \
         curl \
         git \
+        gosu \
         python-dev \
         python-pip \
         unixodbc \
@@ -17,6 +18,7 @@ RUN pip install --no-cache-dir spacy && python -m spacy download en_core_web_md 
 
 ARG ROOT=/root/recursive-embedding
 RUN mkdir "$ROOT"
+COPY docker/set-user-with-folder.sh /
 VOLUME /root/corpora_out
 
 ########################################################################################################################
