@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir spacy && python -m spacy download en_core_web_md 
 
 ARG ROOT=/root/recursive-embedding
 RUN mkdir "$ROOT"
-COPY docker/set-user-with-folder.sh /
+
 VOLUME /root/corpora_out
 
 ########################################################################################################################
@@ -40,6 +40,8 @@ COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
 
 COPY src "$ROOT"/src
 WORKDIR "$ROOT"/src
+
+COPY docker/set-user-with-folder.sh /
 
 #CMD bash
 
