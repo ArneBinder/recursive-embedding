@@ -758,6 +758,11 @@ def create_index_files(p, split_count=2):
 
 
 if __name__ == '__main__':
+    import getpass
+
+    username = getpass.getuser()
+    logger.info('username=%s' % username)
+
     #test_connect_utf8()
     #process_contexts_multi()
     plac.call(main)
