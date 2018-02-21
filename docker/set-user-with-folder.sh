@@ -29,7 +29,7 @@ if [ "$GROUPIDROOT" -ne "$GROUPID" ]; then
     addgroup --gid $GROUPID docker_user
     echo "added group docker_user"
     #useradd -u $USERID -G docker_user -D -s /bin/sh docker_user
-    useradd --uid $USERID --group docker_user -D -s /bin/sh docker_user
+    useradd --uid $USERID --gid $GROUPID docker_user
     echo "added user docker_user"
     gosu docker_user "$@"
 else
