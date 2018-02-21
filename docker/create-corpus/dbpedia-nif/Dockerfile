@@ -41,8 +41,8 @@ COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
 COPY src "$ROOT"/src
 WORKDIR "$ROOT"/src
 
-COPY docker/set-user-with-folder.sh /
-RUN chmod -x /set-user-with-folder.sh
+COPY docker/set-user-with-folder.sh "$ROOT"/src/
+RUN chmod -x "$ROOT"/src/set-user-with-folder.sh
 
 #CMD bash
 
