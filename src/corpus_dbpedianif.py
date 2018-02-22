@@ -471,6 +471,10 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
 )
 def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0,
                            batch_count=0):
+    # debug
+    logger.info('can write: %s' % str(os.access(out_path, os.W_OK)))
+    logger.info('can read: %s' % str(os.access(out_path, os.R_OK)))
+
     assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
 
     if not os.path.exists(out_path):
@@ -601,10 +605,6 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
 def process_merge_batches(out_path, min_count=10, min_count_root_id=2):
-    # debug
-    logger.info('can write: %s' % str(os.access(out_path, os.W_OK)))
-    logger.info('can read: %s' % str(os.access(out_path, os.R_OK)))
-
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
     logger_fh.setLevel(logging.INFO)
     logger.addHandler(logger_fh)
