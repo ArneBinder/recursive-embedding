@@ -472,24 +472,27 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
 def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0,
                            batch_count=0):
     # debug
-    p = '/root/corpora_out'
 
-    logger.info('p=%s' % p)
-    logger.info('can write: %s' % str(os.access(p, os.W_OK)))
-    logger.info('can read: %s' % str(os.access(p, os.R_OK)))#
+    def check_dir(p):
 
-    import grp
-    import pwd
+        logger.info('p=%s' % p)
+        logger.info('can write: %s' % str(os.access(p, os.W_OK)))
+        logger.info('can read: %s' % str(os.access(p, os.R_OK)))#
 
-    stat_info = os.stat(p)
-    uid = stat_info.st_uid
-    gid = stat_info.st_gid
-    logger.info('owner_uid=%i; owner_gid=%i' % (uid, gid))
+        import grp
+        import pwd
 
-    user = pwd.getpwuid(uid)[0]
-    group = grp.getgrgid(gid)[0]
-    logger.info('owner_user=%s; owner_group=%s' % (user, group))
+        stat_info = os.stat(p)
+        uid = stat_info.st_uid
+        gid = stat_info.st_gid
+        logger.info('owner_uid=%i; owner_gid=%i' % (uid, gid))
 
+        user = pwd.getpwuid(uid)[0]
+        group = grp.getgrgid(gid)[0]
+        logger.info('owner_user=%s; owner_group=%s' % (user, group))
+
+    check_dir('/root')
+    check_dir('/root/corpora_out')
  #   return
 
     assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
