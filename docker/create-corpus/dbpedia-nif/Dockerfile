@@ -16,8 +16,11 @@ RUN apt-get update \
     && pip install --no-cache-dir setuptools
 RUN pip install --no-cache-dir spacy && python -m spacy download en_core_web_md && python -m spacy link en_core_web_md en
 
-ARG ROOT=/root/recursive-embedding
-RUN mkdir "$ROOT"
+ARG PROJECT_ROOT=/root/recursive-embedding
+RUN mkdir "$PROJECT_ROOT"
+RUN chmod 777 /root
+COPY docker/set-user-with-folder.sh /root/set-user-with-folder.sh
+RUN chmod +x /root/set-user-with-folder.sh
 
 #VOLUME /root/corpora_out
 
@@ -32,19 +35,14 @@ RUN mkdir "$TMP"
 COPY "$OWN_LOCATION"/libvirtodbc0_7.2.4_amd64.deb "$TMP"/libvirtodbc0_7.2.4_amd64.deb
 RUN dpkg -i "$TMP"/libvirtodbc0_7.2.4_amd64.deb
 
-COPY "$OWN_LOCATION"/requirements.txt "$ROOT"/requirements.txt
-RUN pip install --no-cache-dir -r "$ROOT"/requirements.txt
+COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
+RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
 
-COPY src "$ROOT"/src
+COPY src "$PROJECT_ROOT"/src
 COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
 
-COPY docker/set-user-with-folder.sh "$ROOT"/set-user-with-folder.sh
-RUN chmod +x "$ROOT"/set-user-with-folder.sh
-#RUN cd "$ROOT" && ls -la
-RUN chmod 777 /root
-
-COPY src "$ROOT"/src
-WORKDIR "$ROOT"/src
+COPY src "$PROJECT_ROOT"/src
+WORKDIR "$PROJECT_ROOT"/src
 
 #CMD bash
 

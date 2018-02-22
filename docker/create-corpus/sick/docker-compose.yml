@@ -8,6 +8,9 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      python corpus_sick.py --corpora_target_root=/root/corpora_out --corpora_source_root=/root/corpora_in
-                            --sentence_processor=${PROCESS_SENTENCE} --inner_concat_mode=${TOKEN_CONCAT_MODE}
-                            --concat_mode=${SENTENCE_CONCAT_MODE}
+      /root/set-user-with-folder.sh python corpus_sick.py
+                                            --corpora_target_root=/root/corpora_out
+                                            --corpora_source_root=/root/corpora_in
+                                            --sentence_processor=${PROCESS_SENTENCE}
+                                            --inner_concat_mode=${TOKEN_CONCAT_MODE}
+                                            --concat_mode=${SENTENCE_CONCAT_MODE}

@@ -5,6 +5,7 @@ RUN apt-get update \
         build-essential \
         curl \
         git \
+        gosu \
         python-dev \
         python-pip \
         unixodbc \
@@ -15,9 +16,11 @@ RUN apt-get update \
     && pip install --no-cache-dir setuptools
 RUN pip install --no-cache-dir spacy && python -m spacy download en_core_web_md && python -m spacy link en_core_web_md en
 
-ARG ROOT=/root/recursive-embedding
-RUN mkdir "$ROOT"
-VOLUME /root/corpora_out
+ARG PROJECT_ROOT=/root/recursive-embedding
+RUN mkdir "$PROJECT_ROOT"
+RUN chmod 777 /root
+COPY docker/set-user-with-folder.sh /root/set-user-with-folder.sh
+RUN chmod +x /root/set-user-with-folder.sh
 
 ########################################################################################################################
 
@@ -29,11 +32,11 @@ RUN apt-get update \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-COPY "$OWN_LOCATION"/requirements.txt "$ROOT"/requirements.txt
-RUN pip install --no-cache-dir -r "$ROOT"/requirements.txt
+COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
+RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
 
-COPY src "$ROOT"/src
-WORKDIR "$ROOT"/src
+COPY src "$PROJECT_ROOT"/src
+WORKDIR "$PROJECT_ROOT"/src
 
 #CMD bash
 
