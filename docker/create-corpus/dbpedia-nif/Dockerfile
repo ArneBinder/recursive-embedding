@@ -38,13 +38,13 @@ RUN pip install --no-cache-dir -r "$ROOT"/requirements.txt
 COPY src "$ROOT"/src
 COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
 
-COPY src "$ROOT"/src
-WORKDIR "$ROOT"/src
-
 COPY docker/set-user-with-folder.sh "$ROOT"/set-user-with-folder.sh
 RUN chmod +x "$ROOT"/set-user-with-folder.sh
 #RUN cd "$ROOT" && ls -la
-RUN chmod 777 "$ROOT"
+RUN chmod 777 /root
+
+COPY src "$ROOT"/src
+WORKDIR "$ROOT"/src
 
 #CMD bash
 
