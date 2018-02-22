@@ -493,6 +493,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
 
     if not os.path.exists(out_path):
+        logger.info('checked existence of: %s' % out_path)
         os.mkdir(out_path)
     out_path = os.path.join(out_path, str(batch_size))
     if not os.path.exists(out_path):
