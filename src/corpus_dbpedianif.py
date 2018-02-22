@@ -475,6 +475,18 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     logger.info('can write: %s' % str(os.access(out_path, os.W_OK)))
     logger.info('can read: %s' % str(os.access(out_path, os.R_OK)))
 
+    import grp
+    import pwd
+
+    stat_info = os.stat(out_path)
+    uid = stat_info.st_uid
+    gid = stat_info.st_gid
+    logger.info('owner_uid=%i; owner_gid=%i' % (uid, gid))
+
+    user = pwd.getpwuid(uid)[0]
+    group = grp.getgrgid(gid)[0]
+    logger.info('owner_user=%s; owner_group=%s' % (user, group))
+
     assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
 
     if not os.path.exists(out_path):
