@@ -43,7 +43,8 @@ WORKDIR "$ROOT"/src
 
 COPY docker/set-user-with-folder.sh "$ROOT"/set-user-with-folder.sh
 RUN chmod +x "$ROOT"/set-user-with-folder.sh
-RUN cd "$ROOT" && ls -la
+#RUN cd "$ROOT" && ls -la
+RUN chmod 777 "$ROOT"
 
 #CMD bash
 
