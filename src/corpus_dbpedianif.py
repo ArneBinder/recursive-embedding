@@ -354,7 +354,7 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
-def save_current_forest(i, forest, failed, resource_hashes_failed, lexicon, filename, t_parse, t_query):
+def save_current_forest(forest, failed, resource_hashes_failed, lexicon, filename, t_parse, t_query):
 
     if forest is not None:
         forest.dump(filename)
@@ -362,11 +362,11 @@ def save_current_forest(i, forest, failed, resource_hashes_failed, lexicon, file
         unique, counts = np.unique(forest.data, return_counts=True)
         unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
         counts.dump('%s.%s' % (filename, FE_COUNTS))
-        logger.info('%i: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
-                    % (i, str(t_query), str(t_parse), len(failed), len(forest), len(lexicon)))
+        logger.info('%s: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
+                    % (filename, str(t_query), str(t_parse), len(failed), len(forest), len(lexicon)))
     else:
-        logger.info('%i: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
-                    % (i, str(t_query), str(t_parse), len(failed), 0, len(lexicon)))
+        logger.info('%s: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
+                    % (filename, str(t_query), str(t_parse), len(failed), 0, len(lexicon)))
     if failed is not None and len(failed) > 0:
         with open('%s.%s' % (filename, FE_FAILED), 'w', ) as f:
             for uri, e in failed:
@@ -394,7 +394,7 @@ class ThreadParse(threading.Thread):
             begin_idx, nif_context_datas, failed, t_query = self._queue.get()
             fn = os.path.join(self._out_path, '%s.%i' % (PREFIX_FN, begin_idx))
             try:
-                parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=self._nlp, begin_idx=begin_idx,
+                parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=self._nlp,
                                     filename=fn, t_query=t_query)
             except Exception as e:
                 print('%s: failed' % str(e))
@@ -431,7 +431,7 @@ class ThreadQuery(threading.Thread):
             self._queue.task_done()
 
 
-def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_query):
+def parse_context_batch(nif_context_datas, failed, nlp, filename, t_query):
 
     t_start = datetime.now()
     lexicon = Lexicon()
@@ -457,9 +457,81 @@ def parse_context_batch(nif_context_datas, failed, nlp, begin_idx, filename, t_q
     else:
         forest = None
 
-    save_current_forest(i=begin_idx + len(nif_context_datas) + len(failed), forest=forest,
+    save_current_forest(forest=forest,
                         failed=failed, resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH),
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
+
+
+@plac.annotations(
+    out_path=('corpora out path', 'option', 'o', str),
+    batch_size=('amount of articles to query before fed to parser', 'option', 'b', int),
+    #num_threads=('total number of threads used for querying and parsing', 'option', 't', int),
+    start_offset=('index of articles to start with', 'option', 's', int),
+    batch_count=('if batch_count > 0 process only this amount of articles', 'option', 'c', int)
+)
+def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, start_offset=0, batch_count=0):
+    if not os.path.exists(out_path):
+        logger.info('checked existence of: %s' % out_path)
+        os.mkdir(out_path)
+    out_path = os.path.join(out_path, str(batch_size))
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-prepare.log'))
+    logger_fh.setLevel(logging.DEBUG)
+    logger.addHandler(logger_fh)
+    logger.info('batch-size=%i start-offset=%i batch-count=%i out_path=%s'
+                % (batch_size, start_offset, batch_count, out_path))
+
+    out_path = os.path.join(out_path, DIR_BATCHES)
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+
+    logger.info('THREAD MAIN: set up connection ...')
+    while True:
+        try:
+            Virtuoso = plugin("Virtuoso", Store)
+            store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+            default_graph_uri = "http://dbpedia.org/nif"
+            graph = Graph(store, identifier=URIRef(default_graph_uri))
+            break
+        except Exception as e:
+            logger.warn('connection failed: %s wait %i seconds ...' % (str(e), 10))
+            time.sleep(10)
+    logger.info('THREAD MAIN: connected')
+
+    t_start = datetime.now()
+    logger.info('THREAD MAIN: dump context strings ...')
+    current_contexts = []
+    batch_start = 0
+    current_batch_count = 0
+    for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
+        if i < start_offset:
+            continue
+        if i % batch_size == 0:
+            if len(current_contexts) > 0:
+                fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
+                if not Lexicon.exist(fn, types_only=True):
+                    # q_query.put((batch_start, current_contexts))
+                    lexicon = Lexicon(string_list=current_contexts)
+                    lexicon.dump(filename=fn, strings_only=True)
+
+                    current_batch_count += 1
+                    current_contexts = []
+                    if current_batch_count >= batch_count > 0:
+                        break
+                else:
+                    current_contexts = []
+            batch_start = i
+        current_contexts.append(unicode(context))
+
+    fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
+    if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
+        #q_query.put((batch_start, current_contexts))
+        lexicon = Lexicon(string_list=current_contexts)
+        lexicon.dump(filename=fn, strings_only=True)
+
+    print('%s finished' % str(datetime.now() - t_start))
 
 
 @plac.annotations(
@@ -512,7 +584,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         _g = Graph(store, identifier=URIRef(default_graph_uri))
         logger.info('THREAD %i QUERY: connected' % thread_id)
         while True:
-            begin_idx, contexts = _q_in.get()
+            fn, contexts = _q_in.get()
             t_start = datetime.now()
             failed = []
             nif_context_datas = []
@@ -522,16 +594,16 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
                     nif_context_datas.append(nif_context_data)
                 except Exception as e:
                     failed.append((context, e))
-            _q_out.put((begin_idx, nif_context_datas, failed, datetime.now() - t_start))
+            _q_out.put((fn, nif_context_datas, failed, datetime.now() - t_start))
             _q_in.task_done()
 
     def do_parse(_q, _path_out, thread_id, _nlp):
 
         while True:
-            begin_idx, nif_context_datas, failed, t_query = _q.get()
-            fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, begin_idx))
+            fn, nif_context_datas, failed, t_query = _q.get()
+            #fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, begin_idx))
             try:
-                parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp, begin_idx=begin_idx,
+                parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp,
                                     filename=fn, t_query=t_query)
             except Exception as e:
                 print('%s: failed' % str(e))
@@ -561,9 +633,9 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             continue
         if i % batch_size == 0:
             if len(current_contexts) > 0:
-                fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
+                fn = os.path.join(out_path, '%s-%i' % (PREFIX_FN, batch_start))
                 if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
-                    q_query.put((batch_start, current_contexts))
+                    q_query.put((fn, current_contexts))
                     current_batch_count += 1
                     current_contexts = []
                     resource_hashes = []
@@ -589,7 +661,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
     fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
     if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
-        q_query.put((batch_start, current_contexts))
+        q_query.put((fn, current_contexts))
 
     q_query.join()
     q_parse.join()
@@ -737,13 +809,15 @@ def process_merge_batches(out_path, min_count=10, min_count_root_id=2):
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['CREATE_BATCHES', 'MERGE_BATCHES']),
+    mode=('processing mode', 'positional', None, str, ['PREPARE_BATCHES', 'CREATE_BATCHES', 'MERGE_BATCHES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'CREATE_BATCHES':
         plac.call(process_contexts_multi, args)
     elif mode == 'MERGE_BATCHES':
         plac.call(process_merge_batches, args)
+    elif mode == 'PREPARE_BATCHES':
+        plac.call(process_prepare, args)
     else:
         raise ValueError('unknown mode. use one of CREATE_BATCHES or MERGE_BATCHES.')
 

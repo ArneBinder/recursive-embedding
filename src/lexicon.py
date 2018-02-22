@@ -352,7 +352,7 @@ FE_STRINGS = 'string'
 
 
 class Lexicon(object):
-    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, load_vecs=True):
+    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, string_list=None, load_vecs=True):
         """
         Create a Lexicon from file, from types (and optionally from vecs), from spacy vocabulary or from spacy
         StringStore.
@@ -397,6 +397,9 @@ class Lexicon(object):
         elif nlp_vocab is not None:
             self._vecs, types_dep = get_dict_from_vocab(nlp_vocab)
             self._strings = StringStore(types_dep)
+        elif string_list is not None:
+            self._strings = StringStore(string_list)
+            self.init_vecs()
 
         # create empty lexicon
         if self._strings is None:
@@ -425,6 +428,7 @@ class Lexicon(object):
             self.strings.to_disk('%s.%s' % (filename, FE_STRINGS))
 
         if not strings_only:
+            assert self.vecs is not None, 'can not dump vecs, they are None'
             logging.debug('dump embeddings (shape=%s) to: %s.%s ...' % (str(self.vecs.shape), filename, FE_VECS))
             self.vecs.dump('%s.%s' % (filename, FE_VECS))
 
