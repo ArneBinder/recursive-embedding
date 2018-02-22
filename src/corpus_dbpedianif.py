@@ -479,7 +479,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     import grp
     import pwd
 
-    stat_info = os.stat(out_path)
+    stat_info = os.stat('/root/corpora_out')
     uid = stat_info.st_uid
     gid = stat_info.st_gid
     logger.info('owner_uid=%i; owner_gid=%i' % (uid, gid))
