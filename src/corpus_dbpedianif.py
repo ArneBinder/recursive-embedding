@@ -12,7 +12,7 @@ import os
 from threading import Thread
 
 import spacy
-from spacy.strings import hash_string
+from spacy.strings import hash_string, StringStore
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
@@ -20,7 +20,7 @@ from rdflib.term import URIRef
 from rdflib import Namespace
 from rdflib.namespace import RDF, RDFS
 
-from lexicon import Lexicon
+from lexicon import Lexicon, FE_STRINGS
 from sequence_trees import Forest, FE_ROOT_ID
 from constants import DTYPE_HASH, DTYPE_COUNT, TYPE_REF, UNKNOWN_EMBEDDING, vocab_manual, TYPE_ROOT, TYPE_ANCHOR, \
     TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX
@@ -107,7 +107,9 @@ logger_virtuoso = logging.getLogger('virtuoso.vstore')
 logger_virtuoso.setLevel(logging.INFO)
 # TODO: change back
 #logger_virtuoso.addHandler(logging.FileHandler('../virtuoso_new.log', mode='w', encoding='utf-8'))
-logger_virtuoso.addHandler(logging.StreamHandler())
+virtuoso_sh = logging.StreamHandler()
+virtuoso_sh.setFormatter(logger_streamhandler.formatter)
+logger_virtuoso.addHandler(virtuoso_sh)
 logger_virtuoso.propagate = False
 
 
@@ -510,7 +512,7 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
             continue
         if i % batch_size == 0:
             if len(current_contexts) > 0:
-                fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
+                fn = os.path.join(out_path, '%s-%i' % (PREFIX_FN, batch_start))
                 if not Lexicon.exist(fn, types_only=True):
                     # q_query.put((batch_start, current_contexts))
                     lexicon = Lexicon(string_list=current_contexts)
@@ -523,9 +525,9 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
                 else:
                     current_contexts = []
             batch_start = i
-        current_contexts.append(unicode(context))
+        current_contexts.append(context.toPython())
 
-    fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
+    fn = os.path.join(out_path, '%s-%i' % (PREFIX_FN, batch_start))
     if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
         #q_query.put((batch_start, current_contexts))
         lexicon = Lexicon(string_list=current_contexts)
@@ -538,11 +540,10 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
     out_path=('corpora out path', 'option', 'o', str),
     batch_size=('amount of articles to query before fed to parser', 'option', 'b', int),
     num_threads=('total number of threads used for querying and parsing', 'option', 't', int),
-    start_offset=('index of articles to start with', 'option', 's', int),
-    batch_count=('if batch_count > 0 process only this amount of articles', 'option', 'c', int)
+    #start_offset=('index of articles to start with', 'option', 's', int),
+    #batch_count=('if batch_count > 0 process only this amount of articles', 'option', 'c', int)
 )
-def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2, start_offset=0,
-                           batch_count=0):
+def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads=2):
     assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
 
     if not os.path.exists(out_path):
@@ -555,40 +556,31 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-batches.log'))
     logger_fh.setLevel(logging.DEBUG)
     logger.addHandler(logger_fh)
-    logger.info('batch-size=%i num-threads=%i start-offset=%i batch-count=%i out_path=%s'
-                % (batch_size, num_threads, start_offset, batch_count, out_path))
+    logger.info('batch-size=%i num-threads=%i out_path=%s'
+                % (batch_size, num_threads, out_path))
 
     out_path = os.path.join(out_path, DIR_BATCHES)
     if not os.path.exists(out_path):
         os.mkdir(out_path)
 
-    q_query = Queue.Queue(maxsize=100)
-    q_parse = Queue.Queue(maxsize=100)
-
-    logger.info('THREAD MAIN: set up connection ...')
-    while True:
-        try:
-            Virtuoso = plugin("Virtuoso", Store)
-            store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
-            default_graph_uri = "http://dbpedia.org/nif"
-            graph = Graph(store, identifier=URIRef(default_graph_uri))
-            break
-        except Exception as e:
-            logger.warn('connection failed: %s wait %i seconds ...' % (str(e), 10))
-            time.sleep(10)
-    logger.info('THREAD MAIN: connected')
+    q_query = Queue.Queue(maxsize=0)
+    q_parse = Queue.Queue(maxsize=0)
 
     def do_query(_q_in, _q_out, thread_id):
         logger.info('THREAD %i QUERY: set up connection ...' % thread_id)
+        Virtuoso = plugin("Virtuoso", Store)
         store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+        default_graph_uri = "http://dbpedia.org/nif"
         _g = Graph(store, identifier=URIRef(default_graph_uri))
         logger.info('THREAD %i QUERY: connected' % thread_id)
         while True:
-            fn, contexts = _q_in.get()
+            fn = _q_in.get()
             t_start = datetime.now()
+            lexicon = Lexicon(filename=fn)
             failed = []
             nif_context_datas = []
-            for context in contexts:
+            for context_str in lexicon.strings:
+                context = URIRef(context_str)
                 try:
                     nif_context_data = prepare_context_data(_g, context)
                     nif_context_datas.append(nif_context_data)
@@ -624,44 +616,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
     t_start = datetime.now()
     logger.info('THREAD MAIN: fill query queue ...')
-    current_contexts = []
-    resource_hashes = []
-    batch_start = 0
-    current_batch_count = 0
-    for i, context in enumerate(graph.subjects(RDF.type, NIF.Context)):
-        if i < start_offset:
-            continue
-        if i % batch_size == 0:
-            if len(current_contexts) > 0:
-                fn = os.path.join(out_path, '%s-%i' % (PREFIX_FN, batch_start))
-                if not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
-                    q_query.put((fn, current_contexts))
-                    current_batch_count += 1
-                    current_contexts = []
-                    resource_hashes = []
-                    if current_batch_count >= batch_count > 0:
-                        break
-                else:
-                    # consistency check of previously processed batches
-                    loaded_resource_hashes = np.load('%s.%s' % (fn, FE_ROOT_ID))
-                    if os.path.isfile('%s.%s' % (fn, FE_ROOT_ID_FAILED)):
-                        loaded_resource_hashes_failed = np.load('%s.%s' % (fn, FE_ROOT_ID_FAILED))
-                        hashes_prev = np.sort(np.concatenate([loaded_resource_hashes, loaded_resource_hashes_failed]))
-                    else:
-                        hashes_prev = np.sort(loaded_resource_hashes)
-                    hashes_current = np.sort(np.array(resource_hashes, dtype=hashes_prev.dtype))
-                    assert np.array_equal(hashes_prev, hashes_current), 'order has changed. batch %i does not match ' \
-                                                                        'previously calculated one.' % current_batch_count
-                    # consistency check end
-                    current_contexts = []
-                    resource_hashes = []
-            batch_start = i
-        current_contexts.append(context)
-        resource_hashes.append(hash_string(unicode(context)[:-len(PREFIX_CONTEXT)]))
-
-    fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, batch_start))
-    if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
-        q_query.put((fn, current_contexts))
+    for file in os.listdir(out_path):
+        if file.endswith('.' + FE_STRINGS):
+            fn = os.path.join(out_path, file[:-len('.' + FE_STRINGS)])
+            if not Forest.exist(fn):
+                q_query.put(fn)
 
     q_query.join()
     q_parse.join()
