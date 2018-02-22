@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir spacy && python -m spacy download en_core_web_md 
 ARG ROOT=/root/recursive-embedding
 RUN mkdir "$ROOT"
 
-VOLUME /root/corpora_out
+#VOLUME /root/corpora_out
 
 ########################################################################################################################
 
