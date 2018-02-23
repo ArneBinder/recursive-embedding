@@ -244,13 +244,7 @@ def process_link_refs(link_refs, ref_type_str=TYPE_REF):
 
 def prepare_context_datas(graph, nif_context_strings):
     nif_context_datas = []
-    failed = []
-    query_datas = []
-    for nif_context_str in nif_context_strings:
-        try:
-            query_datas.append((nif_context_str, query_context_data(graph, nif_context_str)))
-        except Exception as e:
-            failed.append((nif_context_str, e))
+    query_datas, failed = query_context_datas(graph, nif_context_strings)
 
     for nif_context_str, query_data in query_datas:
         try:
@@ -292,61 +286,70 @@ def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
     return forest
 
 
-def query_context_data(graph, context_str):
-    t_start = datetime.now()
-    context_uri = URIRef(context_str)
-    res_context_seealsos = query_see_also_links(graph, initBindings={'context': context_uri})
-    res_context = query_first_section_structure(graph, {'context': context_uri})
-    #for i, row in enumerate(res_context):
-    #    logger.debug(row)
+def query_context_datas(graph, context_strings):
+    query_datas = []
+    failed = []
+    for context_str in context_strings:
+        try:
+            t_start = datetime.now()
+            context_uri = URIRef(context_str)
+            res_context_seealsos = query_see_also_links(graph, initBindings={'context': context_uri})
+            res_context = query_first_section_structure(graph, {'context': context_uri})
+            #for i, row in enumerate(res_context):
+            #    logger.debug(row)
 
-    g_structure = Graph()
-    for triple in res_context:
-        g_structure.add(triple)
+            g_structure = Graph()
+            for triple in res_context:
+                g_structure.add(triple)
 
-    children_typed = g_structure.query(
-        u'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
-        initNs=ns_dict)
+            children_typed = g_structure.query(
+                u'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
+                initNs=ns_dict)
 
-    terminals = g_structure.query(
-        u'SELECT DISTINCT ?terminal ?beginIndex ?endIndex WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)',
-        initNs=ns_dict)
-    refs = g_structure.query(
-        u'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
-        initNs=ns_dict)
-    context_content_str = unicode(g_structure.value(subject=context_uri, predicate=NIF.isString, any=False))
+            terminals = g_structure.query(
+                u'SELECT DISTINCT ?terminal ?beginIndex ?endIndex WHERE {?terminal nif:beginIndex ?beginIndex . ?terminal nif:endIndex ?endIndex . ?terminal a ?type . VALUES ?type {nif:Title nif:Paragraph}} ORDER BY ?beginIndex DESC(?endIndex)',
+                initNs=ns_dict)
+            refs = g_structure.query(
+                u'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
+                initNs=ns_dict)
+            context_content_str = unicode(g_structure.value(subject=context_uri, predicate=NIF.isString, any=False))
 
-    if logger.level <= logging.DEBUG:
-        # debug
-        logger.info('exec query: %s' % str(datetime.now() - t_start))
+            if logger.level <= logging.DEBUG:
+                # debug
+                logger.info('exec query: %s' % str(datetime.now() - t_start))
 
-        for triple in g_structure:
-            logger.debug(triple)
+                for triple in g_structure:
+                    logger.debug(triple)
 
-        t_start = datetime.now()
-        logger.debug("see also's:")
-        for row in res_context_seealsos:
-            logger.debug(row)
+                t_start = datetime.now()
+                logger.debug("see also's:")
+                for row in res_context_seealsos:
+                    logger.debug(row)
 
-        logger.debug(
-            'children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
-        for row in children_typed:
-            logger.debug(row)
+                logger.debug(
+                    'children (ordered by ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)):')
+                for row in children_typed:
+                    logger.debug(row)
 
-        logger.debug('terminals (ordered by ?beginIndex DESC(?endIndex)):')
-        for row in terminals:
-            logger.debug(row)
+                logger.debug('terminals (ordered by ?beginIndex DESC(?endIndex)):')
+                for row in terminals:
+                    logger.debug(row)
 
-        logger.debug('refs:')
-        for row in refs:
-            logger.debug(row)
+                logger.debug('refs:')
+                for row in refs:
+                    logger.debug(row)
 
-        logger.debug('str:')
-        logger.debug(context_content_str)
+                logger.debug('str:')
+                logger.debug(context_content_str)
 
-        logger.info('print result: %s' % str(datetime.now() - t_start))
+                logger.info('print result: %s' % str(datetime.now() - t_start))
 
-    return res_context_seealsos, children_typed, terminals, refs, context_content_str
+            #return res_context_seealsos, children_typed, terminals, refs, context_content_str
+            query_datas.append((context_str, (res_context_seealsos, children_typed, terminals, refs, context_content_str)))
+        except Exception as e:
+            failed.append((context_str, e))
+
+    return query_datas, failed
 
 
 def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")):
