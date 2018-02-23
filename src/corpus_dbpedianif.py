@@ -344,38 +344,21 @@ def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
 
 
 def query_context_datas(graph, context_strings):
-    #logger.setLevel(logging.DEBUG)
-    #logger_virtuoso.setLevel(logging.DEBUG)
 
     context_uris = [URIRef(context_str) for context_str in context_strings]
-    contexts_res = query_context(graph, initBindings={'context': context_uris})
-    _graph = Graph()
-    #count = 0
-    for triple in contexts_res:
-        _graph.add(triple)
-        #count += 1
-    #logger.debug('count: %i' % count)
-
-    #if logger.level <= logging.DEBUG:
-    #    # debug
-    #    for triple in _graph:
-    #        logger.debug(triple)
+    #contexts_res = query_context(graph, initBindings={'context': context_uris})
+    #_graph = Graph()
+    #for triple in contexts_res:
+    #    _graph.add(triple)
+    _graph = graph
 
     query_datas = []
     failed = []
     for context_uri in context_uris:
         try:
             t_start = datetime.now()
-            #context_uri = URIRef(context_str)
             res_context_seealsos = query_see_also_links(_graph, initBindings={'context': context_uri})
-            for row in res_context_seealsos:
-                logger.debug(row)
-
-            logger.debug('len(res_context_seealsos)=%i' % len(res_context_seealsos))
             res_context = query_first_section_structure(_graph, {'context': context_uri})
-            logger.debug('len(res_context)=%i' % len(res_context))
-            #for i, row in enumerate(res_context):
-            #    logger.debug(row)
 
             g_structure = Graph()
             for triple in res_context:
