@@ -571,6 +571,9 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
     last_prepend_offset = None
     parent_root_pos = None
     for parsed_data in parser.pipe(reader(**reader_args), n_threads=n_threads, batch_size=batch_size, as_tuples=as_tuples):
+        if parsed_data is None:
+            continue
+
         if as_tuples:
             parsed_data, context = parsed_data
             prepend = context.get('prepend_tree', None)

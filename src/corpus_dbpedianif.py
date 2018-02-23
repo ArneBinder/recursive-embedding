@@ -345,13 +345,13 @@ def create_context_forest_DEP(nif_context_data, nlp, lexicon, n_threads=1):
 
 def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
     tree_contexts = []
-    resource_hashes = []
+    #resource_hashes = []
     #resource_hashes_failed = []
     failed = []
 
     for nif_context_data in nif_context_datas:
         context = nif_context_data[-1]
-        res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
+        #res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
         try:
             def terminal_reader():
                 tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
@@ -369,16 +369,21 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
                                              parser=nlp, batch_size=10000, concat_mode='sequence',
                                              inner_concat_mode='tree', expand_dict=True, as_tuples=True,
                                              return_hashes=True, n_threads=n_threads)
-            tree_context.set_children_with_parents()
+            #tree_context.set_children_with_parents()
             tree_contexts.append(tree_context)
-            resource_hashes.append(res_hash)
+            #resource_hashes.append(res_hash)
         except Exception as e:
             failed.append((context, e))
             #resource_hashes_failed.append(res_hash)
 
     if len(tree_contexts) > 0:
         forest = Forest.concatenate(tree_contexts)
-        forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
+        forest.set_children_with_parents()
+        roots = forest.roots
+        # ids are at one position after roots
+        root_ids = forest.data[roots+1]
+        #forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
+        forest.set_root_ids(root_ids=root_ids)
     else:
         forest = None
 
@@ -453,7 +458,6 @@ def query_context_datas(graph, context_strings):
             query_datas.append((context_str, (res_context_seealsos, children_typed, terminals, refs, context_content_str)))
         except Exception as e:
             failed.append((context_str, e))
-        graph = None
 
     return query_datas, failed
 
@@ -509,6 +513,8 @@ def save_current_forest(forest, failed, lexicon, filename, t_parse, t_query):
         with open('%s.%s' % (filename, FE_FAILED), 'w', ) as f:
             for uri, e in failed:
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
+    elif os.path.exists('%s.%s' % (filename, FE_FAILED)):
+        os.remove('%s.%s' % (filename, FE_FAILED))
         #assert len(resource_hashes_failed) > 0, 'entries in "failed" list, but resource_hashes_failed is empty'
         #resource_hashes_failed.dump('%s.%s' % (filename, FE_ROOT_ID_FAILED))
     #else:
@@ -569,7 +575,7 @@ class ThreadQuery(threading.Thread):
             self._queue.task_done()
 
 
-def parse_context_batch(nif_context_datas, failed, nlp, filename, t_query):
+def parse_context_batch_DEP(nif_context_datas, failed, nlp, filename, t_query):
 
     t_start = datetime.now()
     lexicon = Lexicon()
