@@ -324,7 +324,7 @@ def prepare_context_datas(graph, nif_context_strings):
     return nif_context_datas, failed
 
 
-def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
+def create_context_forest_DEP(nif_context_data, nlp, lexicon, n_threads=1):
 
     def terminal_reader():
         tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
@@ -341,6 +341,42 @@ def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
                                parser=nlp, batch_size=10000, concat_mode='sequence', inner_concat_mode='tree',
                                expand_dict=True, as_tuples=True, return_hashes=True, n_threads=n_threads)
     return forest
+
+
+def create_context_forests(nif_context_datas, nlp, lexicon, n_threads=1):
+    tree_contexts = []
+    resource_hashes = []
+    #resource_hashes_failed = []
+    failed = []
+
+    for nif_context_data in nif_context_datas:
+        context = nif_context_data[-1]
+        res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
+        try:
+            def terminal_reader():
+                tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
+                terminal_parent_positions, nif_context = tuple(nif_context_data)
+                prepend = (tree_context_data, tree_context_parents)
+                for i in range(len(terminal_strings)):
+                    yield (terminal_strings[i], {'root_type': terminal_types[i],
+                                                 'annotations': refs.get(terminal_uri_strings[i], None),
+                                                 'prepend_tree': prepend,
+                                                 'parent_prepend_offset': terminal_parent_positions[
+                                                     terminal_uri_strings[i]]})
+                    prepend = None
+
+            tree_context = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
+                                             parser=nlp, batch_size=10000, concat_mode='sequence',
+                                             inner_concat_mode='tree', expand_dict=True, as_tuples=True,
+                                             return_hashes=True, n_threads=n_threads)
+            tree_context.set_children_with_parents()
+            tree_contexts.append(tree_context)
+            resource_hashes.append(res_hash)
+        except Exception as e:
+            failed.append((context, e))
+            #resource_hashes_failed.append(res_hash)
+
+    return tree_contexts, resource_hashes, failed
 
 
 def query_context_datas(graph, context_strings):
@@ -448,7 +484,7 @@ def test_query_context(graph, context=URIRef(u"http://dbpedia.org/resource/Damen
     logger.debug('triple_count=%i' % i)
 
 
-def save_current_forest(forest, failed, resource_hashes_failed, lexicon, filename, t_parse, t_query):
+def save_current_forest(forest, failed, lexicon, filename, t_parse, t_query):
 
     if forest is not None:
         forest.dump(filename)
@@ -467,8 +503,8 @@ def save_current_forest(forest, failed, resource_hashes_failed, lexicon, filenam
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
         #assert len(resource_hashes_failed) > 0, 'entries in "failed" list, but resource_hashes_failed is empty'
         #resource_hashes_failed.dump('%s.%s' % (filename, FE_ROOT_ID_FAILED))
-    else:
-        assert len(resource_hashes_failed) == 0, 'entries in resource_hashes_failed, but "failed" list is empty'
+    #else:
+    #    assert len(resource_hashes_failed) == 0, 'entries in resource_hashes_failed, but "failed" list is empty'
 
 
 class ThreadParse(threading.Thread):
@@ -529,21 +565,23 @@ def parse_context_batch(nif_context_datas, failed, nlp, filename, t_query):
 
     t_start = datetime.now()
     lexicon = Lexicon()
-    tree_contexts = []
-    resource_hashes = []
-    resource_hashes_failed = []
+    #tree_contexts = []
+    #resource_hashes = []
+    #resource_hashes_failed = []
 
-    for nif_context_data in nif_context_datas:
-        context = nif_context_data[-1]
-        res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
-        try:
-            tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
-            tree_context.set_children_with_parents()
-            tree_contexts.append(tree_context)
-            resource_hashes.append(res_hash)
-        except Exception as e:
-            failed.append((context, e))
-            resource_hashes_failed.append(res_hash)
+    #for nif_context_data in nif_context_datas:
+    #    context = nif_context_data[-1]
+    #    res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
+    #    try:
+    #        tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
+    #        tree_context.set_children_with_parents()
+    #        tree_contexts.append(tree_context)
+    #        resource_hashes.append(res_hash)
+    #    except Exception as e:
+    #        failed.append((context, e))
+    #        resource_hashes_failed.append(res_hash)
+    tree_contexts, resource_hashes, failed_parse = create_context_forests(nif_context_datas, lexicon=lexicon, nlp=nlp)
+    failed.extend(failed_parse)
 
     if len(tree_contexts) > 0:
         forest = Forest.concatenate(tree_contexts)
@@ -552,7 +590,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, filename, t_query):
         forest = None
 
     save_current_forest(forest=forest,
-                        failed=failed, resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH),
+                        failed=failed, #resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH),
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
 
 
