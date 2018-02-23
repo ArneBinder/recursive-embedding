@@ -113,7 +113,22 @@ logger_virtuoso.addHandler(virtuoso_sh)
 logger_virtuoso.propagate = False
 
 
-def query_see_also_links(graph, initBindings=None):
+def query_context(graph, initBindings=None):
+    q_str = (u'CONSTRUCT {'
+             '  ?s ?p ?o .'
+             '  ?context ?context_p ?context_o .'
+             '} WHERE {'
+             '  ?context ?context_p ?context_o .'
+             '  ?s nif:referenceContext ?context .'
+             '  ?s ?p ?o .'
+             '} '
+             )
+    logger.debug(q_str)
+    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    return res
+
+
+def query_see_also_links_DEP(graph, initBindings=None):
     q_str = (#'SELECT ?context ?linkRef '
              u'SELECT ?linkRef '
              'WHERE {'
@@ -131,15 +146,35 @@ def query_see_also_links(graph, initBindings=None):
              '  FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) '
              #'  BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext) '
              '} '
-             'LIMIT 1000 '
-             'OFFSET 0 '
              )
     logger.debug(q_str)
     res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     return res
 
 
-def query_first_section_structure(graph, initBindings=None):
+def query_see_also_links(graph, initBindings=None):
+    q_str = (u'SELECT ?linkRef WHERE' 
+             '{'
+             '  ?context a nif:Context . '
+             '  ?seeAlsoSection a nif:Section . '
+             '  ?seeAlsoSection nif:superString+ ?context . '
+             '  ?seeAlsoSection nif:beginIndex ?beginIndex . '
+             '  ?seeAlsoSection nif:endIndex ?endIndex . '
+             '  ?link nif:superString+ ?seeAlsoSection . '
+             '  ?link <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?linkRef . '
+             '  ?context nif:isString ?contextStr . '
+             '  FILTER (?beginIndex < ?endIndex) . '
+             '  FILTER (STRLEN(?contextStr) >= ?endIndex) . '
+             '  BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr) '
+             #'  FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also"^^xsd:string)) . '
+             '} '
+             )
+    logger.debug(q_str)
+    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    return res
+
+
+def query_first_section_structure_DEP(graph, initBindings=None):
     q_str = (
         u'construct {'
         ' ?s ?p ?o .'
@@ -168,6 +203,28 @@ def query_first_section_structure(graph, initBindings=None):
     logger.debug(q_str)
     res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     #print(type(res))
+    return res
+
+
+def query_first_section_structure(graph, initBindings=None):
+    q_str = (
+        u'CONSTRUCT {'
+        ' ?s ?p ?o .'
+        ' ?context ?context_p ?context_o .'
+        '} WHERE {'
+        ' ?context ?context_p ?context_o .'
+        ' VALUES ?context_p {nif:beginIndex nif:endIndex rdf:type nif:isString } .'
+        ' ?s nif:referenceContext ?context .'
+        ' ?context nif:firstSection ?firstSection .'
+        #' ?firstSection nif:beginIndex 0 .'
+        ' ?firstSection nif:beginIndex "0"^^xsd:nonNegativeInteger .'
+        ' ?s nif:superString* ?firstSection .'
+        ' ?s ?p ?o .'
+        ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString itsrdf:taIdentRef rdf:type} .'
+        '}')
+    logger.debug(q_str)
+    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    # print(type(res))
     return res
 
 
@@ -287,14 +344,36 @@ def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
 
 
 def query_context_datas(graph, context_strings):
+    #logger.setLevel(logging.DEBUG)
+    #logger_virtuoso.setLevel(logging.DEBUG)
+
+    context_uris = [URIRef(context_str) for context_str in context_strings]
+    contexts_res = query_context(graph, initBindings={'context': context_uris})
+    _graph = Graph()
+    #count = 0
+    for triple in contexts_res:
+        _graph.add(triple)
+        #count += 1
+    #logger.debug('count: %i' % count)
+
+    #if logger.level <= logging.DEBUG:
+    #    # debug
+    #    for triple in _graph:
+    #        logger.debug(triple)
+
     query_datas = []
     failed = []
-    for context_str in context_strings:
+    for context_uri in context_uris:
         try:
             t_start = datetime.now()
-            context_uri = URIRef(context_str)
-            res_context_seealsos = query_see_also_links(graph, initBindings={'context': context_uri})
-            res_context = query_first_section_structure(graph, {'context': context_uri})
+            #context_uri = URIRef(context_str)
+            res_context_seealsos = query_see_also_links(_graph, initBindings={'context': context_uri})
+            for row in res_context_seealsos:
+                logger.debug(row)
+
+            logger.debug('len(res_context_seealsos)=%i' % len(res_context_seealsos))
+            res_context = query_first_section_structure(_graph, {'context': context_uri})
+            logger.debug('len(res_context)=%i' % len(res_context))
             #for i, row in enumerate(res_context):
             #    logger.debug(row)
 
@@ -374,6 +453,18 @@ def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_
     tree_context.visualize('../tmp.svg')  # , start=0, end=100)
 
 
+def test_query_context(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")):
+    logger.setLevel(logging.DEBUG)
+    logger_virtuoso.setLevel(logging.DEBUG)
+
+    g_context = query_context(graph, initBindings={'context': context})
+    i = 0
+    for triple in g_context:
+        print(triple)
+        i += 1
+    logger.debug('triple_count=%i' % i)
+
+
 def save_current_forest(forest, failed, resource_hashes_failed, lexicon, filename, t_parse, t_query):
 
     if forest is not None:
@@ -391,8 +482,8 @@ def save_current_forest(forest, failed, resource_hashes_failed, lexicon, filenam
         with open('%s.%s' % (filename, FE_FAILED), 'w', ) as f:
             for uri, e in failed:
                 f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
-        assert len(resource_hashes_failed) > 0, 'entries in "failed" list, but resource_hashes_failed is empty'
-        resource_hashes_failed.dump('%s.%s' % (filename, FE_ROOT_ID_FAILED))
+        #assert len(resource_hashes_failed) > 0, 'entries in "failed" list, but resource_hashes_failed is empty'
+        #resource_hashes_failed.dump('%s.%s' % (filename, FE_ROOT_ID_FAILED))
     else:
         assert len(resource_hashes_failed) == 0, 'entries in resource_hashes_failed, but "failed" list is empty'
 
@@ -816,15 +907,15 @@ if __name__ == '__main__':
     username = getpass.getuser()
     logger.info('username=%s' % username)
 
-    #test_connect_utf8()
-    #process_contexts_multi()
     plac.call(main)
+
     #logger.info('set up connection ...')
     #Virtuoso = plugin("Virtuoso", Store)
     #store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
     #default_graph_uri = "http://dbpedia.org/nif"
     #g = Graph(store, identifier=URIRef(default_graph_uri))
     #logger.info('connected')
+    #test_query_context(g)
 
     #test_context_tree(g)
     #test_context_tree(g, context=URIRef(u'http://dbpedia.org/resource/1958_US–UK_Mutual_Defence_Agreement?dbpv=2016-10&nif=context'))
