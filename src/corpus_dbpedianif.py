@@ -224,16 +224,19 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
-def prepare_context_data(graph, nif_context, ref_type_str=TYPE_REF, max_see_also_refs=50):
-    see_also_refs, children_typed, terminals, link_refs, nif_context_str = query_context_data(graph, nif_context)
-    if len(see_also_refs) > max_see_also_refs:
-        see_also_refs = []
+def prepare_context_data(graph, nif_context_str, ref_type_str=TYPE_REF):
+
+    see_also_refs, children_typed, terminals, link_refs, nif_context_content_str = query_context_data(graph, nif_context_str)
+    #if len(see_also_refs) > max_see_also_refs:
+    #    see_also_refs = []
     tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
         children_typed,
         see_also_refs=see_also_refs,
-        root_id=unicode(nif_context)[:-len(PREFIX_CONTEXT)])
+        root_id=nif_context_str[:-len(PREFIX_CONTEXT)])
     terminal_uri_strings, terminal_strings = zip(
-        *[(unicode(uri), nif_context_str[int(begin):int(end)]) for uri, begin, end in terminals])
+        *[(unicode(uri), nif_context_content_str[int(begin):int(end)]) for uri, begin, end in terminals])
+
+    #assert nif_context_string == nif_context_content_str, 'nif_context_string=%s != nif_context_content_str=%s' % (nif_context_string, nif_context_content_str)
 
     refs = {}
     # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
@@ -256,7 +259,7 @@ def prepare_context_data(graph, nif_context, ref_type_str=TYPE_REF, max_see_also
            terminal_types, \
            refs, \
            terminal_parent_positions, \
-           nif_context
+           nif_context_str
 
 
 def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
@@ -278,10 +281,11 @@ def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
     return forest
 
 
-def query_context_data(graph, context):
+def query_context_data(graph, context_str):
     t_start = datetime.now()
-    res_context_seealsos = query_see_also_links(graph, initBindings={'context': context})
-    res_context = query_first_section_structure(graph, {'context': context})
+    context_uri = URIRef(context_str)
+    res_context_seealsos = query_see_also_links(graph, initBindings={'context': context_uri})
+    res_context = query_first_section_structure(graph, {'context': context_uri})
     #for i, row in enumerate(res_context):
     #    logger.debug(row)
 
@@ -299,7 +303,7 @@ def query_context_data(graph, context):
     refs = g_structure.query(
         u'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
         initNs=ns_dict)
-    context_str = unicode(g_structure.value(subject=context, predicate=NIF.isString, any=False))
+    context_content_str = unicode(g_structure.value(subject=context_uri, predicate=NIF.isString, any=False))
 
     if logger.level <= logging.DEBUG:
         # debug
@@ -327,11 +331,11 @@ def query_context_data(graph, context):
             logger.debug(row)
 
         logger.debug('str:')
-        logger.debug(context_str)
+        logger.debug(context_content_str)
 
         logger.info('print result: %s' % str(datetime.now() - t_start))
 
-    return res_context_seealsos, children_typed, terminals, refs, context_str
+    return res_context_seealsos, children_typed, terminals, refs, context_content_str
 
 
 def test_context_tree(graph, context=URIRef(u"http://dbpedia.org/resource/Damen_Group?dbpv=2016-10&nif=context")):
@@ -443,7 +447,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, filename, t_query):
 
     for nif_context_data in nif_context_datas:
         context = nif_context_data[-1]
-        res_hash = hash_string(unicode(context)[:-len(PREFIX_CONTEXT)])
+        res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
         try:
             tree_context = create_context_forest(nif_context_data, lexicon=lexicon, nlp=nlp)
             tree_context.set_children_with_parents()
@@ -462,6 +466,20 @@ def parse_context_batch(nif_context_datas, failed, nlp, filename, t_query):
     save_current_forest(forest=forest,
                         failed=failed, resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH),
                         lexicon=lexicon, filename=filename, t_parse=datetime.now()-t_start, t_query=t_query)
+
+
+def connect_graph():
+    while True:
+        try:
+            Virtuoso = plugin("Virtuoso", Store)
+            store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
+            default_graph_uri = "http://dbpedia.org/nif"
+            graph = Graph(store, identifier=URIRef(default_graph_uri))
+            break
+        except Exception as e:
+            logger.warn('connection failed: %s wait %i seconds ...' % (str(e), 10))
+            time.sleep(10)
+    return graph
 
 
 @plac.annotations(
@@ -490,16 +508,7 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
         os.mkdir(out_path)
 
     logger.info('THREAD MAIN: set up connection ...')
-    while True:
-        try:
-            Virtuoso = plugin("Virtuoso", Store)
-            store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
-            default_graph_uri = "http://dbpedia.org/nif"
-            graph = Graph(store, identifier=URIRef(default_graph_uri))
-            break
-        except Exception as e:
-            logger.warn('connection failed: %s wait %i seconds ...' % (str(e), 10))
-            time.sleep(10)
+    graph = connect_graph()
     logger.info('THREAD MAIN: connected')
 
     t_start = datetime.now()
@@ -568,10 +577,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
     def do_query(_q_in, _q_out, thread_id):
         logger.info('THREAD %i QUERY: set up connection ...' % thread_id)
-        Virtuoso = plugin("Virtuoso", Store)
-        store = Virtuoso("DSN=VOS;UID=dba;PWD=dba;WideAsUTF16=Y")
-        default_graph_uri = "http://dbpedia.org/nif"
-        _g = Graph(store, identifier=URIRef(default_graph_uri))
+        _g = connect_graph()
         logger.info('THREAD %i QUERY: connected' % thread_id)
         while True:
             fn = _q_in.get()
@@ -580,12 +586,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             failed = []
             nif_context_datas = []
             for context_str in lexicon.strings:
-                context = URIRef(context_str)
                 try:
-                    nif_context_data = prepare_context_data(_g, context)
+                    nif_context_data = prepare_context_data(_g, context_str)
                     nif_context_datas.append(nif_context_data)
                 except Exception as e:
-                    failed.append((context, e))
+                    failed.append((context_str, e))
             _q_out.put((fn, nif_context_datas, failed, datetime.now() - t_start))
             _q_in.task_done()
 
