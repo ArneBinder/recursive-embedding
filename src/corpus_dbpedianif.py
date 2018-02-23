@@ -472,7 +472,7 @@ def query_context_datas(graph, context_strings):
         except Exception as e:
             failed.append((context_str, e))
 
-        graph = None
+        graph.commit()
 
     return query_datas, failed
 
