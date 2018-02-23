@@ -343,7 +343,7 @@ def create_context_forest_DEP(nif_context_data, nlp, lexicon, n_threads=1):
     return forest
 
 
-def create_context_forests(nif_context_datas, nlp, lexicon, n_threads=1):
+def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
     tree_contexts = []
     resource_hashes = []
     #resource_hashes_failed = []
@@ -376,12 +376,19 @@ def create_context_forests(nif_context_datas, nlp, lexicon, n_threads=1):
             failed.append((context, e))
             #resource_hashes_failed.append(res_hash)
 
-    return tree_contexts, resource_hashes, failed
+    if len(tree_contexts) > 0:
+        forest = Forest.concatenate(tree_contexts)
+        forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
+    else:
+        forest = None
+
+    return forest, failed
 
 
 def query_context_datas(graph, context_strings):
 
     context_uris = [URIRef(context_str) for context_str in context_strings]
+    logger.debug('len(context_uris)=%i' % len(context_uris))
     #contexts_res = query_context(graph, initBindings={'context': context_uris})
     #_graph = Graph()
     #for triple in contexts_res:
@@ -446,6 +453,7 @@ def query_context_datas(graph, context_strings):
             query_datas.append((context_str, (res_context_seealsos, children_typed, terminals, refs, context_content_str)))
         except Exception as e:
             failed.append((context_str, e))
+        graph = None
 
     return query_datas, failed
 
@@ -580,7 +588,7 @@ def parse_context_batch(nif_context_datas, failed, nlp, filename, t_query):
     #    except Exception as e:
     #        failed.append((context, e))
     #        resource_hashes_failed.append(res_hash)
-    tree_contexts, resource_hashes, failed_parse = create_context_forests(nif_context_datas, lexicon=lexicon, nlp=nlp)
+    tree_contexts, resource_hashes, failed_parse = create_contexts_forest(nif_context_datas, lexicon=lexicon, nlp=nlp)
     failed.extend(failed_parse)
 
     if len(tree_contexts) > 0:
@@ -717,6 +725,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             #        nif_context_datas.append(nif_context_data)
             #    except Exception as e:
             #        failed.append((context_str, e))
+            #assert len(nif_context_datas) > 0, '(QUERY) nif_context_datas is empty'
             _q_out.put((fn, nif_context_datas, failed, datetime.now() - t_start))
             _q_in.task_done()
 
@@ -726,8 +735,19 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             fn, nif_context_datas, failed, t_query = _q.get()
             #fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, begin_idx))
             try:
-                parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp,
-                                    filename=fn, t_query=t_query)
+                assert len(nif_context_datas) > 0, '(PARSE) nif_context_datas is empty'
+                t_start = datetime.now()
+                lexicon = Lexicon()
+                #parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp,
+                #                    filename=fn, t_query=t_query)
+                forest, failed_parse = create_contexts_forest(nif_context_datas, lexicon=lexicon, nlp=_nlp)
+                failed.extend(failed_parse)
+
+                save_current_forest(forest=forest,
+                                    failed=failed,
+                                    # resource_hashes_failed=np.array(resource_hashes_failed, dtype=DTYPE_HASH),
+                                    lexicon=lexicon, filename=fn, t_parse=datetime.now() - t_start,
+                                    t_query=t_query)
             except Exception as e:
                 print('%s: failed' % str(e))
             _q.task_done()
