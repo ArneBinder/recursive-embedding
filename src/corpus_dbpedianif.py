@@ -171,7 +171,7 @@ def query_first_section_structure(graph, initBindings=None):
     return res
 
 
-def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
+def tree_from_sorted_parent_triples(sorted_parent_triples, root_id_str,
                                     see_also_refs,
                                     see_also_ref_type=TYPE_REF_SEEALSO,
                                     root_type=TYPE_ROOT,
@@ -184,7 +184,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     :param sorted_parent_triples: list of triples (uri, uri_type, uri_parent)
                                   sorted by ?parent_beginIndex DESC(?parent_endIndex) ?beginIndex DESC(?endIndex))
     :param lexicon: the lexicon used to convert the uri strings into integer ids
-    :param root_id: uri string added as direct root child, e.g. "http://dbpedia.org/resource/Damen_Group"
+    :param root_id_str: uri string added as direct root child, e.g. "http://dbpedia.org/resource/Damen_Group"
     :param root_type: uri string used as root data, e.g. "http://dbpedia.org/resource"
     :param anchor_type: the tree represented in sorted_parent_triples will be anchored via this uri string to the
                         root_type node, e.g. "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context"
@@ -193,7 +193,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     """
     if terminal_types is None:
         terminal_types = [TYPE_PARAGRAPH, TYPE_TITLE]
-    temp_data = [root_type, root_id, anchor_type, see_also_section_type]
+    temp_data = [root_type, root_id_str, anchor_type, see_also_section_type]
     temp_parents = [0, -1, -2, -3]
     for see_also_ref, in see_also_refs:
         temp_data.append(see_also_ref_type)
@@ -224,26 +224,13 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id,
     return temp_data, temp_parents, terminal_parent_positions, terminal_types_list
 
 
-def prepare_context_data(graph, nif_context_str, ref_type_str=TYPE_REF):
-
-    see_also_refs, children_typed, terminals, link_refs, nif_context_content_str = query_context_data(graph, nif_context_str)
-    #if len(see_also_refs) > max_see_also_refs:
-    #    see_also_refs = []
-    tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
-        children_typed,
-        see_also_refs=see_also_refs,
-        root_id=nif_context_str[:-len(PREFIX_CONTEXT)])
-    terminal_uri_strings, terminal_strings = zip(
-        *[(unicode(uri), nif_context_content_str[int(begin):int(end)]) for uri, begin, end in terminals])
-
-    #assert nif_context_string == nif_context_content_str, 'nif_context_string=%s != nif_context_content_str=%s' % (nif_context_string, nif_context_content_str)
-
+def process_link_refs(link_refs, ref_type_str=TYPE_REF):
     refs = {}
     # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
     for ref_tuple in link_refs:
         super_string = unicode(ref_tuple[0])
         target_str = unicode(ref_tuple[1])
-        #target_id = lexicon[target]
+        # target_id = lexicon[target]
         offset = int(ref_tuple[2])
         begin_index = int(ref_tuple[3])
         end_index = int(ref_tuple[4])
@@ -252,14 +239,32 @@ def prepare_context_data(graph, nif_context_str, ref_type_str=TYPE_REF):
         ref_list.append((begin_index - offset, end_index - offset, [ref_type_str, target_str], [0, -1]))
         refs[super_string] = ref_list
 
-    return tree_context_data_strings, \
-           tree_context_parents, \
-           terminal_strings, \
-           terminal_uri_strings, \
-           terminal_types, \
-           refs, \
-           terminal_parent_positions, \
-           nif_context_str
+    return refs
+
+
+def prepare_context_datas(graph, nif_context_strings):
+    nif_context_datas = []
+    failed = []
+    for nif_context_str in nif_context_strings:
+        try:
+            see_also_refs, children_typed, terminals, link_refs, nif_context_content_str = query_context_data(graph, nif_context_str)
+
+            tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
+                sorted_parent_triples=children_typed,
+                see_also_refs=see_also_refs,
+                root_id_str=nif_context_str[:-len(PREFIX_CONTEXT)])
+
+            terminal_uri_strings, terminal_strings = zip(
+                *[(unicode(uri), nif_context_content_str[int(begin):int(end)]) for uri, begin, end in terminals])
+
+            refs = process_link_refs(link_refs)
+
+            nif_context_datas.append((tree_context_data_strings, tree_context_parents, terminal_strings,
+                                      terminal_uri_strings, terminal_types, refs, terminal_parent_positions,
+                                      nif_context_str))
+        except Exception as e:
+            failed.append((nif_context_str, e))
+    return nif_context_datas, failed
 
 
 def create_context_forest(nif_context_data, nlp, lexicon, n_threads=1):
@@ -583,14 +588,14 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             fn = _q_in.get()
             t_start = datetime.now()
             lexicon = Lexicon(filename=fn)
-            failed = []
-            nif_context_datas = []
-            for context_str in lexicon.strings:
-                try:
-                    nif_context_data = prepare_context_data(_g, context_str)
-                    nif_context_datas.append(nif_context_data)
-                except Exception as e:
-                    failed.append((context_str, e))
+            #failed = []
+            nif_context_datas, failed = prepare_context_datas(_g, lexicon.strings)
+            #for context_str in lexicon.strings:
+            #    try:
+            #        nif_context_data = prepare_context_data(_g, context_str)
+            #        nif_context_datas.append(nif_context_data)
+            #    except Exception as e:
+            #        failed.append((context_str, e))
             _q_out.put((fn, nif_context_datas, failed, datetime.now() - t_start))
             _q_in.task_done()
 
