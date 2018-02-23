@@ -245,10 +245,16 @@ def process_link_refs(link_refs, ref_type_str=TYPE_REF):
 def prepare_context_datas(graph, nif_context_strings):
     nif_context_datas = []
     failed = []
+    query_datas = []
     for nif_context_str in nif_context_strings:
         try:
-            see_also_refs, children_typed, terminals, link_refs, nif_context_content_str = query_context_data(graph, nif_context_str)
+            query_datas.append((nif_context_str, query_context_data(graph, nif_context_str)))
+        except Exception as e:
+            failed.append((nif_context_str, e))
 
+    for nif_context_str, query_data in query_datas:
+        try:
+            see_also_refs, children_typed, terminals, link_refs, nif_context_content_str = query_data
             tree_context_data_strings, tree_context_parents, terminal_parent_positions, terminal_types = tree_from_sorted_parent_triples(
                 sorted_parent_triples=children_typed,
                 see_also_refs=see_also_refs,
