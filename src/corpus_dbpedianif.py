@@ -152,18 +152,17 @@ def query_see_also_links_DEP(graph, initBindings=None):
     return res
 
 
-# TODO: try "nif:referenceContext" instead of "nif:superString+"
-def query_see_also_links(graph, initBindings=None):
+def query_see_also_links(graph, context):#initBindings=None):
     q_str = (u'SELECT ?linkRef WHERE' 
              '{'
-             '  ?context a nif:Context . '
+             '  <'+context+'> a nif:Context . '
              '  ?seeAlsoSection a nif:Section . '
-             '  ?seeAlsoSection nif:superString+ ?context . '
+             '  ?seeAlsoSection nif:superString+ <'+context+'> . '
              '  ?seeAlsoSection nif:beginIndex ?beginIndex . '
              '  ?seeAlsoSection nif:endIndex ?endIndex . '
              '  ?link nif:superString+ ?seeAlsoSection . '
              '  ?link <http://www.w3.org/2005/11/its/rdf#taIdentRef> ?linkRef . '
-             '  ?context nif:isString ?contextStr . '
+             '  <'+context+'> nif:isString ?contextStr . '
              '  FILTER (?beginIndex < ?endIndex) . '
              '  FILTER (STRLEN(?contextStr) >= ?endIndex) . '
              '  BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr) '
@@ -172,7 +171,7 @@ def query_see_also_links(graph, initBindings=None):
              '} '
              )
     logger.debug(q_str)
-    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    res = graph.query(q_str, initNs=ns_dict)#, initBindings=initBindings)
     return res
 
 
@@ -208,16 +207,16 @@ def query_first_section_structure_DEP(graph, initBindings=None):
     return res
 
 
-def query_first_section_structure(graph, initBindings=None):
+def query_first_section_structure(graph, context):
     q_str = (
         u'CONSTRUCT {'
         ' ?s ?p ?o .'
-        ' ?context ?context_p ?context_o .'
+        ' <'+context+'> ?context_p ?context_o .'
         '} WHERE {'
-        ' ?context ?context_p ?context_o .'
+        ' <'+context+'> ?context_p ?context_o .'
         ' VALUES ?context_p {nif:beginIndex nif:endIndex rdf:type nif:isString } .'
-        ' ?s nif:referenceContext ?context .'
-        ' ?context nif:firstSection ?firstSection .'
+        ' ?s nif:referenceContext <'+context+'> .'
+        ' <'+context+'> nif:firstSection ?firstSection .'
         ' ?firstSection nif:beginIndex "0"^^xsd:nonNegativeInteger .'
         #' ?firstSection nif:beginIndex 0 .'
         ' ?s nif:superString* ?firstSection .'
@@ -225,7 +224,7 @@ def query_first_section_structure(graph, initBindings=None):
         ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString itsrdf:taIdentRef rdf:type} .'
         '}')
     logger.debug(q_str)
-    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    res = graph.query(q_str, initNs=ns_dict)#, initBindings=initBindings)
     # print(type(res))
     return res
 
@@ -396,9 +395,10 @@ def query_context_datas(graph, context_strings):
     #logger.setLevel(logging.DEBUG)
     #logger_virtuoso.setLevel(logging.DEBUG)
 
-    context_uris = [URIRef(context_str) for context_str in context_strings]
-    logger.debug('len(context_uris)=%i' % len(context_uris))
-    # the following is BUGGY
+    #context_uris = [URIRef(context_str) for context_str in context_strings]
+    #logger.debug('len(context_uris)=%i' % len(context_uris))
+
+    # ATTENTION: the following is BUGGY
     #contexts_res = query_context(graph, initBindings={'context': context_uris})
     #_graph = Graph()
     #for triple in contexts_res:
@@ -408,12 +408,13 @@ def query_context_datas(graph, context_strings):
 
     query_datas = []
     failed = []
-    for context_uri in context_uris:
+    #for context_uri in context_uris:
+    for context_str in context_strings:
         try:
             t_start = datetime.now()
-            res_context_seealsos = query_see_also_links(_graph, initBindings={'context': context_uri})
+            res_context_seealsos = query_see_also_links(_graph, context=context_str) #initBindings={'context': context_uri})
             #logger.debug('len(res_context_seealsos)=%i' % len(res_context_seealsos))
-            res_context = query_first_section_structure(_graph, {'context': context_uri})
+            res_context = query_first_section_structure(_graph, context=context_str) #{'context': context_uri})
             #logger.debug('len(res_context)=%i' % len(res_context))
 
             g_structure = Graph()
@@ -431,7 +432,7 @@ def query_context_datas(graph, context_strings):
             refs = g_structure.query(
                 u'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
                 initNs=ns_dict)
-            context_content = g_structure.value(subject=context_uri, predicate=NIF.isString, any=False)
+            context_content = g_structure.value(subject=URIRef(context_str), predicate=NIF.isString, any=False)
             assert context_content is not None, 'context_content is None'
             context_content_str = context_content.toPython()
 
@@ -466,9 +467,9 @@ def query_context_datas(graph, context_strings):
                 logger.info('print result: %s' % str(datetime.now() - t_start))
 
             #return res_context_seealsos, children_typed, terminals, refs, context_content_str
-            query_datas.append((context_uri.toPython(), (res_context_seealsos, children_typed, terminals, refs, context_content_str)))
+            query_datas.append((context_str, (res_context_seealsos, children_typed, terminals, refs, context_content_str)))
         except Exception as e:
-            failed.append((context_uri.toPython(), e))
+            failed.append((context_str, e))
 
         graph = None
 
