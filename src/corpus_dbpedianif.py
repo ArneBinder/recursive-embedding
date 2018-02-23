@@ -350,13 +350,12 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
     #resource_hashes_failed = []
     failed = []
 
-    for nif_context_data in nif_context_datas:
-        tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
-        terminal_parent_positions, nif_context_str = tuple(nif_context_data)
-        #res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
-        try:
-            def terminal_reader():
-
+    def terminal_reader():
+        for nif_context_data in nif_context_datas:
+            tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
+            terminal_parent_positions, nif_context_str = tuple(nif_context_data)
+            #res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
+            try:
                 prepend = (tree_context_data, tree_context_parents)
                 for i in range(len(terminal_strings)):
                     yield (terminal_strings[i], {'root_type': terminal_types[i],
@@ -365,28 +364,30 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
                                                  'parent_prepend_offset': terminal_parent_positions[
                                                      terminal_uri_strings[i]]})
                     prepend = None
+            except Exception as e:
+                failed.append((nif_context_str, e))
 
-            tree_context = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
-                                             parser=nlp, batch_size=10000, concat_mode='sequence',
-                                             inner_concat_mode='tree', expand_dict=True, as_tuples=True,
-                                             return_hashes=True, n_threads=n_threads)
-            #tree_context.set_children_with_parents()
-            tree_contexts.append(tree_context)
-            #resource_hashes.append(res_hash)
-        except Exception as e:
-            failed.append((nif_context_str, e))
-            #resource_hashes_failed.append(res_hash)
+    forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
+                               parser=nlp, batch_size=10000, concat_mode='sequence',
+                               inner_concat_mode='tree', expand_dict=True, as_tuples=True,
+                               return_hashes=True, n_threads=n_threads)
+    forest.set_children_with_parents()
+    roots = forest.roots
+    # ids are at one position after roots
+    root_ids = forest.data[roots + 1]
+    # forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
+    forest.set_root_ids(root_ids=root_ids)
 
-    if len(tree_contexts) > 0:
-        forest = Forest.concatenate(tree_contexts)
-        forest.set_children_with_parents()
-        roots = forest.roots
-        # ids are at one position after roots
-        root_ids = forest.data[roots+1]
-        #forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
-        forest.set_root_ids(root_ids=root_ids)
-    else:
-        forest = None
+    #if len(tree_contexts) > 0:
+    #    forest = Forest.concatenate(tree_contexts)
+    #    forest.set_children_with_parents()
+    #    roots = forest.roots
+    #    # ids are at one position after roots
+    #    root_ids = forest.data[roots+1]
+    #    #forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
+    #    forest.set_root_ids(root_ids=root_ids)
+    #else:
+    #    forest = None
 
     return forest, failed
 
