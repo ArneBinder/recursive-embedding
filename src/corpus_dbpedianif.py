@@ -152,6 +152,7 @@ def query_see_also_links_DEP(graph, initBindings=None):
     return res
 
 
+# TODO: try "nif:referenceContext" instead of "nif:superString+"
 def query_see_also_links(graph, initBindings=None):
     q_str = (u'SELECT ?linkRef WHERE' 
              '{'
@@ -166,7 +167,8 @@ def query_see_also_links(graph, initBindings=None):
              '  FILTER (?beginIndex < ?endIndex) . '
              '  FILTER (STRLEN(?contextStr) >= ?endIndex) . '
              '  BIND(SUBSTR(STR(?contextStr), ?beginIndex + 1, ?endIndex - ?beginIndex) AS ?seeAlsoSectionStr) '
-             #'  FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also"^^xsd:string)) . '
+             '  FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also"^^xsd:string)) . '
+             #'  FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) . '
              '} '
              )
     logger.debug(q_str)
@@ -216,8 +218,8 @@ def query_first_section_structure(graph, initBindings=None):
         ' VALUES ?context_p {nif:beginIndex nif:endIndex rdf:type nif:isString } .'
         ' ?s nif:referenceContext ?context .'
         ' ?context nif:firstSection ?firstSection .'
-        #' ?firstSection nif:beginIndex 0 .'
         ' ?firstSection nif:beginIndex "0"^^xsd:nonNegativeInteger .'
+        #' ?firstSection nif:beginIndex 0 .'
         ' ?s nif:superString* ?firstSection .'
         ' ?s ?p ?o .'
         ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString itsrdf:taIdentRef rdf:type} .'
@@ -255,7 +257,7 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id_str,
     for see_also_ref, in see_also_refs:
         temp_data.append(see_also_ref_type)
         temp_parents.append(3 - len(temp_parents))
-        temp_data.append(unicode(see_also_ref))
+        temp_data.append(see_also_ref.toPython())
         temp_parents.append(-1)
     pre_len = len(temp_data)
     positions = {}
@@ -264,9 +266,9 @@ def tree_from_sorted_parent_triples(sorted_parent_triples, root_id_str,
     terminal_types_list = []
 
     for uri, uri_type, uri_parent in sorted_parent_triples:
-        uri_str = unicode(uri)
-        uri_type_str = unicode(uri_type)
-        uri_parent_str = unicode(uri_parent)
+        uri_str = uri.toPython()
+        uri_type_str = uri_type.toPython()
+        uri_parent_str = uri_parent.toPython()
         if len(temp_data) == pre_len:
             positions[uri_parent_str] = 2
         parent_uris[uri_str] = uri_parent_str
@@ -285,8 +287,8 @@ def process_link_refs(link_refs, ref_type_str=TYPE_REF):
     refs = {}
     # tuple format: ?superString ?target ?superOffset ?beginIndex ?endIndex ?type
     for ref_tuple in link_refs:
-        super_string = unicode(ref_tuple[0])
-        target_str = unicode(ref_tuple[1])
+        super_string = ref_tuple[0].toPython()
+        target_str = ref_tuple[1].toPython()
         # target_id = lexicon[target]
         offset = int(ref_tuple[2])
         begin_index = int(ref_tuple[3])
@@ -312,7 +314,7 @@ def prepare_context_datas(graph, nif_context_strings):
                 root_id_str=nif_context_str[:-len(PREFIX_CONTEXT)])
 
             terminal_uri_strings, terminal_strings = zip(
-                *[(unicode(uri), nif_context_content_str[int(begin):int(end)]) for uri, begin, end in terminals])
+                *[(uri.toPython(), nif_context_content_str[int(begin):int(end)]) for uri, begin, end in terminals])
 
             refs = process_link_refs(link_refs)
 
@@ -350,12 +352,12 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
     failed = []
 
     for nif_context_data in nif_context_datas:
-        context = nif_context_data[-1]
+        tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
+        terminal_parent_positions, nif_context_str = tuple(nif_context_data)
         #res_hash = hash_string(context[:-len(PREFIX_CONTEXT)])
         try:
             def terminal_reader():
-                tree_context_data, tree_context_parents, terminal_strings, terminal_uri_strings, terminal_types, refs, \
-                terminal_parent_positions, nif_context = tuple(nif_context_data)
+
                 prepend = (tree_context_data, tree_context_parents)
                 for i in range(len(terminal_strings)):
                     yield (terminal_strings[i], {'root_type': terminal_types[i],
@@ -373,7 +375,7 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
             tree_contexts.append(tree_context)
             #resource_hashes.append(res_hash)
         except Exception as e:
-            failed.append((context, e))
+            failed.append((nif_context_str, e))
             #resource_hashes_failed.append(res_hash)
 
     if len(tree_contexts) > 0:
@@ -391,13 +393,17 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
 
 
 def query_context_datas(graph, context_strings):
+    #logger.setLevel(logging.DEBUG)
+    #logger_virtuoso.setLevel(logging.DEBUG)
 
     context_uris = [URIRef(context_str) for context_str in context_strings]
     logger.debug('len(context_uris)=%i' % len(context_uris))
+    # the following is BUGGY
     #contexts_res = query_context(graph, initBindings={'context': context_uris})
     #_graph = Graph()
     #for triple in contexts_res:
     #    _graph.add(triple)
+    #    logger.debug(triple)
     _graph = graph
 
     query_datas = []
@@ -406,11 +412,14 @@ def query_context_datas(graph, context_strings):
         try:
             t_start = datetime.now()
             res_context_seealsos = query_see_also_links(_graph, initBindings={'context': context_uri})
+            #logger.debug('len(res_context_seealsos)=%i' % len(res_context_seealsos))
             res_context = query_first_section_structure(_graph, {'context': context_uri})
+            #logger.debug('len(res_context)=%i' % len(res_context))
 
             g_structure = Graph()
             for triple in res_context:
                 g_structure.add(triple)
+                #logger.debug(triple)
 
             children_typed = g_structure.query(
                 u'SELECT DISTINCT ?child ?type_child ?parent WHERE {?parent a ?type . VALUES ?type {nif:Section nif:Context} . ?child a ?type_child . ?parent nif:beginIndex ?parent_beginIndex . ?parent nif:endIndex ?parent_endIndex . ?child nif:superString ?parent . ?child nif:beginIndex ?child_beginIndex . ?child nif:endIndex ?child_endIndex .} ORDER BY ?parent_beginIndex DESC(?parent_endIndex) ?child_beginIndex DESC(?child_endIndex)',
@@ -422,7 +431,9 @@ def query_context_datas(graph, context_strings):
             refs = g_structure.query(
                 u'SELECT DISTINCT ?superString ?target ?superOffset ?beginIndex ?endIndex ?type WHERE {?ref itsrdf:taIdentRef ?target . ?ref nif:superString ?superString . ?ref nif:beginIndex ?beginIndex . ?ref nif:endIndex ?endIndex . ?superString nif:beginIndex ?superOffset . ?ref a ?type . }',
                 initNs=ns_dict)
-            context_content_str = unicode(g_structure.value(subject=context_uri, predicate=NIF.isString, any=False))
+            context_content = g_structure.value(subject=context_uri, predicate=NIF.isString, any=False)
+            assert context_content is not None, 'context_content is None'
+            context_content_str = context_content.toPython()
 
             if logger.level <= logging.DEBUG:
                 # debug
@@ -455,9 +466,11 @@ def query_context_datas(graph, context_strings):
                 logger.info('print result: %s' % str(datetime.now() - t_start))
 
             #return res_context_seealsos, children_typed, terminals, refs, context_content_str
-            query_datas.append((context_str, (res_context_seealsos, children_typed, terminals, refs, context_content_str)))
+            query_datas.append((context_uri.toPython(), (res_context_seealsos, children_typed, terminals, refs, context_content_str)))
         except Exception as e:
-            failed.append((context_str, e))
+            failed.append((context_uri.toPython(), e))
+
+        graph = None
 
     return query_datas, failed
 
@@ -511,8 +524,8 @@ def save_current_forest(forest, failed, lexicon, filename, t_parse, t_query):
                     % (filename, str(t_query), str(t_parse), len(failed), 0, len(lexicon)))
     if failed is not None and len(failed) > 0:
         with open('%s.%s' % (filename, FE_FAILED), 'w', ) as f:
-            for uri, e in failed:
-                f.write((unicode(uri) + u'\t' + unicode(e) + u'\n').encode('utf8'))
+            for context_uri_str, e in failed:
+                f.write((context_uri_str + u'\t' + str(e) + u'\n').encode('utf8'))
     elif os.path.exists('%s.%s' % (filename, FE_FAILED)):
         os.remove('%s.%s' % (filename, FE_FAILED))
         #assert len(resource_hashes_failed) > 0, 'entries in "failed" list, but resource_hashes_failed is empty'
