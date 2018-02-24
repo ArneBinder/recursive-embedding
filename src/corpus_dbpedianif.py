@@ -113,7 +113,7 @@ logger_virtuoso.addHandler(virtuoso_sh)
 logger_virtuoso.propagate = False
 
 
-def query_context(graph, initBindings=None):
+def query_context(graph, initBindings=None, cursor=None):
     q_str = (u'CONSTRUCT {'
              '  ?s ?p ?o .'
              '  ?context ?context_p ?context_o .'
@@ -124,7 +124,7 @@ def query_context(graph, initBindings=None):
              '} '
              )
     logger.debug(q_str)
-    res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
+    res = graph.query(q_str, cursor=cursor, initNs=ns_dict, initBindings=initBindings)
     return res
 
 
@@ -152,7 +152,7 @@ def query_see_also_links_DEP(graph, initBindings=None):
     return res
 
 
-def query_see_also_links(graph, context):#initBindings=None):
+def query_see_also_links(graph, context, cursor=None):#initBindings=None):
     q_str = (u'SELECT ?linkRef WHERE' 
              '{'
              '  <'+context+'> a nif:Context . '
@@ -171,7 +171,7 @@ def query_see_also_links(graph, context):#initBindings=None):
              '} '
              )
     logger.debug(q_str)
-    res = graph.query(q_str, initNs=ns_dict)#, initBindings=initBindings)
+    res = graph.query(q_str, cursor=cursor, initNs=ns_dict)#, initBindings=initBindings)
     return res
 
 
@@ -207,7 +207,7 @@ def query_first_section_structure_DEP(graph, initBindings=None):
     return res
 
 
-def query_first_section_structure(graph, context):
+def query_first_section_structure(graph, context, cursor=None):
     q_str = (
         u'CONSTRUCT {'
         ' ?s ?p ?o .'
@@ -224,7 +224,7 @@ def query_first_section_structure(graph, context):
         ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString itsrdf:taIdentRef rdf:type} .'
         '}')
     logger.debug(q_str)
-    res = graph.query(q_str, initNs=ns_dict)#, initBindings=initBindings)
+    res = graph.query(q_str, cursor=cursor, initNs=ns_dict)#, initBindings=initBindings)
     # print(type(res))
     return res
 
@@ -300,9 +300,9 @@ def process_link_refs(link_refs, ref_type_str=TYPE_REF):
     return refs
 
 
-def prepare_context_datas(graph, nif_context_strings):
+def prepare_context_datas(graph, nif_context_strings, cursor):
     nif_context_datas = []
-    query_datas, failed = query_context_datas(graph, nif_context_strings)
+    query_datas, failed = query_context_datas(graph, nif_context_strings, cursor)
 
     for nif_context_str, query_data in query_datas:
         try:
@@ -392,7 +392,7 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
     return forest, failed
 
 
-def query_context_datas(graph, context_strings):
+def query_context_datas(graph, context_strings, cursor):
     #logger.setLevel(logging.DEBUG)
     #logger_virtuoso.setLevel(logging.DEBUG)
 
@@ -413,9 +413,9 @@ def query_context_datas(graph, context_strings):
     for context_str in context_strings:
         try:
             t_start = datetime.now()
-            res_context_seealsos = query_see_also_links(_graph, context=context_str) #initBindings={'context': context_uri})
+            res_context_seealsos = query_see_also_links(_graph, context=context_str, cursor=cursor) #initBindings={'context': context_uri})
             #logger.debug('len(res_context_seealsos)=%i' % len(res_context_seealsos))
-            res_context = query_first_section_structure(_graph, context=context_str) #{'context': context_uri})
+            res_context = query_first_section_structure(_graph, context=context_str, cursor=cursor) #{'context': context_uri})
             #logger.debug('len(res_context)=%i' % len(res_context))
 
             g_structure = Graph()
@@ -634,7 +634,7 @@ def connect_graph():
         except Exception as e:
             logger.warn('connection failed: %s wait %i seconds ...' % (str(e), 10))
             time.sleep(10)
-    return graph
+    return graph, store
 
 
 @plac.annotations(
@@ -663,7 +663,7 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
         os.mkdir(out_path)
 
     logger.info('THREAD MAIN: set up connection ...')
-    graph = connect_graph()
+    graph, _ = connect_graph()
     logger.info('THREAD MAIN: connected')
 
     t_start = datetime.now()
@@ -732,14 +732,15 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 
     def do_query(_q_in, _q_out, thread_id):
         logger.info('THREAD %i QUERY: set up connection ...' % thread_id)
-        _g = connect_graph()
+        _g, store = connect_graph()
         logger.info('THREAD %i QUERY: connected' % thread_id)
         while True:
             fn = _q_in.get()
             t_start = datetime.now()
             lexicon = Lexicon(filename=fn)
             #failed = []
-            nif_context_datas, failed = prepare_context_datas(_g, lexicon.strings)
+            nif_context_datas, failed = prepare_context_datas(_g, lexicon.strings, store.cursor())
+            store.commit()
             #for context_str in lexicon.strings:
             #    try:
             #        nif_context_data = prepare_context_data(_g, context_str)
