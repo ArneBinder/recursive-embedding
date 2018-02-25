@@ -94,11 +94,12 @@ DIR_MERGED = 'merged'
 
 PREFIX_FN = 'forest'
 
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+
 logger = logging.getLogger('corpus_dbpedia_nif')
-logging_format = '%(asctime)s %(levelname)s %(message)s'
 logger.setLevel(logging.INFO)
 logger_streamhandler = logging.StreamHandler()
-logger_streamhandler.setFormatter(logging.Formatter(logging_format))
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 #logger.addHandler(logging.FileHandler('../virtuoso_test.log', mode='w', encoding='utf-8'))
 logger.propagate = False
@@ -653,7 +654,8 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
         os.mkdir(out_path)
 
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-prepare.log'))
-    logger_fh.setLevel(logging.DEBUG)
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
     logger.info('batch-size=%i start-offset=%i batch-count=%i out_path=%s'
                 % (batch_size, start_offset, batch_count, out_path))
@@ -718,7 +720,8 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         os.mkdir(out_path)
 
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-batches.log'))
-    logger_fh.setLevel(logging.DEBUG)
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
     logger.info('batch-size=%i num-threads=%i out_path=%s'
                 % (batch_size, num_threads, out_path))
@@ -808,6 +811,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
     logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
 
     logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
