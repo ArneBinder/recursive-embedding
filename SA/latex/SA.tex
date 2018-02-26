@@ -129,6 +129,24 @@
 \pagenumbering{roman}   % define page number in roman style
 \setcounter{page}{0}    % start page numbering
 
+% -----------------------------
+% --- frontmatter: Abstract ---
+% -----------------------------
+\newpage
+\addcontentsline{toc}{section}{Abstract}
+\pagestyle{plain}
+\input{abstract}
+\clearpage
+
+% -----------------------------
+% --- frontmatter: Zusammenfassung ---
+% -----------------------------
+%\newpage
+%\addcontentsline{toc}{section}{Zusammenfassung}
+%\pagestyle{plain}
+%\input{zusammenfassung}
+%\clearpage
+
 % ------------------------------------
 % --- frontmatter: Acknowledgement ---
 % ------------------------------------
@@ -137,15 +155,6 @@
 %\pagenumbering{roman}   % define page number in roman style
 %\setcounter{page}{1}    % start page numbering
 %\input{acknowledgement}
-
-
-
-% -----------------------------
-% --- frontmatter: Abstract ---
-% -----------------------------
-%\newpage
-%\input{abstract}
-
 
 
 % -----------------------------
