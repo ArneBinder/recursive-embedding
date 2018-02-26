@@ -23,8 +23,8 @@
 \normalsize
 
 \acfp{VSM} for textual data lead to success in many \ac{NLP} tasks. Recently, prediction based word embedding models like word2vec %\autocite{mikolov_efficient_2013}
-gained increasing attention. These models build upon Distributional Semantics, i.e. a word is defined by its context, and scale up to billions of training tokens % \autocite{mikolov_distributed_2013}
-resulting in robust embeddings for individual tokens. 
+gained attention. These models build upon Distributional Semantics, i.e. a word is defined by its contexts, and scale up to billions of training tokens % \autocite{mikolov_distributed_2013}
+resulting in robust embeddings for individual words. 
 \acfp{CDSM} intend to create vector representations for sequences of tokens by composing word embeddings in a meaningful manner. However, it is up to debate which composition functions perform well for semantic tasks.
 
 In this work, we study the impact of order aware processing to token embedding composition at sentence level by implementing (1) an averaging model and (2) a \ac{LSTM} based approach. Furthermore, we analyze the relation of order aware composition to syntactical information. We evaluate our models at the SICK relatedness prediction task.% \autocite{marelli_sick_2014}.
