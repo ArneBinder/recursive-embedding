@@ -269,13 +269,13 @@ By interpreting $T$ and $C$ as random variables $X$ and $Y$ an occurrence matrix
 %that approximates this behavior 
 can be constructed as follows:
 \begin{equation}
-\begin{split}
+\begin{split} \label{eq:m_pmi}
 M^{pmi}_{ij} & = log\frac{\#(t_i, c_j)}{\sum\limits_{c \in C}\#(t_i, c) \cdot \sum\limits_{t \in T}\#(t,c_j)} \\
  & = log\,\#(t_i, c_j) - b_i^{(T)} - b_j^{(C)}
 \end{split}
 \end{equation}
 where $b_i^{(T)}$ and $b_j^{(C)}$ are term and context biases with
-\begin{equation} \label{eq:m_pmi}
+\begin{equation} 
 \begin{split}
 b_i^{(T)} & = log \sum\limits_{c \in C}\#(t_i, c) \quad \text{and} \\
 b_j^{(C)} & = log \sum\limits_{t \in T}\#(t,c_j)
@@ -334,13 +334,13 @@ M^{hidden} \cdot M^{out} + log(k) = M^{pmi}
 \end{equation}
 where $k$ is a constant. 
 
-Glove \autocite{pennington_glove_2014} is a prediction based model that explicitly uses $M^{pmi}$. Its cost function (see Section~\ref{subsec:cost_function}) $J^{GLOVE}$ can be defined as:\todo{UL: check signs!}
+Glove \autocite{pennington_glove_2014} is a prediction based model that explicitly uses $M^{pmi}$. Its cost function (see Section~\ref{subsec:cost_function}) $J^{GLOVE}$ can be defined as:%\todo{UL: check signs!}
 \begin{equation}
 J^{GLOVE}(\{w; b\}) = \sum\limits_{t_i \in T}\sum\limits_{c_j \in C}\ M^{B}_{ij}(w_i^Tw_j + b_i + b_j - log\,\#(t_i,c_j))^2
 \end{equation}
 where $M^B$ is a fixed matrix of biases and $|T| = |C|$, i.e. the number of possible terms equals the number of possible contexts. The later is feasible because Glove uses word co-occurrences to define $C$ as described in equation \eqref{eq:co}, therefore contexts can be identified by terms. Obviously, the same holds for Skip-Gram.
 
-If we recap the definition of $M^{pmi}$ from equation \eqref{eq:m_pmi}, $M^{pmi}_{ij}= log\,\#(t_i, c_j) - b^{(T)}_i - b^{(C)}_j$, we notice that Glove's objective factorizes $M^{pmi}$:\todo{UL: check signs!, (see above)} %, but using a composed $b$ instead of $b^{(T)}$ and $b^{(C)}$:
+If we recap the definition of $M^{pmi}$ from equation~\eqref{eq:m_pmi}, $M^{pmi}_{ij}= log\,\#(t_i, c_j) - b^{(T)}_i - b^{(C)}_j$, we notice that Glove's objective factorizes $M^{pmi}$:%\todo{UL: check signs!, (see above)} %, but using a composed $b$ instead of $b^{(T)}$ and $b^{(C)}$:
 \begin{align}
 %ww^T & = log\,\#(T_i, C_j) - b_i - b_j \\
 % & = M^{pmi}_{ij} + b^{(T)}_i + b^{(C)}_j - b_i - b_j
