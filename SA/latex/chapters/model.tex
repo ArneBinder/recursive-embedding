@@ -1,5 +1,5 @@
 \section{Model architecture and training}
-This chapter describes the architecture of the neural models used to calculate a similarity score for a given sentence tuple and how these models are trained.\todo{UL: Hier wäre mehr Übersicht gut: was komtm jetzt? Was wurde gemacht? Was davon ist neu? Was ist das Ziel? (X)}
+This chapter describes the architecture of the neural models used to calculate a similarity score for a given sentence tuple and how these models are trained.\todo{UL: Hier wäre mehr Übersicht gut: was komtm jetzt? Was wurde gemacht? Was davon ist neu? Was ist das Ziel? (X)} \todo{AB: introduce the two parameters!}
 
 \subsection{Model architecture} \label{subsec:architecture}
 Both models consist of a sentence embedding unit and a similarity function. The embedding unit translates a sequence of tokens into a single embedding vector and is applied to the two input sentences using identical weights, thus our systems follow a siamese structure \autocite{bromley_signature_1994}. %\textcite{he_multi-perspective_2015}: "Our model has a “Siamese” structure (Bromley et al., 1993) with two subnetworks each processing a sentence in parallel. The subnetworks share all of their weights, and are joined by the similarity measurement layer, then followed by a fully connected layer for similarity score output."
@@ -24,7 +24,7 @@ We compare two composition functions: (1) \acf{AVG} and (2) \acf{LSTM}.
 In the \ac{AVG} case, we apply one \acf{FC} with $tanh$ as activation function to every token embedding. Then, averaging the resulting vectors gives the sentence embedding.
 In the \ac{LSTM} setting, the token embeddings are fed directly into a LSTM layer whose final state \todo{UL: remove "final state" (?)} output is used as sentence embedding. %The two settings are visualized in Figure~\todo{AB: add figure}.
 
-To achieve comparability between the two composition functions, we control the amount of effectively trainable parameters in each of them. Depending on whether dependency type information is used, we use different sizes for the $tanh$ \ac{FC} in the \ac{AVG} case and for the inner state of the \ac{LSTM} to fix the amount of effective parameters. Table~\ref{tab:sizes} shows the exact numbers and sizes of the elements. The sentence representation dimension equals to the composition element sizes.  % total sizes: AVG=input*fc, LSTM=(input+state+1)*4*state 
+To achieve comparability between the two composition functions, we control the amount of effectively trainable parameters in each of them. Depending on whether dependency type information is used, we use different sizes for the $tanh$ \ac{FC} in the \ac{AVG} case and for the inner state of the \ac{LSTM} to fix the amount of effective parameters. Table~\ref{tab:sizes} shows the exact numbers and sizes of the elements. The sentence representation dimension equals to the composition element (output) size.  % total sizes: AVG=input*fc, LSTM=(input+state+1)*4*state 
 
 \begin{table}[!htb]
   \centering
@@ -33,7 +33,7 @@ To achieve comparability between the two composition functions, we control the a
     w/ dependency types & 110840 (326) & 111248 (68) \\ 
     w/o dependency types & 111000 (370) & 111000 (74) \\
   \end{tabular}
-  \caption{Numbers of trainable parameters and sizes of composition function elements}
+  \caption{Numbers of trainable parameters and (output) size of composition function elements}
   \label{tab:sizes}
 \end{table}
 
@@ -49,9 +49,9 @@ As baseline we calculate TF-IDF based similarity scores in the following manner.
 \subsection{Training and Implementation}
 \label{subesec:training_implementation}
 We train the model via batched back-propagation using \ac{MSE} loss function as described in section~\ref{subsec:cost_function} and apply ADAM \autocite{kingma_adam_2014} %ADADELTA \autocite{zeiler_adadelta_2012}
-as optimizer. We use a 4:1 train/dev split for early stopping. The training is terminated when the score on the development data set does not increase anymore regarding a smoothing window covering the last 25 epochs.\todo{UL: wie wird evaluiert? gibt es held-back-data? (? next chapter?)} 
+as optimizer. We use a 4:1:5 train/dev/test split. The training is terminated when the score on the development data set does not increase anymore regarding a smoothing window covering the last 25 epochs.
 
-The model is implemented with the TensorFlow framework  \autocite{abadi_tensorflow_2016}. TensorFlow allows to define and to execute arbitrary dataflow graphs efficiently on different devices as CPUs or GPUs. For tokenization and dependency parsing we use spaCy\footnote{see \url{https://spacy.io/}} which is a fast and still accurate\footnote{see \textcite{choi_it_2015} for a comparative study} \ac{NLP} framework. 
+The model is implemented with the TensorFlow framework  \autocite{abadi_tensorflow_2016}. TensorFlow allows to define and to execute arbitrary dataflow graphs efficiently on different devices as CPUs or GPUs. For tokenization, dependency parsing and POS-tagging we use spaCy\footnote{see \url{https://spacy.io/}} which is a fast and still accurate\footnote{see \textcite{choi_it_2015} for a comparative study} \ac{NLP} framework. 
 
 
 %\subsection{Pre-Training}
