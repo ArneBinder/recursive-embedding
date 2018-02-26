@@ -1,5 +1,5 @@
 \section{Model architecture and training}
-This chapter describes the architecture of the neural models used to calculate a similarity score for a given sentence tuple and how these models are trained.\todo{UL: Hier wäre mehr Übersicht gut: was komtm jetzt? Was wurde gemacht? Was davon ist neu? Was ist das Ziel? (X)} \todo{AB: introduce the two parameters!}
+This chapter describes the architecture of the neural models used to calculate a similarity score for a given sentence tuple and how these models are trained.\todo{UL: Hier wäre mehr Übersicht gut: was kommt jetzt? Was wurde gemacht? Was davon ist neu? Was ist das Ziel? (X)} \todo{AB: introduce the two parameters!}
 
 \subsection{Model architecture} \label{subsec:architecture}
 Both models consist of a sentence embedding unit and a similarity function. The embedding unit translates a sequence of tokens into a single embedding vector and is applied to the two input sentences using identical weights, thus our systems follow a siamese structure \autocite{bromley_signature_1994}. %\textcite{he_multi-perspective_2015}: "Our model has a “Siamese” structure (Bromley et al., 1993) with two subnetworks each processing a sentence in parallel. The subnetworks share all of their weights, and are joined by the similarity measurement layer, then followed by a fully connected layer for similarity score output."
@@ -44,7 +44,7 @@ We use the cosine similarity to calculate the similarity score between the two s
 %\end{equation}
 
 \subsubsection{Baseline model}
-As baseline we calculate TF-IDF based similarity scores in the following manner. We parse and lemmatize each sentence and filter for verbs, nouns and adjectives according to POS tags\todo{UL:which tagger?}. Then, we embed each sentence with TF-IDF as described in section~\ref{subsec:doc_embedding} and apply cosine measure. 
+As baseline we calculate TF-IDF based similarity scores in the following manner. We parse and lemmatize each sentence and filter for verbs, nouns and adjectives according to POS tags. Then, we embed each sentence with TF-IDF as described in section~\ref{subsec:doc_embedding} and apply cosine measure. 
 
 \subsection{Training and Implementation}
 \label{subesec:training_implementation}

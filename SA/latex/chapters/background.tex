@@ -4,7 +4,7 @@ This chapter provides an overview of basic concepts regarding semantic aware vec
 
 \subsection{Evaluation of Semantic Awareness} \label{subsec:eval_semantic_awareness}
 %sahlgren_distributional_2008
-Following the Distributional Hypothesis \autocite{harris_distributional_1954}, that linguistic items with similar contexts have similar meanings, it should be possible to construct a conceptional space in a way, that distances of concepts follow human intuition. \todo{UL: SB; AB: rework (!)}
+Following the Distributional Hypothesis \autocite{harris_distributional_1954}, that linguistic items with similar contexts have similar meanings, it should be possible to construct a conceptional space in a way, that distances of concepts follow human intuition.
 %a conceptional space should be arranged in a way, that distances of concepts follow the human intuition. By doing so, the meaning of these concepts should be as expected as by humans. 
 \acfp{DSM} \autocite{landauer_solution_1997,schutze_automatic_1998} are approaches that implement this thesis.
 
@@ -25,7 +25,7 @@ The capability of predicting this kind of similarity by using an internal repres
 The task of Similarity Prediction can be framed as to predict a score given two entities of a conceptional space, where higher scores represent higher degrees of similarity between them. In the context of \ac{NLP} these entities are linguistic units such as words, phrases, sentences or documents. The score can include different granularities of similarity, ranging from binary classification, e.g. in the case of Paraphrase Detection\footnote{Paraphrase Detection is the task of identifying if two phrases paraphrase each other.}, weighted aggregation of multi-label classification results, e.g. for instances of discrete %Likert-scaled 
 questionnaire data, to regression with continuous scores. 
 %Considering its more general nature and the availability of 5-point Likert-scored evaluation data, we will focus on Similarity Prediction as regression task.
-With regard to natural language, \Textcite{agirre_semeval-2012_2012} defines \acf{STS} as the measure for the degree of semantic equivalence\todo{UL: relatedness?} between two texts.\todo{UL: sinnlos, AB: rework or move}
+%With regard to natural language, \Textcite{agirre_semeval-2012_2012} defines \acf{STS} as the measure for the degree of semantic equivalence \todo{UL: relatedness?} between two texts.\todo{UL: sinnlos, AB: rework or move}
 
 We will focus on Similarity Prediction as regression task. Semantic Relatedness of arbitrary\footnote{The composition is surely constrained by grammar, linguistic performance and other criteria, but this term is in favor of the tremendous variability of natural language.} composed textual entities is no binary phenomena. Otherwise the entity space would disintegrate into distinct clusters each containing entities interpreted as identical. %\todo{UL: the following is unnecessary}As semantic relatedness is defined about \textit{any} kind of lexical or functional association, it is expected that any entity is semantical related with the majority of the entities in the space in a transitively manner allowing only the trivial solution, precisely, that all entities are identical with respect to the similarity. The compensation of this fact increases the amount of necessary data to approximate the real behavior. Furthermore, modeling Similarity Prediction as regression is straightforward compared to aggregation of multi-classification output.  
 
@@ -143,17 +143,17 @@ where $w^{(i)} \in \mathbb{R}^{n^{(i)} \times n^{(i-1)}}$, $b^{(i)} \in \mathbb{
 \subsubsection{Activation Functions}
 The \ac{FNN} described so far is capable of modeling linear mappings only. To enable non-linearity, different non-linear activation functions can be applied element-wise to the individual layer outputs. A prominent instance is the \textit{sigmoid} function that takes a real-valued input and "squashes" it to range between 0 and 1. Therefore, it is used to model Bernoulli-Distributions. It is defined as:
 \begin{equation}
-\sigma(x)=\frac{1}{1+e^{-x}}
+\sigma(v_i)=\frac{1}{1+e^{-v_i}}
 \end{equation}
 \todo{UL: what is "x"? explain!}
 The \textit{hyperbolic tangent} is another strictly increasing, non-linear activation function, but maps into the range between -1 and 1:
 \begin{equation}
-\tanh(x)=\frac{1-e^{-2x}}{1+e^{-2x}}=2\sigma(2x)-1
+\tanh(v_i)=\frac{1-e^{-2v_i}}{1+e^{-2v_i}}=2\sigma(2v_i)-1
 \end{equation}
 
 Finally, the \textit{softmax} function can be used to model discrete probability distributions, e.g. for classification tasks. In contrast to the previous activation functions it is not element wise independent, since it applies normalization across all input elements to guarantee that its result follow the probability distribution conditions. For an input vector $x$ with entries $x_i$ it is defined as:
 \begin{equation}
-softmax(x_i) = \frac{e^{x_i}}{\sum\limits_{x_j \in x}e^{x_j}} 
+softmax(v_i) = \frac{e^{v_i}}{\sum\limits_{v_j \in v}e^{v_j}} 
 \end{equation}
 
 \subsubsection{\acl{RNN}s} \label{subsec:rnn}
@@ -185,7 +185,7 @@ where $[a, b]$ is the concatenation of the vectors $a$ and $b$, and $a \odot b$ 
 
 \subsection{Supervised Training of ANNs}
 %In this section we describe the optimization procedure for \acl{ANN}s, e.g their training. 
-Supervised training of an \ac{ANN} model $f$ parametrized by $\theta$ takes a set $\Omega$ of input-output training tuples $(x,y)$ for granted and tries to find instantiations of $\theta$ in the manner that $f(x;\theta) = \hat{y} \approx y, \forall (x,y) \in \Omega$ \autocite{mohri_foundations_2012}. In the context of \ac{ANN}s, one usually uses a \textit{cost function} $J$ that quantifies the deviation of $\hat{y}$ from $y$, thus $J$ is used to guide the parameter adjustment via gradient-based optimization to minimize $J(\hat{y}, y)$\todo{AB: rework (see J below)}.
+Supervised training of an \ac{ANN} model $f$ parametrized by $\theta$ takes a set $\Omega$ of input-output training tuples $(x,y)$ for granted and tries to find instantiations of $\theta$ in the manner that $f(x;\theta) = \hat{y} \approx y, \forall (x,y) \in \Omega$ \autocite{mohri_foundations_2012}. In the context of \ac{ANN}s, one usually uses a \textit{cost function} $J$ that quantifies the deviation of $\hat{y}$ from $y$, thus $J$ is used to guide the parameter adjustment via gradient-based optimization to minimize this cost.%\todo{AB: rework (see J below)}
 
 \subsubsection{Cost Function}
 \label{subsec:cost_function}
@@ -217,8 +217,8 @@ Finally, we describe the core algorithm that enables gradient-based training of 
 \end{align}
 $v^{(i)}$ occurs several times in equation \eqref{eq:chain_3}. Furthermore, as shown in \eqref{eq:chain_1} $\frac{dv^{(i+2)}}{dv^{(i)}}$ depends on $\frac{dv^{(i+2)}}{dv^{(i+1)}}$ immediately. Backpropagation exploits these redundancies by successively calculating all $v^{(i)}$ in a \textit{forward pass}. Then, it calculates all gradients in reverse order while reusing intermediate results in a \textit{backwards pass}. By doing so, the algorithm reduces the complexity from exponential, considering a naive approach, to linear with regard to the edge count of the network graph.
 
-\subsection{A Model for STS Prediction}
-We divide semantic similarity prediction with regard to textual inputs into (1) transformation of the inputs into vector space representations and 
+\subsection{A Model for Semantic Relatedness Prediction}
+We divide semantic relatedness prediction with regard to textual inputs into (1) transformation of the inputs into vector space representations and 
 %similarity measure application. 
 (2) similarity calculation in this embedding space.
 %Similarity prediction with regard to textual inputs can be divided into transformation of the inputs into vector space representations and similarity measure application.
@@ -232,7 +232,7 @@ Because of the relevance of embedding models for many \ac{NLP} tasks, a diverse 
 \label{subsec:doc_embedding}
 %\todo{AB:name Vector Space Models!} XXX READ: \autocite{turney_frequency_2010}
 %As we focus on distributional semantics, we can outline some common features for traditional document embedding models. 
-\acfp{VSM} \autocite{turney_frequency_2010}\todo{UL: better: original ref} build upon occurrences of terms $T$ within certain contexts $C$. For example, a word can occur as term in a document, i.e. its context, or not. In \acp{VSM} contexts are expressed in means of terms that occur with these. Thus, these models are instances of \acp{DSM} (Section~\ref{subsec:eval_semantic_awareness}).  We define $T = \{t_1, ..., t_m\}$ as finite set of opaque symbols with $m = |T|$ and the set of contexts $C \subseteq T^*$ 
+\acfp{VSM} \autocite{turney_frequency_2010} \todo{UL: better: original ref} build upon occurrences of terms $T$ within certain contexts $C$. For example, a word can occur as term in a document, i.e. its context, or not. In \acp{VSM} contexts are expressed in means of terms that occur with these. Thus, these models are instances of \acp{DSM} (Section~\ref{subsec:eval_semantic_awareness}).  We define $T = \{t_1, ..., t_m\}$ as finite set of opaque symbols with $m = |T|$ and the set of contexts $C \subseteq T^*$ 
 % = \{c_1, ..., c_n: c_i = (t \in T)\}$ 
 with $n = |C|$, e.g. every context is a set of terms. 
 The set of unique terms $T$ is called a vocabulary.%\todo{AB:call it alphabet?}.
@@ -287,7 +287,7 @@ Because $\#(T_i, C_j)$ is zero and, consequently, $M^{pmi}_{ij}$ equals $-\infty
 M^{ppmi}_{ij} = max(M^{ppmi}_{ij}, 0)
 \end{equation}
 
-By construction these document representations have as many dimensions as terms in $T$. But according to Zipf’s word frequency law in natural language \autocite{zipf_psychobiology_1935}, a huge majority of words occurs very rarely, e.g., only in very few documents of a corpus. Thus, the majority of values in an occurrence matrix $M$ is zero. In other words, the matrix is very \textit{sparse} and has a low information density. Furthermore, some words occur in almost every document leading to high biases. Assuming they do not convey particular meaning and low frequency words are too rare to capture their meaning by containing documents, these extreme cases are commonly filtered out. However, occurrence matrices are still sparse by nature. For instance, one might imagine a corpus of 1 million documents containing words of a (pruned) vocabulary of size 100,000 resulting in 100 billion matrix entries.\todo{UL: example for what?}
+By construction these document representations have as many dimensions as terms in $T$. But according to Zipf’s word frequency law in natural language \autocite{zipf_psychobiology_1935}, a huge majority of words occurs very rarely, e.g., only in very few documents of a corpus. Thus, the majority of values in an occurrence matrix $M$ is zero. In other words, the matrix is very \textit{sparse} and has a low information density. Furthermore, some words occur in almost every document leading to high biases. Assuming they do not convey particular meaning and low frequency words are too rare to capture their meaning by containing documents, these extreme cases are commonly filtered out. However, occurrence matrices are still sparse by nature. For instance, one might imagine a corpus of 1 million documents containing words of a (pruned) vocabulary of size 100,000 resulting in 100 billion matrix entries requiring a huge amount of occurrence events to fill the majority of entries.%\todo{UL: example for what?}
 %This draw back\todo{UL:explain, why bad -> main argument(?)} can be tackled by filtering very frequently occurring words, called \textit{stop words}, assuming they do not convey particular meaning, and, further, very rare words to handle\todo{UL:explain!} Zipf's word frequency law in natural language\todo{UL:ref}. But even after ...\todo{add content}, the resulting embeddings are very sparse because the majority of words occur only in small subsets of a natural language corpus if the term distributions are not artificially controlled\todo{UL:ref}. %Respectively, a lot of possible word co-occurrences never occur. 
 
 To combat the problem of sparsity, there are several methods to reduce the embedding dimensionality while maintaining semantic awareness. One common approach is to apply \ac{SVD} \autocite{beltrami_sulle_1873} to the occurrence matrix. \ac{LSA} \autocite{deerwester_indexing_1990} implements this in the context of \ac{IR} by decomposing the occurrence matrix $M$ described above\footnote{The original \ac{LSA} makes use of the \textit{term document matrix} $M^{td}$, a simplification of $M^{pmi}$ without normalization, where $M^{td}_{ij} =\nobreak \#(T_i, C_j)$.} in the following way:
@@ -300,13 +300,13 @@ where $U = MM^T$, $V = M^TM$ and $S$ is a diagonal matrix that contains the sing
 \end{equation}
 where $\hat{d}$ is the $\hat{n}$-dimensional document representation. 
 
-Despite its clear theoretical motivation, \acp{VSM} for documents that build upon \ac{SVD} have the major draw back that the decomposition has to be calculated every time a document is added to the corpus, which functions as base for the semantic space. \ac{SVD} is computational expensive, it has a complexity of $O((n+m)^2\hat{n}^3)$\todo{UL: wrong! The complexity can not depend on $\hat{n}$}. %Assuming that $T$ does not change as much as $C$, approaches arise that build upon (pre-) calculated \textit{word} or \textit{term embeddings} (\ref{sec:term_embeddings}). Then, embedded terms are dynamically composed to document representations leading to \textit{composition models} (\ref{sec:composition_models}). We will outline these concepts in the following sections.
+Despite its clear theoretical motivation, \acp{VSM} for documents that build upon \ac{SVD} have the major draw back that the decomposition has to be calculated every time a document is added to the corpus, which functions as base for the semantic space. \ac{SVD} is computational expensive, it has a complexity of $O(min(\{mn^2,m^2n\}))$. %$O((n+m)^2\hat{n}^3)$\todo{UL: wrong! The complexity can not depend on $\hat{n}$}. %Assuming that $T$ does not change as much as $C$, approaches arise that build upon (pre-) calculated \textit{word} or \textit{term embeddings} (\ref{sec:term_embeddings}). Then, embedded terms are dynamically composed to document representations leading to \textit{composition models} (\ref{sec:composition_models}). We will outline these concepts in the following sections.
 
 \subsubsection{Term Embeddings}
 \label{sec:term_embeddings}
 Term embeddings, in their common sense, are distributed representations of words \autocite{bengio_neural_2003}, thus forming \acp{DSM} (Section~\ref{subsec:eval_semantic_awareness}). Similar to context embeddings, we define a term embedding as a function $f_T:T \mapsto \mathbb{R}^{\hat{m}}$, where $\hat{m} \in \mathbb{N}$ is the dimensionality of the embedding vectors.
 
-The methods described in the previous section are directly applicable to produce term embeddings by defining $f_T(t_i) = M^T \cdot e_i$ where $M \in \mathbb{R}^{m \times n}$ is an occurrence matrix with $m = |T|$ and $n = |C|$ as defined above. A common approach to produce term embeddings is to calculate $M^{ppmi}$ and apply \ac{SVD}. In analogy to $\hat{d} = S_k^{-1}U_k^Td$ (equation \eqref{eq:svd_doc}), a term embedding $\hat{t}$ of the context based term vector $t$ for term $T_i$ can be calculated as $\hat{t} = S_k^{-1}V_k^Tt$. In this means, it is not necessary to recalculate the \ac{SVD} until a term $T_x$ occurs that is not in $T$. However, in that case, there are probably not enough documents available to construct a consistent\todo{UL: what's this? entirely new concept!} representation for $T_x$ either, so it can and should be discarded.\todo{UL: Why? or: says what?} %...\todo{UL:explain benefit!}
+The methods described in the previous section are directly applicable to produce term embeddings by defining $f_T(t_i) = M^T \cdot e_i$ where $M \in \mathbb{R}^{m \times n}$ is an occurrence matrix with $m = |T|$ and $n = |C|$ as defined above. A common approach to produce term embeddings is to calculate $M^{ppmi}$ and apply \ac{SVD}. In analogy to $\hat{d} = S_k^{-1}U_k^Td$ (equation \eqref{eq:svd_doc}), a term embedding $\hat{t}$ of the context based term vector $t$ for term $T_i$ can be calculated as $\hat{t} = S_k^{-1}V_k^Tt$. In this means, it is not necessary to recalculate the \ac{SVD} until a term $T_x$ occurs that is not in $T$. However, in that case, there are probably not enough documents available to construct a consistent \todo{UL: what's this? entirely new concept!} representation for $T_x$ either, so it can and should be discarded.\todo{UL: Why? or: says what?} %...\todo{UL:explain benefit!}
 
 Further ideas like the Hyperspace Analogue to Language model \autocite{lund_producing_1996} build upon counts of word co-occurrences. They can be cast into the conceptional framework outlined by defining $C$ via a co-occurrences relation $R^{CO}$ as:% \subseteq T \times T$ as:
 \begin{equation} \label{eq:co}
@@ -404,9 +404,9 @@ f_{S_{cos}}(\hat{d}_i, \hat{d}_j) = \frac{\sum_{k=1}^{\hat{n}}\hat{d}_{i_k} \hat
 %||\hat{d}_i||_2 \cdot ||\hat{d}_j||_2^T
 %\end{split}
 \end{equation}
-where $\norm{v}_2 = \sqrt{\sum_{k=1}^{|v|}(v_k)^2}$ is the $L_2$ (euclidean) norm of $v$. As equation~\eqref{eq:sim_cos} shows this measure explicitly normalizes its input. This can be an advantage because it is independent of the \textit{significance}\todo{UL explain intuitively! not just on the side...} of the embeddings which is, as \textcite{schakel_measuring_2015} state, encoded by their norm.
+where $\norm{v}_2 = \sqrt{\sum_{k=1}^{|v|}(v_k)^2}$ is the $L_2$ (euclidean) norm of $v$. As equation~\eqref{eq:sim_cos} shows this measure explicitly normalizes its input. This can be an advantage because it is independent of the \textit{significance} of the embeddings which is, as \textcite{schakel_measuring_2015} state, encoded by their norm.
 
-\todo{AB:throw away?}An \textit{euclidean} distance based similarity measure that relies directly on the euclidean norm can be constructed as:
+An \textit{euclidean} distance based similarity measure that relies directly on the euclidean norm can be constructed as:
 \begin{equation}
 f_{S_{eucl}}(\hat{d}_i, \hat{d}_j) = exp(-\lVert\hat{d}_i - \hat{d}_j\rVert_2)
 \end{equation}
@@ -439,7 +439,7 @@ In the following, we present a very brief introduction into the theory of lingui
 \subsubsection{Dependency Types} \label{subsec:dependency_types}
 %Dependents modify their head, but a head governs its dependents. 
  %, similar to a linguistic constituent. 
-In addition to structural \todo{AB: or: hierarchical?} information given by the dependence relation, dependency grammars classify the kinds of dependencies in terms of the grammatical role the dependent plays with respect to its head. For instance, \textit{subject}, \textit{direct object} or \textit{indirect object} are commonly used and relate to the main finite verb. Because they link phrases of clauses, they are called \textit{clausal argument relations}. To classify all types of dependencies found in dependence structures, the \ac{DG} formalism expands the set of grammatical roles further to types of \textit{nominal modifier relations}, \textit{conjunctions} and many others. Languages vary in the set of dependency types and the means of expressing them (e.g. morphological marker, word order, function words). Nevertheless, efforts are underway to standardize the landscape of considered types of dependency relations. One approach that recently gained attention is the Universal Dependencies project \autocite{nivre_universal_2016}. It defines a common core of 40 grammatical relations while being flexible enough to incorporate language specific types, if needed. The project currently provides resources annotated with dependency structure (treebanks) for 60 different languages.
+In addition to structural information given by the dependence relation, dependency grammars classify the kinds of dependencies in terms of the grammatical role the dependent plays with respect to its head. For instance, \textit{subject}, \textit{direct object} or \textit{indirect object} are commonly used and relate to the main finite verb. Because they link phrases of clauses, they are called \textit{clausal argument relations}. To classify all types of dependencies found in dependence structures, the \ac{DG} formalism expands the set of grammatical roles further to types of \textit{nominal modifier relations}, \textit{conjunctions} and many others. Languages vary in the set of dependency types and the means of expressing them (e.g. morphological marker, word order, function words). Nevertheless, efforts are underway to standardize the landscape of considered types of dependency relations. One approach that recently gained attention is the Universal Dependencies project \autocite{nivre_universal_2016}. It defines a common core of 40 grammatical relations while being flexible enough to incorporate language specific types, if needed. The project currently provides resources annotated with dependency structure (treebanks) for 60 different languages.
 
 The English language is comparably restricted in its word order and has weak morphology. As \textcite{jurafsky_dependency_2014} states, in this case, the dependency type strongly correlates with the position of the individual words.
 
