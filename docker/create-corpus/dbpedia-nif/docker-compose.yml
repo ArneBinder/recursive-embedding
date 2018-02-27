@@ -38,6 +38,7 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py CREATE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF
                                   --batch-size ${BATCH_SIZE}
+                                  --batch-size-parse ${BATCH_SIZE_PARSE}
                                   --num-threads-query ${NUM_THREADS_QUERY}
                                   --num-threads-parse ${NUM_THREADS_PARSE}
                                   --num-threads-parse-pipe ${NUM_THREADS_PARSE_PIPE}

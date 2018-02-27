@@ -346,7 +346,7 @@ def create_context_forest_DEP(nif_context_data, nlp, lexicon, n_threads=1):
     return forest
 
 
-def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
+def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1, batch_size=1000):
     #tree_contexts = []
     #resource_hashes = []
     #resource_hashes_failed = []
@@ -370,7 +370,7 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1):
                 failed.append((nif_context_str, e))
 
     forest = lexicon.read_data(reader=terminal_reader, sentence_processor=preprocessing.process_sentence1,
-                               parser=nlp, batch_size=10000, concat_mode='sequence',
+                               parser=nlp, batch_size=batch_size, concat_mode='sequence',
                                inner_concat_mode='tree', expand_dict=True, as_tuples=True,
                                return_hashes=True, n_threads=n_threads)
     forest.set_children_with_parents()
@@ -707,6 +707,7 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
 @plac.annotations(
     out_path=('corpora out path', 'option', 'o', str),
     batch_size=('amount of articles to query before fed to parser', 'option', 's', int),
+    batch_size_parse=('batch_size used by spacy.pipe for parsing', 'option', 'b', int),
     num_threads_query=('number of threads used for querying', 'option', 'q', int),
     num_threads_parse=('number of threads used for parsing', 'option', 'p', int),
     num_threads_parse_pipe=('number of threads used by spacy.pipe for parsing', 'option', 't', int),
@@ -714,7 +715,7 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
     #batch_count=('if batch_count > 0 process only this amount of articles', 'option', 'c', int)
 )
 def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads_parse=2,
-                           num_threads_query=4, num_threads_parse_pipe=1):
+                           num_threads_query=4, num_threads_parse_pipe=1, batch_size_parse=1000):
     #assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
 
     if not os.path.exists(out_path):
@@ -733,8 +734,8 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     logger_fh_debug.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh_debug)
 
-    logger.info('batch-size=%i num-threads-query=%i num-threads-parse=%i out_path=%s'
-                % (batch_size, num_threads_query, num_threads_parse, out_path))
+    logger.info('batch-size=%i batch-size-parse=%i num-threads-query=%i num-threads-parse=%i num-threads-parse-pipe=%i out_path=%s'
+                % (batch_size, batch_size_parse, num_threads_query, num_threads_parse, num_threads_parse_pipe, out_path))
 
     out_path = os.path.join(out_path, DIR_BATCHES)
     if not os.path.exists(out_path):
@@ -748,8 +749,8 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         _g, store = connect_graph()
         logger.info('THREAD %i QUERY: connected' % thread_id)
         while True:
-            logger.debug('THREAD %i QUERY: start job.    queue size: %i.' % (thread_id, q_query.qsize()))
             fn = _q_in.get()
+            logger.debug('THREAD %i QUERY: start job.    queue size: %i.' % (thread_id, q_query.qsize()))
             t_start = datetime.now()
             lexicon = Lexicon(filename=fn)
             #failed = []
@@ -771,8 +772,8 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     def do_parse(_q, _path_out, thread_id, _nlp):
 
         while True:
-            logger.debug('THREAD %i PARSE: start job.    queue size: %i.' % (thread_id, q_parse.qsize()))
             fn, nif_context_datas, failed, t_query = _q.get()
+            logger.debug('THREAD %i PARSE: start job.    queue size: %i.' % (thread_id, q_parse.qsize()))
             t_start = datetime.now()
             #fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, begin_idx))
             try:
@@ -781,7 +782,8 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
                 #parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp,
                 #                    filename=fn, t_query=t_query)
                 forest, failed_parse = create_contexts_forest(nif_context_datas, lexicon=lexicon, nlp=_nlp,
-                                                              n_threads=num_threads_parse_pipe)
+                                                              n_threads=num_threads_parse_pipe,
+                                                              batch_size=batch_size_parse)
                 failed.extend(failed_parse)
 
                 save_current_forest(forest=forest,
