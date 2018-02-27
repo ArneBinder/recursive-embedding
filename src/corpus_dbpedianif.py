@@ -97,8 +97,9 @@ PREFIX_FN = 'forest'
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.INFO)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 #logger.addHandler(logging.FileHandler('../virtuoso_test.log', mode='w', encoding='utf-8'))
@@ -124,7 +125,7 @@ def query_context(graph, initBindings=None, cursor=None):
              '  ?s ?p ?o .'
              '} '
              )
-    logger.debug(q_str)
+    #logger.debug(q_str)
     res = graph.query(q_str, cursor=cursor, initNs=ns_dict, initBindings=initBindings)
     return res
 
@@ -148,7 +149,7 @@ def query_see_also_links_DEP(graph, initBindings=None):
              #'  BIND(IRI(CONCAT(STR(?linkRef), "?dbpv=2016-10&nif=context")) AS ?linkRefContext) '
              '} '
              )
-    logger.debug(q_str)
+    #logger.debug(q_str)
     res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     return res
 
@@ -171,7 +172,7 @@ def query_see_also_links(graph, context, cursor=None):#initBindings=None):
              #'  FILTER (STRSTARTS(STR(?seeAlsoSectionStr), "See also")) . '
              '} '
              )
-    logger.debug(q_str)
+    #logger.debug(q_str)
     res = graph.query(q_str, cursor=cursor, initNs=ns_dict)#, initBindings=initBindings)
     return res
 
@@ -202,7 +203,7 @@ def query_first_section_structure_DEP(graph, initBindings=None):
         
         #' FILTER (?p != nif:referenceContext)'
         '}')
-    logger.debug(q_str)
+    #logger.debug(q_str)
     res = graph.query(q_str, initNs=ns_dict, initBindings=initBindings)
     #print(type(res))
     return res
@@ -224,7 +225,7 @@ def query_first_section_structure(graph, context, cursor=None):
         ' ?s ?p ?o .'
         ' VALUES ?p {nif:beginIndex nif:endIndex nif:superString itsrdf:taIdentRef rdf:type} .'
         '}')
-    logger.debug(q_str)
+    #logger.debug(q_str)
     res = graph.query(q_str, cursor=cursor, initNs=ns_dict)#, initBindings=initBindings)
     # print(type(res))
     return res
@@ -438,7 +439,8 @@ def query_context_datas(graph, context_strings, cursor):
             assert context_content is not None, 'context_content is None'
             context_content_str = context_content.toPython()
 
-            if logger.level <= logging.DEBUG:
+            #if logger.level <= logging.DEBUG:
+            if False:
                 # debug
                 logger.info('exec query: %s' % str(datetime.now() - t_start))
 
@@ -707,11 +709,12 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
     batch_size=('amount of articles to query before fed to parser', 'option', 's', int),
     num_threads_query=('number of threads used for querying', 'option', 'q', int),
     num_threads_parse=('number of threads used for parsing', 'option', 'p', int),
+    num_threads_parse_pipe=('number of threads used by spacy.pipe for parsing', 'option', 't', int),
     #start_offset=('index of articles to start with', 'option', 's', int),
     #batch_count=('if batch_count > 0 process only this amount of articles', 'option', 'c', int)
 )
 def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=1000, num_threads_parse=2,
-                           num_threads_query=4):
+                           num_threads_query=4, num_threads_parse_pipe=1):
     #assert num_threads >= 2, 'require at least num_threads==2 (one for querying and one for parsing)'
 
     if not os.path.exists(out_path):
@@ -725,6 +728,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     logger_fh.setLevel(logging.INFO)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
+    logger_fh_debug = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-batches.debug.log'))
+    logger_fh_debug.setLevel(logging.DEBUG)
+    logger_fh_debug.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh_debug)
+
     logger.info('batch-size=%i num-threads-query=%i num-threads-parse=%i out_path=%s'
                 % (batch_size, num_threads_query, num_threads_parse, out_path))
 
@@ -740,6 +748,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
         _g, store = connect_graph()
         logger.info('THREAD %i QUERY: connected' % thread_id)
         while True:
+            logger.debug('THREAD %i QUERY: start job.    queue size: %i.' % (thread_id, q_query.qsize()))
             fn = _q_in.get()
             t_start = datetime.now()
             lexicon = Lexicon(filename=fn)
@@ -753,21 +762,26 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             #    except Exception as e:
             #        failed.append((context_str, e))
             #assert len(nif_context_datas) > 0, '(QUERY) nif_context_datas is empty'
-            _q_out.put((fn, nif_context_datas, failed, datetime.now() - t_start))
+            t_delta = datetime.now() - t_start
+            _q_out.put((fn, nif_context_datas, failed, t_delta))
             _q_in.task_done()
+            logger.debug('THREAD %i QUERY: finished job. queue size: %i. t_delta: %s' % (thread_id, q_query.qsize(),
+                                                                                         str(t_delta)))
 
     def do_parse(_q, _path_out, thread_id, _nlp):
 
         while True:
+            logger.debug('THREAD %i PARSE: start job.    queue size: %i.' % (thread_id, q_parse.qsize()))
             fn, nif_context_datas, failed, t_query = _q.get()
+            t_start = datetime.now()
             #fn = os.path.join(out_path, '%s.%i' % (PREFIX_FN, begin_idx))
             try:
                 assert len(nif_context_datas) > 0, '(PARSE) nif_context_datas is empty'
-                t_start = datetime.now()
                 lexicon = Lexicon()
                 #parse_context_batch(nif_context_datas=nif_context_datas, failed=failed, nlp=_nlp,
                 #                    filename=fn, t_query=t_query)
-                forest, failed_parse = create_contexts_forest(nif_context_datas, lexicon=lexicon, nlp=_nlp)
+                forest, failed_parse = create_contexts_forest(nif_context_datas, lexicon=lexicon, nlp=_nlp,
+                                                              n_threads=num_threads_parse_pipe)
                 failed.extend(failed_parse)
 
                 save_current_forest(forest=forest,
@@ -778,6 +792,8 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
             except Exception as e:
                 print('%s: failed' % str(e))
             _q.task_done()
+            logger.debug('THREAD %i PARSE: finished job. queue size: %i. t_delta: %s' % (thread_id, q_parse.qsize(),
+                                                                                        str(datetime.now() - t_start)))
 
     for i in range(num_threads_query):
         worker_query = Thread(target=do_query, args=(q_query, q_parse, i))

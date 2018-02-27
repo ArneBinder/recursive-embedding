@@ -40,6 +40,7 @@ services:
                                   --batch-size ${BATCH_SIZE}
                                   --num-threads-query ${NUM_THREADS_QUERY}
                                   --num-threads-parse ${NUM_THREADS_PARSE}
+                                  --num-threads-parse-pipe ${NUM_THREADS_PARSE_PIPE}
   corpus-dbpedia-nif-merge:
     build:
       context: ../../..
