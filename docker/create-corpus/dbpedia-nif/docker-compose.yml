@@ -38,7 +38,8 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py CREATE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF
                                   --batch-size ${BATCH_SIZE}
-                                  --num-threads ${NUM_THREADS}
+                                  --num-threads-query ${NUM_THREADS_QUERY}
+                                  --num-threads-parse ${NUM_THREADS_PARSE}
   corpus-dbpedia-nif-merge:
     build:
       context: ../../..

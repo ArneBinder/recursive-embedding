@@ -19,7 +19,7 @@ GROUPID=$(stat -c %g $WHO)
 #echo "groupid=$GROUPID"
 
 GROUPIDROOT=$(id -g root)
-echo "GROUPIDROOT=$GROUPIDROOT"
+#echo "GROUPIDROOT=$GROUPIDROOT"
 if [ "$GROUPIDROOT" -ne "$GROUPID" ]; then
     deluser docker_user > /dev/null 2>&1
     #echo "deleted docker_user"
