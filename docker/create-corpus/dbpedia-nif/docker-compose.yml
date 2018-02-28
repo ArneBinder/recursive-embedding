@@ -1,4 +1,4 @@
-version: '3'
+version: '2.3'
 services:
   virt-dbpedia-nif:
     image: "joernhees/virtuoso:latest"
@@ -42,6 +42,7 @@ services:
                                   --num-threads-query ${NUM_THREADS_QUERY}
                                   --num-threads-parse ${NUM_THREADS_PARSE}
                                   --num-threads-parse-pipe ${NUM_THREADS_PARSE_PIPE}
+    cpus: ${LIMIT_CPUS}
   corpus-dbpedia-nif-merge:
     build:
       context: ../../..
@@ -54,3 +55,4 @@ services:
                                   --out-path /root/corpora_out/DBPEDIANIF/${BATCH_SIZE}
                                   --min-count ${MIN_COUNT}
                                   --min-count-root-id ${MIN_COUNT_ROOT_ID}
+    cpus: ${LIMIT_CPUS}
