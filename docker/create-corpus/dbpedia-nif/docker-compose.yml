@@ -43,6 +43,7 @@ services:
                                   --num-threads-parse ${NUM_THREADS_PARSE}
                                   --num-threads-parse-pipe ${NUM_THREADS_PARSE_PIPE}
     cpus: ${LIMIT_CPUS}
+    cpuset: ${CPU_SET}
   corpus-dbpedia-nif-merge:
     build:
       context: ../../..
