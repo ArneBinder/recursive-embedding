@@ -474,21 +474,6 @@ class TreeEmbedding_mapFC(TreeEmbedding_map):
         return td.Concat() >> self._fc
 
 
-class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
-    """Calculates an embedding over a (recursive) SequenceNode."""
-
-    def __init__(self, name, **kwargs):
-        super(TreeEmbedding_HTU, self).__init__(name='HTU_' + name, **kwargs)
-
-    def __call__(self):
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
-        children = self.children() >> td.Map(embed_tree())
-        state = td.AllOf(self.head(), children) >> self.reduce >> self.map
-        embed_tree.resolve_to(state)
-        model = state >> self.root_fc
-        return model
-
-
 class TreeEmbedding_reduceSUM(TreeEmbedding_reduce):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
@@ -515,27 +500,96 @@ class TreeEmbedding_reduceMAX(TreeEmbedding_reduce):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
     def __init__(self, name, **kwargs):
-        super(TreeEmbedding_reduceMAX, self).__init__(name='reduceMAXG_' + name, **kwargs)
+        super(TreeEmbedding_reduceMAX, self).__init__(name='reduceMAX_' + name, **kwargs)
 
     @property
     def reduce(self):
         return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Max())
 
 
-class TreeEmbedding_HTUrev(TreeEmbedding_reduce, TreeEmbedding_map):
+class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
-    def __init__(self, name,**kwargs):
-        super(TreeEmbedding_HTUrev, self).__init__(name='HTUrev_' + name, **kwargs)
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_reduceATT, self).__init__(name='ATT_' + name, **kwargs)
+        #self._fc_map = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
+        self._fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
+
+    @property
+    def reduce(self):
+        # head_in, children_sequence --> head_out, children_reduced
+        #_fc_rnn = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
+        #_fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
+        #return td.AllOf(td.GetItem(0) >> self._fc_map, td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
+        return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
+
+
+class TreeEmbedding_reduceATTsplit(TreeEmbedding_reduce):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_reduceATTsplit, self).__init__(name='ATT_split_' + name, **kwargs)
+        # head_in, children_sequence --> head_out, children_reduced
+        self._c = td.Composition()
+        with self._c.scope():
+            head_split = td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1)).reads(self._c.input[0])
+            head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
+                                     name='fc_attention'),
+                               name='att_pipe').reads(head_split[0])
+            head_rnn = td.Pipe(td.FC(self.head_size, activation=tf.nn.tanh,
+                                     input_keep_prob=self.keep_prob, name='fc_rnn'),
+                               name='rnn_pipe').reads(head_split[1])
+            children_attention = AttentionReduce().reads(self._c.input[1], head_att)
+            self._c.output.reads(head_rnn, children_attention)
+
+    @property
+    def reduce(self):
+        return self._c
+
+
+class TreeEmbedding_reduceATTsingle(TreeEmbedding_reduce):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_reduceATTsingle, self).__init__(name='ATT_single_' + name, **kwargs)
+        self._att_weights = tf.Variable(tf.truncated_normal([self.state_size], stddev=1.0 / math.sqrt(float(self.state_size))),
+                                        name='att_weights')
+        self._att = AttentionReduce()
+
+    @property
+    def reduce(self):
+        # head_in, children_sequence --> head_out, children_reduced
+        return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.Void() >> td.FromTensor(self._att_weights)) >> self._att)
+
+
+class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTU, self).__init__(name='HTU_' + name, **kwargs)
+
+    def new_state(self, head, children):
+        return td.AllOf(head, children) >> self.reduce >> self.map
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
         children = self.children() >> td.Map(embed_tree())
-        children_mapped = td.AllOf(self.head() >> td.Broadcast(), children) >> td.Zip() >> td.Map(self.map)
-        state = td.AllOf(self.head(), children_mapped) >> self.reduce >> td.GetItem(1)
+        #state = td.AllOf(self.head(), children) >> self.reduce >> self.map
+        state = self.new_state(self.head(), children)
         embed_tree.resolve_to(state)
         model = state >> self.root_fc
         return model
+
+
+class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTUrev, self).__init__(name='rev_' + name, **kwargs)
+
+    def new_state(self, head, children):
+        children_mapped = td.AllOf(head >> td.Broadcast(), children) >> td.Zip() >> td.Map(self.map)
+        return td.AllOf(self.head(), children_mapped) >> self.reduce >> td.GetItem(1)
 
 
 class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
@@ -583,55 +637,21 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
         return model
 
 
-class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
-    """Calculates an embedding over a (recursive) SequenceNode."""
+# TODO: test!
+class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
+    """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
-    def __init__(self, name, **kwargs):
-        super(TreeEmbedding_reduceATT, self).__init__(name='ATT_' + name, **kwargs)
+    def __init__(self, name, batch_size, **kwargs):
+        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, **kwargs)
+        self._htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
+        self._batch_size = batch_size
 
-    @property
-    def reduce(self):
-        # head_in, children_sequence --> head_out, children_reduced
-        _fc_rnn = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
-        _fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
-        return td.AllOf(td.GetItem(0) >> _fc_rnn, td.AllOf(td.GetItem(1), td.GetItem(0) >> _fc_att) >> AttentionReduce())
-
-
-class TreeEmbedding_reduceATTsplit(TreeEmbedding_reduce):
-    """Calculates an embedding over a (recursive) SequenceNode."""
-
-    def __init__(self, name, **kwargs):
-        super(TreeEmbedding_reduceATTsplit, self).__init__(name='ATT_split_' + name, **kwargs)
-
-    @property
-    def reduce(self):
-        # head_in, children_sequence --> head_out, children_reduced
-        c = td.Composition()
-        with c.scope():
-            head_split = td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1)).reads(c.input[0])
-            head_att = td.Pipe(td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob,
-                                     name='fc_attention'),
-                               name='att_pipe').reads(head_split[0])
-            head_rnn = td.Pipe(td.FC(self.head_size, activation=tf.nn.tanh,
-                                     input_keep_prob=self.keep_prob, name='fc_rnn'),
-                               name='rnn_pipe').reads(head_split[1])
-            children_attention = AttentionReduce().reads(c.input[1], head_att)
-            c.output.reads(head_rnn, children_attention)
-        return c
-
-
-class TreeEmbedding_reduceATTsingle(TreeEmbedding_reduce):
-    """Calculates an embedding over a (recursive) SequenceNode."""
-
-    def __init__(self, name, **kwargs):
-        super(TreeEmbedding_reduceATTsingle, self).__init__(name='ATT_single_' + name, **kwargs)
-        self._att_weights = tf.Variable(tf.truncated_normal([self.state_size], stddev=1.0 / math.sqrt(float(self.state_size))),
-                                        name='att_weights')
-
-    @property
-    def reduce(self):
-        # head_in, children_sequence --> head_out, children_reduced
-        return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.Void() >> td.FromTensor(self._att_weights)) >> AttentionReduce())
+    def __call__(self):
+        trees_children = td.GetItem(0) >> td.Map(self._htu_model)
+        reduced = trees_children >> self.reduce
+        batched = td.AllOf(reduced >> td.Broadcast(), td.GetItem(1)) >> td.Zip() >> td.Map(self.map >> self.root_fc)
+        model = batched >> SequenceToTuple(self._htu_model.output_type, self._batch_size)
+        return model
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
@@ -785,8 +805,13 @@ def sim_cosine_DEP(e1, e2):
 
 
 def sim_cosine(embeddings):
+    """
+    :param embeddings: paired embeddings with shape = [batch_count, 2, embedding_dimension]
+    :return: clipped similarity scores with shape = [batch_count]
+    """
     es_norm = tf.nn.l2_normalize(embeddings, dim=-1)
-    return tf.reduce_sum(es_norm[:, 0, :] * es_norm[:, 1, :], axis=-1)
+    cos = tf.reduce_sum(es_norm[:, 0, :] * es_norm[:, 1, :], axis=-1)
+    return tf.clip_by_value(cos, 0.0, 1.0)
 
 
 def sim_manhattan_DEP(e1, e2):
@@ -961,7 +986,7 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
 class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
+    def __init__(self, tree_model, **kwargs):
 
         # unpack scores_gold. Every prob tuple has the format: [1.0, ...]
         #self._scores_gold = tf.reshape(tree_model.probs_gold_shaped, shape=[-1, 2])[:, 0]
@@ -971,7 +996,7 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 
         batch_size = tf.shape(tree_embeddings)[0]
 
-        self._scores_gold = tf.reshape(tf.eye(batch_size), [batch_size**2])
+        self._scores_gold = tf.reshape(tf.eye(batch_size, dtype=np.int32), [batch_size**2])
         embeddings_0_tiled = tf.tile(tree_embeddings[:, 0, :], multiples=[batch_size, 1])
         embeddings_1_tiled = tf.tile(tree_embeddings[:, 1, :], multiples=[batch_size, 1])
 
@@ -981,22 +1006,29 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 
         embeddings_0_list = tf.reshape(embeddings_0_m, shape=[batch_size**2, tree_model.tree_output_size])
         embeddings_1_list_trans = tf.reshape(embeddings_1_m_trans, shape=[batch_size ** 2, tree_model.tree_output_size])
+        #tree_embeddings_tiled_stacked = tf.reshape(tf.stack([embeddings_0_list, embeddings_1_list_trans]),
+        #                                           shape=[batch_size ** 2, 2, tree_model.tree_output_size])
         tree_embeddings_tiled_stacked = tf.reshape(tf.stack([embeddings_0_list, embeddings_1_list_trans]),
-                                                   shape=[batch_size ** 2, 2, tree_model.tree_output_size])
+                                                   shape=[batch_size ** 2, tree_model.tree_output_size * 2])
 
         # apply sim measure
-        self._scores = sim_measure(tree_embeddings_tiled_stacked)
+        #self._scores = sim_measure(tree_embeddings_tiled_stacked)
+        #fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings_tiled_stacked, num_outputs=1000)
+        logits = tf.contrib.layers.fully_connected(inputs=tree_embeddings_tiled_stacked, num_outputs=2, activation_fn=None)
+        self._probs = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._scores_gold, logits=logits)
 
+        #BaseTrainModel.__init__(self, tree_model=tree_model,
+        #                       loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
         BaseTrainModel.__init__(self, tree_model=tree_model,
-                                loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
+                                loss=tf.reduce_mean(self._probs), **kwargs)
 
     @property
-    def scores_gold(self):
+    def probs_gold(self):
         return self._scores_gold
 
     @property
-    def scores(self):
-        return self._scores
+    def probs(self):
+        return self._probs
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):

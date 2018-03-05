@@ -127,7 +127,7 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                     f.set_children_with_parents()
                     tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
                 yield [[tree_context, {KEY_HEAD: data_root_seealso_transformed, KEY_CHILDREN: children}],
-                       np.ones(shape=2)]
+                       np.ones(shape=2, dtype=int)]
                 n += 1
     logging.info('created %i tree tuples' % n)
 

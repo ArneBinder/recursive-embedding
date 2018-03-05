@@ -288,7 +288,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 model_test = model_fold.SimilaritySequenceTreeTupleModel_sample(tree_model=model_tree,
                                                                                 optimizer=optimizer,
                                                                                 learning_rate=config.learning_rate,
-                                                                                sim_measure=sim_measure,
+                                                                                #sim_measure=sim_measure,
                                                                                 clipping_threshold=config.clipping)
                 model_train = model_test
             elif config.model_type == 'x':
@@ -390,13 +390,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # TRAINING #################################################################################################
 
-            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, new_model=False):
+            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, discrete_model=False):
 
                 step = test_step
                 feed_dict = {}
                 execute_vars = {'loss': model.loss}
-                if new_model:
-                    execute_vars['probs_gold'] = model.tree_model.probs_gold
+                if discrete_model:
+                    #execute_vars['probs'] = model.probs
+                    execute_vars['probs_gold'] = model.probs_gold
                 else:
                     execute_vars['scores'] = model.scores
                     execute_vars['scores_gold'] = model.scores_gold
@@ -427,7 +428,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 # logging.debug(np.concatenate(score_all).tolist())
                 # logging.debug(np.concatenate(score_all_gold).tolist())
 
-                if new_model:
+                if discrete_model:
                     sizes = [len(result_all['probs_gold'][i]) for i in range(len(_result_all))]
                     score_all_ = None
                     score_all_gold_ = None
@@ -486,13 +487,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                     # train
                     if not config.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch, new_model=False) #new_model=config.data_single)
+                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch,
+                                                       discrete_model=(config.model_type == 'tuple')) #new_model=config.data_single)
 
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
                                                                                train=False, test_step=step_train,
-                                                                               new_model=False)
+                                                                               discrete_model=(config.model_type == 'tuple'))
 
                         if loss_test < loss_test_best:
                             loss_test_best = loss_test
