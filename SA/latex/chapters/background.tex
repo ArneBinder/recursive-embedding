@@ -318,7 +318,7 @@ In line with \textcite{levy_improving_2015} we refer to the term embedding model
 dimensional weights are exploited as term embeddings. They raised attention due to recently published methods that allow efficient embedding calculation with regard to billions of tokens. The \ac{SGNS}\footnote{A \ac{SGNS} implementation was released within the word2vec framework \autocite{mikolov_efficient_2013}.} \autocite{mikolov_distributed_2013} is a popular candidate that does not rely on decomposing any occurrence matrix, but trains a simple, one hidden layer \acs{ANN} with the objective to predict the context of a term, e.g. the neighbors of the tokens in a textual corpus. The core Skip-Gram idea can be formalized as:
 \begin{equation} \label{eq:sg}
 \begin{split}
-f^{SG}_T(t_i)_j & = p(c_j|t_i) \\
+f^{SG}(t_i)_j & = p(c_j|t_i) \\
   & = (softmax \circ l^{FC}_{out} \circ l^{FC}_{hidden})(e_i) \cdot e_j \\
   & = softmax(l^{FC}_{out}(l^{FC}_{hidden}(e_i; \{w_{H};b_{H}\}); \{w_{O};b_{O}\}) \cdot e_j \\
   & = softmax(w_{O}(w_{H} \cdot e_i + b_{H}) + b_{O}) \cdot e_j \\
@@ -335,7 +335,7 @@ M^{hidden} \cdot M^{out} + log(k) = M^{pmi}
 where $k$ is a constant. 
 
 Glove \autocite{pennington_glove_2014} is a prediction based model that explicitly uses $M^{pmi}$. Its cost function (see Section~\ref{subsec:cost_function}) $J^{GLOVE}$ can be defined as:%\todo{UL: check signs!}
-\begin{equation}
+\begin{equation} \label{eq:glove_cost}
 J^{GLOVE}(\{w; b\}) = \sum\limits_{t_i \in T}\sum\limits_{c_j \in C}\ M^{B}_{ij}(w_i^Tw_j + b_i + b_j - log\,\#(t_i,c_j))^2
 \end{equation}
 where $M^B$ is a fixed matrix of biases and $|T| = |C|$, i.e. the number of possible terms equals the number of possible contexts. The later is feasible because Glove uses word co-occurrences to define $C$ as described in equation \eqref{eq:co}, therefore contexts can be identified by terms. Obviously, the same holds for Skip-Gram.
@@ -348,11 +348,16 @@ If we recap the definition of $M^{pmi}$ from equation~\eqref{eq:m_pmi}, $M^{pmi}
 (w^Tw)_{ij} + b_i - b^{(T)}_i + b_j - b^{(C)}_j & = M^{pmi}_{ij}
 \end{align}
 %\todo{re-write eq:28 into matrix operations (?)}
-Note, that, in contrast to Skip-Gram, the approach of Glove implements full symmetry with regard to $T$ and $C$. By doing so, all information is accumulated in one mapping, context specific information is not outsourced like it does the default Skip-Gram model. Consider the Glove term embedding $f_T^{GLOVE}$ with respect to $M^{out}$ in equation~\ref{eq:sg}\todo{UL: was soll das heißen? Bezug? (X)}:
+Note, that, in contrast to Skip-Gram, the approach of Glove implements full symmetry with regard to $T$ and $C$. By doing so, all information is accumulated in one mapping, context specific information is not outsourced like it does the default Skip-Gram model. Consider the Glove term embedding $f_T^{GLOVE}$ with respect to its objective $J^{GLOVE}$ (equation \ref{eq:glove_cost}):% with respect to $M^{out}$ of equation~\ref{eq:sg}\todo{UL: was soll das heißen? Bezug? (X)}:
 \begin{equation}
 f_T^{GLOVE}(t_i) = f_C^{GLOVE}(c_i) = w \cdot e_i + b_i 
 \end{equation}
-Glove combines all learned information in $w$ and $b$ that are used to project into the embedding space, whereas Skip-Gram trains $M^{out}$ in addition to $M^{hidden}$.
+and compare it with the Skip-Gram embedding function $f_T^{SG}(t_i) = M^{hidden} \cdot e_i$ with respect to its prediction function (equation~\ref{eq:sg}) that is used to train the Skip-Gram model:
+\begin{equation}
+f^{SG}(t_i) = softmax(M^{out} \cdot M^{hidden} \cdot e_i)
+\end{equation}
+
+Glove combines all learned information in $w$ and $b$ and use them to project into the embedding space, whereas Skip-Gram learns in addition to $M^{hidden}$ the matrix $M^{out}$ to project from the embedding space back into the space of terms.
 However, this ostensible drawback of Skip-Gram can be circumvented by using $(f^{SG}_T + f^{SG}_C)$ or $[f^{SG}_T, f^{SG}_C]$ as term embedding, where $f_C^{SG}(c_i) = (M^{out})^T \cdot e_i$.
 
 \subsubsection{Composition Models}
@@ -444,6 +449,9 @@ In addition to structural information given by the dependence relation, dependen
 The English language is comparably restricted in its word order and has weak morphology. As \textcite{jurafsky_dependency_2014} states, in this case, the dependency type strongly correlates with the position of the individual words.
 
 \todo{UL: How to determine dependency structures? (X)}
+
+\subsubsection{Automatic detection of Dependencies}
+
 
 
 \begin{comment}
