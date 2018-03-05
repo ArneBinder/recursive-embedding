@@ -966,7 +966,8 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PREPARE_BATCHES', 'CREATE_BATCHES', 'MERGE_BATCHES']),
+    mode=('processing mode', 'positional', None, str, ['PREPARE_BATCHES', 'CREATE_BATCHES', 'MERGE_BATCHES',
+                                                       'CREATE_INDICES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'CREATE_BATCHES':
@@ -975,18 +976,36 @@ def main(mode, *args):
         plac.call(process_merge_batches, args)
     elif mode == 'PREPARE_BATCHES':
         plac.call(process_prepare, args)
+    elif mode == 'CREATE_INDICES':
+        plac.call(create_index_files, args)
     else:
         raise ValueError('unknown mode. use one of CREATE_BATCHES or MERGE_BATCHES.')
 
 
-def create_index_files(p, split_count=2):
-    seealso_counts = np.load('%s.root.seealso.count' % p)
+@plac.annotations(
+    merged_forest_path=('path to merged forest', 'option', 'o', str),
+    seealso_min=('minimal required count of seeAlso links, discard other articles', 'option', 'm', int),
+    seealso_max=('maximal allowed count of seeAlso links, discard other articles', 'option', 'M', int),
+    split_count=('count of produced index files', 'option', 'c', int)
+)
+def create_index_files(merged_forest_path, split_count=2, seealso_min=1, seealso_max=50):
+    logger_fh = logging.FileHandler(os.path.join(merged_forest_path, '../..', 'corpus-dbpedia-nif-indices.log'))
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger.info('split_count=%i seealso_min=%i seealso_max=%i out_path=%s' % (split_count, seealso_min, seealso_max,
+                                                                              merged_forest_path))
+
+    seealso_counts = np.load('%s.root.seealso.count' % merged_forest_path)
     # roots = np.load('%s.root.pos' % p)
-    indices_filtered = np.arange(len(seealso_counts), dtype=DTYPE_IDX)[(seealso_counts > 0) & (seealso_counts < 50)]
+    indices_filtered = np.arange(len(seealso_counts), dtype=DTYPE_IDX)[(seealso_counts >= seealso_min)
+                                                                       & (seealso_counts <= seealso_max)]
+    logger.info('count of filtered indices: %i' % len(indices_filtered))
 
     np.random.shuffle(indices_filtered)
     for i, split in enumerate(np.array_split(indices_filtered, split_count)):
-        split.dump('%s.idx.%i' % (p, i))
+        split.dump('%s.idx.%i' % (merged_forest_path, i))
 
 
 if __name__ == '__main__':
