@@ -25,6 +25,7 @@ from sequence_trees import Forest, FE_ROOT_ID
 from constants import DTYPE_HASH, DTYPE_COUNT, TYPE_REF, UNKNOWN_EMBEDDING, vocab_manual, TYPE_ROOT, TYPE_ANCHOR, \
     TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX, LOGGING_FORMAT
 import preprocessing
+from mytools import numpy_dump, numpy_load
 
 """
 prerequisites:
@@ -87,6 +88,7 @@ FE_UNIQUE_HASHES_DISCARDED = 'unique.hash.discarded'
 FE_UNIQUE_COUNTS_FILTERED = 'count.hash.filtered'
 FE_UNIQUE_COUNTS_DISCARDED = 'count.hash.discarded'
 FE_ROOT_SEEALSO_COUNT = 'root.seealso.count'
+FE_ROOT_CONTEXT_SIZE = 'root.context.size'
 
 DIR_BATCHES = 'batches'
 DIR_BATCHES_CONVERTED = 'batches_converted'
@@ -518,8 +520,10 @@ def save_current_forest(forest, failed, lexicon, filename, t_parse, t_query):
         forest.dump(filename)
         lexicon.dump(filename, strings_only=True)
         unique, counts = np.unique(forest.data, return_counts=True)
-        unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
-        counts.dump('%s.%s' % (filename, FE_COUNTS))
+        #unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
+        #counts.dump('%s.%s' % (filename, FE_COUNTS))
+        numpy_dump('%s.%s' % (filename, FE_UNIQUE_HASHES), unique)
+        numpy_dump('%s.%s' % (filename, FE_COUNTS), counts)
         logger.info('%s: t_query=%s t_parse=%s (failed: %i, forest_size: %i, lexicon size: %i)'
                     % (filename, str(t_query), str(t_parse), len(failed), len(forest), len(lexicon)))
     else:
@@ -825,10 +829,11 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
 def _collect_file_names(out_path_batches):
     logger.info('collect file names ...')
     t_start = datetime.now()
-    l = len('.'+FE_COUNTS)
+    suffix = '.' + FE_STRINGS
+    l = len(suffix)
     f_names = []
     for file in os.listdir(out_path_batches):
-        if file.endswith('.'+FE_COUNTS):
+        if file.endswith(suffix):
             f_names.append(file[:-l])
     f_names = sorted(f_names, key=lambda fn: int(fn[len(PREFIX_FN)+1:]))
     f_paths = [os.path.join(out_path_batches, f) for f in f_names]
@@ -841,8 +846,10 @@ def _collect_counts_merged(f_paths):
     t_start = datetime.now()
     counts_merged = {}
     for fn in f_paths:
-        counts = np.load('%s.%s' % (fn, FE_COUNTS))
-        uniques = np.load('%s.%s' % (fn, FE_UNIQUE_HASHES))
+        #counts = np.load('%s.%s' % (fn, FE_COUNTS))
+        #uniques = np.load('%s.%s' % (fn, FE_UNIQUE_HASHES))
+        counts = numpy_load('%s.%s' % (fn, FE_COUNTS), assert_exists=True)
+        uniques = numpy_load('%s.%s' % (fn, FE_UNIQUE_HASHES), assert_exists=True)
         for i, c in enumerate(counts):
             _c = counts_merged.get(uniques[i], 0)
             counts_merged[uniques[i]] = _c + c
@@ -855,14 +862,17 @@ def _collect_root_ids(f_paths, out_path_merged):
     fn_root_ids = '%s.%s' % (out_path_merged, FE_ROOT_ID)
     if os.path.exists(fn_root_ids):
         logger.info('found root_ids (%s). load from file.' % fn_root_ids)
-        return np.load(fn_root_ids)
+        #return np.load(fn_root_ids)
+        return numpy_load(fn_root_ids, assert_exists=True)
 
     t_start = datetime.now()
     root_ids = []
     for fn in f_paths:
-        root_ids.append(np.load('%s.%s' % (fn, FE_ROOT_ID)))
+        #root_ids.append(np.load('%s.%s' % (fn, FE_ROOT_ID)))
+        root_ids.append(numpy_load('%s.%s' % (fn, FE_ROOT_ID), assert_exists=True))
     root_ids = np.concatenate(root_ids)
-    root_ids.dump(fn_root_ids)
+    #root_ids.dump(fn_root_ids)
+    numpy_dump(fn_root_ids, root_ids)
     logger.info('finished. %s' % str(datetime.now()-t_start))
     return root_ids
 
@@ -883,7 +893,9 @@ def _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged):
         assert os.path.exists(fn_counts_discarded), 'found uniques_filtered (%s), but misses files for ' \
                                                     'counts_discarded (%s).' % (fn_uniques_filtered,
                                                                                 fn_counts_discarded)
-        return np.load(fn_uniques_filtered)
+        #return np.load(fn_uniques_filtered)
+        return numpy_load(fn_uniques_filtered, assert_exists=True)
+
 
     counts_merged = _collect_counts_merged(f_paths)
     root_ids = _collect_root_ids(f_paths, out_path_merged)
@@ -909,10 +921,15 @@ def _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged):
     uniques_discarded = uniques_discarded[:i_discarded]
     counts_filtered = counts_filtered[:i_filtered]
     counts_discarded = counts_discarded[:i_discarded]
-    uniques_filtered.dump(fn_uniques_filtered)
-    uniques_discarded.dump(fn_uniques_discarded)
-    counts_filtered.dump(fn_counts_filtered)
-    counts_discarded.dump(fn_counts_discarded)
+    #uniques_filtered.dump(fn_uniques_filtered)
+    #uniques_discarded.dump(fn_uniques_discarded)
+    #counts_filtered.dump(fn_counts_filtered)
+    #counts_discarded.dump(fn_counts_discarded)
+    numpy_dump(fn_uniques_filtered, uniques_filtered)
+    numpy_dump(fn_uniques_discarded, uniques_discarded)
+    numpy_dump(fn_counts_filtered, counts_filtered)
+    numpy_dump(fn_counts_discarded, counts_discarded)
+
     logger.info('finished. %s' % str(datetime.now() - t_start))
     return uniques_filtered
 
@@ -1003,12 +1020,35 @@ def _collect_root_seealso_counts(forest_merged, out_path_merged):
     fn_root_seealso_counts = '%s.%s' % (out_path_merged, FE_ROOT_SEEALSO_COUNT)
     if os.path.exists(fn_root_seealso_counts):
         logger.info('found root_seealso_counts (%s). load from file.' % fn_root_seealso_counts)
-        return np.load(fn_root_seealso_counts)
+        #return np.load(fn_root_seealso_counts)
+        return numpy_load(fn_root_seealso_counts, assert_exists=True)
     t_start = datetime.now()
     root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + 3)
-    root_seealso_counts.dump(fn_root_seealso_counts)
+    #root_seealso_counts.dump(fn_root_seealso_counts)
+    numpy_dump(fn_root_seealso_counts, root_seealso_counts)
     logger.info('finished. %s' % str(datetime.now()-t_start))
     return root_seealso_counts
+
+
+def _collect_root_context_sizes(forest_merged, root_seealso_counts, out_path_merged):
+    logger.info('collect root seealso counts ...')
+    fn_root_context_sizes = '%s.%s' % (out_path_merged, FE_ROOT_CONTEXT_SIZE)
+    if os.path.exists(fn_root_context_sizes):
+        logger.info('found root_context_sizes (%s). load from file.' % fn_root_context_sizes)
+        #return np.load(fn_root_seealso_counts)
+        return numpy_load(fn_root_context_sizes, assert_exists=True)
+    t_start = datetime.now()
+    #root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + 3)
+    #root_seealso_counts.dump(fn_root_seealso_counts)
+
+    # get node counts of roots by root positions
+    root_shifted = np.concatenate([forest_merged.roots[1:], [len(forest_merged)]])
+    root_length = root_shifted - forest_merged.roots
+    root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - 3
+
+    numpy_dump(fn_root_context_sizes, root_context_sizes)
+    logger.info('finished. %s' % str(datetime.now()-t_start))
+    return root_context_sizes
 
 
 @plac.annotations(
@@ -1053,6 +1093,8 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
 
     root_seealso_counts = _collect_root_seealso_counts(forest_merged, out_path_merged)
 
+    root_context_sizes = _collect_root_context_sizes(forest_merged, root_seealso_counts, out_path_merged)
+
 
 @plac.annotations(
     mode=('processing mode', 'positional', None, str, ['PREPARE_BATCHES', 'CREATE_BATCHES', 'MERGE_BATCHES',
@@ -1086,7 +1128,8 @@ def create_index_files(merged_forest_path, split_count=2, seealso_min=1, seealso
     logger.info('split_count=%i seealso_min=%i seealso_max=%i out_path=%s' % (split_count, seealso_min, seealso_max,
                                                                               merged_forest_path))
 
-    seealso_counts = np.load('%s.root.seealso.count' % merged_forest_path)
+    #seealso_counts = np.load('%s.root.seealso.count' % merged_forest_path)
+    seealso_counts = numpy_load('%s.root.seealso.count' % merged_forest_path, assert_exists=True)
     # roots = np.load('%s.root.pos' % p)
     indices_filtered = np.arange(len(seealso_counts), dtype=DTYPE_IDX)[(seealso_counts >= seealso_min)
                                                                        & (seealso_counts <= seealso_max)]
@@ -1094,7 +1137,8 @@ def create_index_files(merged_forest_path, split_count=2, seealso_min=1, seealso
 
     np.random.shuffle(indices_filtered)
     for i, split in enumerate(np.array_split(indices_filtered, split_count)):
-        split.dump('%s.idx.%i' % (merged_forest_path, i))
+        #split.dump('%s.idx.%i' % (merged_forest_path, i))
+        numpy_dump('%s.idx.%i' % (merged_forest_path, i), split)
 
 
 if __name__ == '__main__':

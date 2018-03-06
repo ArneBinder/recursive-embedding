@@ -7,6 +7,8 @@ import logging
 from multiprocessing import Pool
 from itertools import product
 
+import numpy as np
+
 
 def parallel_process_simple(input, func):
     p = Pool()
@@ -177,3 +179,22 @@ def dict_product(dicts):
      {'character': 'b', 'number': 2}]
     """
     return (dict(zip(dicts, x)) for x in product(*dicts.values()))
+
+
+def numpy_load(filename, assert_exists=True):
+    if os.path.exists(filename):
+        return np.load(filename)
+    elif os.path.exists('%s.npy' % filename):
+        return np.load('%s.npy' % filename)
+    else:
+        if assert_exists:
+            raise IOError('file %s or %s.npy does not exist' % (filename, filename))
+        return None
+
+
+def numpy_dump(filename, ndarray):
+    np.save('%s.npy' % filename, ndarray)
+
+
+def numpy_exists(filename):
+    return os.path.exists(filename) or os.path.exists('%s.npy' % filename)

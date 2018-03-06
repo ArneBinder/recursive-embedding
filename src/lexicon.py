@@ -10,6 +10,7 @@ import os
 from preprocessing import read_data, without_prefix, PREFIX_LEX
 from constants import DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, LOGGING_FORMAT
 from sequence_trees import Forest
+from mytools import numpy_dump, numpy_load, numpy_exists
 
 logger = logging.getLogger('lexicon')
 logger.setLevel(logging.DEBUG)
@@ -336,6 +337,7 @@ def create_or_read_dict(fn, vocab=None, dont_read=False):
     return v, t
 
 
+# unused
 def dump(out_path, vecs=None, types=None, counts=None):
     if vecs is not None:
         logger.debug('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
@@ -435,21 +437,24 @@ class Lexicon(object):
 
         if not strings_only:
             assert self.vecs is not None, 'can not dump vecs, they are None'
-            fn_vecs = '%s.%s.npy' % (filename, FE_VECS)
+            fn_vecs = '%s.%s' % (filename, FE_VECS)
             logger.debug('dump embeddings (shape=%s) to: %s ...' % (str(self.vecs.shape), fn_vecs))
             #self.vecs.dump('%s.%s' % (filename, FE_VECS))
-            np.save(fn_vecs, self.vecs)
+            #np.save(fn_vecs, self.vecs)
+            numpy_dump(fn_vecs, self.vecs)
 
         # TODO: check _fixed
         if len(self._ids_fixed) > 0:
-            self.ids_fixed.dump('%s.%s' % (filename, FE_IDS_VECS_FIXED))
+            #self.ids_fixed.dump('%s.%s' % (filename, FE_IDS_VECS_FIXED))
+            numpy_dump('%s.%s' % (filename, FE_IDS_VECS_FIXED), self.ids_fixed)
 
     @staticmethod
     def exist(filename, types_only=False, vecs_only=False):
         strings_exist = vecs_only or os.path.isfile('%s.%s' % (filename, FE_TYPES)) \
                         or os.path.isfile('%s.%s' % (filename, FE_STRINGS))
-        vecs_exist = types_only or os.path.isfile('%s.%s' % (filename, FE_VECS)) \
-                     or os.path.isfile('%s.%s.npy' % (filename, FE_VECS))
+        #vecs_exist = types_only or os.path.isfile('%s.%s' % (filename, FE_VECS)) \
+        #             or os.path.isfile('%s.%s.npy' % (filename, FE_VECS))
+        vecs_exist = types_only or numpy_exists('%s.%s' % (filename, FE_VECS))
         return strings_exist and vecs_exist
 
     @staticmethod
@@ -466,14 +471,16 @@ class Lexicon(object):
     def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
                   vocab_prefix=PREFIX_LEX):
         if filename is not None:
-            fn_vecs = '%s.%s' % (filename, FE_VECS)
-            if not os.path.exists(fn_vecs):
-                fn_vecs = '%s.%s.npy' % (filename, FE_VECS)
-                assert os.path.exists(fn_vecs), 'could not find vecs file (%s.%s or %s)' % (filename, FE_VECS, fn_vecs)
-            new_vecs = np.load(fn_vecs)
-            if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
-                logger.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
-                self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
+            #fn_vecs = '%s.%s' % (filename, FE_VECS)
+            #if not os.path.exists(fn_vecs):
+            #    fn_vecs = '%s.%s.npy' % (filename, FE_VECS)
+            #    assert os.path.exists(fn_vecs), 'could not find vecs file (%s.%s or %s)' % (filename, FE_VECS, fn_vecs)
+            #new_vecs = np.load(fn_vecs)
+            new_vecs = numpy_load('%s.%s' % (filename, FE_VECS), assert_exists=True)
+            ids_fixed = numpy_load('%s.%s' % (filename, FE_IDS_VECS_FIXED), assert_exists=False)
+            if ids_fixed is not None:
+                logger.debug('loaded ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
+                self._ids_fixed = set(ids_fixed)
                 self._ids_fixed_dict = None
                 self._ids_var_dict = None
         elif checkpoint_reader is not None:

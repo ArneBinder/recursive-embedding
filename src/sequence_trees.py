@@ -7,7 +7,7 @@ import pydot
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN
 import constants
-
+from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
 FE_PARENTS = 'parent'
@@ -174,33 +174,41 @@ class Forest(object):
 
     def load(self, filename, load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True):
         logging.debug('load data and parents from %s ...' % filename)
-        if os.path.exists('%s.%s' % (filename, FE_DATA)):
-            self._data = np.load('%s.%s' % (filename, FE_DATA))
-            self._as_hashes = False
-        elif os.path.exists('%s.%s' % (filename, FE_DATA_HASHES)):
-            self._data = np.load('%s.%s' % (filename, FE_DATA_HASHES))
+        #if os.path.exists('%s.%s' % (filename, FE_DATA)):
+        self._data = numpy_load('%s.%s' % (filename, FE_DATA), assert_exists=False)
+        self._as_hashes = False
+        if self._data is None:
+            self._data = numpy_load('%s.%s' % (filename, FE_DATA_HASHES), assert_exists=False)
             self._as_hashes = True
-        else:
+        if self._data is None:
             raise IOError('data file (%s.%s or %s.%s) not found' % (filename, FE_DATA, filename, FE_DATA_HASHES))
         if load_parents:
-            self._parents = np.load('%s.%s' % (filename, FE_PARENTS))
+            #self._parents = np.load('%s.%s' % (filename, FE_PARENTS))
+            self._parents = numpy_load('%s.%s' % (filename, FE_PARENTS), assert_exists=False)
         else:
             self._parents = None
-        if load_children and os.path.exists('%s.%s' % (filename, FE_CHILDREN)) and os.path.exists(
-                '%s.%s' % (filename, FE_CHILDREN_POS)):
-            self._children = np.load('%s.%s' % (filename, FE_CHILDREN))
-            self._children_pos = np.load('%s.%s' % (filename, FE_CHILDREN_POS))
+        #if load_children and os.path.exists('%s.%s' % (filename, FE_CHILDREN)) and os.path.exists(
+        #        '%s.%s' % (filename, FE_CHILDREN_POS)):
+        if load_children:
+            #self._children = np.load('%s.%s' % (filename, FE_CHILDREN))
+            #self._children_pos = np.load('%s.%s' % (filename, FE_CHILDREN_POS))
+            self._children = numpy_load('%s.%s' % (filename, FE_CHILDREN), assert_exists=False)
+            self._children_pos = numpy_load('%s.%s' % (filename, FE_CHILDREN_POS), assert_exists=False)
         else:
             self._children = None
             self._children_pos = None
         assert self._parents is not None or (self._children is not None and self._children_pos is not None), \
             'no structure data (parents or children) loaded'
-        if load_root_ids and os.path.exists('%s.%s' % (filename, FE_ROOT_ID)):
-            self._root_ids = np.load('%s.%s' % (filename, FE_ROOT_ID))
+        #if load_root_ids and os.path.exists('%s.%s' % (filename, FE_ROOT_ID)):
+        if load_root_pos:
+            #self._root_ids = np.load('%s.%s' % (filename, FE_ROOT_ID))
+            self._root_ids = numpy_load('%s.%s' % (filename, FE_ROOT_ID), assert_exists=False)
         else:
             self._root_ids = None
-        if load_root_pos and os.path.exists('%s.%s' % (filename, FE_ROOT_POS)):
-            self._root_pos = np.load('%s.%s' % (filename, FE_ROOT_POS))
+        #if load_root_pos and os.path.exists('%s.%s' % (filename, FE_ROOT_POS)):
+        if load_root_pos:
+            #self._root_pos = np.load('%s.%s' % (filename, FE_ROOT_POS))
+            self._root_pos = numpy_load('%s.%s' % (filename, FE_ROOT_POS), assert_exists=False)
         else:
             self._root_pos = None
 
@@ -264,30 +272,44 @@ class Forest(object):
     def dump(self, filename, save_parents=True, save_children=True, save_root_ids=True, save_root_pos=True):
         logging.debug('dump data ...')
         if self.data_as_hashes:
-            self.data.dump('%s.%s' % (filename, FE_DATA_HASHES))
+            #self.data.dump('%s.%s' % (filename, FE_DATA_HASHES))
+            numpy_dump('%s.%s' % (filename, FE_DATA_HASHES), self.data)
         else:
-            self.data.dump('%s.%s' % (filename, FE_DATA))
+            #self.data.dump('%s.%s' % (filename, FE_DATA))
+            numpy_dump('%s.%s' % (filename, FE_DATA), self.data)
         logging.debug('dump parents ...')
         if save_parents and self.parents is not None:
-            self.parents.dump('%s.%s' % (filename, FE_PARENTS))
+            #self.parents.dump('%s.%s' % (filename, FE_PARENTS))
+            numpy_dump('%s.%s' % (filename, FE_PARENTS), self.parents)
 
         if save_children and self._children is not None and self._children_pos is not None:
-            self._children.dump('%s.%s' % (filename, FE_CHILDREN))
-            self._children_pos.dump('%s.%s' % (filename, FE_CHILDREN_POS))
+            #self._children.dump('%s.%s' % (filename, FE_CHILDREN))
+            #self._children_pos.dump('%s.%s' % (filename, FE_CHILDREN_POS))
+            numpy_dump('%s.%s' % (filename, FE_CHILDREN), self._children)
+            numpy_dump('%s.%s' % (filename, FE_CHILDREN_POS), self._children_pos)
 
         if save_root_ids and self._root_ids is not None:
-            self._root_ids.dump('%s.%s' % (filename, FE_ROOT_ID))
+            #self._root_ids.dump('%s.%s' % (filename, FE_ROOT_ID))
+            numpy_dump('%s.%s' % (filename, FE_ROOT_ID), self._root_ids)
 
         if save_root_pos and self._root_pos is not None:
-            self._root_pos.dump('%s.%s' % (filename, FE_ROOT_POS))
+            #self._root_pos.dump('%s.%s' % (filename, FE_ROOT_POS))
+            numpy_dump('%s.%s' % (filename, FE_ROOT_POS), self._root_pos)
 
     @staticmethod
     def exist(filename):
-        data_exist = os.path.exists('%s.%s' % (filename, FE_DATA)) \
-                     or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES))
-        structure_exist = os.path.exists('%s.%s' % (filename, FE_PARENTS)) \
-                          or (os.path.exists('%s.%s' % (filename, FE_CHILDREN))
-                              and os.path.exists('%s.%s' % (filename, FE_CHILDREN_POS)))
+        #data_exist = os.path.exists('%s.%s' % (filename, FE_DATA)) \
+        #             or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES))
+        data_exist = numpy_exists('%s.%s' % (filename, FE_DATA)) \
+                     or numpy_exists('%s.%s' % (filename, FE_DATA_HASHES))
+
+        #structure_exist = os.path.exists('%s.%s' % (filename, FE_PARENTS)) \
+        #                  or (os.path.exists('%s.%s' % (filename, FE_CHILDREN))
+        #                      and os.path.exists('%s.%s' % (filename, FE_CHILDREN_POS)))
+        structure_exist = numpy_exists('%s.%s' % (filename, FE_PARENTS)) \
+                          or (numpy_exists('%s.%s' % (filename, FE_CHILDREN))
+                              and numpy_exists('%s.%s' % (filename, FE_CHILDREN_POS)))
+
         return data_exist and structure_exist
 
     def hashes_to_indices(self):
