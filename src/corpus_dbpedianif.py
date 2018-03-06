@@ -1031,7 +1031,7 @@ def _collect_root_seealso_counts(forest_merged, out_path_merged):
 
 
 def _collect_root_context_sizes(forest_merged, root_seealso_counts, out_path_merged):
-    logger.info('collect root seealso counts ...')
+    logger.info('collect root context sizes ...')
     fn_root_context_sizes = '%s.%s' % (out_path_merged, FE_ROOT_CONTEXT_SIZE)
     if os.path.exists(fn_root_context_sizes):
         logger.info('found root_context_sizes (%s). load from file.' % fn_root_context_sizes)
