@@ -12,7 +12,7 @@ import os
 from threading import Thread
 
 import spacy
-from spacy.strings import hash_string, StringStore
+from spacy.strings import hash_string
 from rdflib.graph import ConjunctiveGraph as Graph
 from rdflib.store import Store
 from rdflib.plugin import get as plugin
@@ -23,7 +23,7 @@ from rdflib.namespace import RDF, RDFS
 from lexicon import Lexicon, FE_STRINGS
 from sequence_trees import Forest, FE_ROOT_ID
 from constants import DTYPE_HASH, DTYPE_COUNT, TYPE_REF, UNKNOWN_EMBEDDING, vocab_manual, TYPE_ROOT, TYPE_ANCHOR, \
-    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX
+    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX, LOGGING_FORMAT
 import preprocessing
 
 """
@@ -93,8 +93,6 @@ DIR_BATCHES_CONVERTED = 'batches_converted'
 DIR_MERGED = 'merged'
 
 PREFIX_FN = 'forest'
-
-LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
 logger = logging.getLogger('corpus_dbpedia_nif')
 logger.setLevel(logging.DEBUG)
@@ -1023,6 +1021,12 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
     logger_fh.setLevel(logging.INFO)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
+
+    #logger_lexicon = logging.getLogger('lexicon')
+    #logger_lexicon_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
+    #logger_lexicon_fh.setLevel(logging.INFO)
+    #logger_lexicon_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    #logger_lexicon.addHandler(logger_lexicon_fh)
 
     logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
 

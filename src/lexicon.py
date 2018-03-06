@@ -8,25 +8,31 @@ import logging
 import os
 
 from preprocessing import read_data, without_prefix, PREFIX_LEX
-#import sequence_trees as sequ_trees
-from constants import DTYPE_OFFSET, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX
+from constants import DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, LOGGING_FORMAT
 from sequence_trees import Forest
+
+logger = logging.getLogger('lexicon')
+logger.setLevel(logging.DEBUG)
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
+logger.addHandler(logger_streamhandler)
 
 
 # DEPRECATED
 # TODO: adapt for StringStore
 def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_threshold=1):
-    logging.info('sort, cut and fill embeddings ...')
+    logger.info('sort, cut and fill embeddings ...')
     new_max_size = len(strings)
-    logging.info('initial vecs shape: %s ' % str(vecs.shape))
-    logging.info('initial strings size: %i' % len(strings))
+    logger.info('initial vecs shape: %s ' % str(vecs.shape))
+    logger.info('initial strings size: %i' % len(strings))
     # count types
-    logging.debug('calculate counts ...')
+    logger.debug('calculate counts ...')
     counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
     for d in seq_data:
         counts[d] += 1
 
-    logging.debug('argsort ...')
+    logger.debug('argsort ...')
     sorted_indices = np.argsort(counts)
 
     # take mean and variance from previous vectors
@@ -39,7 +45,7 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
     new_types = np.zeros(shape=(new_max_size,), dtype=DTYPE_HASH)
     converter = -np.ones(shape=new_max_size, dtype=DTYPE_IDX)
 
-    logging.debug('process reversed(sorted_indices) ...')
+    logger.debug('process reversed(sorted_indices) ...')
     new_idx = 0
     new_idx_unknown = -1
     new_count = 0
@@ -47,7 +53,7 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
     for old_idx in reversed(sorted_indices):
         # keep unknown and save new unknown index
         if types[old_idx] == strings[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]:
-            logging.debug('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
+            logger.debug('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
             new_idx_unknown = new_idx
         # skip vecs with count < threshold, but keep vecs from vocab_manual
         elif counts[old_idx] < count_threshold and strings[types[old_idx]] not in constants.vocab_manual.values():
@@ -61,7 +67,7 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
             new_vecs[new_idx] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
             #else:
             #    if new_count >= vecs.shape[1]:
-            #        logging.warning('Adding more then vecs-size=%i new lex entries with new_as_one_hot=True (use '
+            #        logger.warning('Adding more then vecs-size=%i new lex entries with new_as_one_hot=True (use '
             #                        'one-hot encodings). That overrides previously added new fake embeddings!'
             #                        % vecs.shape[1])
             #    new_vecs[new_idx][new_count % vecs.shape[1]] = 1.0
@@ -76,9 +82,9 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
 
     assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
 
-    logging.info('new lex_size: ' + str(new_idx))
-    logging.debug('added ' + str(new_count) + ' new vecs to vocab')
-    logging.debug(added_types)
+    logger.info('new lex_size: ' + str(new_idx))
+    logger.debug('added ' + str(new_count) + ' new vecs to vocab')
+    logger.debug(added_types)
 
     # cut arrays
     new_vecs = new_vecs[:new_idx, :]
@@ -91,24 +97,24 @@ def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_thresho
 
 
 def sort_and_cut_dict(seq_data, keep, count_threshold=1):
-    logging.debug('sort, cut and fill ...')
+    logger.debug('sort, cut and fill ...')
     # count types
-    logging.debug('calculate counts ...')
+    logger.debug('calculate counts ...')
     unique, counts = np.unique(seq_data, return_counts=True)
     # add keep
     keep_new = np.array([k for k in keep if k not in unique], dtype=unique.dtype)
     unique = np.concatenate([unique, keep_new])
     counts = np.concatenate([counts, np.zeros(shape=len(keep_new), dtype=counts.dtype)])
-    logging.debug('count unique: %i' % len(unique))
+    logger.debug('count unique: %i' % len(unique))
 
-    logging.debug('argsort ...')
+    logger.debug('argsort ...')
     sorted_indices = np.argsort(counts)
 
     new_counts = np.zeros(shape=len(unique), dtype=DTYPE_COUNT)
     new_values = np.zeros(shape=len(unique), dtype=unique.dtype)
     converter = -np.ones(shape=len(unique), dtype=DTYPE_IDX)
 
-    logging.debug('process reversed(sorted_indices) ...')
+    logger.debug('process reversed(sorted_indices) ...')
     new_idx = 0
     removed = []
     for old_idx in reversed(sorted_indices):
@@ -125,7 +131,7 @@ def sort_and_cut_dict(seq_data, keep, count_threshold=1):
     new_values = new_values[:new_idx]
     converter = converter[:new_idx]
 
-    logging.debug('removed %i lexicon entries' % len(removed))
+    logger.debug('removed %i lexicon entries' % len(removed))
 
     return new_values, removed, converter, new_counts
 
@@ -184,12 +190,12 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
                                           % (vecs1.shape[0], len(types1))
     assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = %i does not equal length of types2 = %i' \
                                           % (vecs2.shape[0], len(types2))
-    logging.info('size of dict1: %i' % len(types1))
-    logging.info('size of dict2: %i' % len(types2))
+    logger.info('size of dict1: %i' % len(types1))
+    logger.info('size of dict2: %i' % len(types2))
     mapping2 = mapping_from_list(types2)
-    logging.debug(len(mapping2))
-    logging.debug(np.array_equal(vecs1, vecs2))
-    logging.debug(types1 == types2)
+    logger.debug(len(mapping2))
+    logger.debug(np.array_equal(vecs1, vecs2))
+    logger.debug(types1 == types2)
 
     indices_delete = []
     indices2_added = []
@@ -211,21 +217,21 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
             del types1[idx]
 
         vecs1 = np.delete(vecs1, indices_delete, axis=0)
-        logging.info('removed %i entries from dict1' % len(indices_delete))
+        logger.info('removed %i entries from dict1' % len(indices_delete))
 
     if add:
         indices_types2 = sorted(range(len(types2)))
         indices_types2_set = set(indices_types2)
         indices2_added = sorted(indices2_added)
-        logging.debug(indices_types2 == indices2_added)
-        logging.debug(indices_types2 == indices2_added_debug)
-        logging.debug(indices2_added_debug == indices2_added)
+        logger.debug(indices_types2 == indices2_added)
+        logger.debug(indices_types2 == indices2_added_debug)
+        logger.debug(indices2_added_debug == indices2_added)
 
         types2_indices_add = list(indices_types2_set.difference(indices2_added))
 
         types1.extend([types2[idx] for idx in types2_indices_add])
         vecs1 = np.concatenate((vecs1, vecs2[types2_indices_add]), axis=0)
-        logging.info('added %i entries to dict1' % len(types2_indices_add))
+        logger.info('added %i entries to dict1' % len(types2_indices_add))
     return vecs1, types1
 
 
@@ -246,7 +252,7 @@ def get_dict_from_vocab(vocab):
         l = constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR + lexeme.orth_
         # exclude entities which are in vocab_manual to avoid collisions
         if l in manual_vocab_reverted:
-            logging.warn(
+            logger.warn(
                 'found token in parser vocab with orth_="' + l + '", which was already added from manual vocab: "' + ', '.join(
                     manual_vocab_reverted) + '", skip!')
             continue
@@ -265,7 +271,7 @@ def get_dict_from_vocab(vocab):
 
 # unused
 def read_types(out_path):
-    logging.debug('read types from file: ' + out_path + '.type ...')
+    logger.debug('read types from file: ' + out_path + '.type ...')
     with open(out_path + '.type') as csvfile:
         reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
         types = [row[0].decode("utf-8") for row in reader]
@@ -276,7 +282,7 @@ def mapping_from_list(l):
     m = {}
     for i, x in enumerate(l):
         if x in m:
-            logging.warn('already in dict: "' + x + '" at idx: ' + str(m[x]))
+            logger.warn('already in dict: "' + x + '" at idx: ' + str(m[x]))
         m[x] = i
     return m
 
@@ -305,10 +311,10 @@ def revert_mapping_to_np(mapping):
 
 # unused
 def load(fn):
-    logging.debug('load vecs from file: ' + fn + '.vec ...')
+    logger.debug('load vecs from file: ' + fn + '.vec ...')
     v = np.load(fn + '.vec')
     t = read_types(fn)
-    logging.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
+    logger.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
     return v, t
 
 
@@ -324,7 +330,7 @@ def create_or_read_dict(fn, vocab=None, dont_read=False):
             return
         v, t = load(fn)
     else:
-        logging.debug('extract word embeddings from spaCy ...')
+        logger.debug('extract word embeddings from spaCy ...')
         v, t = get_dict_from_vocab(vocab)
         dump(fn, vecs=v, types=t)
     return v, t
@@ -332,16 +338,16 @@ def create_or_read_dict(fn, vocab=None, dont_read=False):
 
 def dump(out_path, vecs=None, types=None, counts=None):
     if vecs is not None:
-        logging.debug('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
+        logger.debug('dump embeddings (shape=' + str(vecs.shape) + ') to: ' + out_path + '.vec ...')
         vecs.dump(out_path + '.vec')
     if types is not None:
-        logging.debug('write types (len=' + str(len(types)) + ') to: ' + out_path + '.types ...')
+        logger.debug('write types (len=' + str(len(types)) + ') to: ' + out_path + '.types ...')
         with open(out_path + '.type', 'wb') as f:
             writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for t in types:
                 writer.writerow([t.encode("utf-8")])
     if counts is not None:
-        logging.debug('dump counts (len=' + str(len(counts)) + ') to: ' + out_path + '.count ...')
+        logger.debug('dump counts (len=' + str(len(counts)) + ') to: ' + out_path + '.count ...')
         counts.dump(out_path + '.count')
 
 
@@ -382,7 +388,7 @@ class Lexicon(object):
                 self.init_vecs()
             # already done by init_vecs
             #if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
-            #    logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
+            #    logger.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
             #    self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
             #    self._ids_fixed_dict = None
             #    self._ids_var_dict = None
@@ -409,7 +415,7 @@ class Lexicon(object):
     # deprecated use StringStore
     @staticmethod
     def read_types(filename):
-        logging.debug('read types from file: %s.%s ...' % (filename, FE_TYPES))
+        logger.debug('read types from file: %s.%s ...' % (filename, FE_TYPES))
         with open('%s.%s' % (filename, FE_TYPES)) as csvfile:
             reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
             types = [row[0].decode("utf-8") for row in reader]
@@ -417,7 +423,7 @@ class Lexicon(object):
 
     # deprecated
     def write_types(self, filename):
-        logging.debug('write types (len=%i) to: %s.%s ...' % (len(self.types), filename, FE_TYPES))
+        logger.debug('write types (len=%i) to: %s.%s ...' % (len(self.types), filename, FE_TYPES))
         with open('%s.%s' % (filename, FE_TYPES), 'wb') as f:
             writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             for t in self.types:
@@ -429,7 +435,7 @@ class Lexicon(object):
 
         if not strings_only:
             assert self.vecs is not None, 'can not dump vecs, they are None'
-            logging.debug('dump embeddings (shape=%s) to: %s.%s ...' % (str(self.vecs.shape), filename, FE_VECS))
+            logger.debug('dump embeddings (shape=%s) to: %s.%s ...' % (str(self.vecs.shape), filename, FE_VECS))
             self.vecs.dump('%s.%s' % (filename, FE_VECS))
 
         # TODO: check _fixed
@@ -454,7 +460,7 @@ class Lexicon(object):
         if filename is not None:
             new_vecs = np.load('%s.%s' % (filename, FE_VECS))
             if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
-                logging.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
+                logger.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
                 self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
                 self._ids_fixed_dict = None
                 self._ids_var_dict = None
@@ -482,8 +488,8 @@ class Lexicon(object):
                 else:
                     not_found.append(s)
                     new_vecs[i] = np.zeros(shape=(vocab.vectors_length,), dtype=vocab.vectors.data.dtype)
-            logging.info('added %i vecs from vocab and set %i to zero' % (count_added, len(self) - count_added))
-            logging.debug('zero (first 100): %s' % ', '.join(not_found[:100]))
+            logger.info('added %i vecs from vocab and set %i to zero' % (count_added, len(self) - count_added))
+            logger.debug('zero (first 100): %s' % ', '.join(not_found[:100]))
 
             # fix loaded vecs
             self._ids_fixed = np.array(found_indices, dtype=DTYPE_IDX)
@@ -516,10 +522,10 @@ class Lexicon(object):
         assert self.frozen is False, 'can not sort and cut frozen lexicon'
         new_values, removed, converter, new_counts = sort_and_cut_dict(seq_data=data, count_threshold=count_threshold,
                                                                        keep=keep_values)
-        logging.debug('removed (first 100): %s' % ','.join([self.strings[v] for v in removed][:100]))
+        logger.debug('removed (first 100): %s' % ','.join([self.strings[v] for v in removed][:100]))
         # recreate strings without removed ones, in sorted order
         self._strings = StringStore([self.strings[v] for v in new_values if v not in removed])
-        logging.debug('new lexicon size: %i' % len(self.strings))
+        logger.debug('new lexicon size: %i' % len(self.strings))
         self.clear_cached_values()
 
         ## convert vecs, if available
@@ -539,7 +545,7 @@ class Lexicon(object):
     def get_ids_for_prefix(self, prefix):
         res = [self.mapping[self.strings[s]] for s in self.strings if s.startswith(prefix + constants.SEPARATOR)]
         if len(res) == 0:
-            logging.warning('no indices found for prefix=%s' % prefix)
+            logger.warning('no indices found for prefix=%s' % prefix)
         return res
 
     def get_indices(self, indices=None, prefix=None, indices_as_blacklist=False):
@@ -560,7 +566,7 @@ class Lexicon(object):
         for i in indices:
             self._vecs[i] = np.zeros(self._vecs.shape[1], dtype=self._vecs.dtype)
         if len(indices) > 0:
-            logging.info('set %i vecs to zero' % len(indices))
+            logger.info('set %i vecs to zero' % len(indices))
 
     def set_to_onehot(self, *args, **kwargs):
         assert self.vecs is not None, 'vecs is None, can not set to onehot'
@@ -569,7 +575,7 @@ class Lexicon(object):
         for i, idx in enumerate(indices):
             self._vecs[idx][i] = 1.0
         if len(indices) > 0:
-            logging.info('set %i vecs to one-hot' % len(indices))
+            logger.info('set %i vecs to one-hot' % len(indices))
 
     def set_to_random(self, *args, **kwargs):
         assert self.vecs is not None, 'vecs is None, can not set to random'
@@ -577,7 +583,7 @@ class Lexicon(object):
         for i in indices:
             self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1])
         if len(indices) > 0:
-            logging.info('set %i vecs to random' % len(indices))
+            logger.info('set %i vecs to random' % len(indices))
 
     def set_to_mean(self, *args, **kwargs):
         assert self.vecs is not None, 'vecs is None, can not set to mean'
@@ -592,7 +598,7 @@ class Lexicon(object):
         for i in indices:
             self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1]) * vecs_variance + vecs_mean
         if len(indices) > 0:
-            logging.info('set %i vecs to random' % len(indices))
+            logger.info('set %i vecs to random' % len(indices))
 
     def set_man_vocab_vec(self, man_vocab_id, new_vec=None):
         if new_vec is None:

@@ -1,6 +1,8 @@
 
 import numpy as np
 
+LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
+
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
 
