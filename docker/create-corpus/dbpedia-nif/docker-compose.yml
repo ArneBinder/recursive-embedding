@@ -24,6 +24,8 @@ services:
                                   --batch-size ${BATCH_SIZE}
                                   --start-offset ${START}
                                   --batch-count=${BATCH_COUNT}
+    cpus: ${LIMIT_CPUS}
+    cpuset: ${CPU_SET}
 
   corpus-dbpedia-nif-batches:
     build:
@@ -73,3 +75,4 @@ services:
                                   --seealso-max ${SEEALSO_MAX_COUNT}
                                   --split-count ${SPLIT_COUNT}
     cpus: ${LIMIT_CPUS}
+    cpuset: ${CPU_SET}
