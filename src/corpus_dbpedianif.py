@@ -833,7 +833,7 @@ def _collect_file_names(out_path_batches):
     l = len(suffix)
     f_names = []
     for file in os.listdir(out_path_batches):
-        if file.endswith(suffix):
+        if file.endswith(suffix) and Forest.exist(os.path.join(out_path_batches, file[:-l])):
             f_names.append(file[:-l])
     f_names = sorted(f_names, key=lambda fn: int(fn[len(PREFIX_FN)+1:]))
     f_paths = [os.path.join(out_path_batches, f) for f in f_names]
