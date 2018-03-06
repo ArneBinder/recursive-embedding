@@ -824,25 +824,7 @@ def process_contexts_multi(out_path='/root/corpora_out/DBPEDIANIF-test', batch_s
     print('%s finished' % str(datetime.now() - t_start))
 
 
-@plac.annotations(
-    out_path=('corpora out path', 'option', 'o', str),
-    min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
-    min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
-)
-def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
-    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
-    logger_fh.setLevel(logging.INFO)
-    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
-    logger.addHandler(logger_fh)
-
-    logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
-
-    out_path_batches = os.path.join(out_path, DIR_BATCHES)
-    out_path_merged = os.path.join(out_path, DIR_MERGED)
-    if not os.path.exists(out_path_merged):
-        os.mkdir(out_path_merged)
-    out_path_merged = os.path.join(out_path_merged, PREFIX_FN)
-
+def _collect_file_names(out_path_batches):
     logger.info('collect file names ...')
     t_start = datetime.now()
     l = len('.'+FE_COUNTS)
@@ -853,7 +835,10 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
     f_names = sorted(f_names, key=lambda fn: int(fn[len(PREFIX_FN)+1:]))
     f_paths = [os.path.join(out_path_batches, f) for f in f_names]
     logger.info('finished. %s' % str(datetime.now()-t_start))
+    return f_names, f_paths
 
+
+def _collect_counts_merged(f_paths):
     logger.info('collect counts ...')
     t_start = datetime.now()
     counts_merged = {}
@@ -863,16 +848,47 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
         for i, c in enumerate(counts):
             _c = counts_merged.get(uniques[i], 0)
             counts_merged[uniques[i]] = _c + c
-    logger.info('finished. %s' % str(datetime.now()-t_start))
+    logger.info('finished. %s' % str(datetime.now() - t_start))
+    return counts_merged
 
+
+def _collect_root_ids(f_paths, out_path_merged):
     logger.info('collect root_ids ...')
+    fn_root_ids = '%s.%s' % (out_path_merged, FE_ROOT_ID)
+    if os.path.exists(fn_root_ids):
+        logger.info('found root_ids (%s). load from file.' % fn_root_ids)
+        return np.load(fn_root_ids)
+
     t_start = datetime.now()
     root_ids = []
     for fn in f_paths:
         root_ids.append(np.load('%s.%s' % (fn, FE_ROOT_ID)))
     root_ids = np.concatenate(root_ids)
-    root_ids.dump('%s.%s' % (out_path_merged, FE_ROOT_ID))
+    root_ids.dump(fn_root_ids)
     logger.info('finished. %s' % str(datetime.now()-t_start))
+    return root_ids
+
+
+def _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged):
+
+    fn_uniques_filtered = '%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_FILTERED)
+    fn_uniques_discarded = '%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_DISCARDED)
+    fn_counts_filtered = '%s.%s' % (out_path_merged, FE_UNIQUE_COUNTS_FILTERED)
+    fn_counts_discarded = '%s.%s' % (out_path_merged, FE_UNIQUE_COUNTS_DISCARDED)
+    if os.path.exists(fn_uniques_filtered):
+        logger.info('found uniques_filtered (%s). load from file.' % fn_uniques_filtered)
+        assert os.path.exists(fn_uniques_discarded), 'found uniques_filtered (%s), but misses files for ' \
+                                                     'uniques_discarded (%s).' % (fn_uniques_filtered,
+                                                                                  fn_uniques_discarded)
+        assert os.path.exists(fn_counts_filtered), 'found uniques_filtered (%s), but misses files for ' \
+                                                   'counts_filtered (%s).' % (fn_uniques_filtered, fn_counts_filtered)
+        assert os.path.exists(fn_counts_discarded), 'found uniques_filtered (%s), but misses files for ' \
+                                                    'counts_discarded (%s).' % (fn_uniques_filtered,
+                                                                                fn_counts_discarded)
+        return np.load(fn_uniques_filtered)
+
+    counts_merged = _collect_counts_merged(f_paths)
+    root_ids = _collect_root_ids(f_paths, out_path_merged)
 
     logger.info('filter uniques by count ...')
     t_start = datetime.now()
@@ -895,13 +911,23 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
     uniques_discarded = uniques_discarded[:i_discarded]
     counts_filtered = counts_filtered[:i_filtered]
     counts_discarded = counts_discarded[:i_discarded]
-    uniques_filtered.dump('%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_FILTERED))
-    uniques_discarded.dump('%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_DISCARDED))
-    counts_filtered.dump('%s.%s' % (out_path_merged, FE_UNIQUE_COUNTS_FILTERED))
-    counts_discarded.dump('%s.%s' % (out_path_merged, FE_UNIQUE_COUNTS_DISCARDED))
-    logger.info('finished. %s' % str(datetime.now()-t_start))
+    uniques_filtered.dump(fn_uniques_filtered)
+    uniques_discarded.dump(fn_uniques_discarded)
+    counts_filtered.dump(fn_counts_filtered)
+    counts_discarded.dump(fn_counts_discarded)
+    logger.info('finished. %s' % str(datetime.now() - t_start))
+    return uniques_filtered
 
+
+def _merge_and_filter_lexicon(uniques_filtered, f_paths, out_path_merged):
     logger.info('merge and filter lexicon ...')
+    fn_lexicon_discarded = '%s.discarded' % out_path_merged
+    if Lexicon.exist(filename=out_path_merged, types_only=True):
+        logger.info('found lexicon (%s). load from file.' % out_path_merged)
+        assert Lexicon.exist(filename=fn_lexicon_discarded, types_only=True), \
+            'found lexicon (%s), but misses lexicon_discarded (%s).' % (out_path_merged, fn_lexicon_discarded)
+        # Note: Load with vecs to skip _lexicon_add_vecs, eventually.
+        return Lexicon(filename=out_path_merged)
     t_start = datetime.now()
     uniques_filtered_set = set(uniques_filtered)
     lexicon = Lexicon()
@@ -916,53 +942,112 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
             else:
                 lexicon_discarded.strings.add(s)
     lexicon.dump(filename=out_path_merged, strings_only=True)
-    lexicon_discarded.dump(filename='%s.discarded' % out_path_merged, strings_only=True)
-    logger.info('finished. %s' % str(datetime.now()-t_start))
+    lexicon_discarded.dump(filename=fn_lexicon_discarded, strings_only=True)
+    logger.info('finished. %s' % str(datetime.now() - t_start))
+    return lexicon
 
+
+def _filter_and_convert_data_batches(lexicon, f_names, out_dir_batches, out_dir_batches_converted):
     logger.info('filter and convert batches ...')
     t_start = datetime.now()
-    if lexicon is None:
-        lexicon = Lexicon(filename=out_path_merged)
+    assert vocab_manual[UNKNOWN_EMBEDDING] in lexicon.strings or not lexicon.frozen, 'UNKNOWN_EMBEDDING not in ' \
+                                                                                     'lexicon, but it is frozen'
     lexicon.strings.add(vocab_manual[UNKNOWN_EMBEDDING])
-    out_path_batches_converted = os.path.join(out_path, DIR_BATCHES_CONVERTED)
-    if not os.path.exists(out_path_batches_converted):
-        os.mkdir(out_path_batches_converted)
+    count_skipped = 0
     for fn in f_names:
-        fn_path_in = os.path.join(out_path_batches, fn)
-        fn_path_out = os.path.join(out_path_batches_converted, fn)
+        fn_path_in = os.path.join(out_dir_batches, fn)
+        fn_path_out = os.path.join(out_dir_batches_converted, fn)
+        if Forest.exist(filename=fn_path_out):
+            count_skipped += 1
+            continue
         forest = Forest(filename=fn_path_in, lexicon=lexicon)
         forest.hashes_to_indices()
         forest.dump(filename=fn_path_out)
-    logger.info('finished. %s' % str(datetime.now()-t_start))
+    logger.info('finished (processed: %i, skipped: %i). %s' % (len(f_names) - count_skipped, count_skipped,
+                                                               str(datetime.now() - t_start)))
 
+
+def _lexicon_add_vecs(lexicon, out_path_merged):
     logger.info('add vecs ...')
+    if lexicon.has_vecs:
+        logger.info('lexicon has vecs already.')
+        return lexicon
     t_start = datetime.now()
-    if lexicon is None:
-        lexicon = Lexicon(filename=out_path_merged)
+    logger.info('lexicon size: %i' % len(lexicon))
     logger.info('load spacy ...')
     nlp = spacy.load('en')
     lexicon.init_vecs(vocab=nlp.vocab)
+    logger.info('lexicon fixed size: %i' % len(lexicon.ids_fixed))
     lexicon.set_to_random(indices=lexicon.ids_fixed, indices_as_blacklist=True)
     lexicon.dump(filename=out_path_merged)
-    nlp = None
     logger.info('finished. %s' % str(datetime.now() - t_start))
+    return lexicon
 
+
+def _merge_converted_batches(f_names, out_dir_batches_converted, out_path_merged):
     logger.info('merge converted batches ...')
+    if Forest.exist(out_path_merged):
+        logger.info('found forest_merged (%s). load from file.' % out_path_merged)
+        return Forest(filename=out_path_merged)
     t_start = datetime.now()
-    out_path_batches_converted = os.path.join(out_path, DIR_BATCHES_CONVERTED)
     forests = []
     for fn in f_names:
-        fn_path_out = os.path.join(out_path_batches_converted, fn)
+        fn_path_out = os.path.join(out_dir_batches_converted, fn)
         forests.append(Forest(filename=fn_path_out))
     forest_merged = Forest.concatenate(forests)
     forest_merged.dump(filename=out_path_merged)
-    logger.info('finished. %s' % str(datetime.now()-t_start))
+    logger.info('finished. %s' % str(datetime.now() - t_start))
+    return forest_merged
 
+
+def _collect_root_seealso_counts(forest_merged, out_path_merged):
     logger.info('collect root seealso counts ...')
+    fn_root_seealso_counts = '%s.%s' % (out_path_merged, FE_ROOT_SEEALSO_COUNT)
+    if os.path.exists(fn_root_seealso_counts):
+        logger.info('found root_seealso_counts (%s). load from file.' % fn_root_seealso_counts)
+        return np.load(fn_root_seealso_counts)
     t_start = datetime.now()
     root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + 3)
-    root_seealso_counts.dump('%s.%s' % (out_path_merged, FE_ROOT_SEEALSO_COUNT))
+    root_seealso_counts.dump(fn_root_seealso_counts)
     logger.info('finished. %s' % str(datetime.now()-t_start))
+    return root_seealso_counts
+
+
+@plac.annotations(
+    out_path=('corpora out path', 'option', 'o', str),
+    min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
+    min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
+)
+def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
+
+    out_dir_batches = os.path.join(out_path, DIR_BATCHES)
+    out_dir_batches_converted = os.path.join(out_path, DIR_BATCHES_CONVERTED)
+    if not os.path.exists(out_dir_batches_converted):
+        os.mkdir(out_dir_batches_converted)
+    out_path_merged = os.path.join(out_path, DIR_MERGED)
+    if not os.path.exists(out_path_merged):
+        os.mkdir(out_path_merged)
+    out_path_merged = os.path.join(out_path_merged, PREFIX_FN)
+
+    f_names, f_paths = _collect_file_names(out_dir_batches)
+
+    uniques_filtered = _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged)
+
+    lexicon = _merge_and_filter_lexicon(uniques_filtered, f_paths, out_path_merged)
+
+    _filter_and_convert_data_batches(lexicon, f_names, out_dir_batches, out_dir_batches_converted)
+
+    lexicon = _lexicon_add_vecs(lexicon, out_path_merged)
+
+    forest_merged = _merge_converted_batches(f_names, out_dir_batches_converted, out_path_merged)
+
+    root_seealso_counts = _collect_root_seealso_counts(forest_merged, out_path_merged)
 
 
 @plac.annotations(

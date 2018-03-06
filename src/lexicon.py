@@ -424,7 +424,7 @@ class Lexicon(object):
                 writer.writerow([t.encode("utf-8")])
 
     def dump(self, filename, strings_only=False):
-        if self.strings:
+        if self.strings is not None:
             self.strings.to_disk('%s.%s' % (filename, FE_STRINGS))
 
         if not strings_only:
@@ -835,6 +835,10 @@ class Lexicon(object):
     @property
     def is_filled(self):
         return self._vecs is not None and len(self) == len(self.vecs)
+
+    @property
+    def has_vecs(self):
+        return self._vecs is not None
 
     @property
     def frozen(self):

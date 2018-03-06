@@ -283,9 +283,12 @@ class Forest(object):
 
     @staticmethod
     def exist(filename):
-        a = (os.path.exists('%s.%s' % (filename, FE_DATA)) or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES)))
-        b = os.path.exists('%s.%s' % (filename, FE_PARENTS))
-        return a and b
+        data_exist = os.path.exists('%s.%s' % (filename, FE_DATA)) \
+                     or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES))
+        structure_exist = os.path.exists('%s.%s' % (filename, FE_PARENTS)) \
+                          or (os.path.exists('%s.%s' % (filename, FE_CHILDREN))
+                              and os.path.exists('%s.%s' % (filename, FE_CHILDREN_POS)))
+        return data_exist and structure_exist
 
     def hashes_to_indices(self):
         assert self.lexicon is not None, 'no lexicon available'
