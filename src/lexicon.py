@@ -381,7 +381,7 @@ class Lexicon(object):
             #else:
             #    types_dep = Lexicon.read_types(filename)
             #    self._strings = StringStore(types_dep)
-            if load_vecs and os.path.isfile('%s.%s' % (filename, FE_VECS)):
+            if load_vecs and Lexicon.exist(filename, vecs_only=True):# os.path.isfile('%s.%s' % (filename, FE_VECS)):
                 self.init_vecs(filename=filename)
             else:
                 # set dummy vecs
@@ -435,30 +435,42 @@ class Lexicon(object):
 
         if not strings_only:
             assert self.vecs is not None, 'can not dump vecs, they are None'
-            logger.debug('dump embeddings (shape=%s) to: %s.%s ...' % (str(self.vecs.shape), filename, FE_VECS))
-            self.vecs.dump('%s.%s' % (filename, FE_VECS))
+            fn_vecs = '%s.%s.npy' % (filename, FE_VECS)
+            logger.debug('dump embeddings (shape=%s) to: %s ...' % (str(self.vecs.shape), fn_vecs))
+            #self.vecs.dump('%s.%s' % (filename, FE_VECS))
+            np.save(fn_vecs, self.vecs)
 
         # TODO: check _fixed
         if len(self._ids_fixed) > 0:
             self.ids_fixed.dump('%s.%s' % (filename, FE_IDS_VECS_FIXED))
 
     @staticmethod
-    def exist(filename, types_only=False):
-        a = os.path.isfile('%s.%s' % (filename, FE_TYPES)) or os.path.isfile('%s.%s' % (filename, FE_STRINGS))
-        b = (types_only or os.path.isfile('%s.%s' % (filename, FE_VECS)))
-        return a and b
+    def exist(filename, types_only=False, vecs_only=False):
+        strings_exist = vecs_only or os.path.isfile('%s.%s' % (filename, FE_TYPES)) \
+                        or os.path.isfile('%s.%s' % (filename, FE_STRINGS))
+        vecs_exist = types_only or os.path.isfile('%s.%s' % (filename, FE_VECS)) \
+                     or os.path.isfile('%s.%s.npy' % (filename, FE_VECS))
+        return strings_exist and vecs_exist
 
     @staticmethod
     def delete(filename, types_only=False):
         if Lexicon.exist(filename, types_only=types_only):
             os.remove('%s.%s' % (filename, FE_TYPES))
             if not types_only:
-                os.remove('%s.%s' % (filename, FE_VECS))
+                assert Lexicon.exist(filename, vecs_only=True), 'can not delete vecs file (%s). it does not exist.' % filename
+                if os.path.exists('%s.%s' % (filename, FE_VECS)):
+                    os.remove('%s.%s' % (filename, FE_VECS))
+                else:
+                    os.remove('%s.%s.npy' % (filename, FE_VECS))
 
     def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
                   vocab_prefix=PREFIX_LEX):
         if filename is not None:
-            new_vecs = np.load('%s.%s' % (filename, FE_VECS))
+            fn_vecs = '%s.%s' % (filename, FE_VECS)
+            if not os.path.exists(fn_vecs):
+                fn_vecs = '%s.%s.npy' % (filename, FE_VECS)
+                assert os.path.exists(fn_vecs), 'could not find vecs file (%s.%s or %s)' % (filename, FE_VECS, fn_vecs)
+            new_vecs = np.load(fn_vecs)
             if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
                 logger.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
                 self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
