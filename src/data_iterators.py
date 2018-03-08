@@ -70,6 +70,8 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                                                    max_depth=9999, context=0, transform=True, offset_context=2,
                                                    offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
                                                    **unused):
+    # DEBUG: TODO: remove!
+    #n_max = 4
 
     sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
 
@@ -129,6 +131,11 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                 yield [[tree_context, {KEY_HEAD: data_root_seealso_transformed, KEY_CHILDREN: children}],
                        np.ones(shape=2, dtype=int)]
                 n += 1
+
+                #if n > n_max:
+                #    break
+        #if n > n_max:
+        #    break
     logging.info('created %i tree tuples' % n)
 
 
