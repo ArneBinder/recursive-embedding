@@ -227,7 +227,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         test_iterator = None
     if not (test_only or init_only):
         logging.info('collect train data from: ' + config.train_data_path + ' ...')
-        regex = re.compile(r'%s\.idx\.\d+$' % ntpath.basename(config.train_data_path))
+        regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
         train_fnames = filter(regex.search, os.listdir(parent_dir))
         # regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
         # train_fnames_negs = filter(regex.search, os.listdir(parent_dir))

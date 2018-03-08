@@ -915,7 +915,6 @@ def _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged):
     i_filtered = 0
     i_discarded = 0
     for u in counts_merged.keys():
-        # TODO: discard all root_ids (triple-check before)
         #if counts_merged[u] >= min_count or (u in root_ids and counts_merged[u] >= min_count_root_id >= 0):
         #if u not in root_ids and counts_merged[u] >= min_count:
         if (u not in root_ids_set and counts_merged[u] >= min_count) \
