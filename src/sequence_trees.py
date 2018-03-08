@@ -312,12 +312,13 @@ class Forest(object):
 
         return data_exist and structure_exist
 
-    def hashes_to_indices(self):
+    def hashes_to_indices(self, id_offset_mapping={}):
         assert self.lexicon is not None, 'no lexicon available'
         assert self.data_as_hashes, 'data consists already of indices'
-        self._data = self.lexicon.convert_data_hashes_to_indices(self.data)
+
+        self._data = self.lexicon.convert_data_hashes_to_indices(self.data, id_offset_mapping)
         if self._root_ids is not None:
-            self._root_ids = self.lexicon.convert_data_hashes_to_indices(self._root_ids)
+            self._root_ids = self.lexicon.convert_data_hashes_to_indices(self._root_ids, id_offset_mapping)
         self._as_hashes = False
 
     def convert_data(self, converter, new_idx_unknown):

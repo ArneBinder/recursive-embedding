@@ -511,6 +511,7 @@ def visualize():
                 forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'],
                                      root_ids=root_ids)
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i))
+            assert len(params['data_sequences']) > 0, 'empty data_sequences'
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
             response = send_file(TEMP_FN_SVG)

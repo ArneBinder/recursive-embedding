@@ -693,13 +693,15 @@ class Lexicon(object):
             self._ids_fixed_dict = None
             self._ids_var_dict = None
 
-    def convert_data_hashes_to_indices(self, data):
+    def convert_data_hashes_to_indices(self, data, id_offset_mapping):
         s_uk = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
         #data_new = np.zeros(shape=data.shape, dtype=DTYPE_IDX)
         #assert s_uk in self.strings, '%s not in lexicon' % s_uk
         for i in range(len(data)):
             d = data[i]
-            if d in self.mapping:
+            if d in id_offset_mapping:
+                data[i] = len(self) + id_offset_mapping[d]
+            elif d in self.mapping:
                 data[i] = self.mapping[d]
             else:
                 data[i] = self.mapping[self.strings[s_uk]]
@@ -713,7 +715,7 @@ class Lexicon(object):
         if return_hashes:
             return Forest(data=data, parents=parents, lexicon=self, data_as_hashes=True)
         else:
-            return Forest(data=self.convert_data_hashes_to_indices(data), parents=parents, lexicon=self,
+            return Forest(data=self.convert_data_hashes_to_indices(data, id_offset_mapping={}), parents=parents, lexicon=self,
                           data_as_hashes=False)
 
     def is_fixed(self, idx):
