@@ -241,8 +241,9 @@ def get_or_calc_sequence_data(params):
         max_depth = params.get('max_depth', 100)
         context = params.get('context', 0)
 
+        params['transformed_idx'] = True
         data_iterator_args = {'index_files': [fn], 'sequence_trees': current_forest, 'max_depth': max_depth,
-                              'context': context, 'transform': False}
+                              'context': context, 'transform': params['transformed_idx']}
 
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
@@ -269,10 +270,12 @@ def get_or_calc_sequence_data(params):
                 break
             for tree_dict in tree_dicts:
                 vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                                    data_as_hashes=current_forest.data_as_hashes)
+                                    data_as_hashes=current_forest.data_as_hashes,
+                                    transformed_indices=params['transformed_idx'])
 
                 params['data_sequences'].append([vis_forest.data, vis_forest.parents])
-                token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None))
+                token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None))#,
+                                                       #transformed=params['transformed_idx'])
                 params['sequences'].append(token_list)
             for prob in probs:
                 params['scores_gold'].append(prob)
@@ -510,6 +513,7 @@ def visualize():
                     root_ids = None
                 forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'],
                                      root_ids=root_ids)
+                # forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False))
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i))
             assert len(params['data_sequences']) > 0, 'empty data_sequences'
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))

@@ -82,8 +82,8 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
     data_root_seealso = lexicon.get_d(TYPE_SECTION_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
     data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
     if transform:
-        data_ref_seealso_transformed = sequence_trees.transform_data(data_ref_seealso)
-        data_root_seealso_transformed = sequence_trees.transform_data(data_root_seealso)
+        data_ref_seealso_transformed = sequence_trees.lexicon.transform_idx(data_ref_seealso)
+        data_root_seealso_transformed = sequence_trees.lexicon.transform_idx(data_root_seealso)
     else:
         data_ref_seealso_transformed = data_ref_seealso
         data_root_seealso_transformed = data_root_seealso

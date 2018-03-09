@@ -139,7 +139,8 @@ def _compare_tree_dicts(tree1, tree2):
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None, children=None,
                  children_pos=None, data_as_hashes=False, root_ids=None, root_pos=None,
-                 load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True):
+                 load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True,
+                 transformed_indices=False):
         self.reset_cache_values()
         self._as_hashes = data_as_hashes
         self._lexicon = None
@@ -159,6 +160,10 @@ class Forest(object):
                             data_as_hashes=data_as_hashes, root_ids=root_ids, root_pos=root_pos)
         elif tree_dict is not None:
             _data, _parents = _sequence_node_to_sequence_trees(tree_dict)
+            if transformed_indices:
+                assert not data_as_hashes, 'can not transform indices back if data_as_hashes'
+                for i in range(len(_data)):
+                    _data[i] = self.lexicon.transform_idx_back(_data[i])
             self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes, root_ids=root_ids)
         else:
             raise ValueError(
@@ -408,16 +413,6 @@ class Forest(object):
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
-    def transform_data(self, idx):
-        assert self.lexicon is not None, 'lexicon is not set'
-        idx_trans = self.lexicon.ids_fixed_dict.get(idx, None)
-        if idx_trans is not None:
-            return -idx_trans
-        idx_trans = self.lexicon.ids_var_dict.get(idx, None)
-        if idx_trans is not None:
-            return idx_trans
-        raise ValueError('idx=%i not in ids_fixed and not in ids_var' % idx)
-
     def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, link_costs={},
                       link_content_offset=2):
         """
@@ -443,7 +438,7 @@ class Forest(object):
         link_cost = link_costs.get(data_head, MAX_DEPTH)
 
         if transform:
-            data_head = self.transform_data(data_head)
+            data_head = self.lexicon.transform_idx(data_head)
         seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         if self.has_children(idx) and max_depth > 0:
             for child_offset in self.get_children(idx):
@@ -482,7 +477,7 @@ class Forest(object):
         current_id = idx + self.parents[idx]
         data_head = self.data_back(self.data[current_id])
         if transform:
-            data_head = self.transform_data(data_head)
+            data_head = self.lexicon.transform_idx(data_head)
         result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         current_dict_tree = result
         while max_depth > 0:
@@ -498,7 +493,7 @@ class Forest(object):
                 current_id = current_id + self.parents[current_id]
                 data_head = self.data_back(self.data[current_id])
                 if transform:
-                    data_head = self.transform_data(data_head)
+                    data_head = self.lexicon.transform_idx(data_head)
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
                 current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child
@@ -612,7 +607,7 @@ class Forest(object):
                       root_ids=new_root_ids,
                       root_pos=new_root_pos)
 
-    def visualize(self, filename, start=0, end=None):
+    def visualize(self, filename, start=0, end=None, transformed=False):
         if end is None:
             end = len(self)
         assert self.lexicon is not None, 'lexicon is not set'
@@ -621,6 +616,8 @@ class Forest(object):
         if len(self) > 0:
             nodes = []
             for i, d in enumerate(self.data[start:end]):
+                if transformed:
+                    d = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 if self.data_as_hashes:
                     d = self.lexicon.mapping[self.lexicon.strings[s]]
@@ -664,13 +661,15 @@ class Forest(object):
         else:
             return l
 
-    def get_text_plain(self, blacklist=None, start=0, end=None):
+    def get_text_plain(self, blacklist=None, start=0, end=None, transformed=False):
         assert self.lexicon is not None, 'lexicon is not set'
         if end is None:
             end = len(self)
         result = []
         if len(self.data) > 0:
             for d in self.data[start:end]:
+                if transformed:
+                    d = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:

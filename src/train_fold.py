@@ -192,7 +192,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     elif config.model_type == 'tuple':
 
         data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode}
+                              'concat_mode': config.concat_mode, 'link_cost_ref': 1}
         data_iterator_train = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
         tuple_size = 2

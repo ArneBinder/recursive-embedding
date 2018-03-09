@@ -374,12 +374,14 @@ class Lexicon(object):
         self._mapping = None
         self._types = None
         #self._ids_fixed = set()
-        self._ids_fixed = None
+        #self._ids_fixed = None
+        self._ids_var = None
         self._ids_fixed_dict = None
         self._ids_var_dict = None
         self._strings = strings
         if filename is not None:
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
+            self.init_ids_fixed(filename, assert_exists=False)
             if load_vecs and Lexicon.exist(filename, vecs_only=True):
                 self.init_vecs(filename=filename)
             else:
@@ -390,13 +392,13 @@ class Lexicon(object):
             self._strings = StringStore(types_dep)
             if vecs is not None:
                 self._vecs = vecs
-                self._ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
+                self.init_ids_fixed()
             else:
                 # set dummy vecs
                 self.init_vecs()
         elif nlp_vocab is not None:
             self._vecs, types_dep = get_dict_from_vocab(nlp_vocab)
-            self._ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
+            self.init_ids_fixed()
             self._strings = StringStore(types_dep)
         elif string_list is not None:
             self._strings = StringStore(string_list)
@@ -405,6 +407,7 @@ class Lexicon(object):
         # create empty lexicon
         if self._strings is None:
             self._strings = StringStore()
+            self.init_ids_fixed()
             self.init_vecs()
 
     # deprecated use StringStore
@@ -457,18 +460,24 @@ class Lexicon(object):
                 else:
                     os.remove('%s.%s.npy' % (filename, FE_VECS))
 
+    def init_ids_fixed(self, filename=None, assert_exists=False):
+        ids_fixed = None
+        if filename is not None:
+            ids_fixed = numpy_load('%s.%s' % (filename, FE_IDS_VECS_FIXED), assert_exists=assert_exists)
+        if ids_fixed is None:
+            ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
+        else:
+            logger.debug('loaded ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
+        self._ids_fixed = ids_fixed
+        self._ids_fixed_dict = None
+        self._ids_var_dict = None
+        self._ids_var = None
+
     def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
                   vocab_prefix=PREFIX_LEX):
         if filename is not None:
             new_vecs = numpy_load('%s.%s' % (filename, FE_VECS), assert_exists=True)
-            ids_fixed = numpy_load('%s.%s' % (filename, FE_IDS_VECS_FIXED), assert_exists=False)
-            if ids_fixed is None:
-                ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
-            else:
-                logger.debug('loaded ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
-            self._ids_fixed = ids_fixed
-            self._ids_fixed_dict = None
-            self._ids_var_dict = None
+            self.init_ids_fixed(filename, assert_exists=False)
         elif checkpoint_reader is not None:
             assert self._ids_fixed is not None, 'ids_fixed is None'
             import model_fold
@@ -499,6 +508,8 @@ class Lexicon(object):
 
             # set loaded vecs as fixed
             self._ids_fixed = np.array(found_indices, dtype=DTYPE_IDX)
+        #else:
+        #    self._ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
 
         # TODO: check _fixed
         if new_vecs_fixed is not None:
@@ -714,6 +725,31 @@ class Lexicon(object):
             self._strings.add(s)
         self.clear_cached_values()
 
+    def transform_idx(self, idx):
+        """
+        transform lexicon (vec) index to index for vecs_fix (negative) or vecs_var (positive) index
+        :param idx: the index to transform
+        :return: the transformed index
+        """
+        idx_trans = self.ids_fixed_dict.get(idx, None)
+        if idx_trans is not None:
+            return -idx_trans
+        idx_trans = self.ids_var_dict.get(idx, None)
+        if idx_trans is not None:
+            return idx_trans
+        raise ValueError('idx=%i not in ids_fixed and not in ids_var' % idx)
+
+    def transform_idx_back(self, idx):
+        """
+        revert transform_idx: transform index for vecs_fix (negative) or vecs_var (positive) index into lexicon index
+        :param idx: the negative (-> fixed vec) or positive (-> var vec) index
+        :return: the lexicon index
+        """
+        if idx < 0:
+            return self.ids_fixed[-idx]
+        else:
+            return self.ids_var[idx]
+
     @staticmethod
     def vocab_prefix(man_vocab_id):
         return constants.vocab_manual[man_vocab_id] + constants.SEPARATOR
@@ -822,7 +858,9 @@ class Lexicon(object):
 
     @property
     def ids_var(self):
-        return np.array([i for i in range(len(self)) if i not in self._ids_fixed])
+        if self._ids_var is None:
+            self._ids_var = np.array([i for i in range(len(self)) if i not in self._ids_fixed])
+        return self._ids_var
 
     @property
     def types(self):
