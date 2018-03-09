@@ -76,21 +76,23 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
     sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
 
     lexicon = sequence_trees.lexicon
-    link_costs = {}
+    costs = {}
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
     data_root_seealso = lexicon.get_d(TYPE_SECTION_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
     data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
     if transform:
+        #data_ref_transformed = sequence_trees.lexicon.transform_idx(data_ref)
         data_ref_seealso_transformed = sequence_trees.lexicon.transform_idx(data_ref_seealso)
         data_root_seealso_transformed = sequence_trees.lexicon.transform_idx(data_root_seealso)
     else:
+        #data_ref_transformed = data_ref
         data_ref_seealso_transformed = data_ref_seealso
         data_root_seealso_transformed = data_root_seealso
 
     if link_cost_ref is not None:
-        link_costs[data_ref] = link_cost_ref
-    link_costs[data_ref_seealso] = link_cost_ref_seealso
+        costs[data_ref] = link_cost_ref
+    costs[data_ref_seealso] = link_cost_ref_seealso
     n = 0
     for file_name in index_files:
         indices = np.load(file_name)
@@ -113,7 +115,8 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                     idx_root_seealso = sequence_trees.roots[seealso_root] + offset_context
                     tree_seealso = sequence_trees.get_tree_dict(idx=idx_root_seealso, max_depth=max_depth-2,
                                                                 context=context, transform=transform,
-                                                                link_costs=link_costs)
+                                                                costs=costs,
+                                                                link_types=[data_ref, data_ref_seealso])
                 else:
                     f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
                     f_seealso.set_children_with_parents()
@@ -123,7 +126,8 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                 if concat_mode == 'tree':
                     tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
                                                                 context=context, transform=transform,
-                                                                link_costs=link_costs)
+                                                                costs=costs,
+                                                                link_types=[data_ref, data_ref_seealso])
                 else:
                     f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
                     f.set_children_with_parents()

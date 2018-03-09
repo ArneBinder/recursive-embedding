@@ -313,17 +313,17 @@ def get_or_calc_sequence_data(params):
         max_depth = params.get('max_depth', 10)
         context = params.get('context', 0)
         idx = params['idx']
-        link_costs = {}
+        costs = {}
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
         if 'link_cost_ref' in params:
             d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
-            link_costs[d_ref] = params['link_cost_ref']
+            costs[d_ref] = params['link_cost_ref']
         if 'link_cost_ref_seealso' in params:
             d_ref = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
-            link_costs[d_ref] = params['link_cost_ref_seealso']
+            costs[d_ref] = params['link_cost_ref_seealso']
         tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False,
-                                         link_costs=link_costs)
+                                                 costs=costs)
         vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes)
         params['data_as_hashes'] = vis_forest.data_as_hashes
         params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]

@@ -413,7 +413,7 @@ class Forest(object):
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
-    def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, link_costs={},
+    def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=2):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
@@ -424,7 +424,7 @@ class Forest(object):
         :param context depth of context tree (walk up parents) to add to all nodes
         :param transform transform data ids (does not work for hashes) to ids regarding fixed / variable embeddings;
                          values indicating fixed embeddings are negative
-        :param link_costs contains mappings from data ids or hashes to costs that are subtracted, if following a link
+        :param costs contains mappings from data ids or hashes to costs that are subtracted, if following a link
                           with this id or hash. NOTE: Link following requires max_depth != MAX_DEPTH.
         :param link_content_offset If a link is followed, this offset is added to the root position of the target, e.g.
                                    link_content_offset=2 means, that the subtree at target_root_position+2 is inserted
@@ -435,27 +435,42 @@ class Forest(object):
             idx = self.roots[0]
         data_head = self.data[idx]
 
-        link_cost = link_costs.get(data_head, MAX_DEPTH)
+        # TODO: DEBUG
+        s = self.lexicon.get_s(data_head, data_as_hashes=self.data_as_hashes)
+        # TODO: fix link following (especially for blanked link targets)
+        if data_head in link_types:
+            if transform:
+                data_head = self.lexicon.transform_idx(data_head)
+            return {KEY_HEAD: data_head, KEY_CHILDREN: []}
+        # DEBUG end
+
+        # TODO: change to 1 as default
+        cost = costs.get(data_head, MAX_DEPTH)
 
         if transform:
             data_head = self.lexicon.transform_idx(data_head)
         seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         if self.has_children(idx) and max_depth > 0:
+            # TODO: change cost handling
             for child_offset in self.get_children(idx):
                 data_child = idx + child_offset
-                if link_cost < max_depth and data_child in self.root_id_pos:
+                # TODO: change link handling
+                if cost < max_depth and data_child in self.root_id_pos:
                     target_idx = self.root_id_pos[data_child] + link_content_offset
                     seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
-                                                                     max_depth=max_depth - link_cost,
+                                                                     max_depth=max_depth - cost,
                                                                      context=context, transform=transform,
-                                                                     link_costs=link_costs))
+                                                                     costs=costs,
+                                                                     link_types=link_types))
                 else:
                     seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
                                                                      context=context, transform=transform,
-                                                                     link_costs=link_costs))
+                                                                     costs=costs,
+                                                                     link_types=link_types))
         if self.parents[idx] != 0 and context > 0:
             seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-1, transform=transform,
-                                                                    link_costs=link_costs))
+                                                                    costs=costs,
+                                                                    link_types=link_types))
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False):
@@ -468,7 +483,7 @@ class Forest(object):
         assert not self.data_as_hashes, 'can not calculate data_id for back link if data_as_hashes'
         return data + len(self.lexicon) / 2
 
-    def get_tree_dict_parent(self, idx, max_depth=9999, transform=False, link_costs={}):
+    def get_tree_dict_parent(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
         assert self.lexicon is not None, 'lexicon is not set'
 
         if self.parents[idx] == 0:
@@ -486,7 +501,8 @@ class Forest(object):
                 c_id = current_id + c
                 if c_id != previous_id:
                     current_dict_tree[KEY_CHILDREN].append(
-                        self.get_tree_dict(c_id, max_depth=max_depth - 1, transform=transform, link_costs=link_costs))
+                        self.get_tree_dict(c_id, max_depth=max_depth - 1, transform=transform, costs=costs,
+                                           link_types=link_types))
             # go up
             if self.parents[current_id] != 0:
                 previous_id = current_id
