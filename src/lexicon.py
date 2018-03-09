@@ -373,37 +373,30 @@ class Lexicon(object):
         self._frozen = False
         self._mapping = None
         self._types = None
-        self._ids_fixed = set()
+        #self._ids_fixed = set()
+        self._ids_fixed = None
         self._ids_fixed_dict = None
         self._ids_var_dict = None
         self._strings = strings
         if filename is not None:
-            #if os.path.isfile('%s.%s' % (filename, FE_STRINGS)):
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
-            #else:
-            #    types_dep = Lexicon.read_types(filename)
-            #    self._strings = StringStore(types_dep)
-            if load_vecs and Lexicon.exist(filename, vecs_only=True):# os.path.isfile('%s.%s' % (filename, FE_VECS)):
+            if load_vecs and Lexicon.exist(filename, vecs_only=True):
                 self.init_vecs(filename=filename)
             else:
                 # set dummy vecs
                 self.init_vecs()
-            # already done by init_vecs
-            #if os.path.isfile('%s.%s' % (filename, FE_IDS_VECS_FIXED)):
-            #    logger.debug('load ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
-            #    self._ids_fixed = set(np.load('%s.%s' % (filename, FE_IDS_VECS_FIXED)))
-            #    self._ids_fixed_dict = None
-            #    self._ids_var_dict = None
         elif types is not None:
             types_dep = types
             self._strings = StringStore(types_dep)
             if vecs is not None:
                 self._vecs = vecs
+                self._ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
             else:
                 # set dummy vecs
                 self.init_vecs()
         elif nlp_vocab is not None:
             self._vecs, types_dep = get_dict_from_vocab(nlp_vocab)
+            self._ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
             self._strings = StringStore(types_dep)
         elif string_list is not None:
             self._strings = StringStore(string_list)
@@ -439,13 +432,9 @@ class Lexicon(object):
             assert self.vecs is not None, 'can not dump vecs, they are None'
             fn_vecs = '%s.%s' % (filename, FE_VECS)
             logger.debug('dump embeddings (shape=%s) to: %s ...' % (str(self.vecs.shape), fn_vecs))
-            #self.vecs.dump('%s.%s' % (filename, FE_VECS))
-            #np.save(fn_vecs, self.vecs)
             numpy_dump(fn_vecs, self.vecs)
 
-        # TODO: check _fixed
-        if len(self._ids_fixed) > 0:
-            #self.ids_fixed.dump('%s.%s' % (filename, FE_IDS_VECS_FIXED))
+        if len(self.ids_fixed) > 0:
             numpy_dump('%s.%s' % (filename, FE_IDS_VECS_FIXED), self.ids_fixed)
 
     @staticmethod
@@ -471,19 +460,17 @@ class Lexicon(object):
     def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
                   vocab_prefix=PREFIX_LEX):
         if filename is not None:
-            #fn_vecs = '%s.%s' % (filename, FE_VECS)
-            #if not os.path.exists(fn_vecs):
-            #    fn_vecs = '%s.%s.npy' % (filename, FE_VECS)
-            #    assert os.path.exists(fn_vecs), 'could not find vecs file (%s.%s or %s)' % (filename, FE_VECS, fn_vecs)
-            #new_vecs = np.load(fn_vecs)
             new_vecs = numpy_load('%s.%s' % (filename, FE_VECS), assert_exists=True)
             ids_fixed = numpy_load('%s.%s' % (filename, FE_IDS_VECS_FIXED), assert_exists=False)
-            if ids_fixed is not None:
+            if ids_fixed is None:
+                ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
+            else:
                 logger.debug('loaded ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
-                self._ids_fixed = set(ids_fixed)
-                self._ids_fixed_dict = None
-                self._ids_var_dict = None
+            self._ids_fixed = ids_fixed
+            self._ids_fixed_dict = None
+            self._ids_var_dict = None
         elif checkpoint_reader is not None:
+            assert self._ids_fixed is not None, 'ids_fixed is None'
             import model_fold
             saved_shapes = checkpoint_reader.get_variable_to_shape_map()
             if model_fold.VAR_NAME_LEXICON_VAR in saved_shapes:
@@ -510,7 +497,7 @@ class Lexicon(object):
             logger.info('added %i vecs from vocab and set %i to zero' % (count_added, len(self) - count_added))
             logger.debug('zero (first 100): %s' % ', '.join(not_found[:100]))
 
-            # fix loaded vecs
+            # set loaded vecs as fixed
             self._ids_fixed = np.array(found_indices, dtype=DTYPE_IDX)
 
         # TODO: check _fixed
@@ -685,13 +672,14 @@ class Lexicon(object):
             self._strings.add(prefix + s + suffix)
         self.clear_cached_values()
 
-    def update_fix_ids_and_abs_data(self, new_data):
-        new_ids_fix = new_data[new_data < 0]
-        if len(new_ids_fix) > 0:
-            np.abs(new_data, out=new_data)
-            self._ids_fixed = self._ids_fixed.update(new_ids_fix.tolist())
-            self._ids_fixed_dict = None
-            self._ids_var_dict = None
+    # self._ids_fixed is a numpy array!
+    #def update_fix_ids_and_abs_data(self, new_data):
+    #    new_ids_fix = new_data[new_data < 0]
+    #    if len(new_ids_fix) > 0:
+    #        np.abs(new_data, out=new_data)
+    #        self._ids_fixed = self._ids_fixed.update(new_ids_fix.tolist())
+    #        self._ids_fixed_dict = None
+    #        self._ids_var_dict = None
 
     def convert_data_hashes_to_indices(self, data, id_offset_mapping):
         s_uk = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
@@ -719,7 +707,7 @@ class Lexicon(object):
                           data_as_hashes=False)
 
     def is_fixed(self, idx):
-        return idx in self._ids_fixed
+        return idx in self.ids_fixed_dict
 
     def add_all(self, new_strings):
         for s in new_strings:
@@ -817,7 +805,8 @@ class Lexicon(object):
 
     @property
     def ids_fixed(self):
-        return np.array(sorted(list(self._ids_fixed)))
+        #return np.array(sorted(list(self._ids_fixed)))
+        return self._ids_fixed
 
     @property
     def ids_fixed_dict(self):

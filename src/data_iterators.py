@@ -132,9 +132,9 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                        np.ones(shape=2, dtype=int)]
                 n += 1
 
-                #if n > n_max:
+                #if n >= n_max:
                 #    break
-        #if n > n_max:
+        #if n >= n_max:
         #    break
     logging.info('created %i tree tuples' % n)
 
