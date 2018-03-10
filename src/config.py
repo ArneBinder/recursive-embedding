@@ -132,6 +132,11 @@ default_config = {'train_data_path': ['DEFINE_string',
                               'maximum depth of added context trees',
                               'cntxt'
                               ],
+                  'link_cost_ref': ['DEFINE_integer',
+                                    -1,     # negative indicates no link following
+                                    'How much following a link will cost. Negative values disable link following',
+                                    'lc'
+                                    ],
                   'model_type': ['DEFINE_string',
                                  'simtuple',
                                  'type of model',
