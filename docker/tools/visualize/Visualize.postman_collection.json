@@ -146,7 +146,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "127.0.0.1:5000/api/visualize?concat_mode=tree&idx_tuple_file=idx.0.npy&data_iterator=data_tuple_iterator_dbpedianif_bag_of_seealsos&tuple_start=0&tuple_end=10&max_depth=1000",
+					"raw": "127.0.0.1:5000/api/visualize?concat_mode=sequence&idx_tuple_file=idx.0.npy&data_iterator=data_tuple_iterator_dbpedianif&bag_of_seealsos=false&tuple_start=0&tuple_end=1&link_cost_ref=-1",
 					"host": [
 						"127",
 						"0",
@@ -161,7 +161,7 @@
 					"query": [
 						{
 							"key": "concat_mode",
-							"value": "tree",
+							"value": "sequence",
 							"equals": true
 						},
 						{
@@ -231,7 +231,12 @@
 						},
 						{
 							"key": "data_iterator",
-							"value": "data_tuple_iterator_dbpedianif_bag_of_seealsos",
+							"value": "data_tuple_iterator_dbpedianif",
+							"equals": true
+						},
+						{
+							"key": "bag_of_seealsos",
+							"value": "false",
 							"equals": true
 						},
 						{
@@ -241,7 +246,7 @@
 						},
 						{
 							"key": "tuple_end",
-							"value": "10",
+							"value": "1",
 							"equals": true
 						},
 						{
@@ -288,14 +293,14 @@
 						},
 						{
 							"key": "max_depth",
-							"value": "1000",
-							"equals": true
+							"value": "20",
+							"equals": true,
+							"disabled": true
 						},
 						{
 							"key": "link_cost_ref",
-							"value": "1",
-							"equals": true,
-							"disabled": true
+							"value": "-1",
+							"equals": true
 						},
 						{
 							"key": "context",

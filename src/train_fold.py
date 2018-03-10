@@ -31,7 +31,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
     TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO
 from config import Config
-from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif_bag_of_seealsos, data_tuple_iterator
+from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator
 
 # non-saveable flags
 tf.flags.DEFINE_string('logdir',
@@ -191,9 +191,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
     elif config.model_type == 'tuple':
         data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref}
-        data_iterator_train = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
-        data_iterator_dev = partial(data_tuple_iterator_dbpedianif_bag_of_seealsos, **data_iterator_args)
+                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
+                              'bag_of_seealsos': True}
+        data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
+        data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         tuple_size = 2
     elif config.model_type == 'x':
         # extensions = ['', '.negs1']

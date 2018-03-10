@@ -5,7 +5,7 @@ import os
 import sys
 
 from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
-    vocab_manual, KEY_CHILDREN
+    vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION
 from sequence_trees import Forest
 
 RECURSION_LIMIT_MIN = 1000
@@ -50,7 +50,7 @@ def data_tuple_iterator_reroot(sequence_trees, lexicon, neg_samples, indices=Non
         yield [_trees, _probs]
 
 
-def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset=2):
+def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset=2, link_types=[], remove_types=[]):
     idx_root = forest.roots[root]
     idx_context = idx_root + content_offset
     if root < len(forest.roots) - 1:
@@ -64,6 +64,20 @@ def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset
     data[:-1] = forest.data[idx_content_root:idx_next_root]
     # append 'nif:context'
     data[-1] = forest.data[idx_context]
+
+    # remove entries
+    indices_remove = []
+    # remove link entries
+    for link_type in link_types:
+        indices_remove.append(np.where(data == link_type)[0] + 1)
+    # remove other entries of specified types
+    for remove_type in remove_types:
+        indices_remove.append(np.where(data == remove_type)[0])
+    indices_remove_np = np.sort(np.concatenate(indices_remove))
+    mask = np.ones(data.shape, dtype=bool)
+    mask[indices_remove_np] = False
+    data = data[mask]
+
     if concat_mode == 'sequence':
         parents = np.ones(len(data), dtype=DTYPE_OFFSET)
         parents[-1] = 0
@@ -76,10 +90,11 @@ def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset
     return Forest(data=data, parents=parents, lexicon=lexicon)
 
 
-def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, concat_mode='tree',
-                                                   max_depth=9999, context=0, transform=True, offset_context=2,
-                                                   offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
-                                                   **unused):
+def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',
+                                   max_depth=9999, context=0, transform=True, offset_context=2,
+                                   offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
+                                   bag_of_seealsos=True,
+                                   **unused):
     # DEBUG: TODO: remove!
     #n_max = 4
 
@@ -99,6 +114,11 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
         #data_ref_transformed = data_ref
         data_ref_seealso_transformed = data_ref_seealso
         data_root_seealso_transformed = data_root_seealso
+
+    # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
+    remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
+                              TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
+    remove_types_naive = [lexicon.get_d(s, data_as_hashes=sequence_trees.data_as_hashes) for s in remove_types_naive_str]
 
     if link_cost_ref is not None:
         costs[data_ref] = link_cost_ref
@@ -128,7 +148,8 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                                                                 costs=costs,
                                                                 link_types=[data_ref, data_ref_seealso])
                 else:
-                    f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
+                    f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
+                                               link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
                     f_seealso.set_children_with_parents()
                     tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth-2, context=context, transform=transform)
                 children.append({KEY_HEAD: data_ref_seealso_transformed, KEY_CHILDREN: [tree_seealso]})
@@ -139,12 +160,19 @@ def data_tuple_iterator_dbpedianif_bag_of_seealsos(index_files, sequence_trees, 
                                                                 costs=costs,
                                                                 link_types=[data_ref, data_ref_seealso])
                 else:
-                    f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon)
+                    f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
+                                       link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
                     f.set_children_with_parents()
                     tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-                yield [[tree_context, {KEY_HEAD: data_root_seealso_transformed, KEY_CHILDREN: children}],
-                       np.ones(shape=2, dtype=int)]
-                n += 1
+                if bag_of_seealsos:
+                    yield [[tree_context, {KEY_HEAD: data_root_seealso_transformed, KEY_CHILDREN: children}],
+                           np.ones(shape=2, dtype=int)]
+                    n += 1
+                else:
+                    for child in children:
+                        # use fist child (^= the context) of tree_seealso
+                        yield [[tree_context, child[KEY_CHILDREN][0]], np.ones(shape=2, dtype=int)]
+                        n += 1
 
                 #if n >= n_max:
                 #    break

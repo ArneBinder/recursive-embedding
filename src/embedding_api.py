@@ -240,10 +240,12 @@ def get_or_calc_sequence_data(params):
 
         max_depth = params.get('max_depth', 100)
         context = params.get('context', 0)
+        bag_of_seealsos = (params.get('bag_of_seealsos', 'true').lower() in ['true', '1'])
 
         params['transformed_idx'] = True
         data_iterator_args = {'index_files': [fn], 'sequence_trees': current_forest, 'max_depth': max_depth,
-                              'context': context, 'transform': params['transformed_idx']}
+                              'context': context, 'transform': params['transformed_idx'],
+                              'bag_of_seealsos': bag_of_seealsos}
 
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
