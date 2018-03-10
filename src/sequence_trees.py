@@ -479,9 +479,6 @@ class Forest(object):
                                                                   link_types=link_types))
         return result
 
-    def data_back(self, data):
-        assert not self.data_as_hashes, 'can not calculate data_id for back link if data_as_hashes'
-        return data + len(self.lexicon) / 2
 
     def get_tree_dict_parent(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
         assert self.lexicon is not None, 'lexicon is not set'
@@ -490,7 +487,7 @@ class Forest(object):
             return None
         previous_id = idx
         current_id = idx + self.parents[idx]
-        data_head = self.data_back(self.data[current_id])
+        data_head = self.lexicon.data_back(self.data[current_id])
         if transform:
             data_head = self.lexicon.transform_idx(data_head)
         result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
@@ -510,7 +507,7 @@ class Forest(object):
             if self.parents[current_id] != 0:
                 previous_id = current_id
                 current_id = current_id + self.parents[current_id]
-                data_head = self.data_back(self.data[current_id])
+                data_head = self.lexicon.data_back(self.data[current_id])
                 if transform:
                     data_head = self.lexicon.transform_idx(data_head)
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}

@@ -750,6 +750,10 @@ class Lexicon(object):
         else:
             return self.ids_var[idx]
 
+    def data_back(self, data):
+        #assert not self.data_as_hashes, 'can not calculate data_id for back link if data_as_hashes'
+        return data + len(self) / 2
+
     @staticmethod
     def vocab_prefix(man_vocab_id):
         return constants.vocab_manual[man_vocab_id] + constants.SEPARATOR
