@@ -44,7 +44,7 @@
 				"header": [],
 				"body": {},
 				"url": {
-					"raw": "127.0.0.1:5000/api/load?path=/mnt/WIN/ML/data/corpora/DBPEDIANIF/100/merged/forest",
+					"raw": "127.0.0.1:5000/api/load?path=/mnt/DATA/ML/data/corpora_out/corpora/DBPEDIANIF/100/merged/forest",
 					"host": [
 						"127",
 						"0",
@@ -59,7 +59,7 @@
 					"query": [
 						{
 							"key": "path",
-							"value": "/mnt/WIN/ML/data/corpora/DBPEDIANIF/100/merged/forest",
+							"value": "/mnt/DATA/ML/data/corpora_out/corpora/DBPEDIANIF/100/merged/forest",
 							"equals": true
 						}
 					]
@@ -146,7 +146,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "127.0.0.1:5000/api/visualize?concat_mode=sequence&idx_tuple_file=idx.0&data_iterator=data_tuple_iterator_dbpedianif_bag_of_seealsos&tuple_start=0&tuple_end=10&max_depth=1000",
+					"raw": "127.0.0.1:5000/api/visualize?concat_mode=tree&idx_tuple_file=idx.0.npy&data_iterator=data_tuple_iterator_dbpedianif_bag_of_seealsos&tuple_start=0&tuple_end=10&max_depth=1000",
 					"host": [
 						"127",
 						"0",
@@ -161,7 +161,7 @@
 					"query": [
 						{
 							"key": "concat_mode",
-							"value": "sequence",
+							"value": "tree",
 							"equals": true
 						},
 						{
@@ -190,7 +190,7 @@
 						},
 						{
 							"key": "whitelist",
-							"value": "[\"sequences\", \"scores_gold\", \"embeddings\"]",
+							"value": "[\"sequences\", \"data_sequences\", \"scores_gold\", \"embeddings\"]",
 							"equals": true,
 							"disabled": true
 						},
@@ -226,7 +226,7 @@
 						},
 						{
 							"key": "idx_tuple_file",
-							"value": "idx.0",
+							"value": "idx.0.npy",
 							"equals": true
 						},
 						{
