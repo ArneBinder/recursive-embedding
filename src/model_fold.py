@@ -1013,8 +1013,8 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 
         # apply sim measure
         #self._scores = sim_measure(tree_embeddings_tiled_stacked)
-        #fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings_tiled_stacked, num_outputs=1000)
-        logits = tf.contrib.layers.fully_connected(inputs=tree_embeddings_tiled_stacked, num_outputs=2, activation_fn=None)
+        fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings_tiled_stacked, num_outputs=1000)
+        logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
         self._probs = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._scores_gold, logits=logits)
 
         #BaseTrainModel.__init__(self, tree_model=tree_model,
