@@ -12,8 +12,17 @@ RECURSION_LIMIT_MIN = 1000
 RECURSION_LIMIT_ADD = 100
 
 
-def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tries=10, max_depth=100, **unused):
+def data_tuple_iterator_reroot(sequence_trees, lexicon, neg_samples, indices=None, max_tries=10, max_depth=100,
+                               link_cost_ref=None, link_cost_ref_seealso=1, **unused):
     logging.debug('size of data: %i' % len(sequence_trees))
+
+    data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
+    data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+    costs = {}
+    if link_cost_ref is not None:
+        costs[data_ref] = link_cost_ref
+    costs[data_ref_seealso] = link_cost_ref_seealso
+
     # take all, if indices is not set
     if indices is None:
         indices = range(len(sequence_trees))
@@ -30,7 +39,8 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tr
         if try_count == max_tries:
             logging.warning('not enough samples: %i, required: %i' % (len(candidate_ids), neg_samples))
             continue
-        _trees = [sequence_trees.get_tree_dict_rooted(idx, max_depth=max_depth, transform=True)]
+        _trees = [sequence_trees.get_tree_dict_rooted(idx, max_depth=max_depth, transform=True, costs=costs,
+                                                      link_types=[data_ref, data_ref_seealso])]
         for idx_cand in candidate_ids:
             cand_tree = copy.deepcopy(_trees[0])
             cand_tree[KEY_HEAD] = sequence_trees.data[idx_cand]

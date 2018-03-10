@@ -209,8 +209,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         indices = None
         neg_samples = 9
         tuple_size = neg_samples + 1
-        data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices, neg_samples=neg_samples,
-                                      max_depth=config.max_depth, transform=True)
+        data_iterator_train = partial(data_tuple_iterator_reroot, lexicon=lexicon, indices=indices,
+                                      neg_samples=neg_samples, max_depth=config.max_depth, transform=True,
+                                      link_cost_ref=1)
         #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
         data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size,
                                     extensions=config.extensions.split(','), max_depth=config.max_depth,

@@ -292,7 +292,7 @@ def get_or_calc_sequence_data(params):
             params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
         for data_sequence in params['data_sequences']:
             token_list = Forest(forest=data_sequence, lexicon=lexicon,
-                                           data_as_hashes=params['data_as_hashes']).get_text_plain(
+                                data_as_hashes=params['data_as_hashes']).get_text_plain(
                 blacklist=params.get('prefix_blacklist', None))
             params['sequences'].append(" ".join(token_list))
     elif 'idx_start' in params:
@@ -316,14 +316,14 @@ def get_or_calc_sequence_data(params):
         costs = {}
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
+        d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
+        d_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
         if 'link_cost_ref' in params:
-            d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
             costs[d_ref] = params['link_cost_ref']
         if 'link_cost_ref_seealso' in params:
-            d_ref = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
-            costs[d_ref] = params['link_cost_ref_seealso']
+            costs[d_ref_seealso] = params['link_cost_ref_seealso']
         tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False,
-                                                 costs=costs)
+                                                 costs=costs, link_types=[d_ref, d_ref_seealso])
         vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes)
         params['data_as_hashes'] = vis_forest.data_as_hashes
         params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]
@@ -341,7 +341,7 @@ def get_or_calc_embeddings(params):
         max_depth = 150
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
-
+        # TODO: rework! (add link_types and costs)
         batch = [[[Forest(forest=parsed_data, lexicon=lexicon).get_tree_dict(max_depth=max_depth, transform=True)], []]
                  for parsed_data in data_sequences]
 

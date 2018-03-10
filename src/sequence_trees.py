@@ -5,8 +5,8 @@ import os
 
 import pydot
 
-from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN
-import constants
+from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
+    LOGGING_FORMAT, SEPARATOR, vocab_manual
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -20,7 +20,12 @@ FE_ROOT_POS = 'root.pos'
 
 MAX_DEPTH = 9999
 
-
+logger = logging.getLogger('sequence_trees')
+logger.setLevel(logging.DEBUG)
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
+logger.addHandler(logger_streamhandler)
 
 
 def _get_root(parents, idx):
@@ -108,7 +113,7 @@ def _sequence_node_to_sequence_trees(seq_tree):
 
 
 def _convert_data(data, converter, lex_size, new_idx_unknown):
-    logging.info('convert data ...')
+    logger.info('convert data ...')
     count_unknown = 0
     for i, d in enumerate(data):
         new_idx = converter[d]
@@ -118,7 +123,7 @@ def _convert_data(data, converter, lex_size, new_idx_unknown):
         else:
             data[i] = new_idx_unknown  # 0 #new_idx_unknown #mapping[constants.UNKNOWN_EMBEDDING]
             count_unknown += 1
-    logging.info('set ' + str(count_unknown) + ' of ' + str(len(data)) + ' data points to UNKNOWN')
+    logger.info('set ' + str(count_unknown) + ' of ' + str(len(data)) + ' data points to UNKNOWN')
     return data
 
 
@@ -178,7 +183,7 @@ class Forest(object):
         self._root_id_mapping = None
 
     def load(self, filename, load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True):
-        logging.debug('load data and parents from %s ...' % filename)
+        logger.debug('load data and parents from %s ...' % filename)
         #if os.path.exists('%s.%s' % (filename, FE_DATA)):
         self._data = numpy_load('%s.%s' % (filename, FE_DATA), assert_exists=False)
         self._as_hashes = False
@@ -275,14 +280,14 @@ class Forest(object):
         self._root_ids = root_ids
 
     def dump(self, filename, save_parents=True, save_children=True, save_root_ids=True, save_root_pos=True):
-        logging.debug('dump data ...')
+        logger.debug('dump data ...')
         if self.data_as_hashes:
             #self.data.dump('%s.%s' % (filename, FE_DATA_HASHES))
             numpy_dump('%s.%s' % (filename, FE_DATA_HASHES), self.data)
         else:
             #self.data.dump('%s.%s' % (filename, FE_DATA))
             numpy_dump('%s.%s' % (filename, FE_DATA), self.data)
-        logging.debug('dump parents ...')
+        logger.debug('dump parents ...')
         if save_parents and self.parents is not None:
             #self.parents.dump('%s.%s' % (filename, FE_PARENTS))
             numpy_dump('%s.%s' % (filename, FE_PARENTS), self.parents)
@@ -362,7 +367,7 @@ class Forest(object):
     def sample_all(self, sample_count=1, retry_count=10):
         if self.data_as_hashes:
             raise NotImplementedError('sample_all not implemented for data hashes')
-        logging.info('create negative samples for all data points ...')
+        logger.info('create negative samples for all data points ...')
         sampled_sim_tuples = []
         max_depth = np.max(self.depths)
         # sample for every depth only from trees with this depth
@@ -387,7 +392,7 @@ class Forest(object):
                     if len(current_sampled_indices) > sample_count:
                         break
                 if len(current_sampled_indices) <= sample_count:
-                    logging.warning('sampled less candidates (%i) than sample_count (%i) for idx=%i. Skip it.'
+                    logger.warning('sampled less candidates (%i) than sample_count (%i) for idx=%i. Skip it.'
                                     % (len(current_sampled_indices) - 1, sample_count, idx))
                 else:
                     sampled_sim_tuples.append(current_sampled_indices)
@@ -437,46 +442,41 @@ class Forest(object):
 
         # TODO: DEBUG
         s = self.lexicon.get_s(data_head, data_as_hashes=self.data_as_hashes)
-        # TODO: fix link following (especially for blanked link targets)
-        if data_head in link_types:
-            if transform:
-                data_head = self.lexicon.transform_idx(data_head)
-            return {KEY_HEAD: data_head, KEY_CHILDREN: []}
         # DEBUG end
 
-        # TODO: change to 1 as default
-        cost = costs.get(data_head, MAX_DEPTH)
+        cost = costs.get(data_head, 1)
 
         if transform:
-            data_head = self.lexicon.transform_idx(data_head)
-        seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
-        if self.has_children(idx) and max_depth > 0:
-            # TODO: change cost handling
+            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head), KEY_CHILDREN: []}
+        else:
+            seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
+
+        # ATTENTION: allows cost of 0!
+        if self.has_children(idx) and 0 <= cost <= max_depth:
             for child_offset in self.get_children(idx):
-                data_child = idx + child_offset
-                # TODO: change link handling
-                if cost < max_depth and data_child in self.root_id_pos:
-                    target_idx = self.root_id_pos[data_child] + link_content_offset
-                    seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
-                                                                     max_depth=max_depth - cost,
-                                                                     context=context, transform=transform,
-                                                                     costs=costs,
-                                                                     link_types=link_types))
-                else:
-                    seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=idx + child_offset, max_depth=max_depth - 1,
-                                                                     context=context, transform=transform,
-                                                                     costs=costs,
-                                                                     link_types=link_types))
+                target_idx = idx + child_offset
+                if data_head in link_types and self.data[target_idx] in self.root_id_pos:
+                #if cost < max_depth and idx_child in self.root_id_pos:
+                    target_idx = self.root_id_pos[self.data[target_idx]] + link_content_offset
+                    logger.debug('follow link (%s)' % s)
+
+                seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
+                                                                 max_depth=max_depth - cost,
+                                                                 context=context, transform=transform,
+                                                                 costs=costs,
+                                                                 link_types=link_types))
         if self.parents[idx] != 0 and context > 0:
-            seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-1, transform=transform,
-                                                                    costs=costs,
+            seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-cost,
+                                                                    transform=transform, costs=costs,
                                                                     link_types=link_types))
         return seq_node
 
-    def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False):
+    def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
         result = self.get_tree_dict(idx, max_depth=max_depth, transform=transform)
+        cost = costs.get(self.data[idx], 1)
         if self.parents[idx] != 0 and max_depth > 0:
-            result[KEY_CHILDREN].append(self.get_tree_dict_parent(idx, max_depth-1, transform=transform))
+            result[KEY_CHILDREN].append(self.get_tree_dict_parent(idx, max_depth-cost, transform=transform, costs=costs,
+                                                                  link_types=link_types))
         return result
 
     def data_back(self, data):
@@ -496,12 +496,15 @@ class Forest(object):
         result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         current_dict_tree = result
         while max_depth > 0:
+            current_d = self.data[current_id]
+            current_cost = costs.get(current_d, 1)
+
             # add other children
             for c in self.get_children(current_id):
                 c_id = current_id + c
                 if c_id != previous_id:
                     current_dict_tree[KEY_CHILDREN].append(
-                        self.get_tree_dict(c_id, max_depth=max_depth - 1, transform=transform, costs=costs,
+                        self.get_tree_dict(c_id, max_depth=max_depth - current_cost, transform=transform, costs=costs,
                                            link_types=link_types))
             # go up
             if self.parents[current_id] != 0:
@@ -513,7 +516,7 @@ class Forest(object):
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
                 current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child
-                max_depth -= 1
+                max_depth -= current_cost
             else:
                 break
         return result
@@ -659,7 +662,7 @@ class Forest(object):
                     target_index = i
                 graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
 
-        logging.debug('graph created. write to file ...')
+        logger.debug('graph created. write to file ...')
         # print(graph.to_string())
         graph.write_svg(filename, encoding='utf-8')
 
@@ -670,9 +673,9 @@ class Forest(object):
                 if l.startswith(b):
                     return None
 
-            for embedding_prefix in constants.vocab_manual.values():
-                if l.startswith(embedding_prefix + constants.SEPARATOR):
-                    return l[len(embedding_prefix + constants.SEPARATOR):]
+            for embedding_prefix in vocab_manual.values():
+                if l.startswith(embedding_prefix + SEPARATOR):
+                    return l[len(embedding_prefix + SEPARATOR):]
             return l
         else:
             return l
@@ -706,7 +709,7 @@ class Forest(object):
         return self._children[children_pos]
 
     def set_parents_with_children(self):
-        logging.warning('set_parents_with_children ...')
+        logger.warning('set_parents_with_children ...')
         assert self._children is not None and self._children_pos is not None, 'children arrays are None, can not ' \
                                                                               'create parents'
         self._parents = np.zeros(shape=len(self), dtype=DTYPE_OFFSET)
@@ -717,13 +720,13 @@ class Forest(object):
                 self._parents[c_idx] = -c_offset
 
     def set_children_with_parents(self):
-        #logging.warning('set_children_with_parents ...')
+        #logger.warning('set_children_with_parents ...')
         assert self._parents is not None, 'parents are None, can not create children arrays'
         children_dict, _ = _children_and_roots(self.parents)
 
-        _children_pos = np.zeros(shape=len(self), dtype=constants.DTYPE_IDX)
+        _children_pos = np.zeros(shape=len(self), dtype=DTYPE_IDX)
         # initialize with maximal size possible (if forest is a list)
-        _children = np.zeros(shape=2 * len(self), dtype=constants.DTYPE_OFFSET)
+        _children = np.zeros(shape=2 * len(self), dtype=DTYPE_OFFSET)
 
         pos = 0
         for idx in range(len(self)):
