@@ -168,7 +168,7 @@ class Forest(object):
             if transformed_indices:
                 assert not data_as_hashes, 'can not transform indices back if data_as_hashes'
                 for i in range(len(_data)):
-                    _data[i] = self.lexicon.transform_idx_back(_data[i])
+                    _data[i], _ = self.lexicon.transform_idx_back(_data[i])
             self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes, root_ids=root_ids)
         else:
             raise ValueError(
@@ -441,13 +441,13 @@ class Forest(object):
         data_head = self.data[idx]
 
         # TODO: DEBUG
-        s = self.lexicon.get_s(data_head, data_as_hashes=self.data_as_hashes)
+        #s = self.lexicon.get_s(data_head, data_as_hashes=self.data_as_hashes)
         # DEBUG end
 
         cost = costs.get(data_head, 1)
 
         if transform:
-            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head), KEY_CHILDREN: []}
+            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head, root_id_pos=self.root_id_pos), KEY_CHILDREN: []}
         else:
             seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
 
@@ -456,9 +456,8 @@ class Forest(object):
             for child_offset in self.get_children(idx):
                 target_idx = idx + child_offset
                 if data_head in link_types and self.data[target_idx] in self.root_id_pos:
-                #if cost < max_depth and idx_child in self.root_id_pos:
                     target_idx = self.root_id_pos[self.data[target_idx]] + link_content_offset
-                    logger.debug('follow link (%s)' % s)
+                    #logger.debug('follow link (%s)' % s)
 
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
                                                                  max_depth=max_depth - cost,
@@ -479,7 +478,6 @@ class Forest(object):
                                                                   link_types=link_types))
         return result
 
-
     def get_tree_dict_parent(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
         assert self.lexicon is not None, 'lexicon is not set'
 
@@ -487,9 +485,9 @@ class Forest(object):
             return None
         previous_id = idx
         current_id = idx + self.parents[idx]
-        data_head = self.lexicon.data_back(self.data[current_id])
-        if transform:
-            data_head = self.lexicon.transform_idx(data_head)
+        #data_head = self.lexicon.reverse_idx(self.data[current_id])
+        #if transform:
+        data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_id_pos=self.root_id_pos)
         result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         current_dict_tree = result
         while max_depth > 0:
@@ -507,9 +505,9 @@ class Forest(object):
             if self.parents[current_id] != 0:
                 previous_id = current_id
                 current_id = current_id + self.parents[current_id]
-                data_head = self.lexicon.data_back(self.data[current_id])
-                if transform:
-                    data_head = self.lexicon.transform_idx(data_head)
+                #data_head = self.lexicon.reverse_idx(self.data[current_id])
+                #if transform:
+                data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_id_pos=self.root_id_pos)
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
                 current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child
@@ -632,8 +630,9 @@ class Forest(object):
         if len(self) > 0:
             nodes = []
             for i, d in enumerate(self.data[start:end]):
+                reverted = False
                 if transformed:
-                    d = self.lexicon.transform_idx_back(d)
+                    d, reverted = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 if self.data_as_hashes:
                     d = self.lexicon.mapping[self.lexicon.strings[s]]
@@ -642,7 +641,13 @@ class Forest(object):
                 else:
                     color = "limegreen"
                 l = Forest.filter_and_shorten_label(s, do_filter=True)
-                nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
+
+                if reverted:
+                    nodes.append(pydot.Node(i, label="'" + l + "'", style="filled",
+                                            fillcolor='%s;0.5:white;0.5' % color,
+                                            gradientangle=135))
+                else:
+                    nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
 
             for node in nodes:
                 graph.add_node(node)
@@ -684,11 +689,14 @@ class Forest(object):
         result = []
         if len(self.data) > 0:
             for d in self.data[start:end]:
+                reverted = False
                 if transformed:
-                    d = self.lexicon.transform_idx_back(d)
+                    d, reverted = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
+                    if reverted:
+                        l += '_REV'
                     result.append(l)
         return result
 

@@ -272,12 +272,11 @@ def get_or_calc_sequence_data(params):
                 break
             for tree_dict in tree_dicts:
                 vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                                    data_as_hashes=current_forest.data_as_hashes,
-                                    transformed_indices=params['transformed_idx'])
+                                    data_as_hashes=current_forest.data_as_hashes)
 
                 params['data_sequences'].append([vis_forest.data, vis_forest.parents])
-                token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None))#,
-                                                       #transformed=params['transformed_idx'])
+                token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
+                                                       transformed=params['transformed_idx'])
                 params['sequences'].append(token_list)
             for prob in probs:
                 params['scores_gold'].append(prob)
@@ -324,12 +323,16 @@ def get_or_calc_sequence_data(params):
             costs[d_ref] = params['link_cost_ref']
         if 'link_cost_ref_seealso' in params:
             costs[d_ref_seealso] = params['link_cost_ref_seealso']
-        tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=False,
+        params['transformed_idx'] = True
+        tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
+                                                 transform=params['transformed_idx'],
                                                  costs=costs, link_types=[d_ref, d_ref_seealso])
-        vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes)
+        vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
+                            data_as_hashes=current_forest.data_as_hashes)
         params['data_as_hashes'] = vis_forest.data_as_hashes
         params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]
-        token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None))
+        token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
+                                               transformed=params['transformed_idx'])
         params['sequences'] = [token_list]
 
 
@@ -515,8 +518,7 @@ def visualize():
                     root_ids = None
                 forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'],
                                      root_ids=root_ids)
-                # forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False))
-                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i))
+                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False))
             assert len(params['data_sequences']) > 0, 'empty data_sequences'
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
@@ -699,10 +701,11 @@ def main(data_source):
         lexicon.merge(lexicon_nlp, add=True, remove=False)
 
     # has to happen after integration of additional lexicon data (external_lexicon or merge_nlp_lexicon)
-    if not checkpoint:
-        lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
-    else:
-        lexicon.pad()
+    #if not checkpoint:
+    #    lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+    #else:
+    #    lexicon.pad()
+    if checkpoint:
         assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
                                   (len(lexicon), len(lexicon.vecs))
 

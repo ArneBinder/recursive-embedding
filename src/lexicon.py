@@ -8,7 +8,8 @@ import logging
 import os
 
 from preprocessing import read_data, without_prefix, PREFIX_LEX
-from constants import DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, LOGGING_FORMAT
+from constants import vocab_manual, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, LOGGING_FORMAT, IDENTITY_EMBEDDING, \
+    UNKNOWN_EMBEDDING
 from sequence_trees import Forest
 from mytools import numpy_dump, numpy_load, numpy_exists
 
@@ -725,34 +726,44 @@ class Lexicon(object):
             self._strings.add(s)
         self.clear_cached_values()
 
-    def transform_idx(self, idx):
+    def transform_idx(self, idx, revert=False, root_id_pos={}):
         """
         transform lexicon (vec) index to index for vecs_fix (negative) or vecs_var (positive) index
         :param idx: the index to transform
+        :param revert: iff True, encode as "reverted" edge
         :return: the transformed index
         """
         idx_trans = self.ids_fixed_dict.get(idx, None)
         if idx_trans is not None:
+            if revert:
+                idx_trans += len(self)
             return -idx_trans
         idx_trans = self.ids_var_dict.get(idx, None)
         if idx_trans is not None:
+            if revert:
+                idx_trans += len(self)
             return idx_trans
-        raise ValueError('idx=%i not in ids_fixed and not in ids_var' % idx)
+        idx_trans = root_id_pos.get(idx, None)
+        if idx_trans is not None:
+            return self.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+
+        raise ValueError('idx=%i not in ids_fixed, ids_var or root_id_pos' % idx)
 
     def transform_idx_back(self, idx):
         """
         revert transform_idx: transform index for vecs_fix (negative) or vecs_var (positive) index into lexicon index
         :param idx: the negative (-> fixed vec) or positive (-> var vec) index
-        :return: the lexicon index
+        :return: the lexicon index, True iff idx was reverted else False
         """
         if idx < 0:
-            return self.ids_fixed[-idx]
+            idx = -idx
+            reverted = (idx / len(self) == 1)
+            idx = idx % len(self)
+            return self.ids_fixed[idx], reverted
         else:
-            return self.ids_var[idx]
-
-    def data_back(self, data):
-        #assert not self.data_as_hashes, 'can not calculate data_id for back link if data_as_hashes'
-        return data + len(self) / 2
+            reverted = (idx / len(self) == 1)
+            idx = idx % len(self)
+            return self.ids_var[idx], reverted
 
     @staticmethod
     def vocab_prefix(man_vocab_id):
@@ -778,19 +789,19 @@ class Lexicon(object):
             if d in self.mapping:
                 return self.strings[d]
             else:
-                return constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+                return vocab_manual[UNKNOWN_EMBEDDING]
         else:
             if d < len(self):
                 return self.strings[self.types[d]]
             else:
-                return constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
+                return vocab_manual[UNKNOWN_EMBEDDING]
 
     def get_d(self, s, data_as_hashes):
 
         if s in self.strings:
             d = self.strings[s]
         else:
-            d = self.strings[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]
+            d = self.strings[vocab_manual[UNKNOWN_EMBEDDING]]
 
         if data_as_hashes:
             return d
