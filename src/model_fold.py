@@ -20,6 +20,7 @@ VAR_NAME_LEXICON_FIX = 'embeddings_fix'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 VAR_PREFIX_FC_LEAF = 'FC_embedding'
 VAR_PREFIX_FC_ROOT = 'FC_output'
+VAR_PREFIX_FC_REVERSE = 'FC_reverse'
 VAR_PREFIX_TREE_EMBEDDING = 'TreeEmbedding'
 VAR_PREFIX_SIM_MEASURE = 'sim_measure'
 
@@ -233,6 +234,10 @@ class TreeEmbedding(object):
             else:
                 self._root_fc = td.Identity()
 
+            self._reverse_fc = fc_scoped(num_units=self._dim_embeddings,
+                                         activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
+                                         name=VAR_PREFIX_FC_REVERSE + '_%d' % self._dim_embeddings)
+
     def embed_dep(self):
         # negative values indicate enabled head dropout
         def helper(x, keep_prob):
@@ -251,15 +256,29 @@ class TreeEmbedding(object):
 
     def embed(self):
         # get the head embedding from id
-        if self._lex_size_fix > 0 and self._lex_size_var > 0:
-            return td.OneOf(key_fn=(lambda x: x >= 0),
-                            case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_var, x)),
-                                         False: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.abs(x)))})
+        #if self._lex_size_fix > 0 and self._lex_size_var > 0:
+        return td.OneOf(key_fn=(lambda x: (x >= 0, abs(x) // (self._lex_size_fix + self._lex_size_var))),
+                        case_blocks={
+                            # trainable embedding
+                            (True, 0):  td.Scalar(dtype='int32')
+                                        >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size))),
+                            # fixed embedding
+                            (False, 0): td.Scalar(dtype='int32')
+                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x), self.lexicon_size))),
+                            # trainable embedding for "reverted" edge
+                            (True, 1):  td.Scalar(dtype='int32')
+                                        >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size)))
+                                        >> self._reverse_fc,
+                            # fixed embedding for "reverted" edge
+                            (False, 1): td.Scalar(dtype='int32')
+                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x), self.lexicon_size)))
+                                        >> self._reverse_fc,
+                        })
         # compatibility
-        if self._lex_size_fix > 0:
-            return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.abs(x)))
-        if self._lex_size_var > 0:
-            return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_var, x))
+        #if self._lex_size_fix > 0:
+        #    return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.abs(x)))
+        #if self._lex_size_var > 0:
+        #    return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_var, x))
 
     def head(self, name='head_embed'):
         #return td.Pipe(td.GetItem(KEY_HEAD), td.Scalar(dtype='int32'), self.embed(), name=name)
@@ -319,6 +338,10 @@ class TreeEmbedding(object):
     @property
     def lexicon_fix_placeholder(self):
         return self._lexicon_fix_placeholder
+
+    @property
+    def lexicon_size(self):
+        return self._lex_size_fix + self._lex_size_var
 
     @property
     def keep_prob(self):
@@ -904,7 +927,7 @@ class SequenceTreeModel(object):
 
     @property
     def tree_output_size(self):
-        return int(self._tree_embeddings_all.get_shape().as_list()[1] / self.tree_count)
+        return self._tree_embeddings_all.get_shape().as_list()[1] // self.tree_count
 
 
 class BaseTrainModel(object):

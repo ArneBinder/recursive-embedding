@@ -757,11 +757,11 @@ class Lexicon(object):
         """
         if idx < 0:
             idx = -idx
-            reverted = (idx / len(self) == 1)
+            reverted = (idx // len(self) == 1)
             idx = idx % len(self)
             return self.ids_fixed[idx], reverted
         else:
-            reverted = (idx / len(self) == 1)
+            reverted = (idx // len(self) == 1)
             idx = idx % len(self)
             return self.ids_var[idx], reverted
 
