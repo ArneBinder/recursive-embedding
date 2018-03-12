@@ -145,7 +145,16 @@ default_config = {'train_data_path': ['DEFINE_string',
                                   'tree',
                                   'how to concatenate the tokens (tree: use tree structure, sequence: as ordered '
                                   'sequence, aggregate: bag-of-tokens)',
-                                  'cm']
+                                  'cm'],
+                  'neg_samples': ['DEFINE_integer',
+                                  0,
+                                  'count of negative samples per tree',
+                                  'ns'
+                                  ],
+                  'cut_indices': ['DEFINE_integer',
+                                  None,
+                                  'If not None, use only the first cut_indices entries in the data to train the REROOT model',
+                                  'nds'],
                   }
 
 
