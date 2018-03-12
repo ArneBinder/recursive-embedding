@@ -35,7 +35,8 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tr
 
     # take all, if indices is not set
     if indices is None:
-        indices = range(len(sequence_trees))
+        indices = np.arange(len(sequence_trees))# range(len(sequence_trees))
+    logger.info('size of used indices: %i' % len(indices))
     for idx in indices:
         #candidate_ids = []
         candidate_data = []

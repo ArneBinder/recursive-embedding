@@ -208,7 +208,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tuple_size = 2
         discrete_model = True
     elif config.model_type == 'reroot':
-        indices = config.cut_indices
+        if config.cut_indices is not None:
+            indices = np.arange(config.cut_indices)
+        else:
+            indices = None
         neg_samples = config.neg_samples
         tuple_size = neg_samples + 1
         data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices,
@@ -341,7 +344,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph),
                 init_fn=load_pretrain if pre_train_saver is not None else None
             )
-            test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
+            if dev_iterator is not None or test_iterator is not None:
+                test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
             sess = supervisor.PrepareSession(FLAGS.master)
 
             if lexicon.is_filled:
