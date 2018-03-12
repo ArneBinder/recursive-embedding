@@ -30,7 +30,7 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
-from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX
+from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET
 import data_iterators
 
 TEMP_FN_SVG = 'temp_forest.svg'
@@ -238,6 +238,9 @@ def get_or_calc_sequence_data(params):
         assert 'data_iterator' in params, 'parameter data_iterator is not given, can not iterate idx_tuple_file'
         data_iterator = getattr(data_iterators, params['data_iterator'])
 
+        if current_forest.data_as_hashes:
+            current_forest.hashes_to_indices()
+
         max_depth = params.get('max_depth', 100)
         context = params.get('context', 0)
         bag_of_seealsos = (params.get('bag_of_seealsos', 'true').lower() in ['true', '1'])
@@ -246,9 +249,6 @@ def get_or_calc_sequence_data(params):
         data_iterator_args = {'index_files': [fn], 'sequence_trees': current_forest, 'max_depth': max_depth,
                               'context': context, 'transform': params['transformed_idx'],
                               'bag_of_seealsos': bag_of_seealsos}
-
-        if current_forest.data_as_hashes:
-            current_forest.hashes_to_indices()
 
         if 'link_cost_ref' in params:
             data_iterator_args['link_cost_ref'] = params['link_cost_ref']
@@ -314,11 +314,13 @@ def get_or_calc_sequence_data(params):
         max_depth = params.get('max_depth', 10)
         context = params.get('context', 0)
         idx = params['idx']
-        costs = {}
+
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
+
         d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
         d_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
+        costs = {}
         if 'link_cost_ref' in params:
             costs[d_ref] = params['link_cost_ref']
         if 'link_cost_ref_seealso' in params:
@@ -334,6 +336,45 @@ def get_or_calc_sequence_data(params):
         token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
                                                transformed=params['transformed_idx'])
         params['sequences'] = [token_list]
+    elif 'reroot_start' in params:
+        if current_forest.data_as_hashes:
+            current_forest.hashes_to_indices()
+
+        tree_start = params.get('reroot_start', 0)
+        tree_end = params.get('reroot_end', len(current_forest))
+        max_depth = params.get('max_depth', 100)
+        #context = params.get('context', 0)
+
+        params['transformed_idx'] = True
+        params['sequences'] = []
+        params['data_sequences'] = []
+        params['data_as_hashes'] = current_forest.data_as_hashes
+
+        for i, (tree_dict, candidate_heads) \
+                in enumerate(data_iterators.data_tuple_iterator_reroot(sequence_trees=current_forest, neg_samples=10,
+                                                                       max_tries=10, max_depth=max_depth,
+                                                                       link_cost_ref=params.get('link_cost_ref', None),
+                                                                       link_cost_ref_seealso=params.get('link_cost_ref_seealso', -1),
+                                                                       transform=params['transformed_idx'])):
+            if i < tree_start:
+                continue
+            if 0 <= tree_end <= i:
+                break
+
+            vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
+                                data_as_hashes=current_forest.data_as_hashes)
+            params['data_sequences'].append([vis_forest.data, vis_forest.parents])
+            token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
+                                                   transformed=params['transformed_idx'])
+            params['sequences'].append(token_list)
+
+            canidates_forest = Forest(data=candidate_heads,
+                                      parents=np.zeros(shape=len(candidate_heads), dtype=DTYPE_OFFSET),
+                                      lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes)
+            params['data_sequences'].append([canidates_forest.data, canidates_forest.parents])
+            token_list = canidates_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
+                                                         transformed=params['transformed_idx'])
+            params['sequences'].append(token_list)
 
 
 def get_or_calc_embeddings(params):

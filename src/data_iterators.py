@@ -1,23 +1,33 @@
 import logging
-import copy
 import numpy as np
 import os
 import sys
 
 from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
-    vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION
+    vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, \
+    LOGGING_FORMAT, IDENTITY_EMBEDDING
 from sequence_trees import Forest
 
 RECURSION_LIMIT_MIN = 1000
 RECURSION_LIMIT_ADD = 100
 
+logger = logging.getLogger('data_iterators')
+logger.setLevel(logging.DEBUG)
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
+logger.addHandler(logger_streamhandler)
 
-def data_tuple_iterator_reroot(sequence_trees, lexicon, neg_samples, indices=None, max_tries=10, max_depth=100,
-                               link_cost_ref=None, link_cost_ref_seealso=1, **unused):
-    logging.debug('size of data: %i' % len(sequence_trees))
 
+def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tries=10, max_depth=100,
+                               link_cost_ref=None, link_cost_ref_seealso=-1, transform=True, **unused):
+    logger.debug('size of data: %i' % len(sequence_trees))
+    logger.debug('size of lexicon: %i' % len(sequence_trees.lexicon))
+
+    lexicon = sequence_trees.lexicon
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+    #data_identity = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
     costs = {}
     if link_cost_ref is not None:
         costs[data_ref] = link_cost_ref
@@ -27,27 +37,31 @@ def data_tuple_iterator_reroot(sequence_trees, lexicon, neg_samples, indices=Non
     if indices is None:
         indices = range(len(sequence_trees))
     for idx in indices:
-        candidate_ids = []
+        #candidate_ids = []
+        candidate_data = []
         try_count = 0
-        while len(candidate_ids) < neg_samples and try_count < max_tries:
+        while len(candidate_data) < neg_samples and try_count < max_tries:
             idx_cand = np.random.randint(len(sequence_trees), size=1)[0]
-            if idx_cand != idx and sequence_trees.data[idx_cand] != sequence_trees.data[idx] and idx_cand not in candidate_ids:
-                candidate_ids.append(idx_cand)
+            data_cand = sequence_trees.data[idx_cand]
+            if data_cand != sequence_trees.data[idx]:# \
+                    #and idx_cand not in candidate_ids:#\
+                    #and sequence_trees.data[idx_cand] not in sequence_trees.root_id_mapping:
+                #if data_cand in sequence_trees.root_id_mapping:
+                #    data_cand = data_identity
+                candidate_data.append(data_cand)
             else:
                 try_count += 1
 
         if try_count == max_tries:
-            logging.warning('not enough samples: %i, required: %i' % (len(candidate_ids), neg_samples))
+            logger.warning('not enough samples: %i, required: %i. skip idx=%i' % (len(candidate_data), neg_samples, idx))
             continue
-        _trees = [sequence_trees.get_tree_dict_rooted(idx, max_depth=max_depth, transform=True, costs=costs,
-                                                      link_types=[data_ref, data_ref_seealso])]
-        for idx_cand in candidate_ids:
-            cand_tree = copy.deepcopy(_trees[0])
-            cand_tree[KEY_HEAD] = sequence_trees.data[idx_cand]
-            _trees.append(cand_tree)
-        _probs = np.zeros(neg_samples + 1)
-        _probs[0] = 1.
-        yield [_trees, _probs]
+        tree = sequence_trees.get_tree_dict_rooted(idx=idx, max_depth=max_depth, transform=transform,
+                                                   costs=costs, link_types=[data_ref, data_ref_seealso])
+        if transform:
+            for i in range(len(candidate_data)):
+                candidate_data[i] = lexicon.transform_idx(idx=candidate_data[i], root_id_pos=sequence_trees.root_id_pos)
+
+        yield [tree, candidate_data]
 
 
 def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset=2, link_types=[], remove_types=[]):
@@ -178,7 +192,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tre
                 #    break
         #if n >= n_max:
         #    break
-    logging.info('created %i tree tuples' % n)
+    logger.info('created %i tree tuples' % n)
 
 
 def load_sim_tuple_indices(filename, extensions=None):
@@ -189,7 +203,7 @@ def load_sim_tuple_indices(filename, extensions=None):
     for ext in extensions:
         if not os.path.isfile(filename + ext):
             raise IOError('file not found: %s' % filename + ext)
-        logging.debug('load idx file: %s' % filename + ext)
+        logger.debug('load idx file: %s' % filename + ext)
         _loaded = np.load(filename + ext).T
         if _loaded.dtype.kind == 'f':
             n = (len(_loaded) - 1) / 2
