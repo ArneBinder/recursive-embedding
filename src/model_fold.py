@@ -1098,3 +1098,29 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
+
+class SequenceTreeRerootModel(BaseTrainModel):
+
+    def __init__(self, tree_model, **kwargs):
+
+        #batch_size = tf.shape(tree_model.embeddings_shaped)[0]
+
+        # unpack tree embeddings
+        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_output_size])
+
+        # unpack (flatten) probs_gold.
+        self._probs_gold = tf.reshape(tree_model.probs_gold, shape=[tf.shape(tree_embeddings)[0]])
+
+        fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=1000)
+        logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
+        self._probs = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._probs_gold, logits=logits)
+
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(self._probs), **kwargs)
+
+    @property
+    def probs_gold(self):
+        return self._probs_gold
+
+    @property
+    def probs(self):
+        return self._probs

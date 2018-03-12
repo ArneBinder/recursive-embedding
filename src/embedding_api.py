@@ -30,7 +30,7 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
-from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET
+from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN
 import data_iterators
 
 TEMP_FN_SVG = 'temp_forest.svg'
@@ -350,7 +350,7 @@ def get_or_calc_sequence_data(params):
         params['data_sequences'] = []
         params['data_as_hashes'] = current_forest.data_as_hashes
 
-        for i, (tree_dict, candidate_heads) \
+        for i, [(tree_dict_children, candidate_heads), probs] \
                 in enumerate(data_iterators.data_tuple_iterator_reroot(sequence_trees=current_forest, neg_samples=10,
                                                                        max_tries=10, max_depth=max_depth,
                                                                        link_cost_ref=params.get('link_cost_ref', None),
@@ -361,6 +361,7 @@ def get_or_calc_sequence_data(params):
             if 0 <= tree_end <= i:
                 break
 
+            tree_dict = {KEY_HEAD: candidate_heads[0], KEY_CHILDREN: tree_dict_children}
             vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
                                 data_as_hashes=current_forest.data_as_hashes)
             params['data_sequences'].append([vis_forest.data, vis_forest.parents])
@@ -368,8 +369,8 @@ def get_or_calc_sequence_data(params):
                                                    transformed=params['transformed_idx'])
             params['sequences'].append(token_list)
 
-            canidates_forest = Forest(data=candidate_heads,
-                                      parents=np.zeros(shape=len(candidate_heads), dtype=DTYPE_OFFSET),
+            canidates_forest = Forest(data=candidate_heads[1:],
+                                      parents=np.zeros(shape=len(candidate_heads)-1, dtype=DTYPE_OFFSET),
                                       lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes)
             params['data_sequences'].append([canidates_forest.data, canidates_forest.parents])
             token_list = canidates_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),

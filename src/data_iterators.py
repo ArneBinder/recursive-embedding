@@ -61,7 +61,12 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tr
             for i in range(len(candidate_data)):
                 candidate_data[i] = lexicon.transform_idx(idx=candidate_data[i], root_id_pos=sequence_trees.root_id_pos)
 
-        yield [tree, candidate_data]
+        children = tree[KEY_CHILDREN]
+        candidate_data = [tree[KEY_HEAD]] + candidate_data
+        if len(children) > 0:
+            probs = np.zeros(shape=len(candidate_data), dtype=int)
+            probs[0] = 1
+            yield [(children, candidate_data), probs]
 
 
 def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset=2, link_types=[], remove_types=[]):

@@ -211,11 +211,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tuple_size = neg_samples + 1
         data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices,
                                       neg_samples=neg_samples, max_depth=config.max_depth, transform=True,
-                                      link_cost_ref=1)
+                                      link_cost_ref=-1, link_cost_ref_seealso=-1)
         #data_iterator_dev = partial(data_tuple_iterator_reroot, indices=range(size, size+1000), neg_samples=neg_samples, max_depth=max_depth)
-        data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size,
-                                    extensions=config.extensions.split(','), max_depth=config.max_depth,
-                                    context=config.context, transform=True)
+        #data_iterator_dev = partial(data_tuple_iterator, root_idx=ROOT_idx, merge=True, count=tuple_size,
+        #                            extensions=config.extensions.split(','), max_depth=config.max_depth,
+        #                            context=config.context, transform=True)
+        data_iterator_dev = None
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -240,7 +241,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         logging.info('use ' + test_fname + ' for testing')
         del train_fnames[config.dev_file_index]
         train_iterator = partial(data_iterator_train, index_files=train_fnames)
-        dev_iterator = partial(data_iterator_dev, index_files=[test_fname])
+        if data_iterator_dev is not None:
+            dev_iterator = partial(data_iterator_dev, index_files=[test_fname])
+        else:
+            dev_iterator = None
     elif test_only:
         assert test_iterator is not None, 'flag "test_file" has to be set if flag "test_only" is enabled, but it is None'
         train_iterator = None
@@ -292,19 +296,20 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                 #sim_measure=sim_measure,
                                                                                 clipping_threshold=config.clipping)
                 model_train = model_test
-            elif config.model_type == 'x':
+            elif config.model_type == 'reroot':
                 # has to be created first #TODO: really?
                 model_train = model_fold.ScoredSequenceTreeTupleModel_independent(tree_model=model_tree,
                                                                                   optimizer=optimizer,
                                                                                   learning_rate=config.learning_rate,
                                                                                   clipping_threshold=config.clipping)
                 # TODO: takes only every (neg_samples + 1)/2 example... fix!
-                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                                                                         optimizer=None,
-                                                                         learning_rate=config.learning_rate,
-                                                                         sim_measure=sim_measure,
-                                                                         clipping_threshold=config.clipping)
+                #model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                #                                                         optimizer=None,
+                #                                                         learning_rate=config.learning_rate,
+                #                                                         sim_measure=sim_measure,
+                #                                                         clipping_threshold=config.clipping)
                 #model_test = model_train
+                model_test = None
             else:
                 raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -488,14 +493,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                     # train
                     if not config.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, _, _, _ = do_epoch(model_train, shuffled, epoch,
-                                                       discrete_model=(config.model_type == 'tuple')) #new_model=config.data_single)
+                        step_train, loss_train, _, _ = do_epoch(model_train, shuffled, epoch,
+                                                                discrete_model=(config.model_type in ['tuple', 'reroot'])) #new_model=config.data_single)
 
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
                                                                                train=False, test_step=step_train,
-                                                                               discrete_model=(config.model_type == 'tuple'))
+                                                                               discrete_model=(config.model_type in ['tuple', 'reroot']))
 
                         if loss_test < loss_test_best:
                             loss_test_best = loss_test
@@ -544,6 +549,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
                                 supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
                     else:
+                        # TODO: when does that case occur?
+                        # TODO: add printout (step_train, loss_train)
                         supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
                 logger.removeHandler(fh_info)
