@@ -29,7 +29,7 @@ import model_fold
 import mytools
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
-    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO
+    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT
 from config import Config
 from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator
 
@@ -76,6 +76,14 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
 FLAGS = tf.flags.FLAGS
 
 
+logger = logging.getLogger('')
+logger.setLevel(logging.DEBUG)
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
+#logger.addHandler(logger_streamhandler)
+
+
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
     summary = tf.Summary()
     for name, value in six.iteritems(values):
@@ -116,16 +124,17 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
-    logging.info('logdir: %s' % logdir)
+    logger.info('logdir: %s' % logdir)
     if not os.path.isdir(logdir):
         os.makedirs(logdir)
 
-    logger = logging.getLogger('')
     fh_debug = logging.FileHandler(os.path.join(logdir, 'train-debug.log'))
     fh_debug.setLevel(logging.DEBUG)
+    fh_debug.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(fh_debug)
     fh_info = logging.FileHandler(os.path.join(logdir, 'train-info.log'))
     fh_info.setLevel(logging.INFO)
+    fh_info.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(fh_info)
 
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
@@ -138,11 +147,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     if checkpoint_fn:
         if not checkpoint_fn.startswith(logdir):
             raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
-        logging.info('read lex_size from model ...')
+        logger.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
-        logging.debug(saved_shapes)
-        logging.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
+        logger.debug(saved_shapes)
+        logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
         lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
@@ -155,7 +164,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         if logdir_pretrained:
-            logging.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
+            logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
             old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
             assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
@@ -177,9 +186,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
         test_result_writer.writeheader()
 
-    logging.info('lexicon size: %i' % len(lexicon))
-    logging.debug('IDENTITY_idx: %i' % IDENTITY_idx)
-    logging.debug('ROOT_idx: %i' % ROOT_idx)
+    logger.info('lexicon size: %i' % len(lexicon))
+    logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
+    logger.debug('ROOT_idx: %i' % ROOT_idx)
 
     # TRAINING and TEST DATA ###########################################################################################
 
@@ -228,7 +237,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     else:
         test_iterator = None
     if not (test_only or init_only):
-        logging.info('collect train data from: ' + config.train_data_path + ' ...')
+        logger.info('collect train data from: ' + config.train_data_path + ' ...')
         regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
         train_fnames = filter(regex.search, os.listdir(parent_dir))
         # regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
@@ -236,9 +245,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         # TODO: use train_fnames_negs
         train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
         assert len(train_fnames) > 0, 'no matching train data files found for ' + config.train_data_path
-        logging.info('found ' + str(len(train_fnames)) + ' train data files')
+        logger.info('found ' + str(len(train_fnames)) + ' train data files')
         test_fname = train_fnames[config.dev_file_index]
-        logging.info('use ' + test_fname + ' for testing')
+        logger.info('use ' + test_fname + ' for testing')
         del train_fnames[config.dev_file_index]
         train_iterator = partial(data_iterator_train, index_files=train_fnames)
         if data_iterator_dev is not None:
@@ -263,11 +272,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     sim_measure = getattr(model_fold, config.sim_measure)
     tree_embedder = getattr(model_fold, config.tree_embedder)
 
-    logging.info('create tensorflow graph ...')
+    logger.info('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-            logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
-            logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
+            logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
+            logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
             # Build the graph.
             model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
                                                       lex_size_var=lexicon.len_var,
@@ -316,7 +325,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             # PREPARE TRAINING #########################################################################################
 
             if old_checkpoint_fn is not None:
-                logging.info(
+                logger.info(
                     'restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...' % old_checkpoint_fn)
                 lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_VAR) \
                                + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_FIX)
@@ -346,7 +355,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             sess = supervisor.PrepareSession(FLAGS.master)
 
             if lexicon.is_filled:
-                logging.info('init embeddings with external vectors...')
+                logger.info('init embeddings with external vectors...')
                 feed_dict = {}
                 model_vars = []
                 if lexicon.len_fixed > 0:
@@ -392,7 +401,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 if emit:
                     emit_values(supervisor, sess, step, emit_dict, writer=writer, csv_writer=csv_writer)
                 if print_out:
-                    logging.info(info_string)
+                    logger.info(info_string)
 
             # TRAINING #################################################################################################
 
@@ -431,8 +440,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 if train and len(_result_all) > 0:
                     step = result_all['step'][-1]
 
-                # logging.debug(np.concatenate(score_all).tolist())
-                # logging.debug(np.concatenate(score_all_gold).tolist())
+                # logger.debug(np.concatenate(score_all).tolist())
+                # logger.debug(np.concatenate(score_all_gold).tolist())
 
                 if discrete_model:
                     sizes = [len(result_all['probs_gold'][i]) for i in range(len(_result_all))]
@@ -454,11 +463,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 if model_test is not None:
 
                     if test_iterator is not None:
-                        logging.info('create test data set ...')
+                        logger.info('create test data set ...')
                         test_set = list(
                             model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=forest),
                                                                              ordered=True))
-                        logging.info('test data size: ' + str(len(test_set)))
+                        logger.info('test data size: ' + str(len(test_set)))
                         if train_iterator is None:
                             step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False,
                                                                                  emit=False)
@@ -470,20 +479,20 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             lexicon.dump(filename=os.path.join(logdir, 'model'))
                             return p_r, np.mean(np.square(score_all - score_all_gold))
 
-                    logging.info('create dev data set ...')
+                    logger.info('create dev data set ...')
                     dev_set = list(
                         model_test.tree_model.compiler.build_loom_inputs(dev_iterator(sequence_trees=forest)))
-                    logging.info('dev data size: ' + str(len(dev_set)))
+                    logger.info('dev data size: ' + str(len(dev_set)))
 
                 # clear vecs in lexicon to clean up memory
                 lexicon.init_vecs()
 
-                logging.info('create train data set ...')
+                logger.info('create train data set ...')
                 # data_train = list(train_iterator)
                 train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
-                # logging.info('train data size: ' + str(len(data_train)))
+                # logger.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
-                logging.info('training the model')
+                logger.info('training the model')
                 loss_test_best = 9999
                 TEST_MIN_INIT = -1
                 test_p_rs = [TEST_MIN_INIT]
@@ -529,11 +538,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         emit_values(supervisor, sess, step_test, values={'queue_length': len(test_p_rs), 'rank': rank},
                                     writer=test_writer)
 
-                        logging.debug(
+                        logger.info(
                             'pearson_r rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i' % (
                             len(test_p_rs), rank, round((p_r - prev_max), 6), max_queue_length))
                         if 0 < config.early_stop_queue < len(test_p_rs):
-                            logging.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
+                            logger.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
                             return test_p_rs_sorted[0], loss_test_best
@@ -559,18 +568,18 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
 if __name__ == '__main__':
     mytools.logging_init()
-    logging.debug('test')
+    logger.debug('test')
     # tf.app.run()
     # ATTENTION: discards any FLAGS (e.g. provided as argument) contained in default_config!
     if FLAGS.logdir_continue is not None and ',' in FLAGS.logdir_continue:
         logdirs = FLAGS.logdir_continue.split(',')
-        logging.info('execute %i runs ...' % len(logdirs))
+        logger.info('execute %i runs ...' % len(logdirs))
         with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
             fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + ['score_pearson', 'score_mse']
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
             score_writer.writeheader()
             for i, logdir in enumerate(logdirs,1):
-                logging.info('START RUN %i of %i' % (i, len(logdirs)))
+                logger.info('START RUN %i of %i' % (i, len(logdirs)))
                 config = Config(logdir_continue=logdir)
                 config_dict = config.as_dict()
                 p, mse = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
@@ -589,7 +598,7 @@ if __name__ == '__main__':
         if FLAGS.grid_config_file is not None:
 
             parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
-            logging.info('load grid parameters from: %s' % parameters_fn)
+            logger.info('load grid parameters from: %s' % parameters_fn)
             with open(parameters_fn, 'r') as infile:
                 grid_parameters = json.load(infile)
 
@@ -602,11 +611,11 @@ if __name__ == '__main__':
                     fieldnames_loaded = scores_done_reader.fieldnames
                     scores_done = list(scores_done_reader)
                 run_descriptions_done = [s_d['run_description'] for s_d in scores_done]
-                logging.debug('already finished: %s' % ', '.join(run_descriptions_done))
+                logger.debug('already finished: %s' % ', '.join(run_descriptions_done))
             else:
                 file_mode = 'w'
                 run_descriptions_done = []
-            logging.info('write scores to: %s' % scores_fn)
+            logger.info('write scores to: %s' % scores_fn)
 
             # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
             fieldnames_expected = grid_parameters.keys() + ['pearson_dev_best', 'pearson_test', 'mse_dev_best',
@@ -624,7 +633,7 @@ if __name__ == '__main__':
                         c.set_run_description()
                         run_desc_backup = c.run_description
 
-                        logging.info(
+                        logger.info(
                             'start run ==============================================================================')
                         c.run_description = os.path.join(run_desc_backup, str(i))
                         logdir = os.path.join(FLAGS.logdir, c.run_description)
@@ -638,15 +647,15 @@ if __name__ == '__main__':
 
                         # skip already processed
                         if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
-                            logging.debug('skip config for logdir: %s' % logdir)
+                            logger.debug('skip config for logdir: %s' % logdir)
                             c.run_description = run_desc_backup
                             continue
 
                         d['pearson_dev_best'], d['mse_dev_best'] = execute_run(c)
-                        logging.info('best dev score: %f' % d['pearson_dev_best'])
+                        logger.info('best dev score: %f' % d['pearson_dev_best'])
                         if test_fname is not None:
                             d['pearson_test'], d['mse_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
-                            logging.info('test score: %f' % d['pearson_test'])
+                            logger.info('test score: %f' % d['pearson_test'])
                         else:
                             d['pearson_test'] = 0.0
                             d['mse_test'] = -1.0

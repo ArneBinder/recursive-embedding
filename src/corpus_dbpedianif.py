@@ -103,14 +103,14 @@ logger_streamhandler.setLevel(logging.INFO)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 #logger.addHandler(logging.FileHandler('../virtuoso_test.log', mode='w', encoding='utf-8'))
-logger.propagate = False
+#logger.propagate = False
 
 logger_virtuoso = logging.getLogger('virtuoso.vstore')
 logger_virtuoso.setLevel(logging.INFO)
 # TODO: change back
 #logger_virtuoso.addHandler(logging.FileHandler('../virtuoso_new.log', mode='w', encoding='utf-8'))
 virtuoso_sh = logging.StreamHandler()
-virtuoso_sh.setFormatter(logger_streamhandler.formatter)
+virtuoso_sh.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger_virtuoso.addHandler(virtuoso_sh)
 logger_virtuoso.propagate = False
 
