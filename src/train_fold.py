@@ -216,7 +216,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tuple_size = neg_samples + 1
         data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices,
                                       neg_samples=neg_samples, max_depth=config.max_depth, transform=True,
-                                      link_cost_ref=-1, link_cost_ref_seealso=-1)
+                                      link_cost_ref=config.link_cost_ref, link_cost_ref_seealso=-1)
         data_iterator_dev = None
         discrete_model = True
     else:
