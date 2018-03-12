@@ -881,7 +881,7 @@ def _collect_root_ids(f_paths, out_path_merged):
     return root_ids
 
 
-def _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged):
+def _filter_uniques(f_paths, min_count, out_path_merged):
 
     fn_uniques_filtered = '%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_FILTERED)
     fn_uniques_discarded = '%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_DISCARDED)
@@ -915,10 +915,9 @@ def _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged):
     i_filtered = 0
     i_discarded = 0
     for u in counts_merged.keys():
-        #if counts_merged[u] >= min_count or (u in root_ids and counts_merged[u] >= min_count_root_id >= 0):
-        #if u not in root_ids and counts_merged[u] >= min_count:
-        if (u not in root_ids_set and counts_merged[u] >= min_count) \
-                or (u in root_ids_set and counts_merged[u] >= min_count_root_id >= 0):
+        #if (u not in root_ids_set and counts_merged[u] >= min_count) \
+        #        or (u in root_ids_set and counts_merged[u] >= min_count_root_id >= 0):
+        if u not in root_ids_set and counts_merged[u] >= min_count:
             uniques_filtered[i_filtered] = u
             counts_filtered[i_filtered] = counts_merged[u]
             i_filtered += 1
@@ -943,13 +942,16 @@ def _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged):
     return uniques_filtered, root_ids
 
 
-def _merge_and_filter_lexicon(uniques_filtered, f_paths, out_path_merged):
+def _merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merged):
     logger.info('merge and filter lexicon ...')
     fn_lexicon_discarded = '%s.discarded' % out_path_merged
+    fn_lexicon_root_ids = '%s.root.id' % out_path_merged
     if Lexicon.exist(filename=out_path_merged, types_only=True):
         logger.info('found lexicon (%s). load from file.' % out_path_merged)
         assert Lexicon.exist(filename=fn_lexicon_discarded, types_only=True), \
             'found lexicon (%s), but misses lexicon_discarded (%s).' % (out_path_merged, fn_lexicon_discarded)
+        assert Lexicon.exist(filename=fn_lexicon_root_ids, types_only=True), \
+            'found lexicon (%s), but misses lexicon_root_ids (%s).' % (out_path_merged, fn_lexicon_root_ids)
         # Note: Load with vecs to skip _lexicon_add_vecs, eventually.
         return Lexicon(filename=out_path_merged)
     t_start = datetime.now()
@@ -967,6 +969,13 @@ def _merge_and_filter_lexicon(uniques_filtered, f_paths, out_path_merged):
                 lexicon_discarded.strings.add(s)
     lexicon.dump(filename=out_path_merged, strings_only=True)
     lexicon_discarded.dump(filename=fn_lexicon_discarded, strings_only=True)
+
+    lexicon_root_ids = Lexicon()
+    for root_id in root_ids:
+        root_id_s = lexicon_discarded.strings[root_id]
+        lexicon_root_ids.strings.add(root_id_s)
+    lexicon_root_ids.dump(filename=fn_lexicon_root_ids, strings_only=True)
+
     logger.info('finished. %s' % str(datetime.now() - t_start))
     return lexicon
 
@@ -1063,9 +1072,9 @@ def _collect_root_context_sizes(forest_merged, root_seealso_counts, out_path_mer
 @plac.annotations(
     out_path=('corpora out path', 'option', 'o', str),
     min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
-    min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
+    #min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
-def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
+def process_merge_batches(out_path, min_count=1):#, min_count_root_id=-1):
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
     logger_fh.setLevel(logging.INFO)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
@@ -1077,7 +1086,8 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
     #logger_lexicon_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     #logger_lexicon.addHandler(logger_lexicon_fh)
 
-    logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
+    #logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
+    logger.info('min_count=%i out_path=%s' % (min_count, out_path))
 
     out_dir_batches = os.path.join(out_path, DIR_BATCHES)
     out_dir_batches_converted = os.path.join(out_path, DIR_BATCHES_CONVERTED)
@@ -1090,9 +1100,9 @@ def process_merge_batches(out_path, min_count=1, min_count_root_id=1):
 
     f_names, f_paths = _collect_file_names(out_dir_batches)
 
-    uniques_filtered, root_ids = _filter_uniques(f_paths, min_count, min_count_root_id, out_path_merged)
+    uniques_filtered, root_ids = _filter_uniques(f_paths, min_count, out_path_merged)
 
-    lexicon = _merge_and_filter_lexicon(uniques_filtered, f_paths, out_path_merged)
+    lexicon = _merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merged)
 
     id_offset_mapping = {o: i for i, o in enumerate(root_ids)}
 

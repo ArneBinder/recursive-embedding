@@ -1099,6 +1099,7 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
 
+# TODO: test!
 class SequenceTreeRerootModel(BaseTrainModel):
 
     def __init__(self, tree_model, **kwargs):
