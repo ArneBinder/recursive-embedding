@@ -205,7 +205,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         tuple_size = 2
-    elif config.model_type == 'x':
+    elif config.model_type == 'reroot':
         # extensions = ['', '.negs1']
         #data_iterator_train = partial(data_tuple_iterator, extensions=extensions)
         #data_iterator_dev = partial(data_tuple_iterator, extensions=extensions)
@@ -306,11 +306,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                 clipping_threshold=config.clipping)
                 model_train = model_test
             elif config.model_type == 'reroot':
-                # has to be created first #TODO: really?
-                model_train = model_fold.ScoredSequenceTreeTupleModel_independent(tree_model=model_tree,
-                                                                                  optimizer=optimizer,
-                                                                                  learning_rate=config.learning_rate,
-                                                                                  clipping_threshold=config.clipping)
+                model_train = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
+                                                                 optimizer=optimizer,
+                                                                 learning_rate=config.learning_rate,
+                                                                 clipping_threshold=config.clipping)
                 # TODO: takes only every (neg_samples + 1)/2 example... fix!
                 #model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
                 #                                                         optimizer=None,

@@ -191,7 +191,7 @@ def AttentionReduce(name=None):  # pylint: disable=invalid-name
 
 class TreeEmbedding(object):
     def __init__(self, name, lex_size_fix, lex_size_var, dimension_embeddings, keep_prob_placeholder=None, state_size=None,
-                 leaf_fc_size=0, root_fc_size=0, keep_prob_fixed=1.0):
+                 leaf_fc_size=0, root_fc_size=0, keep_prob_fixed=1.0, **unused):
         self._lex_size_fix = lex_size_fix
         self._lex_size_var = lex_size_var
         self._dim_embeddings = dimension_embeddings
@@ -660,21 +660,28 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
         return model
 
 
-# TODO: test!
 class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
-    def __init__(self, name, batch_size, **kwargs):
-        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, **kwargs)
-        self._htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
-        self._batch_size = batch_size
+    def __init__(self, name, tree_count, root_fc_size=0, **kwargs):
+        assert root_fc_size == 0, 'no root_fc allowed for HTUBatchedHead'
+        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, root_fc_size=root_fc_size,
+                                                           **kwargs)
+        self._batch_size = tree_count
 
     def __call__(self):
-        trees_children = td.GetItem(0) >> td.Map(self._htu_model)
-        reduced = trees_children >> self.reduce
-        batched = td.AllOf(reduced >> td.Broadcast(), td.GetItem(1)) >> td.Zip() >> td.Map(self.map >> self.root_fc)
-        model = batched >> SequenceToTuple(self._htu_model.output_type, self._batch_size)
-        return model
+        _htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
+        #print('_htu_model: %s' % str(_htu_model.output_type))
+        trees_children = td.GetItem(0) >> td.Map(_htu_model)
+        #print('trees_children: %s' % str(trees_children.output_type))
+        dummy_head = td.Zeros(output_type=_htu_model.output_type)
+        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1)
+        #print('reduced_children: %s' % str(reduced_children.output_type))
+        heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
+        #print('heads_embedded: %s' % str(heads_embedded.output_type))
+        batched = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
+        #print('batched: %s' % str(batched.output_type))
+        return batched
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
@@ -818,6 +825,11 @@ class TreeEmbedding_FLAT2levels_reduceGRU(TreeEmbedding_FLAT_reduceGRU, TreeEmbe
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_FLAT2levels_reduceGRU, self).__init__(name=name, **kwargs)
 
+
+class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU, TreeEmbedding_HTUBatchedHead):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU, self).__init__(name=name, **kwargs)
+
 ########################################################################################################################
 
 
@@ -876,11 +888,18 @@ class SequenceTreeModel(object):
         self._tree_count = tree_count
         self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
 
-        self._tree_embed = tree_embedder(keep_prob_placeholder=self._keep_prob, **kwargs)
+        self._tree_embed = tree_embedder(keep_prob_placeholder=self._keep_prob, tree_count=tree_count, **kwargs)
 
         embed_tree = self._tree_embed()
-        model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat(),
-                         td.GetItem(1) >> td.Vector(self._prob_count))
+        # do not map tree embedding model to input, if it produces a sequence itself
+        if isinstance(embed_tree.output_type, tdt.SequenceType):
+            model = td.AllOf(td.GetItem(0) >> embed_tree
+                             >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat(),
+                             td.GetItem(1) >> td.Vector(self._prob_count))
+        else:
+            model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree)
+                             >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat(),
+                             td.GetItem(1) >> td.Vector(self._prob_count))
 
         # fold model output
         self._compiler = td.Compiler.create(model)
