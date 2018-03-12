@@ -766,7 +766,7 @@ def main(data_source):
             logging.info('no scoring vars found. Disable scoring functionality.')
 
         # sim_measure = getattr(model_fold, model_config.sim_measure)
-
+        discrete_model = (model_config.model_type in ['tuple', 'reroot'])
         with tf.Graph().as_default():
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
                 logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
@@ -781,7 +781,8 @@ def main(data_source):
                                                           root_fc_size=model_config.root_fc_size,
                                                           keep_prob=1.0,
                                                           tree_count=1,
-                                                          prob_count=0)
+                                                          discrete_values_gold=discrete_model)#,
+                                                          #prob_count=0)
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)

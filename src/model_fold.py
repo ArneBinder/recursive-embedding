@@ -879,11 +879,12 @@ def get_jaccard_sim(tree_tuple):
 
 
 class SequenceTreeModel(object):
-    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, prob_count=None, **kwargs):
-        if prob_count is None:
-            self._prob_count = tree_count
+    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, discrete_values_gold=False,
+                 **kwargs):
+        if discrete_values_gold:
+            self._values_gold_dtype = 'int32'
         else:
-            self._prob_count = prob_count
+            self._values_gold_dtype = 'float'
 
         self._tree_count = tree_count
         self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
@@ -895,11 +896,11 @@ class SequenceTreeModel(object):
         if isinstance(embed_tree.output_type, tdt.SequenceType):
             model = td.AllOf(td.GetItem(0) >> embed_tree
                              >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat(),
-                             td.GetItem(1) >> td.Vector(self._prob_count))
+                             td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
         else:
             model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree)
                              >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat(),
-                             td.GetItem(1) >> td.Vector(self._prob_count))
+                             td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
 
         # fold model output
         self._compiler = td.Compiler.create(model)
@@ -925,12 +926,16 @@ class SequenceTreeModel(object):
         return tf.reshape(self._tree_embeddings_all, shape=[-1, self.tree_output_size])
 
     @property
-    def probs_gold(self):
+    def values_gold(self):
         return self._probs_gold
 
     @property
-    def probs_gold_shaped(self):
+    def values_gold_shaped(self):
         return tf.reshape(self._probs_gold, shape=[-1])
+
+    @property
+    def values_gold_dtype(self):
+        return self._values_gold_dtype
 
     @property
     def compiler(self):
@@ -940,9 +945,9 @@ class SequenceTreeModel(object):
     def tree_count(self):
         return self._tree_count
 
-    @property
-    def prob_count(self):
-        return self._prob_count
+    #@property
+    #def prob_count(self):
+    #    return self._prob_count
 
     @property
     def tree_output_size(self):
@@ -1007,7 +1012,7 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
 
         # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
-        self._scores_gold = tf.reshape(tree_model.probs_gold_shaped, shape=[-1, 2])[:, 1]
+        self._scores_gold = tf.reshape(tree_model.values_gold_shaped, shape=[-1, 2])[:, 1]
         # pack tree embeddings in pairs of two
         self._tree_embeddings_reshaped = tf.reshape(tree_model.embeddings_shaped, shape=[-1, 2, tree_model.tree_output_size])
         # apply sim measure
@@ -1017,11 +1022,11 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
                                 loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
 
     @property
-    def scores_gold(self):
+    def values_gold(self):
         return self._scores_gold
 
     @property
-    def scores(self):
+    def values_predicted(self):
         return self._scores
 
 
@@ -1038,7 +1043,7 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 
         batch_size = tf.shape(tree_embeddings)[0]
 
-        self._scores_gold = tf.reshape(tf.eye(batch_size, dtype=np.int32), [batch_size**2])
+        self._values_gold = tf.reshape(tf.eye(batch_size, dtype=np.int32), [batch_size ** 2])
         embeddings_0_tiled = tf.tile(tree_embeddings[:, 0, :], multiples=[batch_size, 1])
         embeddings_1_tiled = tf.tile(tree_embeddings[:, 1, :], multiples=[batch_size, 1])
 
@@ -1057,20 +1062,20 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
         #self._scores = sim_measure(tree_embeddings_tiled_stacked)
         fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings_tiled_stacked, num_outputs=1000)
         logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
-        self._probs = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._scores_gold, logits=logits)
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._values_gold, logits=logits)
 
         #BaseTrainModel.__init__(self, tree_model=tree_model,
         #                       loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
         BaseTrainModel.__init__(self, tree_model=tree_model,
-                                loss=tf.reduce_mean(self._probs), **kwargs)
+                                loss=tf.reduce_mean(cross_entropy), **kwargs)
 
     @property
-    def probs_gold(self):
-        return self._scores_gold
+    def values_gold(self):
+        return self._values_gold
 
-    @property
-    def probs(self):
-        return self._probs
+    #@property
+    #def values_predicted(self):
+    #    return self._probs
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
@@ -1081,7 +1086,7 @@ class ScoredSequenceTreeTupleModel(BaseTrainModel):
         self._prediction_logits = tf.contrib.layers.fully_connected(tree_model.embeddings_all, probs_count,
                                                                     activation_fn=None, scope=DEFAULT_SCOPE_SCORING)
         loss = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.probs_gold, logits=self._prediction_logits))
+            tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.values_gold, logits=self._prediction_logits))
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
@@ -1092,8 +1097,8 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
     def __init__(self, tree_model, count=None, **kwargs):
         if count is None:
             count = tree_model.tree_count
-        assert tree_model.prob_count >= count, 'tree_model produces %i prob values per batch entry, but count=%i ' \
-                                                'requested' % (tree_model.prob_count, count)
+        #assert tree_model.prob_count >= count, 'tree_model produces %i prob values per batch entry, but count=%i ' \
+        #                                        'requested' % (tree_model.prob_count, count)
         assert tree_model.tree_count >= count, 'tree_model produces %i tree embeddings per batch entry, but count=%i ' \
                                                'requested' % (tree_model.tree_count, count)
         # cut inputs to 'count'
@@ -1113,7 +1118,7 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         _bias = tf.Variable(tf.truncated_normal([1]), name='scoring_bias')
         _prediction_logits = tf.reshape(tf.matmul(tree_model.embeddings_shaped, _weights) + _bias, shape=[-1])
         #loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
-        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.probs_gold_shaped, logits=_prediction_logits))
+        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.values_gold_shaped, logits=_prediction_logits))
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
@@ -1129,18 +1134,18 @@ class SequenceTreeRerootModel(BaseTrainModel):
         tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_output_size])
 
         # unpack (flatten) probs_gold.
-        self._probs_gold = tf.reshape(tree_model.probs_gold, shape=[tf.shape(tree_embeddings)[0]])
+        self._values_gold = tf.reshape(tree_model.values_gold, shape=[tf.shape(tree_embeddings)[0]])
 
         fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=1000)
         logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
-        self._probs = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._probs_gold, logits=logits)
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._values_gold, logits=logits)
 
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(self._probs), **kwargs)
-
-    @property
-    def probs_gold(self):
-        return self._probs_gold
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
     @property
-    def probs(self):
-        return self._probs
+    def values_gold(self):
+        return self._values_gold
+
+    #@property
+    #def values_predicted(self):
+    #    return self._probs

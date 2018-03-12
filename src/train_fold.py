@@ -198,6 +198,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
+        discrete_model = False
     elif config.model_type == 'tuple':
         data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
@@ -205,6 +206,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         tuple_size = 2
+        discrete_model = True
     elif config.model_type == 'reroot':
         # extensions = ['', '.negs1']
         #data_iterator_train = partial(data_tuple_iterator, extensions=extensions)
@@ -214,7 +216,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #tuple_size = 3  # [1.0, <sim_value>, 0.0]   # [first_sim_entry, second_sim_entry, one neg_sample]
         #tuple_size = 1
         #max_depth = 10
-        #indices = range(1000)
+        #indices = range(100)
         indices = None
         neg_samples = 9
         tuple_size = neg_samples + 1
@@ -226,6 +228,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #                            extensions=config.extensions.split(','), max_depth=config.max_depth,
         #                            context=config.context, transform=True)
         data_iterator_dev = None
+        discrete_model = True
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -287,7 +290,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                       leaf_fc_size=config.leaf_fc_size,
                                                       root_fc_size=config.root_fc_size,
                                                       keep_prob=config.keep_prob,
-                                                      tree_count=tuple_size
+                                                      tree_count=tuple_size,
+                                                      discrete_values_gold=discrete_model
                                                       # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                       )
 
@@ -411,10 +415,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 execute_vars = {'loss': model.loss}
                 if discrete_model:
                     #execute_vars['probs'] = model.probs
-                    execute_vars['probs_gold'] = model.probs_gold
+                    execute_vars['labels_gold'] = model.values_gold
                 else:
-                    execute_vars['scores'] = model.scores
-                    execute_vars['scores_gold'] = model.scores_gold
+                    execute_vars['scores'] = model.values_predicted
+                    execute_vars['scores_gold'] = model.values_gold
                     # execute_vars['probs_gold'] = model.tree_model.probs_gold
                     # execute_vars['probs_gold_flattened'] = model.tree_model.probs_gold_flattened
                     # execute_vars['embeddings_all'] = model.tree_model.embeddings_all
@@ -443,7 +447,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 # logger.debug(np.concatenate(score_all_gold).tolist())
 
                 if discrete_model:
-                    sizes = [len(result_all['probs_gold'][i]) for i in range(len(_result_all))]
+                    sizes = [len(result_all['labels_gold'][i]) for i in range(len(_result_all))]
                     score_all_ = None
                     score_all_gold_ = None
                 else:
@@ -502,13 +506,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     # train
                     if not config.early_stop_queue or len(test_p_rs) > 0:
                         step_train, loss_train, _, _ = do_epoch(model_train, shuffled, epoch,
-                                                                discrete_model=(config.model_type in ['tuple', 'reroot'])) #new_model=config.data_single)
+                                                                discrete_model=discrete_model) #new_model=config.data_single)
 
                     if model_test is not None:
                         # test
                         step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
                                                                                train=False, test_step=step_train,
-                                                                               discrete_model=(config.model_type in ['tuple', 'reroot']))
+                                                                               discrete_model=discrete_model)
 
                         if loss_test < loss_test_best:
                             loss_test_best = loss_test
