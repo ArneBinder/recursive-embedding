@@ -183,7 +183,7 @@ def get_params(request):
     return params
 
 
-def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode):
+def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode, expand_lexicon=False):
     init_nlp()
     for s in sequences:
         _forest = lexicon.read_data(reader=preprocessing.identity_reader,
@@ -192,14 +192,20 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
                                     reader_args={'content': s},
                                     concat_mode=concat_mode,
                                     inner_concat_mode=inner_concat_mode,
-                                    expand_dict=False,
+                                    expand_dict=expand_lexicon,
                                     reader_roots_args={
                                         'root_label': constants.vocab_manual[constants.IDENTITY_EMBEDDING]})
         yield _forest.forest
 
 
 def get_or_calc_sequence_data(params):
-    global data_path
+    global data_path, lexicon
+
+    if params.get('clear_lexicon', 'false').lower() in ['true', '1'] or lexicon is None:
+        lexicon = Lexicon()
+        params['clear_lexicon'] = 'true'
+    else:
+        params['clear_lexicon'] = 'false'
 
     if 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
@@ -219,13 +225,16 @@ def get_or_calc_sequence_data(params):
             sentence_processor = getattr(preprocessing, params['sentence_processor'])
             logging.info('use sentence_processor=%s' % sentence_processor.__name__)
 
-        params['data_sequences'] = list(parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode))
+        params['data_sequences'] = list(parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode,
+                                                       expand_lexicon=params.get('clear_lexicon', 'false').lower() in ['true', '1']))
 
     if 'data_sequences' in params:
         d_list, p_list = zip(*params['data_sequences'])
         data_as_hashes = params.get('data_as_hashes', False)
         root_ids = params.get('root_ids', None)
-        current_forest = Forest(data=sum(d_list, []), parents=sum(p_list, []), lexicon=lexicon,
+        #current_forest = Forest(data=sum(d_list, []), parents=sum(p_list, []), lexicon=lexicon,
+        #                        data_as_hashes=data_as_hashes, root_ids=root_ids)
+        current_forest = Forest(data=np.concatenate(d_list), parents=np.concatenate(p_list), lexicon=lexicon,
                                 data_as_hashes=data_as_hashes, root_ids=root_ids)
     else:
         init_forest(data_path)
@@ -544,6 +553,8 @@ def norm():
 
 @app.route("/api/visualize", methods=['POST'])
 def visualize():
+    global lexicon
+    params = None
     try:
         start = time.time()
         logging.info('Visualizations requested')
@@ -558,7 +569,7 @@ def visualize():
                     root_ids = params['root_ids'][i]
                 else:
                     root_ids = None
-                forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params['data_as_hashes'],
+                forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params.get('data_as_hashes', False),
                                      root_ids=root_ids)
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False))
             assert len(params['data_sequences']) > 0, 'empty data_sequences'
@@ -574,7 +585,11 @@ def visualize():
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
+        if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
+            lexicon = None
         raise InvalidUsage(e.message)
+    if params.get('clear_lexicon', 'false').lower() in ['true', '1']:
+        lexicon = None
     return response
 
 
