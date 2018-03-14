@@ -23,6 +23,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tr
                                link_cost_ref=None, link_cost_ref_seealso=-1, transform=True, **unused):
     logger.debug('size of data: %i' % len(sequence_trees))
     logger.debug('size of lexicon: %i' % len(sequence_trees.lexicon))
+    assert max_depth > 0, 'can not produce candidates for zero depth trees (single nodes)'
 
     lexicon = sequence_trees.lexicon
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
