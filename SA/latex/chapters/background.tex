@@ -426,7 +426,7 @@ where $\lVert v\rVert_1 = \sum\limits_{l=1}^{|v|}|v_l|$ is the $L_1$ norm of $v$
 \subsection{Linguistic Dependency Types}
 In the following, we present a very brief introduction into the theory of linguistic dependency grammar and typed dependency relations that was mainly distilled from \textcite{jurafsky_dependency_2014}.
 
-\subsection{Dependency Grammar}
+\subsubsection{Dependency Grammar}
 \ac{DG} is a class of syntactic theories rooted in the work of Lucien Tesni\`{e}re \autocite{tesniere_elements_1976}. Its formalism describes the structure of sentences by linking individual words in a sentence with each other by directed, binary relations forming a tree commonly rooted by the finite verb. Any word has zero to multiple \textit{dependents} linked by \textit{dependency} relation instances. With respect to its dependents, a word is referred to as \textit{head}. Every word has maximal one head. That head governs the morpho-syntactical features of the dependents. A head and its dependents mark a linguistic unit in the hierarchical structure. Figure~\ref{fig:displacy_deps} shows an example dependency syntax tree.
 
 \begin{figure}[htb!]
@@ -448,9 +448,14 @@ In addition to structural information given by the dependence relation, dependen
 
 The English language is comparably restricted in its word order and has weak morphology. As \textcite{jurafsky_dependency_2014} states, in this case, the dependency type strongly correlates with the position of the individual words.
 
-\todo{UL: How to determine dependency structures? (X)}
+%\todo{UL: How to determine dependency structures? (X)}
 
-\subsubsection{Detection of Dependencies}
+\subsubsection{Dependency Parsing}
+Dependency parsing describes the process of constructing typed dependency structures for a given textual input. This can be done automatically by programs called dependency parsers.
+
+State of the art systems achieve labeled attachment scores (LAS) of 90.7\% and labeling scores (LS) of 94.7\% \autocite[][see]{choi_it_2015} at the English OntoNotes corpus \autocite{weischedel_ontonotes_2011}. The authors of the corpus name an inter-annotator agreement of 98.5\% F1 for syntactical annotations on a sampled subset.
+
+%inter-annotator agreement on Stanford Depedencies corpus 96\% for 1,025 tokens \autocite{silveira_gold_2014}
 
 
 
