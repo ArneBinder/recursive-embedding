@@ -17,7 +17,9 @@ Figure~\ref{fig:model_architecture} shows this architecture. In the following, w
 
 \subsubsection{Token Embeddings}
 %see naili_comparative_2017
-We use 300 dimensional \todo{UL: precomputed? on which data? (X)} GloVe vectors \autocite{pennington_glove_2014} to embed individual word tokens as they show good performance on several \ac{NLP} tasks and perform comparable to its major competitor, Word2Vec \autocite{levy_improving_2015,naili_comparative_2017}. To evaluate the influence of dependency types, we concatenate the embedding with the one-hot encoded dependency type (Section~\ref{subesec:training_implementation})\todo{UL: welcher Parser?(X) erwartete Genauigkeit?}. The dependency type tag set is based on the Universal Dependencies project \autocite{nivre_universal_2016} and includes 40 different types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The token embeddings are not optimized during training of our models.   
+We use 300 dimensional %\todo{UL: precomputed? on which data? (X)} 
+GloVe vectors \autocite{pennington_glove_2014} pretrained on the Common Crawl\footnote{see \url{http://commoncrawl.org}} corpus to embed individual word tokens as they show good performance on several \ac{NLP} tasks and perform comparable to its major competitor, Word2Vec \autocite{levy_improving_2015,naili_comparative_2017}. To evaluate the influence of dependency types, we concatenate the embedding with the one-hot encoded dependency type (Section~\ref{subesec:training_implementation}).%\todo{UL: welcher Parser?(X) erwartete Genauigkeit?}. 
+The dependency type tag set is based on the Universal Dependencies project \autocite{nivre_universal_2016} and includes 40 different types, resulting in 340 dimensional vectors as input for the composition function. When disabling this feature, we set these 40 entries to zero. The token embeddings are not optimized during training of our models.   
 
 \subsubsection{Composition function}
 We compare two composition functions: (1) \acf{AVG} and (2) \acf{LSTM}. 
@@ -51,7 +53,7 @@ As baseline we calculate TF-IDF based similarity scores in the following manner.
 We train the model via batched back-propagation using \ac{MSE} loss function as described in section~\ref{subsec:cost_function} and apply ADAM \autocite{kingma_adam_2014} %ADADELTA \autocite{zeiler_adadelta_2012}
 as optimizer. We use a 4:1:5 train/dev/test split. The training is terminated when the score on the development data set does not increase anymore regarding a smoothing window covering the last 25 epochs.
 
-The model is implemented with the TensorFlow framework  \autocite{abadi_tensorflow_2016}. TensorFlow allows to define and to execute arbitrary dataflow graphs efficiently on different devices as CPUs or GPUs. For tokenization, dependency parsing and POS-tagging we use spaCy\footnote{see \url{https://spacy.io/}} which is a fast and still accurate\footnote{see \textcite{choi_it_2015} for a comparative study} \ac{NLP} framework. 
+The model is implemented with the TensorFlow framework  \autocite{abadi_tensorflow_2016}. TensorFlow allows to define and to execute arbitrary dataflow graphs efficiently on different devices as CPUs or GPUs. For tokenization, dependency parsing and POS-tagging we use spaCy\footnote{see \url{https://spacy.io/}} which is a fast and still accurate\footnote{see \textcite{choi_it_2015} for a comparative study} \ac{NLP} framework (labeling score of 93.3\% for dependency parsing, see Section~\ref{subsubsec:dependency_parsing}). 
 
 
 %\subsection{Pre-Training}
