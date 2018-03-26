@@ -75,6 +75,7 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
 
+# NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
 STAT_KEYS_DISCRETE = ['roc']
 STAT_KEYS_REGRESSION = ['pearson_r', 'mse']
 
@@ -388,13 +389,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                  optimizer=optimizer,
                                                                  learning_rate=config.learning_rate,
                                                                  clipping_threshold=config.clipping)
-                # TODO: takes only every (neg_samples + 1)/2 example... fix!
-                #model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                #                                                         optimizer=None,
-                #                                                         learning_rate=config.learning_rate,
-                #                                                         sim_measure=sim_measure,
-                #                                                         clipping_threshold=config.clipping)
-                #model_test = model_train
                 model_test = None
             else:
                 raise NotImplementedError('model_type=%s not implemented' % config.model_type)
@@ -450,13 +444,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 logger.removeHandler(fh_debug)
                 return
 
-            # MEASUREMENT ##############################################################################################
-
-
-
             # TRAINING #################################################################################################
-
-
 
             forest = Forest(filename=config.train_data_path, lexicon=lexicon)
             with model_tree.compiler.multiprocessing_pool():
@@ -497,8 +485,17 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logger.info('training the model')
                 loss_test_best = 9999
-                TEST_MIN_INIT = -1
-                stat_queue = [TEST_MIN_INIT]
+                stat_queue = []
+                if model_test is not None:
+                    if model_test.model_type == MODEL_TYPE_DISCRETE:
+                        stat_key = STAT_KEYS_DISCRETE[0]
+                    elif model_test.model_type == MODEL_TYPE_REGRESSION:
+                        stat_key = STAT_KEYS_REGRESSION[0]
+                    else:
+                        raise ValueError('stat_key not defined for model_type=%s' % model_test.model_type)
+                    # NOTE: this depends on stat_key (pearson/mse/roc/...)
+                    TEST_MIN_INIT = -1
+                    stat_queue = [{stat_key: TEST_MIN_INIT}]
                 step_train = sess.run(model_train.global_step)
                 max_queue_length = 0
                 for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
@@ -522,21 +519,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                         # EARLY STOPPING ###############################################################################
 
-                        #if sim_all is not None and sim_all_gold is not None:
-                        #    # loss_test = round(loss_test, 6) #100000000
-                        #    stat = pearsonr(sim_all, sim_all_gold)[0]
-                        #else:
-                        #    stat = 1. - loss_test
-                        # stat = round(stat, 6)
-                        if model_test.model_type == MODEL_TYPE_DISCRETE:
-                            stat_key = 'roc'
-                        elif model_test.model_type == MODEL_TYPE_REGRESSION:
-                            stat_key = 'pearson_r'
-                        else:
-                            raise ValueError('stat_key not defined for model_type=%s' % model_test.model_type)
                         stat = round(stats_test[stat_key], 6)
 
-                        prev_max = max(stat_queue, key=lambda t: t[stat_key])
+                        prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
                         # stop, if current test pearson r is not bigger than previous values. The amount of regarded
                         # previous values is set by config.early_stop_queue
                         if stat > prev_max:
@@ -546,7 +531,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                 max_queue_length = len(stat_queue) + 1
                         stat_queue.append(stats_test)
                         stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
-                        rank = stat_queue_sorted.index(stat)
+                        rank = stat_queue_sorted.index(stats_test)
 
                         # write out queue length
                         emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
@@ -573,8 +558,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
                                 supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
                     else:
-                        # TODO: when does that case occur?
-                        # TODO: add printout (step_train, loss_train)
+                        # save model after each step if not dev model is set (training a language model)
                         supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
                 logger.removeHandler(fh_info)
@@ -615,9 +599,6 @@ if __name__ == '__main__':
                 stats = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
                                     test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
 
-                # config_dict['score_pearson'] = p
-                # config_dict['score_mse'] = mse
-                # config_dict.update(stats)
                 set_stat_values(config_dict, stats, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
                 csvfile.flush()

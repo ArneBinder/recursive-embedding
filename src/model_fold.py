@@ -1105,6 +1105,7 @@ class ScoredSequenceTreeTupleModel(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
 
+# DEPRECATED
 class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
@@ -1137,7 +1138,6 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
 
-# TODO: test!
 class SequenceTreeRerootModel(BaseTrainModel):
 
     def __init__(self, tree_model, **kwargs):
@@ -1147,7 +1147,7 @@ class SequenceTreeRerootModel(BaseTrainModel):
         # unpack tree embeddings
         tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_output_size])
 
-        # unpack (flatten) probs_gold.
+        # unpack (flatten) labels_gold
         self._labels_gold = tf.reshape(tree_model.values_gold, shape=[tf.shape(tree_embeddings)[0]])
 
         fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=1000)
