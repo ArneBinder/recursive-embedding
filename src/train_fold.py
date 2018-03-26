@@ -10,9 +10,8 @@ import ntpath
 import os
 import re
 # import google3
-import shutil
+# import shutil
 from functools import reduce, partial
-import copy
 
 import numpy as np
 import six
@@ -20,10 +19,11 @@ import tensorflow as tf
 import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
+from sklearn.metrics import roc_auc_score
 
-import corpus_simtuple
 import lexicon as lex
 import model_fold
+from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION
 
 # model flags (saved in flags.json)
 import mytools
@@ -75,6 +75,8 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
                         'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
 
+STAT_KEYS_DISCRETE = ['roc']
+STAT_KEYS_REGRESSION = ['pearson_r', 'mse']
 
 logger = logging.getLogger('')
 logger.setLevel(logging.DEBUG)
@@ -90,13 +92,96 @@ def emit_values(supervisor, session, step, values, writer=None, csv_writer=None)
         summary_value = summary.value.add()
         summary_value.tag = name
         summary_value.simple_value = float(value)
-    if writer:
+    if writer is not None:
         writer.add_summary(summary, step)
     else:
         supervisor.summary_computed(session, summary, global_step=step)
-    if csv_writer:
+    if csv_writer is not None:
         values['step'] = step
         csv_writer.writerow({k: values[k] for k in values if k in csv_writer.fieldnames})
+
+
+def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, model_type, print_out=True, emit=True,
+                  test_writer=None, test_result_writer=None):
+
+    if test_writer is None:
+        suffix = 'train'
+        writer = None
+        csv_writer = None
+    else:
+        suffix = 'test '
+        writer = test_writer
+        csv_writer = test_result_writer
+
+    emit_dict = {'loss': loss}
+    # if sim is not None and sim_gold is not None:
+    if model_type == MODEL_TYPE_REGRESSION:
+        p_r = pearsonr(values, values_gold)
+        s_r = spearmanr(values, values_gold)
+        mse = np.mean(np.square(values - values_gold))
+        emit_dict.update({
+            'pearson_r': p_r[0],
+            'spearman_r': s_r[0],
+            'mse': mse
+        })
+        info_string = 'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tavg=%f\tvar=%f\tgold_avg=%f\tgold_var=%f' \
+                      % (epoch, step, suffix, loss, suffix, p_r[0], np.average(values), np.var(values),
+                         np.average(values_gold), np.var(values_gold))
+    elif model_type == MODEL_TYPE_DISCRETE:
+        roc = roc_auc_score(values_gold, values)
+        emit_dict.update({
+            'roc': roc
+        })
+        info_string = 'epoch=%d step=%d: loss_%s=%f\troc=%f' % (epoch, step, suffix, loss, roc)
+    else:
+        raise ValueError('unknown model type: %s. Use %s or %s.' % (model_type, MODEL_TYPE_DISCRETE,
+                                                                    MODEL_TYPE_REGRESSION))
+    if emit:
+        emit_values(supervisor, sess, step, emit_dict, writer=writer, csv_writer=csv_writer)
+    if print_out:
+        logger.info(info_string)
+    return emit_dict
+
+
+def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, test_step=0,
+             test_writer=None, test_result_writer=None):  # , discrete_model=False):
+
+    step = test_step
+    feed_dict = {}
+    execute_vars = {'loss': model.loss, 'values_gold': model.values_gold, 'values': model.values_predicted}
+
+    if train:
+        execute_vars['train_op'] = model.train_op
+        execute_vars['step'] = model.global_step
+    else:
+        feed_dict[model.tree_model.keep_prob] = 1.0
+
+    _result_all = []
+
+    # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
+    for batch in td.group_by_batches(data_set, config.batch_size):
+        feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
+        _result_all.append(sess.run(execute_vars, feed_dict))
+
+    # list of dicts to dict of lists
+    result_all = dict(zip(_result_all[0], zip(*[d.values() for d in _result_all])))
+
+    # if train, set step to last executed step
+    if train and len(_result_all) > 0:
+        step = result_all['step'][-1]
+
+    sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
+    values_all_ = np.concatenate(result_all['values'])
+    values_all_gold_ = np.concatenate(result_all['values_gold'])
+
+    # sum batch losses weighted by individual batch size (can vary at last batch)
+    loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
+    loss_all /= sum(sizes)
+
+    stats_dict = collect_stats(supervisor, sess, epoch, step, loss_all, values_all_, values_all_gold_,
+                               model_type=model.model_type, emit=emit,
+                               test_writer=test_writer, test_result_writer=test_result_writer)
+    return step, loss_all, values_all_, values_all_gold_, stats_dict
 
 
 def checkpoint_path(logdir, step):
@@ -221,7 +306,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         discrete_model = True
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
-
 
     parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
     if test_file is not None:
@@ -368,89 +452,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # MEASUREMENT ##############################################################################################
 
-            def collect_values(epoch, step, loss, sim, sim_gold, train, print_out=True, emit=True):
-                if train:
-                    suffix = 'train'
-                    writer = None
-                    csv_writer = None
-                else:
-                    suffix = 'test '
-                    writer = test_writer
-                    csv_writer = test_result_writer
 
-                emit_dict = {'loss': loss}
-                if sim is not None and sim_gold is not None:
-                    p_r = pearsonr(sim, sim_gold)
-                    s_r = spearmanr(sim, sim_gold)
-                    emit_dict.update(
-                        {'pearson_r': p_r[0], 'pearson_r_p': p_r[1], 'spearman_r': s_r[0], 'spearman_r_p': s_r[1],
-                         'sim_avg': np.average(sim)})
-                    info_string = (
-                                      'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tsim_avg=%f\tsim_gold_avg=%f\tsim_gold_var=%f') % (
-                                      epoch, step, suffix, loss, suffix, p_r[0], np.average(sim),
-                                      np.average(sim_gold), np.var(sim_gold))
-                else:
-                    info_string = (
-                                      'epoch=%d step=%d: loss_%s=%f') % (epoch, step, suffix, loss)
-                if emit:
-                    emit_values(supervisor, sess, step, emit_dict, writer=writer, csv_writer=csv_writer)
-                if print_out:
-                    logger.info(info_string)
 
             # TRAINING #################################################################################################
 
-            def do_epoch(model, data_set, epoch, train=True, emit=True, test_step=0, discrete_model=False):
 
-                step = test_step
-                feed_dict = {}
-                execute_vars = {'loss': model.loss}
-                if discrete_model:
-                    #execute_vars['probs'] = model.probs
-                    execute_vars['labels_gold'] = model.values_gold
-                else:
-                    execute_vars['scores'] = model.values_predicted
-                    execute_vars['scores_gold'] = model.values_gold
-                    # execute_vars['probs_gold'] = model.tree_model.probs_gold
-                    # execute_vars['probs_gold_flattened'] = model.tree_model.probs_gold_flattened
-                    # execute_vars['embeddings_all'] = model.tree_model.embeddings_all
-                    # execute_vars['embeddings_all_flattened'] = model.tree_model.embeddings_all_flattened
-                if train:
-                    execute_vars['train_op'] = model.train_op
-                    execute_vars['step'] = model.global_step
-                else:
-                    feed_dict[model.tree_model.keep_prob] = 1.0
-
-                _result_all = []
-
-                # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-                for batch in td.group_by_batches(data_set, config.batch_size):
-                    feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
-                    _result_all.append(sess.run(execute_vars, feed_dict))
-
-                # list of dicts to dict of lists
-                result_all = dict(zip(_result_all[0], zip(*[d.values() for d in _result_all])))
-
-                # if train, set step to last executed step
-                if train and len(_result_all) > 0:
-                    step = result_all['step'][-1]
-
-                # logger.debug(np.concatenate(score_all).tolist())
-                # logger.debug(np.concatenate(score_all_gold).tolist())
-
-                if discrete_model:
-                    sizes = [len(result_all['labels_gold'][i]) for i in range(len(_result_all))]
-                    score_all_ = None
-                    score_all_gold_ = None
-                else:
-                    sizes = [len(result_all['scores_gold'][i]) for i in range(len(_result_all))]
-                    score_all_gold_ = np.concatenate(result_all['scores_gold'])
-                    score_all_ = np.concatenate(result_all['scores'])
-                # sum batch losses weighted by individual batch size (can vary at last batch)
-                loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
-                loss_all /= sum(sizes)
-
-                collect_values(epoch, step, loss_all, score_all_, score_all_gold_, train=train, emit=emit)
-                return step, loss_all, score_all_, score_all_gold_
 
             forest = Forest(filename=config.train_data_path, lexicon=lexicon)
             with model_tree.compiler.multiprocessing_pool():
@@ -463,15 +469,18 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                              ordered=True))
                         logger.info('test data size: ' + str(len(test_set)))
                         if train_iterator is None:
-                            step, loss_all, score_all, score_all_gold = do_epoch(model_test, test_set, 0, train=False,
-                                                                                 emit=False)
-                            p_r = pearsonr(score_all, score_all_gold)[0]
-                            score_all.dump(os.path.join(logdir, 'sims.np'))
-                            score_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
+                            step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor, sess,
+                                                                                               model_test, test_set, 0,
+                                                                                               train=False,
+                                                                                               emit=False)
+                            #stat = pearsonr(values_all, values_all_gold)[0]
+                            values_all.dump(os.path.join(logdir, 'sims.np'))
+                            values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
                             lexicon.dump(filename=os.path.join(logdir, 'model'))
-                            return p_r, np.mean(np.square(score_all - score_all_gold))
+                            #return stat, np.mean(np.square(values_all - values_all_gold))
+                            return stats_dict
 
                     logger.info('create dev data set ...')
                     dev_set = list(
@@ -489,64 +498,76 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 logger.info('training the model')
                 loss_test_best = 9999
                 TEST_MIN_INIT = -1
-                test_p_rs = [TEST_MIN_INIT]
+                stat_queue = [TEST_MIN_INIT]
                 step_train = sess.run(model_train.global_step)
                 max_queue_length = 0
                 for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
 
                     # train
-                    if not config.early_stop_queue or len(test_p_rs) > 0:
-                        step_train, loss_train, _, _ = do_epoch(model_train, shuffled, epoch,
-                                                                discrete_model=discrete_model) #new_model=config.data_single)
+                    if not config.early_stop_queue or len(stat_queue) > 0:
+                        step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess, model_train, shuffled,
+                                                                             epoch)
 
                     if model_test is not None:
                         # test
-                        step_test, loss_test, sim_all, sim_all_gold = do_epoch(model_test, dev_set, epoch,
-                                                                               train=False, test_step=step_train,
-                                                                               discrete_model=discrete_model)
+                        step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(supervisor, sess, model_test,
+                                                                                           dev_set, epoch,
+                                                                                           train=False,
+                                                                                           test_step=step_train,
+                                                                                           test_writer=test_writer,
+                                                                                           test_result_writer=test_result_writer)
 
                         if loss_test < loss_test_best:
                             loss_test_best = loss_test
 
                         # EARLY STOPPING ###############################################################################
 
-                        if sim_all is not None and sim_all_gold is not None:
-                            # loss_test = round(loss_test, 6) #100000000
-                            p_r = pearsonr(sim_all, sim_all_gold)[0]
+                        #if sim_all is not None and sim_all_gold is not None:
+                        #    # loss_test = round(loss_test, 6) #100000000
+                        #    stat = pearsonr(sim_all, sim_all_gold)[0]
+                        #else:
+                        #    stat = 1. - loss_test
+                        # stat = round(stat, 6)
+                        if model_test.model_type == MODEL_TYPE_DISCRETE:
+                            stat_key = 'roc'
+                        elif model_test.model_type == MODEL_TYPE_REGRESSION:
+                            stat_key = 'pearson_r'
                         else:
-                            p_r = 1. - loss_test
-                        p_r = round(p_r, 6)
-                        prev_max = max(test_p_rs)
+                            raise ValueError('stat_key not defined for model_type=%s' % model_test.model_type)
+                        stat = round(stats_test[stat_key], 6)
+
+                        prev_max = max(stat_queue, key=lambda t: t[stat_key])
                         # stop, if current test pearson r is not bigger than previous values. The amount of regarded
                         # previous values is set by config.early_stop_queue
-                        if p_r > prev_max:
-                            test_p_rs = []
+                        if stat > prev_max:
+                            stat_queue = []
                         else:
-                            if len(test_p_rs) >= max_queue_length:
-                                max_queue_length = len(test_p_rs) + 1
-                        test_p_rs.append(p_r)
-                        test_p_rs_sorted = sorted(test_p_rs, reverse=True)
-                        rank = test_p_rs_sorted.index(p_r)
+                            if len(stat_queue) >= max_queue_length:
+                                max_queue_length = len(stat_queue) + 1
+                        stat_queue.append(stats_test)
+                        stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
+                        rank = stat_queue_sorted.index(stat)
 
                         # write out queue length
-                        emit_values(supervisor, sess, step_test, values={'queue_length': len(test_p_rs), 'rank': rank},
+                        emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
                                     writer=test_writer)
 
                         logger.info(
-                            'pearson_r rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i' % (
-                            len(test_p_rs), rank, round((p_r - prev_max), 6), max_queue_length))
-                        if 0 < config.early_stop_queue < len(test_p_rs):
-                            logger.info('last test pearsons_r: %s, last rank: %i' % (str(test_p_rs), rank))
+                            '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
+                            % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
+                        if 0 < config.early_stop_queue < len(stat_queue):
+                            logger.info('last test %s: %s, last rank: %i' % (stat_key, str(stat_queue), rank))
                             logger.removeHandler(fh_info)
                             logger.removeHandler(fh_debug)
-                            return test_p_rs_sorted[0], loss_test_best
+                            return stat_queue_sorted[0]
 
                         # do not save, if score was not the best
-                        # if rank > len(test_p_rs) * 0.05:
-                        if len(test_p_rs) > 1 and config.early_stop_queue:
+                        # if rank > len(stat_queue) * 0.05:
+                        if len(stat_queue) > 1 and config.early_stop_queue:
                             # auto restore if enabled
-                            if config.auto_restore:
-                                supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                            #if config.auto_restore:
+                            #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                            pass
                         else:
                             # don't save after first epoch if config.early_stop_queue > 0
                             if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
@@ -560,6 +581,18 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 logger.removeHandler(fh_debug)
 
 
+def set_stat_values(d, stats, prefix=''):
+    if STAT_KEYS_REGRESSION[0] in stats:
+        _stat_keys = STAT_KEYS_REGRESSION
+    elif STAT_KEYS_DISCRETE[0] in stats:
+        _stat_keys = STAT_KEYS_DISCRETE
+    else:
+        raise ValueError('stats has to contain either %s or %s' % (STAT_KEYS_REGRESSION[0], STAT_KEYS_DISCRETE[0]))
+    for k in _stat_keys:
+        d[prefix + k] = stats[k]
+    return _stat_keys
+
+
 if __name__ == '__main__':
     mytools.logging_init()
     logger.debug('test')
@@ -568,18 +601,24 @@ if __name__ == '__main__':
     if FLAGS.logdir_continue is not None and ',' in FLAGS.logdir_continue:
         logdirs = FLAGS.logdir_continue.split(',')
         logger.info('execute %i runs ...' % len(logdirs))
+        stats_prefix = 'score_'
         with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
-            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + ['score_pearson', 'score_mse']
+            #fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + ['score_pearson', 'score_mse']
+            # TODO: adapt for model_type==MODEL_TYPE_DISCRETE
+            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + [stats_prefix + k for k in STAT_KEYS_REGRESSION]
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
             score_writer.writeheader()
-            for i, logdir in enumerate(logdirs,1):
+            for i, logdir in enumerate(logdirs, 1):
                 logger.info('START RUN %i of %i' % (i, len(logdirs)))
                 config = Config(logdir_continue=logdir)
                 config_dict = config.as_dict()
-                p, mse = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
-                                     test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
-                config_dict['score_pearson'] = p
-                config_dict['score_mse'] = mse
+                stats = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
+                                    test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
+
+                # config_dict['score_pearson'] = p
+                # config_dict['score_mse'] = mse
+                # config_dict.update(stats)
+                set_stat_values(config_dict, stats, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
                 csvfile.flush()
     else:
@@ -612,8 +651,13 @@ if __name__ == '__main__':
             logger.info('write scores to: %s' % scores_fn)
 
             # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
-            fieldnames_expected = grid_parameters.keys() + ['pearson_dev_best', 'pearson_test', 'mse_dev_best',
-                                                            'mse_test', 'run_description']
+            #fieldnames_expected = grid_parameters.keys() + ['pearson_dev_best', 'pearson_test', 'mse_dev_best',
+            #                                                'mse_test', 'run_description']
+            stats_prefix_dev = 'dev_best_'
+            stats_prefix_test = 'test_'
+            # TODO: adapt for model_type==MODEL_TYPE_DISCRETE
+            fieldnames_expected = grid_parameters.keys() + [stats_prefix_dev + k for k in STAT_KEYS_REGRESSION] \
+                                  + [stats_prefix_test + k for k in STAT_KEYS_REGRESSION] + ['run_description']
             assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
             fieldnames = fieldnames_loaded or fieldnames_expected
             with open(scores_fn, file_mode) as csvfile:
@@ -645,14 +689,20 @@ if __name__ == '__main__':
                             c.run_description = run_desc_backup
                             continue
 
-                        d['pearson_dev_best'], d['mse_dev_best'] = execute_run(c)
-                        logger.info('best dev score: %f' % d['pearson_dev_best'])
+                        #d['pearson_dev_best'], d['mse_dev_best'] = execute_run(c)
+                        stats_dev = execute_run(c)
+                        stat_keys = set_stat_values(d, stats_dev, prefix=stats_prefix_dev)
+
+                        logger.info('best dev score (%s): %f' % (stat_keys[0], stats_dev[stat_keys[0]]))
                         if test_fname is not None:
-                            d['pearson_test'], d['mse_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
-                            logger.info('test score: %f' % d['pearson_test'])
+                            #d['pearson_test'], d['mse_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                            stats_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                            #logger.info('test score (%s): %f' % (stat_key, stats_dev[stat_key]))
+                            set_stat_values(d, stats_dev, prefix=stats_prefix_test)
+                            logger.info('test score (%s): %f' % (stat_keys[0], stats_dev[stat_keys[0]]))
                         else:
-                            d['pearson_test'] = 0.0
-                            d['mse_test'] = -1.0
+                            for k in stat_keys:
+                                d[k] = -1.0
                         d['run_description'] = c.run_description
 
                         c.run_description = run_desc_backup

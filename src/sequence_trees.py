@@ -803,13 +803,19 @@ class Forest(object):
     @property
     def root_id_pos(self):
         if self._root_id_pos is None:
-            assert self._root_ids is not None, 'root_ids not set'
-            self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
+            #assert self._root_ids is not None, 'root_ids not set'
+            if self._root_ids is not None:
+                self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
+            else:
+                self._root_id_pos = {}
         return self._root_id_pos
 
     @property
     def root_id_mapping(self):
         if self._root_id_mapping is None:
-            assert self._root_ids is not None, 'root_ids not set'
-            self._root_id_mapping = {v: i for i, v in enumerate(self._root_ids)}
+            #assert self._root_ids is not None, 'root_ids not set'
+            if self._root_ids is not None:
+                self._root_id_mapping = {v: i for i, v in enumerate(self._root_ids)}
+            else:
+                self._root_id_mapping = {}
         return self._root_id_mapping

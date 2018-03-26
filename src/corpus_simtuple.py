@@ -16,10 +16,12 @@ import mytools
 
 
 tf.flags.DEFINE_string('corpora_source_root',
-                       '/home/arne/devel/ML/data/corpora',
+                       #'/home/arne/devel/ML/data/corpora',
+                       '/home/arne/DATA/ML/data/corpora_in',
                        'location of raw corpora directories')
 tf.flags.DEFINE_string('corpora_target_root',
-                       '/media/arne/WIN/Users/Arne/ML/data/corpora',
+                       #'/media/arne/WIN/Users/Arne/ML/data/corpora',
+                       '/home/arne/DATA/ML/data/corpora_out/corpora',
                        'location of raw corpora directories')
 tf.flags.DEFINE_string(
     'sentence_processor',
@@ -204,13 +206,14 @@ def write_sim_tuple_indices(path, sim_tuple_indices, sizes, path_suffix=''):
     start = 0
     for idx, end in enumerate(np.cumsum(sizes)):
         logging.info('write sim_tuple_indices to: %s.idx.%i%s ...' % (path, idx, path_suffix))
-        np.array(sim_tuple_indices[start:end]).dump('%s.idx.%i%s' % (path, idx, path_suffix))
+        mytools.numpy_dump(filename='%s.idx.%i%s' % (path, idx, path_suffix), ndarray=np.array(sim_tuple_indices[start:end]))
         start = end
 
 
 def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, output_suffix=None, overwrite=False,
                   reader_roots=None, reader_roots_args=None):
     """
+    DEPRECATED
     Creates a training corpus consisting of the following files (enumerated by file extension):
         * .train.0, .train.1, ...:      training/development/... data files (for every file name in file_names)
         * .type:                        a types mapping, e.g. a list of types (strings), where its list

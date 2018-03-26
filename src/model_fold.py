@@ -24,6 +24,9 @@ VAR_PREFIX_FC_REVERSE = 'FC_reverse'
 VAR_PREFIX_TREE_EMBEDDING = 'TreeEmbedding'
 VAR_PREFIX_SIM_MEASURE = 'sim_measure'
 
+MODEL_TYPE_DISCRETE = 'mt_discrete'
+MODEL_TYPE_REGRESSION = 'mt_regression'
+
 
 def dprint(x):
     r = tf.Print(x, [tf.shape(x)])
@@ -1029,6 +1032,10 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
     def values_predicted(self):
         return self._scores
 
+    @property
+    def model_type(self):
+        return MODEL_TYPE_REGRESSION
+
 
 class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
@@ -1043,7 +1050,7 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 
         batch_size = tf.shape(tree_embeddings)[0]
 
-        self._values_gold = tf.reshape(tf.eye(batch_size, dtype=np.int32), [batch_size ** 2])
+        self._labels_gold = tf.reshape(tf.eye(batch_size, dtype=np.int32), [batch_size ** 2])
         embeddings_0_tiled = tf.tile(tree_embeddings[:, 0, :], multiples=[batch_size, 1])
         embeddings_1_tiled = tf.tile(tree_embeddings[:, 1, :], multiples=[batch_size, 1])
 
@@ -1062,20 +1069,27 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
         #self._scores = sim_measure(tree_embeddings_tiled_stacked)
         fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings_tiled_stacked, num_outputs=1000)
         logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
-        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._values_gold, logits=logits)
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
 
         #BaseTrainModel.__init__(self, tree_model=tree_model,
         #                       loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
         BaseTrainModel.__init__(self, tree_model=tree_model,
                                 loss=tf.reduce_mean(cross_entropy), **kwargs)
 
+        softmax = tf.nn.softmax(logits)
+        self._probs = softmax[:, 1]
+
     @property
     def values_gold(self):
-        return self._values_gold
+        return self._labels_gold
 
-    #@property
-    #def values_predicted(self):
-    #    return self._probs
+    @property
+    def values_predicted(self):
+        return self._probs
+
+    @property
+    def model_type(self):
+        return MODEL_TYPE_DISCRETE
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
@@ -1134,18 +1148,25 @@ class SequenceTreeRerootModel(BaseTrainModel):
         tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_output_size])
 
         # unpack (flatten) probs_gold.
-        self._values_gold = tf.reshape(tree_model.values_gold, shape=[tf.shape(tree_embeddings)[0]])
+        self._labels_gold = tf.reshape(tree_model.values_gold, shape=[tf.shape(tree_embeddings)[0]])
 
         fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=1000)
         logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
-        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._values_gold, logits=logits)
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
+        softmax = tf.nn.softmax(logits)
+        self._probs = softmax[:, 1]
+
     @property
     def values_gold(self):
-        return self._values_gold
+        return self._labels_gold
 
-    #@property
-    #def values_predicted(self):
-    #    return self._probs
+    @property
+    def values_predicted(self):
+        return self._probs
+
+    @property
+    def model_type(self):
+        return MODEL_TYPE_DISCRETE
