@@ -104,7 +104,7 @@ docker run --name dbpedia \
     -p 8891:8890 \
     -e "NumberOfBuffers=$((10*85000))" \
     joernhees/virtuoso run
-``` 
+```
 
 Clone this repository:
 ```bash
