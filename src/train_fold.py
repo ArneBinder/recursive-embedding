@@ -690,6 +690,7 @@ if __name__ == '__main__':
                         score_writer.writerow(d)
                         csvfile.flush()
 
+        # default: execute single run
         else:
             execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
                         test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
