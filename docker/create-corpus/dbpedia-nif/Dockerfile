@@ -41,7 +41,7 @@ RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
 COPY src "$PROJECT_ROOT"/src
 COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
 
-COPY src "$PROJECT_ROOT"/src
+#COPY src "$PROJECT_ROOT"/src
 WORKDIR "$PROJECT_ROOT"/src
 
 #CMD bash

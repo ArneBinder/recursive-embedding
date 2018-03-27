@@ -131,5 +131,5 @@ RUN export PYTHON_BIN_PATH="$(which python)" \
 WORKDIR /root
 
 
-CMD [ "/bin/bash" ]
+#CMD [ "/bin/bash" ]
 

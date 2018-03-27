@@ -95,7 +95,24 @@ RUN export PYTHON_BIN_PATH="$(which python)" \
     && rm -rf /tmp && rm -rf /root/.cache
 
 
-WORKDIR /root
+#ARG OWN_LOCATION=docker/create-corpus/dbpedia-nif
+ARG OWN_LOCATION=.
+#ARG TMP=/tmp/dbpedia-nif
+#RUN mkdir "$TMP"
+
+
+COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
+RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
+
+COPY src "$PROJECT_ROOT"/src
+#COPY "$OWN_LOCATION"/etc_odbc.ini /etc/odbc.ini
+
+#COPY src "$PROJECT_ROOT"/src
+WORKDIR "$PROJECT_ROOT"/src
+
+#WORKDIR /root
+
+ENTRYPOINT ["python", ""]
 
 
 #CMD [ "/bin/bash" ]
