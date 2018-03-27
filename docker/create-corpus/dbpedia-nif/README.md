@@ -126,6 +126,12 @@ This previous command creates batches of processed data. To merge the individual
 cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif-merge
 ```
 
+Finally, we create (filtered, splitted and shuffled) index files with:
+```bash
+cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif-indices
+```
+The created files (extension: .idx.[id].npy) contain just the shuffled positions of the roots in the merged corpus. But they roots are filtered according to the number of see also references in this article/tree (see parameters SEEALSO_MIN_COUNT and SEEALSO_MAX_COUNT in the .env file for the actual values).
+
 
 ## TODO:
  * DONE forest (batches): generate **children arrays** from parent
