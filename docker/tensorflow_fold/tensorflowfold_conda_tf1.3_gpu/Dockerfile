@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         mlocate \
         pkg-config \
         python-dev \
+        python-pip \
         rsync \
         software-properties-common \
         unzip \
@@ -23,9 +24,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         openjdk-8-jdk \
         openjdk-8-jre-headless \
         wget \
-        && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip --no-cache-dir install --upgrade pip \
+    && pip --no-cache-dir install wheel numpy six setuptools
 
 
 # Set up Bazel.
@@ -54,27 +56,27 @@ RUN mkdir /bazel && \
 # set up python (miniconda)
 
 # python version
-ARG PYV=2
-ARG CONDAV=4.3.31
-
-RUN echo use Miniconda${PYV}-${CONDAV}
-
-RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
-    wget --quiet https://repo.continuum.io/miniconda/Miniconda${PYV}-${CONDAV}-Linux-x86_64.sh -O ~/miniconda.sh && \
-    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
-    rm ~/miniconda.sh
-
-ENV PATH /opt/conda/bin:$PATH
-
-RUN pip --no-cache-dir install \
-        jupyter \
-        matplotlib \
-        numpy \
-        scipy \
-        sklearn \
-        six \
-        pandas \
-        wheel
+#ARG PYV=2
+#ARG CONDAV=4.3.31
+#
+#RUN echo use Miniconda${PYV}-${CONDAV}
+#
+#RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
+#    wget --quiet https://repo.continuum.io/miniconda/Miniconda${PYV}-${CONDAV}-Linux-x86_64.sh -O ~/miniconda.sh && \
+#    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
+#    rm ~/miniconda.sh
+#
+#ENV PATH /opt/conda/bin:$PATH
+#
+#RUN pip --no-cache-dir install \
+#        jupyter \
+#        matplotlib \
+#        numpy \
+#        scipy \
+#        sklearn \
+#        six \
+#        pandas \
+#        wheel
 
 
 

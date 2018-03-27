@@ -1,4 +1,4 @@
-FROM tensorflowfold_conda_pre:latest
+FROM tensorflowfold_conda:pre
 
 
 ########################################
