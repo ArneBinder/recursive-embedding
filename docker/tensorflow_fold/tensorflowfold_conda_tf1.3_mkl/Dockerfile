@@ -112,7 +112,7 @@ WORKDIR "$PROJECT_ROOT"/src
 
 #WORKDIR /root
 
-ENTRYPOINT ["python", ""]
+ENTRYPOINT ["python"]
 
 
 #CMD [ "/bin/bash" ]
