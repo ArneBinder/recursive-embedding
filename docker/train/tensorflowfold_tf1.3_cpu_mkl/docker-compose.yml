@@ -1,0 +1,31 @@
+version: '2.3'
+services:
+  train-fold-cpu:
+    build:
+      context: ../../..
+      dockerfile: docker/train/tensorflowfold_tf1.3_mkl/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_TRAIN}:/root/train
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/train python train_fold.py
+                                  --train_data_path=/root/corpora_out/DBPEDIANIF/100/merged/forest
+                                  --logdir=/root/train/tf_new/supervised/log/DEBUG/DBPEDIANIF/FC1000
+                                  --model_type=tuple
+                                  --dev_file_index=0
+                                  --batch_size=10
+                                  --tree_embedder=TreeEmbedding_HTU_reduceSUM_mapGRU
+                                  --learning_rate=0.003
+                                  --optimizer=AdamOptimizer
+                                  --early_stop_queue=0
+                                  --root_fc_size=0
+                                  --leaf_fc_size=300
+                                  --state_size=150
+                                  --keep_prob=0.9
+                                  --init_only=False
+                                  --concat_mode=tree
+                                  --max_depth=10
+                                  --context=0
+    cpus: ${LIMIT_CPUS}
+    cpuset: ${CPU_SET}

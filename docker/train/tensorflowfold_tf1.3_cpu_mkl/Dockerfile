@@ -99,7 +99,11 @@ RUN export PYTHON_BIN_PATH="$(which python)" \
 ARG OWN_LOCATION=.
 #ARG TMP=/tmp/dbpedia-nif
 #RUN mkdir "$TMP"
-
+ARG PROJECT_ROOT=/root
+RUN mkdir "$PROJECT_ROOT"
+RUN chmod 777 "$PROJECT_ROOT"
+COPY docker/set-user-with-folder.sh "$PROJECT_ROOT"/set-user-with-folder.sh
+RUN chmod +x "$PROJECT_ROOT"/set-user-with-folder.sh
 
 COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
 RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
@@ -112,7 +116,7 @@ WORKDIR "$PROJECT_ROOT"/src
 
 #WORKDIR /root
 
-ENTRYPOINT ["python", "train_fold.py"]
+#ENTRYPOINT ["python", "train_fold.py"]
 
 
 #CMD [ "/bin/bash" ]
