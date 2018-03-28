@@ -14,8 +14,42 @@ services:
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
       /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
-                                  --train_data_path=/root/corpora_out/DBPEDIANIF/100/merged/forest
-                                  --logdir=/root/train/tf_new/supervised/log/DEBUG/DBPEDIANIF/FC1000
+                                  --train_data_path=/root/corpora_out/${TRAIN_DATA}
+                                  --logdir=/root/train/${TRAIN_LOGDIR}
+                                  --model_type=tuple
+                                  --dev_file_index=0
+                                  --batch_size=10
+                                  --tree_embedder=TreeEmbedding_HTU_reduceSUM_mapGRU
+                                  --learning_rate=0.003
+                                  --optimizer=AdamOptimizer
+                                  --early_stop_queue=0
+                                  --root_fc_size=0
+                                  --leaf_fc_size=300
+                                  --state_size=150
+                                  --keep_prob=0.9
+                                  --init_only=False
+                                  --concat_mode=tree
+                                  --max_depth=10
+                                  --context=0
+    cpus: ${LIMIT_CPUS}
+    cpuset: ${CPU_SET}
+
+  train-fold-gpu:
+    build:
+      context: ../../..
+      dockerfile: docker/train/tensorflow-fold/Dockerfile.tf1_3_gpu
+      args:
+        OWN_LOCATION: docker/train/tensorflow-fold
+        PROJECT_ROOT: /root/recursive-embedding
+    image: tensorflowfold:tf1_3_cpu_mkl
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_TRAIN}:/root/train
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
+                                  --train_data_path=/root/corpora_out/${TRAIN_DATA}
+                                  --logdir=/root/train/${TRAIN_LOGDIR}
                                   --model_type=tuple
                                   --dev_file_index=0
                                   --batch_size=10
