@@ -425,6 +425,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             if dev_iterator is not None or test_iterator is not None:
                 test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
             sess = supervisor.PrepareSession(FLAGS.master)
+            # TODO: try
+            #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
 
             if lexicon.is_filled:
                 logger.info('init embeddings with external vectors...')
