@@ -6,6 +6,7 @@ services:
       dockerfile: docker/train/tensorflow-fold/Dockerfile.tf1_3_cpu_mkl
       args:
         OWN_LOCATION: docker/train/tensorflow-fold
+        PROJECT_ROOT: /root
     image: tensorflowfold:tf1_3_cpu_mkl
     volumes:
       - ../../../src:/root/src
