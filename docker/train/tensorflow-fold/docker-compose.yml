@@ -6,10 +6,10 @@ services:
       dockerfile: docker/train/tensorflow-fold/Dockerfile.tf1_3_cpu_mkl
       args:
         OWN_LOCATION: docker/train/tensorflow-fold
-        PROJECT_ROOT: /root
+        PROJECT_ROOT: /root/recursive-embedding
     image: tensorflowfold:tf1_3_cpu_mkl
     volumes:
-      - ../../../src:/root/src
+      - ../../../src:/root/recursive-embedding/src
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
