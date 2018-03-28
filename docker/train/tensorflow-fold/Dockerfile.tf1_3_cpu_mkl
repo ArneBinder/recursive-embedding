@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         curl \
         git \
+        gosu \
         libcurl3-dev \
         libfreetype6-dev \
         libpng12-dev \
@@ -111,12 +112,6 @@ COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
 RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
 
 COPY src "$PROJECT_ROOT"/src
-
-RUN mkdir /var/lib/apt/lists \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    gosu \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR "$PROJECT_ROOT"/src
 
