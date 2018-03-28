@@ -1,7 +1,4 @@
 version: '2.3'
-volumes:
-  nvidia_driver_384.111:
-    external: true
 services:
   train-fold-cpu:
     build:
@@ -49,7 +46,6 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
-      - nvidia_driver_384.111:/usr/local/nvidia:ro
     command: >
       /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
                                   --train_data_path=/root/corpora_out/${TRAIN_DATA}
