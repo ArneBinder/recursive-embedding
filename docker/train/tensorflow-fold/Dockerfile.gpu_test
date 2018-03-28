@@ -101,7 +101,7 @@ ENV TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1
 ARG WHEEL_OUT=/wheel_pkg
 
 RUN tensorflow/tools/ci_build/builds/configured GPU
-RUN cd .. && cp tensorflow/.tf_configure.bazelrc .tf_configure.bazelrc && bazel build -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package && bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg
+RUN cd .. && echo "import %workspace%/tensorflow/.tf_configure.bazelrc" > .bazelrc && bazel build -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package && bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg
 RUN bazel build -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package && bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensorflow_pkg
 RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/*
 RUN rm -rf /root/.cache
