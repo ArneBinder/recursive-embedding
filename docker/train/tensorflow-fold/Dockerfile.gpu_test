@@ -178,7 +178,8 @@ RUN pip --no-cache-dir install \
         && \
     python -m ipykernel.kernelspec
 
-RUN echo ${WHEEL_OUT}
+## NOTE: ensure WHEEL_OUT is the same as above
+ARG WHEEL_OUT=/wheel_pkg
 
 COPY --from=0 ${WHEEL_OUT} ${WHEEL_OUT}
 RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/* ${WHEEL_OUT}/fold_pkg/*
