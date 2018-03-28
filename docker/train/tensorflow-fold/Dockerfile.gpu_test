@@ -127,14 +127,36 @@ RUN bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensor
 
 FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04
 
+#RUN apt-get update && apt-get install -y --no-install-recommends \
+#        curl \
+#        git \
+#        gosu \
+#        libcurl3-dev \
+#        python-dev \
+#        unzip \
+#        zip \
+#        wget \
+#        && \
+#    apt-get clean && \
+#    rm -rf /var/lib/apt/lists/*
 RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
         curl \
         git \
         gosu \
         libcurl3-dev \
+        libfreetype6-dev \
+        libpng12-dev \
+        libzmq3-dev \
+        pkg-config \
         python-dev \
+        rsync \
+        software-properties-common \
         unzip \
         zip \
+        zlib1g-dev \
+        openjdk-8-jdk \
+        openjdk-8-jre-headless \
         wget \
         && \
     apt-get clean && \
