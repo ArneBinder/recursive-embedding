@@ -104,7 +104,7 @@ ARG PROJECT_ROOT=/root
 RUN echo "PROJECT_ROOT=$PROJECT_ROOT"
 
 RUN mkdir "$PROJECT_ROOT"
-RUN chmod 777 "$PROJECT_ROOT"
+RUN chmod 777 /root
 COPY docker/set-user-with-folder.sh "$PROJECT_ROOT"/set-user-with-folder.sh
 RUN chmod +x "$PROJECT_ROOT"/set-user-with-folder.sh
 
