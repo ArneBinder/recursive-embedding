@@ -101,11 +101,60 @@ ENV TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1
 ARG WHEEL_OUT=/wheel_pkg
 
 RUN tensorflow/tools/ci_build/builds/configured GPU
-RUN cd .. && echo "import %workspace%/tensorflow/.tf_configure.bazelrc" > .bazelrc && bazel build -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package && bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg
-RUN bazel build -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package && bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensorflow_pkg
-RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/* ${WHEEL_OUT}/fold_pkg/*
-RUN rm -rf /root/.cache
+## fix for nccl not found. see https://github.com/tensorflow/serving/issues/336
+## and https://github.com/tensorflow/serving/issues/327#issuecomment-305771708
+WORKDIR /
+RUN git clone https://github.com/NVIDIA/nccl.git
+WORKDIR /nccl
+RUN make CUDA_HOME=/usr/local/cuda
+RUN make install
+RUN mkdir -p /usr/local/include/external/nccl_archive/src
+RUN ln -s /usr/local/include/nccl.h /usr/local/include/external/nccl_archive/src/nccl.h
+## fix end
+WORKDIR /fold
+RUN echo "import %workspace%/tensorflow/.tf_configure.bazelrc" > .bazelrc
+RUN bazel build --verbose_failures -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package
+RUN bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg
+WORKDIR /fold/tensorflow
+RUN bazel build --verbose_failures -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package
+RUN bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensorflow_pkg
+#RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/* ${WHEEL_OUT}/fold_pkg/*
+#RUN rm -rf /root/.cache
 # Clean up pip wheel and Bazel cache when done.
+
+
+
+FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+        gosu \
+        python-dev \
+        unzip \
+        zip \
+        wget \
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
+    python get-pip.py && \
+    rm get-pip.py
+
+RUN pip --no-cache-dir install \
+        ipykernel \
+        jupyter \
+        matplotlib \
+        numpy \
+        scipy \
+        sklearn \
+        pandas \
+        && \
+    python -m ipykernel.kernelspec
+
+COPY --from=0 $WHEEL_OUT $WHEEL_OUT
+RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/* ${WHEEL_OUT}/fold_pkg/*
 
 WORKDIR /root
 
