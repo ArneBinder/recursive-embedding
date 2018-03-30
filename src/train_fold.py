@@ -294,7 +294,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         tuple_size = 2
         discrete_model = True
-        load_parents = (config.context is not None and config.context > 0)
+        # DEBUG OFF
+        #load_parents = (config.context is not None and config.context > 0)
+        load_parents = True
+        # DEBUG OFF end
     elif config.model_type == 'reroot':
         if config.cut_indices is not None:
             indices = np.arange(config.cut_indices)
