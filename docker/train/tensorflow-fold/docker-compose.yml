@@ -13,8 +13,7 @@ services:
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     ports:
-      - 6006:6006
-      - 8888:8888
+      - ${HOST_PORT_NOTEBOOK}:8888
     command: >
       /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
                                   --train_data_path=/root/corpora_out/${TRAIN_DATA}
@@ -50,8 +49,7 @@ services:
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     ports:
-      - 6006:6006
-      - 8888:8888
+      - ${HOST_PORT_NOTEBOOK}:8888
     command: >
       /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
                                   --train_data_path=/root/corpora_out/${TRAIN_DATA}
@@ -80,6 +78,6 @@ services:
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     ports:
-      - 6006:6006
+      - ${HOST_PORT_TENSORBOARD}:6006
     command: >
       tensorboard --logdir=/root/train/${TRAIN_LOGDIR}
