@@ -51,6 +51,10 @@ services:
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     ports:
       - ${HOST_PORT_NOTEBOOK}:8888
+    devices:
+      - "/dev/nvidiactl:/dev/nvidiactl"
+      - "/dev/nvidia-uvm:/dev/nvidia-uvm"
+      - "/dev/nvidia0:/dev/nvidia0"
     command: >
       /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
                                   --train_data_path=/root/corpora_out/${TRAIN_DATA}
