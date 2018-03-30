@@ -73,3 +73,13 @@ services:
                                   --context=0
     cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
+
+  tensorboard:
+    image: tensorflow/tensorflow:1.4.1
+    volumes:
+      - ${HOST_TRAIN}:/root/train
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    ports:
+      - 6006:6006
+    command: >
+      tensorboard --logdir=/root/train/${TRAIN_LOGDIR}
