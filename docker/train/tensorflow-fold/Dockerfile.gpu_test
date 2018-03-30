@@ -114,10 +114,10 @@ RUN ln -s /usr/local/include/nccl.h /usr/local/include/external/nccl_archive/src
 ## FIX end
 WORKDIR /fold
 RUN echo "import %workspace%/tensorflow/.tf_configure.bazelrc" > .bazelrc
-RUN bazel build --verbose_failures -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package
+RUN bazel build --verbose_failures -c opt --config=opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package
 RUN bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg
 WORKDIR /fold/tensorflow
-RUN bazel build --verbose_failures -c opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package
+RUN bazel build --verbose_failures -c opt --config=opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package
 RUN bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensorflow_pkg
 #RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/* ${WHEEL_OUT}/fold_pkg/*
 #RUN rm -rf /root/.cache
