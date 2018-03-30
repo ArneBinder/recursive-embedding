@@ -37,6 +37,7 @@ services:
     cpuset: ${CPU_SET}
 
   train-fold-gpu:
+    runtime: nvidia
     build:
       context: ../../..
       dockerfile: docker/train/tensorflow-fold/Dockerfile.tf1_3_gpu
