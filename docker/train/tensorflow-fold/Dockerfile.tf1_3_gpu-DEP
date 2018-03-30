@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04
 
 # adapted https://raw.githubusercontent.com/tensorflow/tensorflow/master/tensorflow/tools/docker/Dockerfile.devel
 # to include Tensorflow Fold
@@ -54,6 +54,33 @@ RUN mkdir /bazel && \
     rm -f /bazel/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
 
 
+# set up python (miniconda)
+
+# python version
+#ARG PYV=2
+#ARG CONDAV=4.3.31
+#
+#RUN echo use Miniconda${PYV}-${CONDAV}
+#
+#RUN echo 'export PATH=/opt/conda/bin:$PATH' > /etc/profile.d/conda.sh && \
+#    wget --quiet https://repo.continuum.io/miniconda/Miniconda${PYV}-${CONDAV}-Linux-x86_64.sh -O ~/miniconda.sh && \
+#    /bin/bash ~/miniconda.sh -b -p /opt/conda && \
+#    rm ~/miniconda.sh
+#
+#ENV PATH /opt/conda/bin:$PATH
+#
+#RUN pip --no-cache-dir install \
+#        jupyter \
+#        matplotlib \
+#        numpy \
+#        scipy \
+#        sklearn \
+#        six \
+#        pandas \
+#        wheel
+
+
+
 ########################################
 # get TensorFlow Fold and TensorFlow   #
 ########################################
@@ -75,9 +102,15 @@ RUN git clone --recurse-submodules https://github.com/tensorflow/fold \
 #RUN cd /fold/tensorflow && tensorflow/tools/ci_build/builds/configured CPU
 # necessary to find "configure" script when executing "configured" (re-check!)
 WORKDIR /fold/tensorflow
-ENV TF_NEED_MKL=1
-# updatedb, otherwise locate (when downloading MKL) is not working 
-RUN updatedb && tensorflow/tools/ci_build/builds/configured CPU
+#ENV TF_NEED_MKL=1
+#ENV CI_BUILD_PYTHON python
+ENV TF_NEED_CUDA 1
+ENV TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1
+#TODO:
+#ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+# updatedb, otherwise locate (when downloading MKL) is not working
+RUN updatedb && tensorflow/tools/ci_build/builds/configured GPU
 
 #ARG BUILD_CMD='bazel build --verbose_failures --config=opt --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0"'
 #RUN echo BUILD_CMD=${BUILD_CMD}
@@ -87,36 +120,15 @@ ARG WHEEL_OUT=/wheel_pkg
 WORKDIR /fold
 
 RUN export PYTHON_BIN_PATH="$(which python)" \
-    && bazel build --verbose_failures --config=opt --config=mkl --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow_fold/util:build_pip_package \
+    && bazel build --verbose_failures --config=opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow_fold/util:build_pip_package \
     && bazel-bin/tensorflow_fold/util/build_pip_package ${WHEEL_OUT}/fold_pkg \
     && cd /fold/tensorflow \
-    && bazel build --verbose_failures --config=opt --config=mkl --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow/tools/pip_package:build_pip_package \
+    && bazel build --verbose_failures --config=opt --config=cuda --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" //tensorflow/tools/pip_package:build_pip_package \
     && bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensorflow_pkg \
     && pip --no-cache-dir install ${WHEEL_OUT}/fold_pkg/* && pip --no-cache-dir install ${WHEEL_OUT}/tensorflow_pkg/* \
     && rm -rf /tmp && rm -rf /root/.cache
 
-## NOTE: overwrite when building this image
-ARG OWN_LOCATION=.
-RUN echo "OWN_LOCATION=$OWN_LOCATION"
-ARG PROJECT_ROOT=/root/project
-RUN echo "PROJECT_ROOT=$PROJECT_ROOT"
 
-RUN mkdir "$PROJECT_ROOT"
-RUN chmod 777 /root
-COPY docker/set-user-with-folder.sh "$PROJECT_ROOT"/set-user-with-folder.sh
-RUN chmod +x "$PROJECT_ROOT"/set-user-with-folder.sh
 
-COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
-RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
 
-COPY src "$PROJECT_ROOT"/src
-
-WORKDIR "$PROJECT_ROOT"/src
-
-# TensorBoard
-EXPOSE 6006
-# jupyter notebook
-EXPOSE 8888
-
-#CMD [ "/bin/bash" ]
-
+# TODO. add missing stuff from train-cpu version

@@ -12,6 +12,9 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
+    ports:
+      - 6006:6006
+      - 8888:8888
     command: >
       /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
                                   --train_data_path=/root/corpora_out/${TRAIN_DATA}
@@ -46,6 +49,9 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
+    ports:
+      - 6006:6006
+      - 8888:8888
     command: >
       /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
                                   --train_data_path=/root/corpora_out/${TRAIN_DATA}
@@ -65,20 +71,5 @@ services:
                                   --concat_mode=tree
                                   --max_depth=10
                                   --context=0
-    cpus: ${LIMIT_CPUS}
-    cpuset: ${CPU_SET}
-
-  test-gpu:
-    build:
-      context: ../../..
-      dockerfile: docker/train/tensorflow-fold/Dockerfile.gpu_test
-    image: tensorflowfold:gpu_test
-    volumes:
-      - ../../../src:/root/recursive-embedding/src
-      - ${HOST_TRAIN}:/root/train
-      - ${HOST_CORPORA_OUT}:/root/corpora_out
-    command: >
-      /bin/bash
-
     cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
