@@ -285,6 +285,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
         discrete_model = False
+        load_parents = False
     elif config.model_type == 'tuple':
         data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
@@ -293,6 +294,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         tuple_size = 2
         discrete_model = True
+        load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == 'reroot':
         if config.cut_indices is not None:
             indices = np.arange(config.cut_indices)
@@ -305,6 +307,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                       link_cost_ref=config.link_cost_ref, link_cost_ref_seealso=-1)
         data_iterator_dev = None
         discrete_model = True
+        load_parents = True
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -448,7 +451,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # TRAINING #################################################################################################
 
-            forest = Forest(filename=config.train_data_path, lexicon=lexicon)
+            forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
 
