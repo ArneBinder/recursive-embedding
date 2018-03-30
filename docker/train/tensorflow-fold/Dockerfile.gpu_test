@@ -30,16 +30,24 @@ RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
     rm get-pip.py
 
 # TODO: try using default python kernel?
-RUN pip --no-cache-dir install \
-        ipykernel \
-        jupyter \
-        matplotlib \
-        numpy \
-        scipy \
-        sklearn \
-        pandas \
-        && \
-    python -m ipykernel.kernelspec
+#RUN pip --no-cache-dir install \
+#        ipykernel \
+#        jupyter \
+#        matplotlib \
+#        numpy \
+#        scipy \
+#        sklearn \
+#        pandas \
+#        && \
+#    python -m ipykernel.kernelspec
+RUN pip --no-cache-dir install numpy
+#\
+#        scipy \
+#        sklearn \
+#        pandas \
+#        && \
+#    python -m ipykernel.kernelspec
+
 
 # Set up our notebook config.
 #COPY jupyter_notebook_config.py /root/.jupyter/
@@ -167,16 +175,24 @@ RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
     rm get-pip.py
 
 # TODO: try using default python kernel? but use same as above!
-RUN pip --no-cache-dir install \
-        ipykernel \
-        jupyter \
-        matplotlib \
-        numpy \
-        scipy \
-        sklearn \
-        pandas \
-        && \
-    python -m ipykernel.kernelspec
+#RUN pip --no-cache-dir install \
+#        ipykernel \
+#        jupyter \
+#        matplotlib \
+#        numpy \
+#        scipy \
+#        sklearn \
+#        pandas \
+#        && \
+#    python -m ipykernel.kernelspec
+RUN pip --no-cache-dir install numpy
+#\
+#        scipy \
+#        sklearn \
+#        pandas \
+#        && \
+#    python -m ipykernel.kernelspec
+
 
 ## NOTE: ensure WHEEL_OUT_2 is the same as above (WHEEL_OUT)
 # TODO: improve this
