@@ -128,8 +128,8 @@ RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py \
 
 RUN pip --no-cache-dir install numpy jupyter
 
-COPY --from=builder /wheel_pkg $/wheel_pkg
-RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT_2}/tensorflow_pkg/* ${WHEEL_OUT_2}/fold_pkg/*
+COPY --from=builder /wheel_pkg /wheel_pkg
+RUN pip --no-cache-dir install --upgrade /wheel_pkg/tensorflow_pkg/* /wheel_pkg/fold_pkg/*
 
 # TensorBoard
 EXPOSE 6006
