@@ -78,7 +78,7 @@ services:
       - ${HOST_TRAIN}:/root/train
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/recursive-embedding/set-user-with-folder.sh /root/train /bin/bash
+      /bin/bash
 
     cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
