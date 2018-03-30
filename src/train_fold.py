@@ -207,156 +207,154 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None):
+    config.set_run_description()
+
+    logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
+    logger.info('logdir: %s' % logdir)
+    if not os.path.isdir(logdir):
+        os.makedirs(logdir)
+
+    fh_debug = logging.FileHandler(os.path.join(logdir, 'train-debug.log'))
+    fh_debug.setLevel(logging.DEBUG)
+    fh_debug.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(fh_debug)
+    fh_info = logging.FileHandler(os.path.join(logdir, 'train-info.log'))
+    fh_info.setLevel(logging.INFO)
+    fh_info.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(fh_info)
+
+    # GET CHECKPOINT or PREPARE LEXICON ################################################################################
+
+    checkpoint_fn = tf.train.latest_checkpoint(logdir)
+    if logdir_continue:
+        assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
+    old_checkpoint_fn = None
+    lexicon = None
+    if checkpoint_fn:
+        if not checkpoint_fn.startswith(logdir):
+            raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
+        logger.info('read lex_size from model ...')
+        reader = tf.train.NewCheckpointReader(checkpoint_fn)
+        saved_shapes = reader.get_variable_to_shape_map()
+        logger.debug(saved_shapes)
+        logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
+        # create test result writer
+        test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
+        lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
+        #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
+        ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
+        IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+        lexicon.init_vecs(checkpoint_reader=reader)
+    else:
+        lexicon = lex.Lexicon(filename=config.train_data_path)
+        ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
+        IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+        if logdir_pretrained:
+            logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
+            old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
+            assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
+            reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
+            lexicon_old = lex.Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
+            lexicon_old.init_vecs(checkpoint_reader=reader_old)
+            lexicon.merge(lexicon_old, add=False, remove=False)
+
+        #lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+        #lexicon.pad()
+
+        lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
+        assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
+                                  (len(lexicon), len(lexicon.vecs))
+
+        # dump config
+        config.dump(logdir=logdir)
+
+        # create test result writer
+        test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
+        test_result_writer.writeheader()
+
+    logger.info('lexicon size: %i' % len(lexicon))
+    logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
+    logger.debug('ROOT_idx: %i' % ROOT_idx)
+
+    # TRAINING and TEST DATA ###########################################################################################
+
+    if config.model_type == 'simtuple':
+        data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
+                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
+        data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
+        data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
+        tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
+        discrete_model = False
+        load_parents = False
+    elif config.model_type == 'tuple':
+        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
+                              'bag_of_seealsos': True}
+        data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
+        data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
+        tuple_size = 2
+        discrete_model = True
+        load_parents = (config.context is not None and config.context > 0)
+    elif config.model_type == 'reroot':
+        if config.cut_indices is not None:
+            indices = np.arange(config.cut_indices)
+        else:
+            indices = None
+        neg_samples = config.neg_samples
+        tuple_size = neg_samples + 1
+        data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices,
+                                      neg_samples=neg_samples, max_depth=config.max_depth, transform=True,
+                                      link_cost_ref=config.link_cost_ref, link_cost_ref_seealso=-1)
+        data_iterator_dev = None
+        discrete_model = True
+        load_parents = True
+    else:
+        raise NotImplementedError('model_type=%s not implemented' % config.model_type)
+
+    parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
+    if test_file is not None:
+        test_fname = os.path.join(parent_dir, test_file)
+        test_iterator = partial(data_tuple_iterator, index_files=[test_fname], root_idx=ROOT_idx, split=True)
+    else:
+        test_iterator = None
+    if not (test_only or init_only):
+        logger.info('collect train data from: ' + config.train_data_path + ' ...')
+        regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
+        train_fnames = filter(regex.search, os.listdir(parent_dir))
+        # regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
+        # train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
+        # TODO: use train_fnames_negs
+        train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
+        assert len(train_fnames) > 0, 'no matching train data files found for ' + config.train_data_path
+        logger.info('found ' + str(len(train_fnames)) + ' train data files')
+        test_fname = train_fnames[config.dev_file_index]
+        logger.info('use ' + test_fname + ' for testing')
+        del train_fnames[config.dev_file_index]
+        train_iterator = partial(data_iterator_train, index_files=train_fnames)
+        if data_iterator_dev is not None:
+            dev_iterator = partial(data_iterator_dev, index_files=[test_fname])
+        else:
+            dev_iterator = None
+    elif test_only:
+        assert test_iterator is not None, 'flag "test_file" has to be set if flag "test_only" is enabled, but it is None'
+        train_iterator = None
+        dev_iterator = None
+    else:
+        dev_iterator = None
+        train_iterator = None
+        test_iterator = None
+
+    # MODEL DEFINITION #################################################################################################
+
+    optimizer = config.optimizer
+    if optimizer is not None:
+        optimizer = getattr(tf.train, optimizer)
+
+    sim_measure = getattr(model_fold, config.sim_measure)
+    tree_embedder = getattr(model_fold, config.tree_embedder)
+
+    logger.info('create tensorflow graph ...')
     with tf.device('/device:GPU:0'):
-
-        config.set_run_description()
-
-        logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
-        logger.info('logdir: %s' % logdir)
-        if not os.path.isdir(logdir):
-            os.makedirs(logdir)
-
-        fh_debug = logging.FileHandler(os.path.join(logdir, 'train-debug.log'))
-        fh_debug.setLevel(logging.DEBUG)
-        fh_debug.setFormatter(logging.Formatter(LOGGING_FORMAT))
-        logger.addHandler(fh_debug)
-        fh_info = logging.FileHandler(os.path.join(logdir, 'train-info.log'))
-        fh_info.setLevel(logging.INFO)
-        fh_info.setFormatter(logging.Formatter(LOGGING_FORMAT))
-        logger.addHandler(fh_info)
-
-        # GET CHECKPOINT or PREPARE LEXICON ################################################################################
-
-        checkpoint_fn = tf.train.latest_checkpoint(logdir)
-        if logdir_continue:
-            assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
-        old_checkpoint_fn = None
-        lexicon = None
-        if checkpoint_fn:
-            if not checkpoint_fn.startswith(logdir):
-                raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
-            logger.info('read lex_size from model ...')
-            reader = tf.train.NewCheckpointReader(checkpoint_fn)
-            saved_shapes = reader.get_variable_to_shape_map()
-            logger.debug(saved_shapes)
-            logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
-            # create test result writer
-            test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
-            lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
-            #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
-            ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
-            IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-            lexicon.init_vecs(checkpoint_reader=reader)
-        else:
-            lexicon = lex.Lexicon(filename=config.train_data_path)
-            ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
-            IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-            if logdir_pretrained:
-                logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
-                old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
-                assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
-                reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-                lexicon_old = lex.Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
-                lexicon_old.init_vecs(checkpoint_reader=reader_old)
-                lexicon.merge(lexicon_old, add=False, remove=False)
-
-            #lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
-            #lexicon.pad()
-
-            lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
-            assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
-                                      (len(lexicon), len(lexicon.vecs))
-
-            # dump config
-            config.dump(logdir=logdir)
-
-            # create test result writer
-            test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
-            test_result_writer.writeheader()
-
-        logger.info('lexicon size: %i' % len(lexicon))
-        logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
-        logger.debug('ROOT_idx: %i' % ROOT_idx)
-
-        # TRAINING and TEST DATA ###########################################################################################
-
-        if config.model_type == 'simtuple':
-            data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
-                                  'max_depth': config.max_depth, 'context': config.context, 'transform': True}
-            data_iterator_train = partial(data_tuple_iterator, **data_iterator_args)
-            data_iterator_dev = partial(data_tuple_iterator, **data_iterator_args)
-            tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
-            discrete_model = False
-            load_parents = False
-        elif config.model_type == 'tuple':
-            data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                                  'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
-                                  'bag_of_seealsos': True}
-            data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
-            data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
-            tuple_size = 2
-            discrete_model = True
-            load_parents = (config.context is not None and config.context > 0)
-        elif config.model_type == 'reroot':
-            if config.cut_indices is not None:
-                indices = np.arange(config.cut_indices)
-            else:
-                indices = None
-            neg_samples = config.neg_samples
-            tuple_size = neg_samples + 1
-            data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices,
-                                          neg_samples=neg_samples, max_depth=config.max_depth, transform=True,
-                                          link_cost_ref=config.link_cost_ref, link_cost_ref_seealso=-1)
-            data_iterator_dev = None
-            discrete_model = True
-            load_parents = True
-        else:
-            raise NotImplementedError('model_type=%s not implemented' % config.model_type)
-
-        parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
-        if test_file is not None:
-            test_fname = os.path.join(parent_dir, test_file)
-            test_iterator = partial(data_tuple_iterator, index_files=[test_fname], root_idx=ROOT_idx, split=True)
-        else:
-            test_iterator = None
-        if not (test_only or init_only):
-            logger.info('collect train data from: ' + config.train_data_path + ' ...')
-            regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
-            train_fnames = filter(regex.search, os.listdir(parent_dir))
-            # regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
-            # train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
-            # TODO: use train_fnames_negs
-            train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
-            assert len(train_fnames) > 0, 'no matching train data files found for ' + config.train_data_path
-            logger.info('found ' + str(len(train_fnames)) + ' train data files')
-            test_fname = train_fnames[config.dev_file_index]
-            logger.info('use ' + test_fname + ' for testing')
-            del train_fnames[config.dev_file_index]
-            train_iterator = partial(data_iterator_train, index_files=train_fnames)
-            if data_iterator_dev is not None:
-                dev_iterator = partial(data_iterator_dev, index_files=[test_fname])
-            else:
-                dev_iterator = None
-        elif test_only:
-            assert test_iterator is not None, 'flag "test_file" has to be set if flag "test_only" is enabled, but it is None'
-            train_iterator = None
-            dev_iterator = None
-        else:
-            dev_iterator = None
-            train_iterator = None
-            test_iterator = None
-
-        # MODEL DEFINITION #################################################################################################
-
-        optimizer = config.optimizer
-        if optimizer is not None:
-            optimizer = getattr(tf.train, optimizer)
-
-        sim_measure = getattr(model_fold, config.sim_measure)
-        tree_embedder = getattr(model_fold, config.tree_embedder)
-
-        logger.info('create tensorflow graph ...')
-
         with tf.Graph().as_default() as graph:
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
                 logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
