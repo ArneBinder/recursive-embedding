@@ -1,6 +1,6 @@
-FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04
+FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04 as builder
 
-MAINTAINER Craig Citro <craigcitro@google.com>
+MAINTAINER Arne Binder <arne.b.binder@gmail.com>
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
@@ -29,33 +29,7 @@ RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
     python get-pip.py && \
     rm get-pip.py
 
-# TODO: try using default python kernel?
-#RUN pip --no-cache-dir install \
-#        ipykernel \
-#        jupyter \
-#        matplotlib \
-#        numpy \
-#        scipy \
-#        sklearn \
-#        pandas \
-#        && \
-#    python -m ipykernel.kernelspec
 RUN pip --no-cache-dir install numpy
-#\
-#        scipy \
-#        sklearn \
-#        pandas \
-#        && \
-#    python -m ipykernel.kernelspec
-
-
-# Set up our notebook config.
-#COPY jupyter_notebook_config.py /root/.jupyter/
-
-# Jupyter has issues with being run directly:
-#   https://github.com/ipython/ipython/issues/7062
-# We just add a little wrapper script.
-#COPY run_jupyter.sh /
 
 # Set up Bazel.
 
@@ -135,70 +109,30 @@ RUN bazel-bin/tensorflow/tools/pip_package/build_pip_package ${WHEEL_OUT}/tensor
 
 FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04
 
-#RUN apt-get update && apt-get install -y --no-install-recommends \
-#        curl \
-#        git \
-#        gosu \
-#        libcurl3-dev \
-#        python-dev \
-#        unzip \
-#        zip \
-#        wget \
-#        && \
-#    apt-get clean && \
-#    rm -rf /var/lib/apt/lists/*
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
         curl \
         git \
         gosu \
         libcurl3-dev \
-        libfreetype6-dev \
-        libpng12-dev \
-        libzmq3-dev \
-        pkg-config \
         python-dev \
-        rsync \
         software-properties-common \
-        unzip \
-        zip \
-        zlib1g-dev \
-        openjdk-8-jdk \
-        openjdk-8-jre-headless \
         wget \
-        && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
     python get-pip.py && \
     rm get-pip.py
 
-# TODO: try using default python kernel? but use same as above!
-#RUN pip --no-cache-dir install \
-#        ipykernel \
-#        jupyter \
-#        matplotlib \
-#        numpy \
-#        scipy \
-#        sklearn \
-#        pandas \
-#        && \
-#    python -m ipykernel.kernelspec
-RUN pip --no-cache-dir install numpy
-#\
-#        scipy \
-#        sklearn \
-#        pandas \
-#        && \
-#    python -m ipykernel.kernelspec
+RUN pip --no-cache-dir install numpy jupyter
 
 
 ## NOTE: ensure WHEEL_OUT_2 is the same as above (WHEEL_OUT)
 # TODO: improve this
 ARG WHEEL_OUT_2=/wheel_pkg
 
-COPY --from=0 ${WHEEL_OUT_2} ${WHEEL_OUT_2}
+COPY --from=builder ${WHEEL_OUT_2} ${WHEEL_OUT_2}
 RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT_2}/tensorflow_pkg/* ${WHEEL_OUT_2}/fold_pkg/*
 
 WORKDIR /root
