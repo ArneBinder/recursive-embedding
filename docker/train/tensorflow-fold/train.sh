@@ -24,21 +24,12 @@ done
 if [ -n "$NV_GPU" ]; then
     DOCKERFILE="Dockerfile.tf1_3_gpu"
     IMAGE="tensorflowfold:tf1_3_gpu"
-    COMMAND="export NV_GPU=$NV_GPU && nvidia-docker run \
-    --env-file $MY_DIR/.env \
-    -v $HOST_TRAIN:/root/train \
-    -v $HOST_CORPORA_OUT:/root/corpora_out \
-    -p $HOST_PORT_NOTEBOOK:8888 \
-    $IMAGE"
+    export NV_GPU="$NV_GPU"
+    COMMAND="nvidia-docker"
 else
     DOCKERFILE="Dockerfile.tf1_3_cpu_mkl"
     IMAGE="tensorflowfold:tf1_3_cpu_mkl"
-    COMMAND="docker run \
-    --env-file $MY_DIR/.env \
-    -v $HOST_TRAIN:/root/train \
-    -v $HOST_CORPORA_OUT:/root/corpora_out \
-    -p $HOST_PORT_NOTEBOOK:8888 \
-    $IMAGE"
+    COMMAND="docker"
 fi
 
 echo "execute COMMAND: '$COMMAND' @IMAGE: $IMAGE"
@@ -56,12 +47,16 @@ else
     echo use available image: "$IMAGE"
 fi
 
-${COMMAND}
+
+#echo EXECUTE
+#${COMMAND}
+
+#echo XXX && echo YYY
 
 ## start training
-#$COMMAND run \
-#    --env-file "$MY_DIR/.env" \
-#    -v $HOST_TRAIN:/root/train \
-#    -v $HOST_CORPORA_OUT:/root/corpora_out \
-#    -p $HOST_PORT_NOTEBOOK:8888 \
-#    $IMAGE
+$COMMAND run \
+    --env-file "$MY_DIR/.env" \
+    -v $HOST_TRAIN:/root/train \
+    -v $HOST_CORPORA_OUT:/root/corpora_out \
+    -p $HOST_PORT_NOTEBOOK:8888 \
+    $IMAGE
