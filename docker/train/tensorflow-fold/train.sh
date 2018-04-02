@@ -24,7 +24,7 @@ done
 if [ -n "$NV_GPU" ]; then
     DOCKERFILE="Dockerfile.tf1_3_gpu"
     IMAGE="tensorflowfold:tf1_3_gpu"
-    COMMAND="NV_GPU=$NV_GPU nvidia-docker run \
+    COMMAND="export NV_GPU=$NV_GPU && nvidia-docker run \
     --env-file $MY_DIR/.env \
     -v $HOST_TRAIN:/root/train \
     -v $HOST_CORPORA_OUT:/root/corpora_out \
