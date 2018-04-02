@@ -2,6 +2,9 @@
 
 ## add variables from .env file
 my_dir="$(dirname "$0")"
+project_root_dir="$my_dir/../../.."
+echo "MY_DIR=$my_dir"
+echo "PROJECT_ROOT_DIR=$project_root_dir"
 source "$my_dir/.env"
 
 ## check variables content
@@ -19,15 +22,28 @@ done
 
 ## set command and docker image depending on if GPUs are configured as available
 if [ -n "$NV_GPU" ]; then
-    COMMAND="NV_GPU=$NV_GPU nvidia-docker"
+    DOCKERFILE="Dockerfile.tf1_3_gpu"
     IMAGE="tensorflowfold:tf1_3_gpu"
+    COMMAND="NV_GPU=$NV_GPU nvidia-docker"
 else
-    COMMAND="docker"
+    DOCKERFILE="Dockerfile.tf1_3_gpu"
     IMAGE="tensorflowfold:tf1_3_cpu_mkl"
+    COMMAND="docker"
 fi
 
 echo "execute COMMAND: $COMMAND @IMAGE: $IMAGE"
 
+
+## build docker image, if it does not exist
+if [ -z $(docker images "$IMAGE" -q) ]; then
+    echo image: "$IMAGE" not found, build it
+    docker build -f "$my_dir/$DOCKERFILE" -t "$IMAGE" "$project_root_dir"
+else
+    echo use available image: "$IMAGE"
+fi
+
+
+## start training
 $COMMAND run \
     -v $HOST_TRAIN:/root/train \
     -v $HOST_CORPORA_OUT:/root/corpora_out \
