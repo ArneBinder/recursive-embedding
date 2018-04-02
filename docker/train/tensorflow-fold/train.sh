@@ -2,7 +2,10 @@
 
 ## add variables from .env file
 MY_DIR="$(dirname "$0")"
-HOST_PROJECT_ROOT_DIR="$MY_DIR/../../.."
+cd "$MY_DIR/../../.."
+HOST_PROJECT_ROOT_DIR="$(pwd)"
+echo "HOST_PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
+
 echo "MY_DIR=$MY_DIR"
 echo "PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
 source "$MY_DIR/.env"
