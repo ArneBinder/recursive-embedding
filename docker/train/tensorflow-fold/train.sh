@@ -2,13 +2,13 @@
 
 ## add variables from .env file
 MY_DIR="$(dirname "$0")"
+source "$MY_DIR/.env"
 cd "$MY_DIR/../../.."
 HOST_PROJECT_ROOT_DIR="$(pwd)"
 echo "HOST_PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
 
 echo "MY_DIR=$MY_DIR"
 echo "PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
-source "$MY_DIR/.env"
 
 ## check variables content
 array=( HOST_CORPORA_OUT HOST_TRAIN TRAIN_DATA TRAIN_LOGDIR HOST_PORT_NOTEBOOK HOST_PORT_TENSORBOARD LIMIT_CPUS CPU_SET NV_GPU )
