@@ -2,9 +2,9 @@
 
 ## add variables from .env file
 MY_DIR="$(dirname "$0")"
-project_root_dir="$MY_DIR/../../.."
+HOST_PROJECT_ROOT_DIR="$MY_DIR/../../.."
 echo "MY_DIR=$MY_DIR"
-echo "PROJECT_ROOT_DIR=$project_root_dir"
+echo "PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
 source "$MY_DIR/.env"
 
 ## check variables content
@@ -34,6 +34,7 @@ fi
 
 echo "execute COMMAND: '$COMMAND' @IMAGE: $IMAGE"
 
+DOCKER_PROJECT_ROOT=/root/recursive-embedding
 
 ## build docker image, if it does not exist
 if [ -z $(docker images "$IMAGE" -q) ] || [ "$REBUILD_IMAGE" == 1 ]; then
@@ -41,8 +42,8 @@ if [ -z $(docker images "$IMAGE" -q) ] || [ "$REBUILD_IMAGE" == 1 ]; then
     docker build \
         -f "$MY_DIR/$DOCKERFILE" \
         --build-arg OWN_LOCATION="$MY_DIR" \
-        --build-arg PROJECT_ROOT=/root/recursive-embedding \
-        -t "$IMAGE" "$project_root_dir"
+        --build-arg PROJECT_ROOT="$DOCKER_PROJECT_ROOT" \
+        -t "$IMAGE" "$HOST_PROJECT_ROOT_DIR"
 else
     echo use available image: "$IMAGE"
 fi
@@ -54,6 +55,7 @@ $COMMAND run -it \
     --env-file "$MY_DIR/.env" \
     -v $HOST_TRAIN:/root/train \
     -v $HOST_CORPORA_OUT:/root/corpora_out \
+    -v $HOST_PROJECT_ROOT_DIR/src:$DOCKER_PROJECT_ROOT/src \
     -p $HOST_PORT_NOTEBOOK:8888 \
     $IMAGE \
         --train_data_path=/root/corpora_out/$TRAIN_DATA \
