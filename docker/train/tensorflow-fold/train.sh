@@ -56,6 +56,7 @@ else
     echo use available image: "$IMAGE"
 fi
 
+${COMMAND}
 
 ## start training
 #$COMMAND run \
