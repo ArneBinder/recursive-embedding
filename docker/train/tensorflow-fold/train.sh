@@ -1,14 +1,18 @@
 #!/bin/bash
 
-## add variables from .env file
-MY_DIR="$(dirname "$0")"
-source "$MY_DIR/.env"
-cd "$MY_DIR/../../.."
+## get current directory
+HOST_SCRIPT_DIR="$(dirname "$0")"
+cd "$HOST_SCRIPT_DIR"
+HOST_SCRIPT_DIR="$(pwd)"
+echo "HOST_SCRIPT_DIR=$HOST_SCRIPT_DIR"
+
+## project root is three folders above SCRIPT_DIR
+cd "$HOST_SCRIPT_DIR/../../.."
 HOST_PROJECT_ROOT_DIR="$(pwd)"
 echo "HOST_PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
 
-echo "MY_DIR=$MY_DIR"
-echo "PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
+## add variables from .env file
+source "$HOST_SCRIPT_DIR/.env"
 
 ## check variables content
 array=( HOST_CORPORA_OUT HOST_TRAIN TRAIN_DATA TRAIN_LOGDIR HOST_PORT_NOTEBOOK HOST_PORT_TENSORBOARD LIMIT_CPUS CPU_SET NV_GPU )
@@ -43,8 +47,8 @@ DOCKER_PROJECT_ROOT=/root/recursive-embedding
 if [ -z $(docker images "$IMAGE" -q) ] || [ "$REBUILD_IMAGE" == 1 ]; then
     echo image: "$IMAGE not found, build it with $DOCKERFILE"
     docker build \
-        -f "$MY_DIR/$DOCKERFILE" \
-        --build-arg OWN_LOCATION="$MY_DIR" \
+        -f "$HOST_SCRIPT_DIR/$DOCKERFILE" \
+        --build-arg OWN_LOCATION="$HOST_SCRIPT_DIR" \
         --build-arg PROJECT_ROOT="$DOCKER_PROJECT_ROOT" \
         -t "$IMAGE" "$HOST_PROJECT_ROOT_DIR"
 else
@@ -55,7 +59,7 @@ fi
 ## start training
 $COMMAND run -it \
     --cpuset-cpus "$CPU_SET" \
-    --env-file "$MY_DIR/.env" \
+    --env-file "$HOST_SCRIPT_DIR/.env" \
     -v $HOST_TRAIN:/root/train \
     -v $HOST_CORPORA_OUT:/root/corpora_out \
     -v $HOST_PROJECT_ROOT_DIR/src:$DOCKER_PROJECT_ROOT/src \
