@@ -32,9 +32,12 @@ services:
                                   --concat_mode=tree
                                   --max_depth=10
                                   --context=0
-    cpus: ${LIMIT_CPUS}
+#    cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
 
+
+## ATTENTION: THIS IS DEPRECATED. Training via nvidia-docker can not be restricted to some GPUs, when called by
+## docker-compose. Use train.sh instead (set the variable NV_GPU defined via .env file to enable training on GPU(s)).
   train-fold-gpu:
     runtime: nvidia
     build:
@@ -73,7 +76,7 @@ services:
                                   --concat_mode=tree
                                   --max_depth=10
                                   --context=0
-    cpus: ${LIMIT_CPUS}
+#    cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
 
   tensorboard:
