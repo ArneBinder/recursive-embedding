@@ -50,6 +50,7 @@ fi
 
 ## start training
 $COMMAND run -it \
+    --cpuset-cpus "$CPU_SET" \
     --env-file "$MY_DIR/.env" \
     -v $HOST_TRAIN:/root/train \
     -v $HOST_CORPORA_OUT:/root/corpora_out \
