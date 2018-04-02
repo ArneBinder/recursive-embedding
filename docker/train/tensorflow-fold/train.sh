@@ -36,7 +36,7 @@ echo "execute COMMAND: '$COMMAND' @IMAGE: $IMAGE"
 
 
 ## build docker image, if it does not exist
-if [ -z $(docker images "$IMAGE" -q) ] || [ "$DONT_REBUILD_IMAGE" != 1 ]; then
+if [ -z $(docker images "$IMAGE" -q) ]; then
     echo image: "$IMAGE not found, build it with $DOCKERFILE"
     docker build \
         -f "$MY_DIR/$DOCKERFILE" \
