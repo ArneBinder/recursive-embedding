@@ -118,5 +118,9 @@ EXPOSE 6006
 # jupyter notebook
 EXPOSE 8888
 
+VOLUME /root/train
+
+ENTRYPOINT ["/root/recursive-embedding/set-user-with-folder.sh", "/root/train", "python", "train_fold.py"]
+
 #CMD [ "/bin/bash" ]
 

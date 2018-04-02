@@ -156,4 +156,8 @@ COPY src "$PROJECT_ROOT"/src
 
 WORKDIR "$PROJECT_ROOT"/src
 
+VOLUME /root/train
+
+ENTRYPOINT ["/root/recursive-embedding/set-user-with-folder.sh", "/root/train", "python", "train_fold.py"]
+
 #RUN ["/bin/bash"]
