@@ -464,7 +464,7 @@ class Forest(object):
                                                                  context=context, transform=transform,
                                                                  costs=costs,
                                                                  link_types=link_types))
-        if self.parents[idx] != 0 and context > 0:
+        if context > 0 and self.parents[idx] != 0:
             seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-cost,
                                                                     transform=transform, costs=costs,
                                                                     link_types=link_types))
@@ -723,6 +723,7 @@ class Forest(object):
             for c_offset in self._children[c_pos+1:c_pos+1+c_count]:
                 c_idx = p_idx + c_offset
                 self._parents[c_idx] = -c_offset
+        print('set parents')
 
     def set_children_with_parents(self):
         #logger.warning('set_children_with_parents ...')
