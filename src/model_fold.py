@@ -200,14 +200,14 @@ class TreeEmbedding(object):
         self._dim_embeddings = dimension_embeddings
 
         # compatibility
-        if self._lex_size_fix > 0:
-            self._lexicon_fix, self._lexicon_fix_placeholder, self._lexicon_fix_init = create_lexicon(lex_size=self._lex_size_fix,
-                                                                                                      dimension_embeddings=self._dim_embeddings,
-                                                                                                      trainable=False)
-        if self._lex_size_var > 0:
-            self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
-                                                                                                      dimension_embeddings=self._dim_embeddings,
-                                                                                                      trainable=True)
+        #if self._lex_size_fix > 0:
+        self._lexicon_fix, self._lexicon_fix_placeholder, self._lexicon_fix_init = create_lexicon(lex_size=self._lex_size_fix,
+                                                                                                  dimension_embeddings=self._dim_embeddings,
+                                                                                                  trainable=False)
+        #if self._lex_size_var > 0:
+        self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
+                                                                                                  dimension_embeddings=self._dim_embeddings,
+                                                                                                  trainable=True)
         self._keep_prob_fixed = keep_prob_fixed
         if keep_prob_placeholder is not None:
             self._keep_prob = keep_prob_placeholder
