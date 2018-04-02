@@ -48,15 +48,27 @@ else
 fi
 
 
-#echo EXECUTE
-#${COMMAND}
-
-#echo XXX && echo YYY
-
 ## start training
-$COMMAND run \
+$COMMAND run -it \
     --env-file "$MY_DIR/.env" \
     -v $HOST_TRAIN:/root/train \
     -v $HOST_CORPORA_OUT:/root/corpora_out \
     -p $HOST_PORT_NOTEBOOK:8888 \
-    $IMAGE
+    $IMAGE \
+        --train_data_path=/root/corpora_out/$TRAIN_DATA \
+        --logdir=/root/train/$TRAIN_LOGDIR \
+        --model_type=$MODEL_TYPE \
+        --dev_file_index=$DEV_FILE_INDEX \
+        --batch_size=$BATCH_SIZE \
+        --tree_embedder=$TREE_EMBEDDER \
+        --learning_rate=$LEARNING_RATE \
+        --optimizer=$OPTIMIZER \
+        --early_stop_queue=$EARLY_STOP_QUEUE \
+        --root_fc_size=$ROOT_FC_SIZE \
+        --leaf_fc_size=$LEAF_FC_SIZE \
+        --state_size=$STATE_SIZE \
+        --keep_prob=$KEEP_PROB \
+        --init_only=$INIT_ONLY \
+        --concat_mode=$CONCAT_MODE \
+        --max_depth=$MAX_DEPTH \
+        --context=$CONTEXT
