@@ -86,22 +86,24 @@ RUN tensorflow/tools/ci_build/builds/configured GPU
 ## FIX for nccl not found. see https://github.com/tensorflow/serving/issues/336
 ## and https://github.com/tensorflow/serving/issues/327#issuecomment-305771708
 WORKDIR /
-RUN git clone https://github.com/NVIDIA/nccl.git
-WORKDIR /nccl
-RUN make CUDA_HOME=/usr/local/cuda
-RUN make install
-RUN mkdir -p /usr/local/include/external/nccl_archive/src
-RUN ln -s /usr/local/include/nccl.h /usr/local/include/external/nccl_archive/src/nccl.h
+RUN git clone https://github.com/NVIDIA/nccl.git && cd nccl \
+    && make CUDA_HOME=/usr/local/cuda \
+    && make install \
+    && mkdir -p /usr/local/include/external/nccl_archive/src \
+    && ln -s /usr/local/include/nccl.h /usr/local/include/external/nccl_archive/src/nccl.h \
+    && cd /
+    && rm -rf nccl
 ## FIX end
 WORKDIR /fold
-RUN echo "import %workspace%/tensorflow/.tf_configure.bazelrc" > .bazelrc
-RUN bazel build --verbose_failures -c opt --config=opt --config=cuda \
-    --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package
-RUN bazel-bin/tensorflow_fold/util/build_pip_package /wheel_pkg/fold_pkg
-WORKDIR /fold/tensorflow
-RUN bazel build --verbose_failures -c opt --config=opt --config=cuda \
-    --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package
-RUN bazel-bin/tensorflow/tools/pip_package/build_pip_package /wheel_pkg/tensorflow_pkg
+RUN echo "import %workspace%/tensorflow/.tf_configure.bazelrc" > .bazelrc \
+    && bazel build --verbose_failures -c opt --config=opt --config=cuda \
+    --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package \
+    && bazel-bin/tensorflow_fold/util/build_pip_package /wheel_pkg/fold_pkg \
+    && cd /fold/tensorflow \
+    && bazel build --verbose_failures -c opt --config=opt --config=cuda \
+    --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package \
+    && bazel-bin/tensorflow/tools/pip_package/build_pip_package /wheel_pkg/tensorflow_pkg \
+    && rm -rf /root/.cache
 #RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/* ${WHEEL_OUT}/fold_pkg/*
 #RUN rm -rf /root/.cache
 # Clean up pip wheel and Bazel cache when done.
