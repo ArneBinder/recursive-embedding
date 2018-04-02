@@ -1,31 +1,20 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-## change this!
-#HOST_CORPORA_OUT=/home/abinder/corpora
-#HOST_TRAIN=/home/abinder/train
-HOST_CORPORA_OUT=/mnt/DATA/ML/data/corpora_out
-HOST_TRAIN=/mnt/DATA/ML/training
+## add variables from .env file
+my_dir="$(dirname "$0")"
+source "$my_dir/.env"
 
-## general resource limitations
-LIMIT_CPUS=4.0
-CPU_SET=0-3
-#NV_GPU=0
+array=( TRAIN_DATA TRAIN_LOGDIR HOST_PORT_NOTEBOOK HOST_PORT_TENSORBOARD LIMIT_CPUS CPU_SET NV_GPU )
+echo ".env vars:"
+for i in "${array[@]}"
+do
+	if [ -z "${!i}" ]; then
+        echo "   ATTENTION: $i is NOT SET"
+    else
+        echo "   $i=${!i}"
+    fi
+done
 
-## general settings
-HOST_PORT_NOTEBOOK=8887
-HOST_PORT_TENSORBOARD=6005
-
-## training settings
-TRAIN_DATA=DBPEDIANIF/100/merged/forest
-TRAIN_LOGDIR=tf_new/supervised/log/DEBUG/DBPEDIANIF/FC1000
-
-echo TRAIN_DATA=$TRAIN_DATA
-echo TRAIN_LOGDIR=$TRAIN_LOGDIR
-echo HOST_PORT_NOTEBOOK=$HOST_PORT_NOTEBOOK
-echo HOST_PORT_TENSORBOARD=$HOST_PORT_TENSORBOARD
-echo LIMIT_CPUS=$LIMIT_CPUS
-echo CPU_SET=$CPU_SET
-echo NV_GPU=$NV_GPU
 
 if [ -n "$NV_GPU" ]; then
     COMMAND="NV_GPU=$NV_GPU nvidia-docker"
@@ -33,7 +22,7 @@ else
     COMMAND=docker
 fi
 
-echo COMMAND=$COMMAND
+echo execute command: $COMMAND
 
 $COMMAND run \
     -v $HOST_TRAIN:/root/train \
