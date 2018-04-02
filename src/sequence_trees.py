@@ -455,9 +455,14 @@ class Forest(object):
         if self.has_children(idx) and 0 <= cost <= max_depth:
             for child_offset in self.get_children(idx):
                 target_idx = idx + child_offset
-                if data_head in link_types and self.data[target_idx] in self.root_id_pos:
-                    target_idx = self.root_id_pos[self.data[target_idx]] + link_content_offset
-                    #logger.debug('follow link (%s)' % s)
+                # if the child is a link ...
+                if data_head in link_types:
+                    # ... and the target tree exists: jump to target root, ...
+                    if self.data[target_idx] in self.root_id_pos:
+                        target_idx = self.root_id_pos[self.data[target_idx]] + link_content_offset
+                    # ... otherwise skip this element
+                    else:
+                        continue
 
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
                                                                  max_depth=max_depth - cost,
