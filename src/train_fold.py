@@ -43,6 +43,10 @@ tf.flags.DEFINE_string('logdir',
 tf.flags.DEFINE_string('test_file',
                        None,
                        'Set this to execute only.')
+tf.flags.DEFINE_string('train_files',
+                       None,
+                       'If set, do not look for idx.<id>.npy files (in train data dir), '
+                       'but use these index files instead (separated by comma)')
 tf.flags.DEFINE_boolean('test_only',
                         False,
                         'Enable to execute evaluation only.')
@@ -278,6 +282,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     # TRAINING and TEST DATA ###########################################################################################
 
+    parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
+    train_fnames = None
+
     if config.model_type == 'simtuple':
         data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
                               'max_depth': config.max_depth, 'context': config.context, 'transform': True}
@@ -298,43 +305,47 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     elif config.model_type == 'reroot':
         if config.cut_indices is not None:
             indices = np.arange(config.cut_indices)
+            # avoid looking for train index files
+            train_fnames = []
         else:
             indices = None
         neg_samples = config.neg_samples
         tuple_size = neg_samples + 1
-        data_iterator_train = partial(data_tuple_iterator_reroot, indices=indices,
-                                      neg_samples=neg_samples, max_depth=config.max_depth, transform=True,
-                                      link_cost_ref=config.link_cost_ref, link_cost_ref_seealso=-1)
+        data_iterator_args = {'indices': indices, 'neg_samples': neg_samples, 'max_depth': config.max_depth,
+                              'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
+        data_iterator_train = partial(data_tuple_iterator_reroot, **data_iterator_args)
         data_iterator_dev = None
         discrete_model = True
         load_parents = True
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-    parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
-    if test_file is not None:
+    if FLAGS.train_files is not None and FLAGS.train_files != '':
+        logger.info('use train data index files: %s' % FLAGS.train_files)
+        train_fnames = [os.path.join(parent_dir, fn) for fn in FLAGS.train_files.split(',')]
+    if test_file is not None and test_file != '':
         test_fname = os.path.join(parent_dir, test_file)
         test_iterator = partial(data_tuple_iterator, index_files=[test_fname], root_idx=ROOT_idx, split=True)
     else:
         test_iterator = None
     if not (test_only or init_only):
-        logger.info('collect train data from: ' + config.train_data_path + ' ...')
-        regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
-        train_fnames = filter(regex.search, os.listdir(parent_dir))
-        # regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
-        # train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
-        # TODO: use train_fnames_negs
-        train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
+        if train_fnames is None:
+            logger.info('collect train data from: ' + config.train_data_path + ' ...')
+            regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
+            train_fnames = filter(regex.search, os.listdir(parent_dir))
+            # regex = re.compile(r'%s\.idx\.\d+\.negs\d+$' % ntpath.basename(FLAGS.train_data_path))
+            # train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
+            train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
         assert len(train_fnames) > 0, 'no matching train data files found for ' + config.train_data_path
         logger.info('found ' + str(len(train_fnames)) + ' train data files')
-        test_fname = train_fnames[config.dev_file_index]
-        logger.info('use ' + test_fname + ' for testing')
-        del train_fnames[config.dev_file_index]
-        train_iterator = partial(data_iterator_train, index_files=train_fnames)
         if data_iterator_dev is not None:
+            test_fname = train_fnames[config.dev_file_index]
+            logger.info('use ' + test_fname + ' for testing')
+            del train_fnames[config.dev_file_index]
             dev_iterator = partial(data_iterator_dev, index_files=[test_fname])
         else:
             dev_iterator = None
+        train_iterator = partial(data_iterator_train, index_files=train_fnames)
     elif test_only:
         assert test_iterator is not None, 'flag "test_file" has to be set if flag "test_only" is enabled, but it is None'
         train_iterator = None
@@ -354,221 +365,221 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     tree_embedder = getattr(model_fold, config.tree_embedder)
 
     logger.info('create tensorflow graph ...')
-    with tf.device('/device:GPU:0'):
-        with tf.Graph().as_default() as graph:
-            with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
-                logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
-                logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
-                # Build the graph.
-                model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
-                                                          lex_size_var=lexicon.len_var,
-                                                          tree_embedder=tree_embedder,
-                                                          dimension_embeddings=lexicon.vec_size,
-                                                          state_size=config.state_size,
-                                                          #lexicon_trainable=config.lexicon_trainable,
-                                                          leaf_fc_size=config.leaf_fc_size,
-                                                          root_fc_size=config.root_fc_size,
-                                                          keep_prob=config.keep_prob,
-                                                          tree_count=tuple_size,
-                                                          discrete_values_gold=discrete_model
-                                                          # keep_prob_fixed=config.keep_prob # to enable full head dropout
-                                                          )
+    #with tf.device('/device:GPU:0'):
+    with tf.Graph().as_default() as graph:
+        with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
+            logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
+            logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
+            # Build the graph.
+            model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
+                                                      lex_size_var=lexicon.len_var,
+                                                      tree_embedder=tree_embedder,
+                                                      dimension_embeddings=lexicon.vec_size,
+                                                      state_size=config.state_size,
+                                                      #lexicon_trainable=config.lexicon_trainable,
+                                                      leaf_fc_size=config.leaf_fc_size,
+                                                      root_fc_size=config.root_fc_size,
+                                                      keep_prob=config.keep_prob,
+                                                      tree_count=tuple_size,
+                                                      discrete_values_gold=discrete_model
+                                                      # keep_prob_fixed=config.keep_prob # to enable full head dropout
+                                                      )
 
-                if config.model_type == 'simtuple':
-                    model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                                                                             optimizer=optimizer,
-                                                                             learning_rate=config.learning_rate,
-                                                                             sim_measure=sim_measure,
-                                                                             clipping_threshold=config.clipping)
-                    model_train = model_test
-                elif config.model_type == 'tuple':
-                    model_test = model_fold.SimilaritySequenceTreeTupleModel_sample(tree_model=model_tree,
-                                                                                    optimizer=optimizer,
-                                                                                    learning_rate=config.learning_rate,
-                                                                                    #sim_measure=sim_measure,
-                                                                                    clipping_threshold=config.clipping)
-                    model_train = model_test
-                elif config.model_type == 'reroot':
-                    model_train = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
-                                                                     optimizer=optimizer,
-                                                                     learning_rate=config.learning_rate,
-                                                                     clipping_threshold=config.clipping)
-                    model_test = None
-                else:
-                    raise NotImplementedError('model_type=%s not implemented' % config.model_type)
+            if config.model_type == 'simtuple':
+                model_test = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                                                                         optimizer=optimizer,
+                                                                         learning_rate=config.learning_rate,
+                                                                         sim_measure=sim_measure,
+                                                                         clipping_threshold=config.clipping)
+                model_train = model_test
+            elif config.model_type == 'tuple':
+                model_test = model_fold.SimilaritySequenceTreeTupleModel_sample(tree_model=model_tree,
+                                                                                optimizer=optimizer,
+                                                                                learning_rate=config.learning_rate,
+                                                                                #sim_measure=sim_measure,
+                                                                                clipping_threshold=config.clipping)
+                model_train = model_test
+            elif config.model_type == 'reroot':
+                model_train = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
+                                                                 optimizer=optimizer,
+                                                                 learning_rate=config.learning_rate,
+                                                                 clipping_threshold=config.clipping)
+                model_test = None
+            else:
+                raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-                # PREPARE TRAINING #########################################################################################
+            # PREPARE TRAINING #########################################################################################
 
-                if old_checkpoint_fn is not None:
-                    logger.info(
-                        'restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...' % old_checkpoint_fn)
-                    lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_VAR) \
-                                   + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_FIX)
-                    optimizer_vars = model_train.optimizer_vars() + [model_train.global_step] \
-                                     + ((model_test.optimizer_vars() + [
-                        model_test.global_step]) if model_test is not None and model_test != model_train else [])
-                    restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
-                                    item not in lexicon_vars + optimizer_vars]
-                    pre_train_saver = tf.train.Saver(restore_vars)
-                else:
-                    pre_train_saver = None
+            if old_checkpoint_fn is not None:
+                logger.info(
+                    'restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...' % old_checkpoint_fn)
+                lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_VAR) \
+                               + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_FIX)
+                optimizer_vars = model_train.optimizer_vars() + [model_train.global_step] \
+                                 + ((model_test.optimizer_vars() + [
+                    model_test.global_step]) if model_test is not None and model_test != model_train else [])
+                restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
+                                item not in lexicon_vars + optimizer_vars]
+                pre_train_saver = tf.train.Saver(restore_vars)
+            else:
+                pre_train_saver = None
 
-                def load_pretrain(sess):
-                    pre_train_saver.restore(sess, old_checkpoint_fn)
+            def load_pretrain(sess):
+                pre_train_saver.restore(sess, old_checkpoint_fn)
 
-                # Set up the supervisor.
-                supervisor = tf.train.Supervisor(
-                    # saver=None,# my_saver,
-                    logdir=logdir,
-                    is_chief=(FLAGS.task == 0),
-                    save_summaries_secs=10,
-                    save_model_secs=0,
-                    summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph),
-                    init_fn=load_pretrain if pre_train_saver is not None else None
-                )
-                if dev_iterator is not None or test_iterator is not None:
-                    test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
-                sess = supervisor.PrepareSession(FLAGS.master)
-                # TODO: try
-                #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
+            # Set up the supervisor.
+            supervisor = tf.train.Supervisor(
+                # saver=None,# my_saver,
+                logdir=logdir,
+                is_chief=(FLAGS.task == 0),
+                save_summaries_secs=10,
+                save_model_secs=0,
+                summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph),
+                init_fn=load_pretrain if pre_train_saver is not None else None
+            )
+            if dev_iterator is not None or test_iterator is not None:
+                test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
+            sess = supervisor.PrepareSession(FLAGS.master)
+            # TODO: try
+            #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
 
-                if lexicon.is_filled:
-                    logger.info('init embeddings with external vectors...')
-                    feed_dict = {}
-                    model_vars = []
-                    if lexicon.len_fixed > 0:
-                        feed_dict[model_tree.embedder.lexicon_fix_placeholder] = lexicon.vecs_fixed
-                        model_vars.append(model_tree.embedder.lexicon_fix_init)
-                    if lexicon.len_var > 0:
-                        feed_dict[model_tree.embedder.lexicon_var_placeholder] = lexicon.vecs_var
-                        model_vars.append(model_tree.embedder.lexicon_var_init)
-                    sess.run(model_vars, feed_dict=feed_dict)
+            if lexicon.is_filled:
+                logger.info('init embeddings with external vectors...')
+                feed_dict = {}
+                model_vars = []
+                if lexicon.len_fixed > 0:
+                    feed_dict[model_tree.embedder.lexicon_fix_placeholder] = lexicon.vecs_fixed
+                    model_vars.append(model_tree.embedder.lexicon_fix_init)
+                if lexicon.len_var > 0:
+                    feed_dict[model_tree.embedder.lexicon_var_placeholder] = lexicon.vecs_var
+                    model_vars.append(model_tree.embedder.lexicon_var_init)
+                sess.run(model_vars, feed_dict=feed_dict)
 
-                if init_only:
-                    supervisor.saver.save(sess, checkpoint_path(logdir, 0))
-                    logger.removeHandler(fh_info)
-                    logger.removeHandler(fh_debug)
-                    return
+            if init_only:
+                supervisor.saver.save(sess, checkpoint_path(logdir, 0))
+                logger.removeHandler(fh_info)
+                logger.removeHandler(fh_debug)
+                return
 
-                # TRAINING #################################################################################################
+            # TRAINING #################################################################################################
 
-                forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
-                with model_tree.compiler.multiprocessing_pool():
-                    if model_test is not None:
+            forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
+            with model_tree.compiler.multiprocessing_pool():
+                if model_test is not None:
 
-                        if test_iterator is not None:
-                            logger.info('create test data set ...')
-                            test_set = list(
-                                model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=forest),
-                                                                                 ordered=True))
-                            logger.info('test data size: ' + str(len(test_set)))
-                            if train_iterator is None:
-                                step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor, sess,
-                                                                                                   model_test, test_set, 0,
-                                                                                                   train=False,
-                                                                                                   emit=False)
-                                #stat = pearsonr(values_all, values_all_gold)[0]
-                                values_all.dump(os.path.join(logdir, 'sims.np'))
-                                values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
-                                logger.removeHandler(fh_info)
-                                logger.removeHandler(fh_debug)
-                                lexicon.dump(filename=os.path.join(logdir, 'model'))
-                                #return stat, np.mean(np.square(values_all - values_all_gold))
-                                return stats_dict
-
-                        logger.info('create dev data set ...')
-                        dev_set = list(
-                            model_test.tree_model.compiler.build_loom_inputs(dev_iterator(sequence_trees=forest)))
-                        logger.info('dev data size: ' + str(len(dev_set)))
-
-                    # clear vecs in lexicon to clean up memory
-                    lexicon.init_vecs()
-
-                    logger.info('create train data set ...')
-                    # data_train = list(train_iterator)
-                    train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
-                    # logger.info('train data size: ' + str(len(data_train)))
-                    # dev_feed_dict = compiler.build_feed_dict(dev_trees)
-                    logger.info('training the model')
-                    loss_test_best = 9999
-                    stat_queue = []
-                    if model_test is not None:
-                        if model_test.model_type == MODEL_TYPE_DISCRETE:
-                            stat_key = STAT_KEYS_DISCRETE[0]
-                        elif model_test.model_type == MODEL_TYPE_REGRESSION:
-                            stat_key = STAT_KEYS_REGRESSION[0]
-                        else:
-                            raise ValueError('stat_key not defined for model_type=%s' % model_test.model_type)
-                        # NOTE: this depends on stat_key (pearson/mse/roc/...)
-                        TEST_MIN_INIT = -1
-                        stat_queue = [{stat_key: TEST_MIN_INIT}]
-                    step_train = sess.run(model_train.global_step)
-                    max_queue_length = 0
-                    for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
-
-                        # train
-                        if not config.early_stop_queue or len(stat_queue) > 0:
-                            step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess, model_train, shuffled,
-                                                                                 epoch)
-
-                        if model_test is not None:
-                            # test
-                            step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(supervisor, sess, model_test,
-                                                                                               dev_set, epoch,
+                    if test_iterator is not None:
+                        logger.info('create test data set ...')
+                        test_set = list(
+                            model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=forest),
+                                                                             ordered=True))
+                        logger.info('test data size: ' + str(len(test_set)))
+                        if train_iterator is None:
+                            step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor, sess,
+                                                                                               model_test, test_set, 0,
                                                                                                train=False,
-                                                                                               test_step=step_train,
-                                                                                               test_writer=test_writer,
-                                                                                               test_result_writer=test_result_writer)
+                                                                                               emit=False)
+                            #stat = pearsonr(values_all, values_all_gold)[0]
+                            values_all.dump(os.path.join(logdir, 'sims.np'))
+                            values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
+                            logger.removeHandler(fh_info)
+                            logger.removeHandler(fh_debug)
+                            lexicon.dump(filename=os.path.join(logdir, 'model'))
+                            #return stat, np.mean(np.square(values_all - values_all_gold))
+                            return stats_dict
 
-                            if loss_test < loss_test_best:
-                                loss_test_best = loss_test
+                    logger.info('create dev data set ...')
+                    dev_set = list(
+                        model_test.tree_model.compiler.build_loom_inputs(dev_iterator(sequence_trees=forest)))
+                    logger.info('dev data size: ' + str(len(dev_set)))
 
-                            # EARLY STOPPING ###############################################################################
+                # clear vecs in lexicon to clean up memory
+                lexicon.init_vecs()
 
-                            stat = round(stats_test[stat_key], 6)
+                logger.info('create train data set ...')
+                # data_train = list(train_iterator)
+                train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
+                # logger.info('train data size: ' + str(len(data_train)))
+                # dev_feed_dict = compiler.build_feed_dict(dev_trees)
+                logger.info('training the model')
+                loss_test_best = 9999
+                stat_queue = []
+                if model_test is not None:
+                    if model_test.model_type == MODEL_TYPE_DISCRETE:
+                        stat_key = STAT_KEYS_DISCRETE[0]
+                    elif model_test.model_type == MODEL_TYPE_REGRESSION:
+                        stat_key = STAT_KEYS_REGRESSION[0]
+                    else:
+                        raise ValueError('stat_key not defined for model_type=%s' % model_test.model_type)
+                    # NOTE: this depends on stat_key (pearson/mse/roc/...)
+                    TEST_MIN_INIT = -1
+                    stat_queue = [{stat_key: TEST_MIN_INIT}]
+                step_train = sess.run(model_train.global_step)
+                max_queue_length = 0
+                for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
 
-                            prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
-                            # stop, if current test pearson r is not bigger than previous values. The amount of regarded
-                            # previous values is set by config.early_stop_queue
-                            if stat > prev_max:
-                                stat_queue = []
-                            else:
-                                if len(stat_queue) >= max_queue_length:
-                                    max_queue_length = len(stat_queue) + 1
-                            stat_queue.append(stats_test)
-                            stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
-                            rank = stat_queue_sorted.index(stats_test)
+                    # train
+                    if not config.early_stop_queue or len(stat_queue) > 0:
+                        step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess, model_train, shuffled,
+                                                                             epoch)
 
-                            # write out queue length
-                            emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
-                                        writer=test_writer)
+                    if model_test is not None:
+                        # test
+                        step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(supervisor, sess, model_test,
+                                                                                           dev_set, epoch,
+                                                                                           train=False,
+                                                                                           test_step=step_train,
+                                                                                           test_writer=test_writer,
+                                                                                           test_result_writer=test_result_writer)
 
-                            logger.info(
-                                '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
-                                % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
-                            if 0 < config.early_stop_queue < len(stat_queue):
-                                logger.info('last test %s: %s, last rank: %i' % (stat_key, str(stat_queue), rank))
-                                logger.removeHandler(fh_info)
-                                logger.removeHandler(fh_debug)
-                                return stat_queue_sorted[0]
+                        if loss_test < loss_test_best:
+                            loss_test_best = loss_test
 
-                            # do not save, if score was not the best
-                            # if rank > len(stat_queue) * 0.05:
-                            if len(stat_queue) > 1 and config.early_stop_queue:
-                                # auto restore if enabled
-                                #if config.auto_restore:
-                                #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
-                                pass
-                            else:
-                                # don't save after first epoch if config.early_stop_queue > 0
-                                if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
-                                    supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+                        # EARLY STOPPING ###############################################################################
+
+                        stat = round(stats_test[stat_key], 6)
+
+                        prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
+                        # stop, if current test pearson r is not bigger than previous values. The amount of regarded
+                        # previous values is set by config.early_stop_queue
+                        if stat > prev_max:
+                            stat_queue = []
                         else:
-                            # save model after each step if not dev model is set (training a language model)
-                            supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+                            if len(stat_queue) >= max_queue_length:
+                                max_queue_length = len(stat_queue) + 1
+                        stat_queue.append(stats_test)
+                        stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
+                        rank = stat_queue_sorted.index(stats_test)
 
-                    logger.removeHandler(fh_info)
-                    logger.removeHandler(fh_debug)
+                        # write out queue length
+                        emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
+                                    writer=test_writer)
+
+                        logger.info(
+                            '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
+                            % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
+                        if 0 < config.early_stop_queue < len(stat_queue):
+                            logger.info('last test %s: %s, last rank: %i' % (stat_key, str(stat_queue), rank))
+                            logger.removeHandler(fh_info)
+                            logger.removeHandler(fh_debug)
+                            return stat_queue_sorted[0]
+
+                        # do not save, if score was not the best
+                        # if rank > len(stat_queue) * 0.05:
+                        if len(stat_queue) > 1 and config.early_stop_queue:
+                            # auto restore if enabled
+                            #if config.auto_restore:
+                            #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                            pass
+                        else:
+                            # don't save after first epoch if config.early_stop_queue > 0
+                            if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
+                                supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+                    else:
+                        # save model after each step if not dev model is set (training a language model)
+                        supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+
+                logger.removeHandler(fh_info)
+                logger.removeHandler(fh_debug)
 
 
 def set_stat_values(d, stats, prefix=''):

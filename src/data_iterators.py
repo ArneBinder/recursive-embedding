@@ -7,6 +7,7 @@ from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, TYPE_REF_SEEALSO, TYPE_S
     vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, \
     LOGGING_FORMAT, IDENTITY_EMBEDDING
 from sequence_trees import Forest
+from mytools import numpy_load
 
 RECURSION_LIMIT_MIN = 1000
 RECURSION_LIMIT_ADD = 100
@@ -19,7 +20,7 @@ logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
 
-def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tries=10, max_depth=100,
+def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indices=None, max_tries=10, max_depth=100,
                                link_cost_ref=None, link_cost_ref_seealso=-1, transform=True, **unused):
     logger.debug('size of data: %i' % len(sequence_trees))
     logger.debug('size of lexicon: %i' % len(sequence_trees.lexicon))
@@ -33,6 +34,9 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, indices=None, max_tr
     if link_cost_ref is not None:
         costs[data_ref] = link_cost_ref
     costs[data_ref_seealso] = link_cost_ref_seealso
+
+    if len(index_files) > 0:
+        indices = np.concatenate([numpy_load(fn) for fn in index_files])
 
     # take all, if indices is not set
     if indices is None:
