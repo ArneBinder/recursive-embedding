@@ -32,14 +32,14 @@ if [ -n "$NV_GPU" ]; then
     DOCKERFILE="Dockerfile.tf1_3_gpu"
     IMAGE="tensorflowfold:tf1_3_gpu"
     export NV_GPU="$NV_GPU"
-    COMMAND="nvidia-docker"
+    DOCKER="nvidia-docker"
 else
     DOCKERFILE="Dockerfile.tf1_3_cpu_mkl"
     IMAGE="tensorflowfold:tf1_3_cpu_mkl"
-    COMMAND="docker"
+    DOCKER="docker"
 fi
 
-echo "execute COMMAND: '$COMMAND' @IMAGE: $IMAGE"
+echo "execute COMMAND: '$DOCKER' @IMAGE: $IMAGE"
 
 DOCKER_PROJECT_ROOT=/root/recursive-embedding
 
@@ -57,13 +57,13 @@ fi
 
 
 ## start training
-$COMMAND run -it \
+$DOCKER run -it \
     --cpuset-cpus "$CPU_SET" \
     --env-file "$HOST_SCRIPT_DIR/.env" \
-    -v $HOST_TRAIN:/root/train \
-    -v $HOST_CORPORA_OUT:/root/corpora_out \
-    -v $HOST_PROJECT_ROOT_DIR/src:$DOCKER_PROJECT_ROOT/src \
-    -p $HOST_PORT_NOTEBOOK:8888 \
+    -v "$HOST_TRAIN:/root/train" \
+    -v "$HOST_CORPORA_OUT:/root/corpora_out" \
+    -v "$HOST_PROJECT_ROOT_DIR/src:$DOCKER_PROJECT_ROOT/src" \
+    -p "$HOST_PORT_NOTEBOOK:8888" \
     $IMAGE \
         --train_data_path=/root/corpora_out/$TRAIN_DATA \
         --logdir=/root/train/$TRAIN_LOGDIR \
