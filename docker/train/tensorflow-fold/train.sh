@@ -20,7 +20,7 @@ echo ".env vars:"
 for i in "${array[@]}"
 do
 	if [ -z "${!i}" ]; then
-        echo "   ATTENTION: $i is NOT SET"
+        echo "ATTENTION: $i is NOT SET"
     else
         echo "   $i=${!i}"
     fi
