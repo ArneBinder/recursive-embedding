@@ -20,7 +20,7 @@ logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
 
-def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indices=None, max_tries=10, max_depth=100,
+def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indices=None, max_depth=100,
                                link_cost_ref=None, link_cost_ref_seealso=-1, transform=True, **unused):
     logger.debug('size of data: %i' % len(sequence_trees))
     logger.debug('size of lexicon: %i' % len(sequence_trees.lexicon))
@@ -29,6 +29,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     lexicon = sequence_trees.lexicon
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+    link_ids = [data_ref, data_ref_seealso]
     #data_identity = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
     costs = {}
     if link_cost_ref is not None:
@@ -42,14 +43,20 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     if indices is None:
         indices = np.arange(len(sequence_trees))# range(len(sequence_trees))
     logger.info('size of used indices: %i' % len(indices))
+    # try maximal every one twice
+    max_tries = neg_samples
+    count = 0
     for idx in indices:
+        if idx in link_ids:
+            continue
         #candidate_ids = []
         candidate_data = []
         try_count = 0
         while len(candidate_data) < neg_samples and try_count < max_tries:
             idx_cand = np.random.randint(len(sequence_trees), size=1)[0]
             data_cand = sequence_trees.data[idx_cand]
-            if data_cand != sequence_trees.data[idx]:# \
+            if data_cand != sequence_trees.data[idx] \
+                    and data_cand not in link_ids:# \
                     #and idx_cand not in candidate_ids:#\
                     #and sequence_trees.data[idx_cand] not in sequence_trees.root_id_mapping:
                 #if data_cand in sequence_trees.root_id_mapping:
@@ -73,6 +80,8 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
             probs = np.zeros(shape=len(candidate_data), dtype=int)
             probs[0] = 1
             yield [(children, candidate_data), probs]
+            count += 1
+    logger.info('use %i trees fro training' % count)
 
 
 def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset=2, link_types=[], remove_types=[]):
