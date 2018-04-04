@@ -728,7 +728,7 @@ class Forest(object):
             for c_offset in self._children[c_pos+1:c_pos+1+c_count]:
                 c_idx = p_idx + c_offset
                 self._parents[c_idx] = -c_offset
-        print('set parents')
+        #print('set parents')
 
     def set_children_with_parents(self):
         #logger.warning('set_children_with_parents ...')
