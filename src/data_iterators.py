@@ -50,9 +50,9 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
         if idx in link_ids:
             continue
         #candidate_ids = []
-        candidate_data_set = set()
+        candidate_data = []
         try_count = 0
-        while len(candidate_data_set) < neg_samples and try_count < max_tries:
+        while len(candidate_data) < neg_samples and try_count < max_tries:
             idx_cand = np.random.randint(len(sequence_trees), size=1)[0]
             data_cand = sequence_trees.data[idx_cand]
             if data_cand != sequence_trees.data[idx] \
@@ -61,21 +61,24 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
                     #and sequence_trees.data[idx_cand] not in sequence_trees.root_id_mapping:
                 #if data_cand in sequence_trees.root_id_mapping:
                 #    data_cand = data_identity
-                if transform:
-                    data_cand = lexicon.transform_idx(idx=data_cand, root_id_pos=sequence_trees.root_id_pos)
-                candidate_data_set.add(data_cand)
+                #if transform:
+                #    data_cand = lexicon.transform_idx(idx=data_cand, root_id_pos=sequence_trees.root_id_pos)
+                candidate_data.append(data_cand)
             else:
                 try_count += 1
 
         if try_count == max_tries:
-            logger.warning('not enough samples: %i, required: %i. skip idx=%i' % (len(candidate_data_set), neg_samples, idx))
+            logger.warning('not enough samples: %i, required: %i. skip idx=%i' % (len(candidate_data), neg_samples, idx))
             continue
         tree = sequence_trees.get_tree_dict_rooted(idx=idx, max_depth=max_depth, transform=transform,
                                                    costs=costs, link_types=[data_ref, data_ref_seealso])
 
+        if transform:
+            candidate_data = [lexicon.transform_idx(idx=d, root_id_pos=sequence_trees.root_id_pos) for d in candidate_data]
+
         children = tree[KEY_CHILDREN]
         if len(children) > 0:
-            candidate_data = [tree[KEY_HEAD]] + list(candidate_data_set)
+            candidate_data = [tree[KEY_HEAD]] + candidate_data
             probs = np.zeros(shape=len(candidate_data), dtype=int)
             probs[0] = 1
             yield [(children, candidate_data), probs]
