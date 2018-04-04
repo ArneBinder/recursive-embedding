@@ -15,9 +15,10 @@ RECURSION_LIMIT_ADD = 100
 logger = logging.getLogger('data_iterators')
 logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
-logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
+logger.propagate = False
 
 
 def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indices=None, max_depth=100,
@@ -129,10 +130,8 @@ def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',
                                    max_depth=9999, context=0, transform=True, offset_context=2,
                                    offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
-                                   bag_of_seealsos=True,
+                                   bag_of_seealsos=True, root_strings=None,
                                    **unused):
-    # DEBUG: TODO: remove!
-    #n_max = 4
 
     sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
 
@@ -162,33 +161,36 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tre
     n = 0
     for file_name in index_files:
         indices = np.load(file_name)
-        for root in indices:
-            idx_root = sequence_trees.roots[root]
+        for root_id in indices:
+            idx_root = sequence_trees.roots[root_id]
             idx_context_root = idx_root + offset_context
             idx_seealso_root = idx_root + offset_seealso
-
             children = []
+            seealso_root_ids = []
             for c_offset in sequence_trees.get_children(idx_seealso_root):
+                seealso_root_ids = []
                 seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
                 seealso_idx = idx_seealso_root + c_offset + seealso_offset
                 seealso_data_id = sequence_trees.data[seealso_idx]
                 if seealso_data_id == data_unknown:
                     continue
-                seealso_root = sequence_trees.root_id_mapping.get(seealso_data_id, None)
-                if seealso_root is None:
+                seealso_root_id = sequence_trees.root_id_mapping.get(seealso_data_id, None)
+                if seealso_root_id is None:
                     continue
                 if concat_mode == 'tree':
-                    idx_root_seealso = sequence_trees.roots[seealso_root] + offset_context
+                    idx_root_seealso = sequence_trees.roots[seealso_root_id] + offset_context
                     tree_seealso = sequence_trees.get_tree_dict(idx=idx_root_seealso, max_depth=max_depth-2,
                                                                 context=context, transform=transform,
                                                                 costs=costs,
                                                                 link_types=[data_ref, data_ref_seealso])
                 else:
-                    f_seealso = get_tree_naive(seealso_root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
-                                               link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
+                    f_seealso = get_tree_naive(root=seealso_root_id, forest=sequence_trees, concat_mode=concat_mode,
+                                               lexicon=lexicon, link_types=[data_ref, data_ref_seealso],
+                                               remove_types=remove_types_naive)
                     f_seealso.set_children_with_parents()
                     tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth-2, context=context, transform=transform)
                 children.append({KEY_HEAD: data_ref_seealso_transformed, KEY_CHILDREN: [tree_seealso]})
+                seealso_root_ids.append(seealso_root_id)
             if len(children) > 0:
                 if concat_mode == 'tree':
                     tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
@@ -196,7 +198,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tre
                                                                 costs=costs,
                                                                 link_types=[data_ref, data_ref_seealso])
                 else:
-                    f = get_tree_naive(root, sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
+                    f = get_tree_naive(root=root_id, forest=sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
                                        link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
                     f.set_children_with_parents()
                     tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
@@ -209,6 +211,11 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tre
                         # use fist child (^= the context) of tree_seealso
                         yield [[tree_context, child[KEY_CHILDREN][0]], np.ones(shape=2, dtype=int)]
                         n += 1
+
+                # if debug is enabled, show root_id_strings and seealsos
+                if root_strings is not None:
+                    root_id = sequence_trees.data[idx_root + 1] - len(lexicon)
+                    logger.debug('root: %s -> [%s]' % (root_strings[root_id], ', '.join([root_strings[root_id] for root_id in seealso_root_ids])))
 
                 #if n >= n_max:
                 #    break
