@@ -20,6 +20,7 @@ import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
 from sklearn.metrics import roc_auc_score
+from spacy.strings import StringStore
 
 import lexicon as lex
 import model_fold
@@ -69,6 +70,9 @@ tf.flags.DEFINE_string('grid_config_file',
 tf.flags.DEFINE_integer('run_count',
                         1,
                         'repeat each run this often')
+tf.flags.DEFINE_boolean('debug',
+                        False,
+                        'enable debug mode (additional output, but slow)')
 
 # flags which are not logged in logdir/flags.json
 tf.flags.DEFINE_string('master', '',
@@ -297,6 +301,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
+        if FLAGS.debug:
+            root_strings_store = StringStore()
+            root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
+            data_iterator_args['root_strings'] = [s for s in root_strings_store]
+
         data_iterator_train = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         data_iterator_dev = partial(data_tuple_iterator_dbpedianif, **data_iterator_args)
         tuple_size = 2
