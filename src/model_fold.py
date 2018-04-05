@@ -1062,8 +1062,8 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
         embeddings_1_list_trans = tf.reshape(embeddings_1_m_trans, shape=[batch_size ** 2, tree_model.tree_output_size])
         #tree_embeddings_tiled_stacked = tf.reshape(tf.stack([embeddings_0_list, embeddings_1_list_trans]),
         #                                           shape=[batch_size ** 2, 2, tree_model.tree_output_size])
-        tree_embeddings_tiled_stacked = tf.reshape(tf.stack([embeddings_0_list, embeddings_1_list_trans]),
-                                                   shape=[batch_size ** 2, tree_model.tree_output_size * 2])
+        stacked = tf.stack([embeddings_0_list, embeddings_1_list_trans], axis=1)
+        tree_embeddings_tiled_stacked = tf.reshape(stacked, shape=[batch_size ** 2, tree_model.tree_output_size * 2])
 
         # apply sim measure
         #self._scores = sim_measure(tree_embeddings_tiled_stacked)
