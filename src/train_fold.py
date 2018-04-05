@@ -237,7 +237,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     if logdir_continue:
         assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
     old_checkpoint_fn = None
-    lexicon = None
     if checkpoint_fn:
         if not checkpoint_fn.startswith(logdir):
             raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
@@ -248,13 +247,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
-        lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'))
+        lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'), load_ids_fixed=(not config.no_fixed_vecs))
         #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         lexicon.init_vecs(checkpoint_reader=reader)
     else:
-        lexicon = lex.Lexicon(filename=config.train_data_path)
+        lexicon = lex.Lexicon(filename=config.train_data_path, load_ids_fixed=(not config.no_fixed_vecs))
         ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         if logdir_pretrained:
