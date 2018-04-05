@@ -383,8 +383,7 @@ class Lexicon(object):
         self._strings = strings
         if filename is not None:
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
-            if load_ids_fixed:
-                self.init_ids_fixed(filename, assert_exists=False)
+            self.init_ids_fixed(filename if load_ids_fixed else None, assert_exists=False)
             if load_vecs and Lexicon.exist(filename, vecs_only=True):
                 self.init_vecs(filename=filename)
             else:
@@ -479,8 +478,9 @@ class Lexicon(object):
     def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
                   vocab_prefix=PREFIX_LEX):
         if filename is not None:
+            assert self._ids_fixed is not None, 'ids_fixed is None'
             new_vecs = numpy_load('%s.%s' % (filename, FE_VECS), assert_exists=True)
-            self.init_ids_fixed(filename, assert_exists=False)
+            #self.init_ids_fixed(filename, assert_exists=False)
         elif checkpoint_reader is not None:
             assert self._ids_fixed is not None, 'ids_fixed is None'
             import model_fold
