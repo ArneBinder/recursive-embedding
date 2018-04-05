@@ -472,6 +472,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             # TRAINING #################################################################################################
 
             forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
+
+            # TODO:
+            # add code for TF-IDF model here:
+            #     1) train_iterator/dev_iterator/test_iterator output to lists (of (n-)tuples)
+            #     2) lists to -> tf-idf doc representations
+            #     3) regression on train
+            #     4) eval on dev/test
+
             with model_tree.compiler.multiprocessing_pool():
                 if model_test is not None:
 
