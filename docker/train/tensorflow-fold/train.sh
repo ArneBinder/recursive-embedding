@@ -84,3 +84,4 @@ $DOCKER run -it \
         --context=$CONTEXT \
         --neg_samples=$NEG_SAMPLES \
         --train_files=$TRAIN_FILES
+        --no_fixed_vecs=$NO_FIXED_VECS
