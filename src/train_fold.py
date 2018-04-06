@@ -183,16 +183,16 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
         sims = []
         _indices = []
         for t in range(tree_count):
-            current_sims = -np.eye(s)
+            # exclude identity: -eye
+            current_sims = -np.eye(s, dtype=np.float32)
             for i in range(s):
-                for j in range(s):
-                    current_sims[i, j] += np.sum(normed[i, t, :] * normed[j, t, :], axis=-1)
+                #for j in range(s):
+                current_sims[i, :] += np.sum(normed[i, t, :] * normed[:, t, :], axis=-1)
 
             #tiled = np.tile(normed[:, t, :], (s, 1)).reshape((s, s, tree_output_size))
             #tiled_trans = np.transpose(tiled, axes=[1, 0, 2])
             #current_sims = np.sum(tiled_trans * tiled, axis=-1)
-            # exclude identity: -eye
-            current_indices = np.argpartition(current_sims - np.eye(s), -bs)[:, -bs:]
+            current_indices = np.argpartition(current_sims, -bs)[:, -bs:]
             _indices.append(current_indices)
             sims.append(current_sims)
 
