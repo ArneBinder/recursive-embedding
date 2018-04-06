@@ -176,23 +176,28 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
             current_tree_embeddings = sess.run(model.tree_model.embeddings_all, feed_dict)
             _tree_embeddings.append(current_tree_embeddings.reshape((-1, tree_count, tree_output_size)))
         _tree_embeddings_all = np.concatenate(_tree_embeddings)
-        logger.debug('embeddings calculated')
+        logger.debug('%i * %i embeddings calculated' % (len(_tree_embeddings_all), tree_count))
         # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
         s = _tree_embeddings_all.shape[0]
         normed = pp.normalize(_tree_embeddings_all.reshape((-1, tree_output_size)), norm='l2').reshape((s, tree_count, tree_output_size))
         sims = []
         _indices = []
         for t in range(tree_count):
-            tiled = np.tile(normed[:, t, :], (s, 1)).reshape((s, s, tree_output_size))
-            tiled_trans = np.transpose(tiled, axes=[1, 0, 2])
-            current_sims = np.sum(tiled_trans * tiled, axis=-1)
+            current_sims = -np.eye(s)
+            for i in range(s):
+                for j in range(s):
+                    current_sims[i, j] += np.sum(normed[i, t, :] * normed[j, t, :], axis=-1)
+
+            #tiled = np.tile(normed[:, t, :], (s, 1)).reshape((s, s, tree_output_size))
+            #tiled_trans = np.transpose(tiled, axes=[1, 0, 2])
+            #current_sims = np.sum(tiled_trans * tiled, axis=-1)
             # exclude identity: -eye
             current_indices = np.argpartition(current_sims - np.eye(s), -bs)[:, -bs:]
             _indices.append(current_indices)
             sims.append(current_sims)
 
         neg_sample_indices = np.concatenate(_indices, axis=-1)
-        print('XXX')
+        logger.debug('XXX')
 
     _result_all = []
 
