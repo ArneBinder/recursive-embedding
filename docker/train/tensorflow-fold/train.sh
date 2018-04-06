@@ -74,7 +74,7 @@ $DOCKER run -it \
         --learning_rate=$LEARNING_RATE \
         --optimizer=$OPTIMIZER \
         --early_stop_queue=$EARLY_STOP_QUEUE \
-        --root_fc_size=$ROOT_FC_SIZE \
+        --root_fc_sizes=$ROOT_FC_SIZES \
         --leaf_fc_size=$LEAF_FC_SIZE \
         --state_size=$STATE_SIZE \
         --keep_prob=$KEEP_PROB \

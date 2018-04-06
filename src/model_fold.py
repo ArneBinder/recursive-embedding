@@ -194,7 +194,7 @@ def AttentionReduce(name=None):  # pylint: disable=invalid-name
 
 class TreeEmbedding(object):
     def __init__(self, name, lex_size_fix, lex_size_var, dimension_embeddings, keep_prob_placeholder=None, state_size=None,
-                 leaf_fc_size=0, root_fc_size=0, keep_prob_fixed=1.0, **unused):
+                 leaf_fc_size=0, root_fc_sizes=0, keep_prob_fixed=1.0, **unused):
         self._lex_size_fix = lex_size_fix
         self._lex_size_var = lex_size_var
         self._dim_embeddings = dimension_embeddings
@@ -221,7 +221,10 @@ class TreeEmbedding(object):
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
-        self._root_fc_size = root_fc_size
+        if isinstance(root_fc_sizes, (list, tuple)):
+            self._root_fc_sizes = root_fc_sizes
+        else:
+            self._root_fc_sizes = [root_fc_sizes]
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._leaf_fc_size:
@@ -230,12 +233,15 @@ class TreeEmbedding(object):
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
                 self._leaf_fc = td.Identity()
-            if root_fc_size:
-                self._root_fc = fc_scoped(num_units=root_fc_size, activation_fn=tf.nn.tanh, scope=scope,
-                                          keep_prob=self.keep_prob,
-                                          name=VAR_PREFIX_FC_ROOT + '_%d' % self.state_size)
-            else:
-                self._root_fc = td.Identity()
+            #if len(root_fc_size) > 0:
+            self._root_fcs = []
+            for i, s in enumerate(root_fc_sizes):
+                if s > 0:
+                    self._root_fcs.append(fc_scoped(num_units=s, activation_fn=tf.nn.tanh, scope=scope,
+                                                    keep_prob=self.keep_prob,
+                                                    name=VAR_PREFIX_FC_ROOT + '%d_%d' % (i, self.state_size)))
+            #else:
+            #    self._root_fc = td.Identity()
 
             self._reverse_fc = fc_scoped(num_units=self._dim_embeddings,
                                          activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
@@ -312,11 +318,18 @@ class TreeEmbedding(object):
 
     @property
     def root_fc_size(self):
-        return self._root_fc_size or 0
+        if len(self._root_fc_sizes) > 0:
+            return self._root_fc_sizes[-1]
+        return 0
 
     @property
     def root_fc(self):
-        return self._root_fc
+        # return self._root_fcs
+        if len(self._root_fcs) == 0:
+            return td.Identity()
+        elif len(self._root_fcs) == 1:
+            return self._root_fcs[0]
+        return td.Pipe(*self._root_fcs)
 
     @property
     def lexicon_var(self):
@@ -666,9 +679,9 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
 class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
-    def __init__(self, name, tree_count, root_fc_size=0, **kwargs):
-        assert root_fc_size == 0, 'no root_fc allowed for HTUBatchedHead'
-        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, root_fc_size=root_fc_size,
+    def __init__(self, name, tree_count, root_fc_sizes=0, **kwargs):
+        assert root_fc_sizes == 0, 'no root_fc allowed for HTUBatchedHead'
+        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, root_fc_size=root_fc_sizes,
                                                            **kwargs)
         self._batch_size = tree_count
 

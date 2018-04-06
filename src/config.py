@@ -69,12 +69,13 @@ default_config = {'train_data_path': ['DEFINE_string',
                                    'If not 0, apply a fully connected layer with this size before composition',
                                    'leaffc'
                                    ],
-                  'root_fc_size': ['DEFINE_integer',
-                                   0,
-                                   # 50,
-                                   'If not 0, apply a fully connected layer with this size after composition',
-                                   'rootfc'
-                                   ],
+                  'root_fc_sizes': ['DEFINE_string',
+                                    '0',
+                                    # '50,100,50',
+                                    'Apply fully connected layers with these sizes after composition. '
+                                    'Format: String containing a comma separated list of positive integers.',
+                                    'rootfc'
+                                    ],
                   'state_size': ['DEFINE_integer',
                                  50,
                                  'size of the composition layer',

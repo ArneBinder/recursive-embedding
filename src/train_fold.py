@@ -384,9 +384,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                       tree_embedder=tree_embedder,
                                                       dimension_embeddings=lexicon.vec_size,
                                                       state_size=config.state_size,
-                                                      #lexicon_trainable=config.lexicon_trainable,
                                                       leaf_fc_size=config.leaf_fc_size,
-                                                      root_fc_size=config.root_fc_size,
+                                                      # add a leading '0' to allow an empty string
+                                                      root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
                                                       keep_prob=config.keep_prob,
                                                       tree_count=tuple_size,
                                                       discrete_values_gold=discrete_model
