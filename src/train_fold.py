@@ -531,7 +531,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     stat_queue = [{stat_key: TEST_MIN_INIT}]
                 step_train = sess.run(model_train.global_step)
                 max_queue_length = 0
-                for epoch, shuffled in enumerate(td.epochs(train_set, config.epochs, shuffle=True), 1):
+                for epoch, shuffled in enumerate(td.epochs(items=train_set, n=config.epochs, shuffle=True), 1):
 
                     # train
                     if not config.early_stop_queue or len(stat_queue) > 0:

@@ -424,13 +424,14 @@ class TreeEmbedding_reduce(TreeEmbedding):
         raise NotImplementedError
 
 
-class TreeEmbedding_mapIDENTITY(TreeEmbedding_map):
-    def __init__(self, name, **kwargs):
-        super(TreeEmbedding_mapIDENTITY, self).__init__(name='mapIDENTITY_' + name, **kwargs)
-
-    @property
-    def map(self):
-        return td.Identity()
+# TODO: does not work like this! TreeEmbedding_map.map requires: (input, state_in) -> state_out
+#class TreeEmbedding_mapIDENTITY(TreeEmbedding_map):
+#    def __init__(self, name, **kwargs):
+#        super(TreeEmbedding_mapIDENTITY, self).__init__(name='mapIDENTITY_' + name, **kwargs)
+#
+#    @property
+#    def map(self):
+#        return td.Identity()
 
 
 def gru_cell(scope, state_size, keep_prob, input_size):
@@ -804,9 +805,9 @@ class TreeEmbedding_HTU_reduceATTsingle_mapGRU(TreeEmbedding_reduceATTsingle, Tr
 
 
 #TODO: check this!
-class TreeEmbedding_HTU_reduceGRU_mapIDENTITY(TreeEmbedding_reduceGRU, TreeEmbedding_mapIDENTITY, TreeEmbedding_HTU):
-    def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_HTU_reduceGRU_mapIDENTITY, self).__init__(name=name, **kwargs)
+#class TreeEmbedding_HTU_reduceGRU_mapIDENTITY(TreeEmbedding_reduceGRU, TreeEmbedding_mapIDENTITY, TreeEmbedding_HTU):
+#    def __init__(self, name='', **kwargs):
+#        super(TreeEmbedding_HTU_reduceGRU_mapIDENTITY, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_reduceAVG, TreeEmbedding_FLAT):
