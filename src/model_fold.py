@@ -1199,3 +1199,27 @@ class SequenceTreeRerootModel(BaseTrainModel):
     @property
     def model_type(self):
         return MODEL_TYPE_DISCRETE
+
+
+class HighestSimsModel:
+
+    def __init__(self, embedding_size):
+        self._normed_reference_embedding = tf.placeholder(tf.float32, [embedding_size])
+        self._normed_embeddings = tf.placeholder(tf.float32, [None, embedding_size])
+
+        batch_size = tf.shape(self._normed_embeddings)[0]
+        _reference_embedding_tiled = tf.tile(tf.reshape(self._normed_reference_embedding, shape=(1, embedding_size)), multiples=[batch_size, 1])
+
+        self._sims = tf.reduce_sum(_reference_embedding_tiled * self._normed_embeddings, axis=-1)
+
+    @property
+    def normed_reference_embedding(self):
+        return self._normed_reference_embedding
+
+    @property
+    def normed_embeddings(self):
+        return self._normed_embeddings
+
+    @property
+    def sims(self):
+        return self._sims

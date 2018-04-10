@@ -154,7 +154,7 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
 
 
 def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, test_step=0,
-             test_writer=None, test_result_writer=None, manual_batches=True):  # , discrete_model=False):
+             test_writer=None, test_result_writer=None, highest_sims_model=None):  # , discrete_model=False):
 
     step = test_step
     feed_dict = {}
@@ -166,12 +166,14 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
     else:
         feed_dict[model.tree_model.keep_prob] = 1.0
 
-    if manual_batches:
+    if highest_sims_model is not None:
         tree_count = model.tree_model.tree_count
         tree_output_size = model.tree_model.tree_output_size
         bs = config.batch_size // tree_count
         _tree_embeddings = []
+        orginal_batches = []
         for batch in td.group_by_batches(data_set, config.batch_size):
+            orginal_batches.append(batch)
             feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
             current_tree_embeddings = sess.run(model.tree_model.embeddings_all, feed_dict)
             _tree_embeddings.append(current_tree_embeddings.reshape((-1, tree_count, tree_output_size)))
@@ -179,17 +181,26 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
         logger.debug('%i * %i embeddings calculated' % (len(_tree_embeddings_all), tree_count))
         # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
         s = _tree_embeddings_all.shape[0]
-        normed = pp.normalize(_tree_embeddings_all.reshape((-1, tree_output_size)), norm='l2').reshape((s, tree_count, tree_output_size))
+        sim_batch_size = 100
+        normed = pp.normalize(_tree_embeddings_all.reshape((-1, tree_output_size)), norm='l2')\
+            .reshape((s, tree_count, tree_output_size))
         sims = []
         _indices = []
         for t in range(tree_count):
             # exclude identity: -eye
             current_sims = -np.eye(s, dtype=np.float32)
             for i in range(s):
-                #for j in range(s):
-                current_sims[i, :] += np.sum(normed[i, t, :] * normed[:, t, :], axis=-1)
+                for j in range(0, s, sim_batch_size):
+                #current_sims[i, :] += np.sum(normed[i, t, :] * normed[:, t, :], axis=-1)
+                    j_end = min(j+sim_batch_size, s)
+                    sims_batch = sess.run(highest_sims_model.sims,
+                                                   {
+                                                       highest_sims_model.normed_reference_embedding: normed[i, t, :],
+                                                       highest_sims_model.normed_embeddings: normed[j:j_end, t, :]
+                                                   })
+                    current_sims[i, j:j_end] += sims_batch
 
-            #tiled = np.tile(normed[:, t, :], (s, 1)).reshape((s, s, tree_output_size))
+                #tiled = np.tile(normed[:, t, :], (s, 1)).reshape((s, s, tree_output_size))
             #tiled_trans = np.transpose(tiled, axes=[1, 0, 2])
             #current_sims = np.sum(tiled_trans * tiled, axis=-1)
             current_indices = np.argpartition(current_sims, -bs)[:, -bs:]
@@ -199,10 +210,14 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
         neg_sample_indices = np.concatenate(_indices, axis=-1)
         logger.debug('XXX')
 
+        batch_iter = []
+    else:
+        batch_iter = td.group_by_batches(data_set, config.batch_size)
+
     _result_all = []
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for batch in td.group_by_batches(data_set, config.batch_size):
+    for batch in batch_iter:
         feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
         _result_all.append(sess.run(execute_vars, feed_dict))
 
@@ -434,6 +449,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                          sim_measure=sim_measure,
                                                                          clipping_threshold=config.clipping)
                 model_train = model_test
+                model_highest_sims = None
             elif config.model_type == 'tuple':
                 model_test = model_fold.SimilaritySequenceTreeTupleModel_sample(tree_model=model_tree,
                                                                                 optimizer=optimizer,
@@ -441,12 +457,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                 #sim_measure=sim_measure,
                                                                                 clipping_threshold=config.clipping)
                 model_train = model_test
+                model_highest_sims = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size)
             elif config.model_type == 'reroot':
                 model_train = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
                                                                  optimizer=optimizer,
                                                                  learning_rate=config.learning_rate,
                                                                  clipping_threshold=config.clipping)
                 model_test = None
+                model_highest_sims = None
             else:
                 raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -527,7 +545,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                             step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor, sess,
                                                                                                model_test, test_set, 0,
                                                                                                train=False,
-                                                                                               emit=False)
+                                                                                               emit=False,
+                                                                                               highest_sims_model=model_highest_sims)
                             #stat = pearsonr(values_all, values_all_gold)[0]
                             values_all.dump(os.path.join(logdir, 'sims.np'))
                             values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
@@ -570,7 +589,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     # train
                     if not config.early_stop_queue or len(stat_queue) > 0:
                         step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess, model_train, shuffled,
-                                                                             epoch)
+                                                                             epoch,
+                                                                             highest_sims_model=model_highest_sims)
 
                     if model_test is not None:
                         # test
@@ -579,7 +599,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                            train=False,
                                                                                            test_step=step_train,
                                                                                            test_writer=test_writer,
-                                                                                           test_result_writer=test_result_writer)
+                                                                                           test_result_writer=test_result_writer,
+                                                                                           highest_sims_model=model_highest_sims)
 
                         if loss_test < loss_test_best:
                             loss_test_best = loss_test
