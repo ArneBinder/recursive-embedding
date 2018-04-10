@@ -169,11 +169,11 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
     if highest_sims_model is not None:
         tree_count = model.tree_model.tree_count
         tree_output_size = model.tree_model.tree_output_size
-        bs = config.batch_size // tree_count
+        indices_number = config.batch_size // tree_count
         _tree_embeddings = []
-        orginal_batches = []
+        orginal_data = []
         for batch in td.group_by_batches(data_set, config.batch_size):
-            orginal_batches.append(batch)
+            orginal_data.extend(batch)
             feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
             current_tree_embeddings = sess.run(model.tree_model.embeddings_all, feed_dict)
             _tree_embeddings.append(current_tree_embeddings.reshape((-1, tree_count, tree_output_size)))
@@ -181,15 +181,19 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
         logger.debug('%i * %i embeddings calculated' % (len(_tree_embeddings_all), tree_count))
         # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
         s = _tree_embeddings_all.shape[0]
-        sim_batch_size = 100
+        sim_batch_size = 1000
         normed = pp.normalize(_tree_embeddings_all.reshape((-1, tree_output_size)), norm='l2')\
             .reshape((s, tree_count, tree_output_size))
-        sims = []
-        _indices = []
+        #sims = []
+        #_indices = []
+        neg_sample_indices = np.zeros(shape=(s, tree_count, indices_number), dtype=np.int32)
         for t in range(tree_count):
             # exclude identity: -eye
-            current_sims = -np.eye(s, dtype=np.float32)
+            #current_sims = -np.eye(s, dtype=np.float32)
+
             for i in range(s):
+                current_sims = np.zeros(s, dtype=np.float32)
+                current_sims[i] = -1.0
                 for j in range(0, s, sim_batch_size):
                 #current_sims[i, :] += np.sum(normed[i, t, :] * normed[:, t, :], axis=-1)
                     j_end = min(j+sim_batch_size, s)
@@ -198,19 +202,26 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
                                                        highest_sims_model.normed_reference_embedding: normed[i, t, :],
                                                        highest_sims_model.normed_embeddings: normed[j:j_end, t, :]
                                                    })
-                    current_sims[i, j:j_end] += sims_batch
+                    current_sims[j:j_end] += sims_batch
 
                 #tiled = np.tile(normed[:, t, :], (s, 1)).reshape((s, s, tree_output_size))
-            #tiled_trans = np.transpose(tiled, axes=[1, 0, 2])
-            #current_sims = np.sum(tiled_trans * tiled, axis=-1)
-            current_indices = np.argpartition(current_sims, -bs)[:, -bs:]
-            _indices.append(current_indices)
-            sims.append(current_sims)
+                #tiled_trans = np.transpose(tiled, axes=[1, 0, 2])
+                #current_sims = np.sum(tiled_trans * tiled, axis=-1)
+                current_indices = np.argpartition(current_sims, -indices_number)[-indices_number:]
+                neg_sample_indices[i, t, :] = current_indices
+            #_indices.append(current_indices)
+            #sims.append(current_sims)
+        neg_sample_indices = neg_sample_indices.reshape((s, -1))
+        #neg_sample_indices = np.concatenate(_indices, axis=-1)
+        logger.debug('created neg_sample_indices')
 
-        neg_sample_indices = np.concatenate(_indices, axis=-1)
-        logger.debug('XXX')
-
+        #batch_iter = [[orginal_data[idx] for idx in [i] + n_indices] for i, n_indices in enumerate(neg_sample_indices)]
         batch_iter = []
+        for i, n_indices in enumerate(neg_sample_indices):
+            _current_indices = np.concatenate(([i], n_indices))
+            _current_batch_data = [orginal_data[idx] for idx in _current_indices]
+            batch_iter.append(_current_batch_data)
+        logger.debug('created highest sims batches')
     else:
         batch_iter = td.group_by_batches(data_set, config.batch_size)
 
@@ -222,7 +233,11 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
         _result_all.append(sess.run(execute_vars, feed_dict))
 
     # list of dicts to dict of lists
-    result_all = dict(zip(_result_all[0], zip(*[d.values() for d in _result_all])))
+    if len(_result_all) > 0:
+        result_all = dict(zip(_result_all[0], zip(*[d.values() for d in _result_all])))
+    else:
+        logger.warning('EMPTY RESULT')
+        result_all = {k: [] for k in execute_vars.keys()}
 
     # if train, set step to last executed step
     if train and len(_result_all) > 0:
