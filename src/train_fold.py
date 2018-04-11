@@ -537,7 +537,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                 #sim_measure=sim_measure,
                                                                                 clipping_threshold=config.clipping)
                 #model_train = model_test
-                # TODO: fix this! get_dataset_size returns not the final value
                 meta['train']['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
                                                                                   number_of_embeddings=len(meta['train']['dataset']))
                 meta['test']['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
