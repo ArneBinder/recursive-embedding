@@ -167,8 +167,8 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
     else:
         feed_dict[model.tree_model.keep_prob] = 1.0
 
-    if True == False:
-    #if highest_sims_model is not None:
+    #if True == False:
+    if highest_sims_model is not None:
         tree_count = model.tree_model.tree_count
         tree_output_size = model.tree_model.tree_output_size
         indices_number = config.batch_size // tree_count
@@ -292,12 +292,12 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
     return count
 
 
-def get_dataset_size(index_files=None):
-    if index_files is None:
-        return 0
-    ds = sum([len(numpy_load(ind_file, assert_exists=True)) for ind_file in index_files])
-    logger.debug('dataset size: %i' % ds)
-    return ds
+#def get_dataset_size(index_files=None):
+#    if index_files is None:
+#        return 0
+#    ds = sum([len(numpy_load(ind_file, assert_exists=True)) for ind_file in index_files])
+#    logger.debug('dataset size: %i' % ds)
+#    return ds
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None):
@@ -450,8 +450,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             # train_fnames_negs = filter(regex.search, os.listdir(parent_dir))
             #train_fnames = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
             meta['train']['fnames'] = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
-        assert len(train_fnames) > 0, 'no matching train data files found for ' + config.train_data_path
-        logger.info('found ' + str(len(train_fnames)) + ' train data files')
+        assert len(meta['train']['fnames']) > 0, 'no matching train data files found for ' + config.train_data_path
+        logger.info('found ' + str(len(meta['train']['fnames'])) + ' train data files')
         #if 'test' in meta and ('train' not in meta or 'fnames' not in meta['train']['fnames']):
         if 'test' in meta and 'fnames' not in meta['test']:
         #if 'data_iterator' in meta['test']:
@@ -488,6 +488,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     sim_measure = getattr(model_fold, config.sim_measure)
     tree_embedder = getattr(model_fold, config.tree_embedder)
 
+    forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
+
     logger.info('create tensorflow graph ...')
     #with tf.device('/device:GPU:0'):
     with tf.Graph().as_default() as graph:
@@ -508,6 +510,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                       discrete_values_gold=discrete_model
                                                       # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                       )
+
+            for m in meta:
+                logger.info('create %s data set ...' % m)
+                # data_train = list(train_iterator)
+                # train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
+                meta[m]['dataset'] = list(model_tree.compiler.build_loom_inputs(meta[m]['data_iterator'](sequence_trees=forest)))
+                logger.info('%s data size: %s' % (m, len(meta[m]['dataset'])))
 
             #model_highest_sims = None
             if config.model_type == 'simtuple':
@@ -530,15 +539,15 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 #model_train = model_test
                 # TODO: fix this! get_dataset_size returns not the final value
                 meta['train']['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
-                                                                                  number_of_embeddings=get_dataset_size(meta['train']['fnames']))
+                                                                                  number_of_embeddings=len(meta['train']['dataset']))
                 meta['test']['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
-                                                                                 number_of_embeddings=get_dataset_size(meta['test']['fnames']))
+                                                                                 number_of_embeddings=len(meta['test']['dataset']))
             elif config.model_type == 'reroot':
                 #model_train = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
                 model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
-                                                                 optimizer=optimizer,
-                                                                 learning_rate=config.learning_rate,
-                                                                 clipping_threshold=config.clipping)
+                                                         optimizer=optimizer,
+                                                         learning_rate=config.learning_rate,
+                                                         clipping_threshold=config.clipping)
                 #model_test = None
                 #model_highest_sims_train = None
                 #model_highest_sims_test = None
@@ -611,7 +620,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # TRAINING #################################################################################################
 
-            forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
+            #forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
 
             # TODO:
             # add code for TF-IDF model here:
@@ -629,11 +638,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     #test_set = list(
                     #    model_test.tree_model.compiler.build_loom_inputs(test_iterator(sequence_trees=forest),
                     #                                                     ordered=True))
-                    meta['test']['dataset'] = list(
-                        meta['test']['model'].tree_model.compiler.build_loom_inputs(meta['test']['data_iterator'](sequence_trees=forest),
-                                                                         ordered=True))
+                    #meta['test']['dataset'] = list(
+                    #    meta['test']['model'].tree_model.compiler.build_loom_inputs(meta['test']['data_iterator'](sequence_trees=forest),
+                    #                                                     ordered=True))
 
-                    logger.info('test data size: ' + str(len(meta['test']['dataset'])))
+                    #logger.info('test data size: ' + str(len(meta['test']['dataset'])))
                     #if train_iterator is None:
                     if 'train' not in meta:
                         step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor,
@@ -663,10 +672,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 # clear vecs in lexicon to clean up memory
                 lexicon.init_vecs()
 
-                logger.info('create train data set ...')
-                # data_train = list(train_iterator)
-                #train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
-                meta['train']['dataset'] = model_tree.compiler.build_loom_inputs(meta['train']['data_iterator'](sequence_trees=forest))
+                #logger.info('create train data set ...')
+                ## data_train = list(train_iterator)
+                ##train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
+                #meta['train']['dataset'] = model_tree.compiler.build_loom_inputs(meta['train']['data_iterator'](sequence_trees=forest))
                 # logger.info('train data size: ' + str(len(data_train)))
                 # dev_feed_dict = compiler.build_feed_dict(dev_trees)
                 logger.info('training the model')
