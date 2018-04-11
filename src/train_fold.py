@@ -192,18 +192,23 @@ def do_epoch(supervisor, sess, model, data_set, epoch, train=True, emit=True, te
             #current_sims = -np.eye(s, dtype=np.float32)
 
             for i in range(s):
-                current_sims = np.zeros(s, dtype=np.float32)
-                current_sims[i] = -1.0
-                for j in range(0, s, sim_batch_size):
+                #current_sims = np.zeros(s, dtype=np.float32)
+                #current_sims[i] = -1.0
+                #for j in range(0, s, sim_batch_size):
                 #current_sims[i, :] += np.sum(normed[i, t, :] * normed[:, t, :], axis=-1)
-                    j_end = min(j+sim_batch_size, s)
-                    sims_batch = sess.run(highest_sims_model.sims,
+                    #j_end = min(j+sim_batch_size, s)
+                    #sims_batch = sess.run(highest_sims_model.sims,
+                    #                               {
+                    #                                   highest_sims_model.normed_reference_embedding: normed[i, t, :],
+                    #                                   highest_sims_model.normed_embeddings: normed[j:j_end, t, :]
+                    #                               })
+                    #current_sims[j:j_end] += sims_batch
+                current_sims = sess.run(highest_sims_model.sims,
                                                    {
-                                                       highest_sims_model.normed_reference_embedding: normed[i, t, :],
-                                                       highest_sims_model.normed_embeddings: normed[j:j_end, t, :]
+                                                       highest_sims_model.reference_idx: i,
+                                                       highest_sims_model.normed_embeddings: normed[:, t, :]
                                                    })
-                    current_sims[j:j_end] += sims_batch
-
+                current_sims[i] = 0
                 #tiled = np.tile(normed[:, t, :], (s, 1)).reshape((s, s, tree_output_size))
                 #tiled_trans = np.transpose(tiled, axes=[1, 0, 2])
                 #current_sims = np.sum(tiled_trans * tiled, axis=-1)
