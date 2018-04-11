@@ -511,12 +511,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                       # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                       )
 
-            for m in meta:
-                logger.info('create %s data set ...' % m)
-                # data_train = list(train_iterator)
-                # train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
-                meta[m]['dataset'] = list(model_tree.compiler.build_loom_inputs(meta[m]['data_iterator'](sequence_trees=forest)))
-                logger.info('%s data size: %s' % (m, len(meta[m]['dataset'])))
+            with model_tree.compiler.multiprocessing_pool():
+                for m in meta:
+                    logger.info('create %s data set ...' % m)
+                    # data_train = list(train_iterator)
+                    # train_set = model_tree.compiler.build_loom_inputs(train_iterator(sequence_trees=forest))
+                    meta[m]['dataset'] = list(model_tree.compiler.build_loom_inputs(meta[m]['data_iterator'](sequence_trees=forest)))
+                    logger.info('%s data size: %s' % (m, len(meta[m]['dataset'])))
 
             #model_highest_sims = None
             if config.model_type == 'simtuple':
