@@ -60,6 +60,7 @@ fi
 $DOCKER run -it \
     --cpuset-cpus "$CPU_SET" \
     --env-file "$HOST_SCRIPT_DIR/.env" \
+    --memory-swap "$MEM_LIMIT" \
     --memory "$MEM_LIMIT" \
     -v "$HOST_TRAIN:/root/train" \
     -v "$HOST_CORPORA_OUT:/root/corpora_out" \
