@@ -132,9 +132,13 @@ def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset
 
 def data_single_iterator_dbpedianif_context(index_files, sequence_trees, concat_mode='tree',
                                             max_depth=9999, context=0, transform=True, offset_context=2,
-                                            link_cost_ref=None, link_cost_ref_seealso=1,
+                                            link_cost_ref=None, link_cost_ref_seealso=1, get_seealso_ids=True,
                                             **unused):
     # TODO: test!
+
+    offset_seealso = 3
+    data_unknown = sequence_trees.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING],
+                                                data_as_hashes=sequence_trees.data_as_hashes)
 
     lexicon = sequence_trees.lexicon
     costs = {}
@@ -156,6 +160,22 @@ def data_single_iterator_dbpedianif_context(index_files, sequence_trees, concat_
         for root_id in indices:
             idx_root = sequence_trees.roots[root_id]
             idx_context_root = idx_root + offset_context
+            # get seealso ids
+            seealso_root_ids = []
+            if get_seealso_ids:
+                idx_seealso_root = idx_root + offset_seealso
+                for c_offset in sequence_trees.get_children(idx_seealso_root):
+                    seealso_root_ids = []
+                    seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
+                    seealso_idx = idx_seealso_root + c_offset + seealso_offset
+                    seealso_data_id = sequence_trees.data[seealso_idx]
+                    if seealso_data_id == data_unknown:
+                        continue
+                    seealso_root_id = sequence_trees.root_id_mapping.get(seealso_data_id, None)
+                    if seealso_root_id is None:
+                        continue
+                    seealso_root_ids.append(seealso_root_id)
+
             if concat_mode == 'tree':
                 tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
                                                             context=context, transform=transform,
@@ -166,7 +186,7 @@ def data_single_iterator_dbpedianif_context(index_files, sequence_trees, concat_
                                    link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
                 f.set_children_with_parents()
                 tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-            yield tree_context
+            yield tree_context, root_id, seealso_root_ids
             n += 1
     logger.info('created %i tree tuples' % n)
 
@@ -187,7 +207,7 @@ def data_single_iterator_dbpedianif_context_tfidf(*args, **kwargs):
     data = []
     vocabulary = {}
     # get id-list versions of articles
-    for tree_context in data_single_iterator_dbpedianif_context(*args, concat_mode='aggregate', **kwargs):
+    for tree_context, _, _ in data_single_iterator_dbpedianif_context(*args, concat_mode='aggregate', **kwargs):
         d = tree_context[KEY_CHILDREN].keys()
         for term in d:
             index = vocabulary.setdefault(term, len(vocabulary))

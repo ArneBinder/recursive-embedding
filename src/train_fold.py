@@ -35,7 +35,7 @@ from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDEN
     TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT
 from config import Config
 from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
-    data_single_iterator_dbpedianif_context_tfidf
+    data_single_iterator_dbpedianif_context_tfidf, data_single_iterator_dbpedianif_context
 
 # non-saveable flags
 tf.flags.DEFINE_string('logdir',
@@ -408,6 +408,21 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tuple_size = 2
         discrete_model = True
         load_parents = (config.context is not None and config.context > 0)
+    elif config.model_type == 'tuple_single':
+        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
+                              'get_seealso_ids': True}
+        #if FLAGS.debug:
+        #    root_strings_store = StringStore()
+        #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
+        #    data_iterator_args['root_strings'] = [s for s in root_strings_store]
+
+        data_iterator = data_single_iterator_dbpedianif_context
+        # TODO: set correct value!
+        tuple_size = None
+
+        discrete_model = True
+        load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == 'reroot':
         if config.cut_indices is not None:
             indices = np.arange(config.cut_indices)
@@ -641,13 +656,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     stat_queue = [{stat_key: TEST_MIN_INIT}]
                 step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
                 max_queue_length = 0
-                for epoch, shuffled in enumerate(td.epochs(items=meta[M_TRAIN][M_TREES], n=config.epochs, shuffle=True), 1):
+                for epoch, shuffled in enumerate(td.epochs(items=meta[M_TRAIN][M_INDICES], n=config.epochs, shuffle=True), 1):
 
                     # train
                     if not config.early_stop_queue or len(stat_queue) > 0:
                         step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess,
                                                                              model=meta[M_TRAIN][M_MODEL],
-                                                                             dataset_trees=shuffled,
+                                                                             dataset_trees=meta[M_TRAIN][M_TREES],
                                                                              dataset_indices=shuffled,
                                                                              epoch=epoch,
                                                                              highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None)
@@ -658,7 +673,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(supervisor, sess,
                                                                                            model=meta[M_TEST][M_MODEL],
                                                                                            dataset_trees=meta[M_TEST][M_TREES],
-                                                                                           dataset_indices=None,
+                                                                                           dataset_indices=meta[M_TEST][M_INDICES],
                                                                                            epoch=epoch,
                                                                                            train=False,
                                                                                            test_step=step_train,
