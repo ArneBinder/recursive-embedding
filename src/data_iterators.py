@@ -3,6 +3,9 @@ import numpy as np
 import os
 import sys
 
+from sklearn.feature_extraction.text import TfidfTransformer
+from scipy.sparse import csr_matrix
+
 from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
     vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, \
     LOGGING_FORMAT, IDENTITY_EMBEDDING
@@ -125,6 +128,79 @@ def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
     return Forest(data=data, parents=parents, lexicon=lexicon)
+
+
+def data_single_iterator_dbpedianif_context(index_files, sequence_trees, concat_mode='tree',
+                                            max_depth=9999, context=0, transform=True, offset_context=2,
+                                            link_cost_ref=None, link_cost_ref_seealso=1,
+                                            **unused):
+    # TODO: test!
+
+    lexicon = sequence_trees.lexicon
+    costs = {}
+    data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
+    data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+
+    # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
+    remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
+                              TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
+    remove_types_naive = [lexicon.get_d(s, data_as_hashes=sequence_trees.data_as_hashes) for s in
+                          remove_types_naive_str]
+
+    if link_cost_ref is not None:
+        costs[data_ref] = link_cost_ref
+    costs[data_ref_seealso] = link_cost_ref_seealso
+    n = 0
+    for file_name in index_files:
+        indices = np.load(file_name)
+        for root_id in indices:
+            idx_root = sequence_trees.roots[root_id]
+            idx_context_root = idx_root + offset_context
+            if concat_mode == 'tree':
+                tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
+                                                            context=context, transform=transform,
+                                                            costs=costs,
+                                                            link_types=[data_ref, data_ref_seealso])
+            else:
+                f = get_tree_naive(root=root_id, forest=sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
+                                   link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
+                f.set_children_with_parents()
+                tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+            yield tree_context
+            n += 1
+    logger.info('created %i tree tuples' % n)
+
+
+def data_single_iterator_dbpedianif_context_tfidf(*args, **kwargs):
+    # TODO: test!
+    # * create id-list versions of articles
+    #   --> use data_single_iterator_dbpedianif_context with concat_mode='aggregate'
+    #   --> use heads (keys) of root child
+    # * create occurrence count matrix
+    #   --> create sparse matrix with counts as csr_matrix (Compressed Sparse Row matrix) with entries [doc_idx, lex_idx]
+    #       for iterative alogorithm, see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.csr_matrix.html#scipy.sparse.csr_matrix
+    #   --> use TfidfTransformer (see http://scikit-learn.org/stable/tutorial/text_analytics/working_with_text_data.html#from-occurrences-to-frequencies)
+
+    # create sparse count matrix
+    indptr = [0]
+    indices = []
+    data = []
+    vocabulary = {}
+    # get id-list versions of articles
+    for tree_context in data_single_iterator_dbpedianif_context(*args, concat_mode='aggregate', **kwargs):
+        d = tree_context[KEY_CHILDREN].keys()
+        for term in d:
+            index = vocabulary.setdefault(term, len(vocabulary))
+            indices.append(index)
+            data.append(1)
+        indptr.append(len(indices))
+    counts = csr_matrix((data, indices, indptr), dtype=int)
+    logger.debug('shape of count matrix: %s' % str(counts.shape))
+
+    # transform to tf-idf
+    tf_transformer = TfidfTransformer(use_idf=False).fit(counts)
+    tf_idf = tf_transformer.transform(counts)
+    return tf_idf
 
 
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',
