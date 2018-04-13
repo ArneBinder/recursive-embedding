@@ -987,22 +987,30 @@ class SequenceTreeModel(object):
 
 
 class DummyTreeModel(object):
-    def __init__(self, embeddings_dim, **kwargs):
+    def __init__(self, embeddings_dim, tree_count, **kwargs):
         self._embeddings_dim = embeddings_dim
-        self._embeddings_placeholder = tf.placeholder(shape=[None, self._embeddings_dim], dtype=tf.float32)
+        self._embeddings_placeholder = tf.placeholder(shape=[None, tree_count, self._embeddings_dim], dtype=tf.float32)
+        self._tree_count = tree_count
+
+    @property
+    def embeddings_placeholder(self):
+        return self._embeddings_placeholder
 
     @property
     def embeddings_all(self):
-        return self._embeddings_placeholder
+        return tf.reshape(self._embeddings_placeholder, shape=[-1, self.tree_output_size * self.tree_count])
 
-    # compatibility: same as embeddings_all
     @property
     def embeddings_shaped(self):
-        return tf.reshape(self.embeddings_all, shape=[-1, self.tree_output_size])
+        return tf.reshape(self._embeddings_placeholder, shape=[-1, self.tree_output_size])
 
     @property
     def tree_output_size(self):
         return self._embeddings_dim
+
+    @property
+    def tree_count(self):
+        return self._tree_count
 
 
 class BaseTrainModel(object):
@@ -1123,6 +1131,41 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
         #                       loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
         BaseTrainModel.__init__(self, tree_model=tree_model,
                                 loss=tf.reduce_mean(cross_entropy), **kwargs)
+
+        softmax = tf.nn.softmax(logits)
+        self._probs = softmax[:, 1]
+
+    @property
+    def values_gold(self):
+        return self._labels_gold
+
+    @property
+    def values_predicted(self):
+        return self._probs
+
+    @property
+    def model_type(self):
+        return MODEL_TYPE_DISCRETE
+
+
+class TreeTupleModel_with_candidates(BaseTrainModel):
+    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
+
+    def __init__(self, tree_model, candidate_count, **kwargs):
+        self._labels_gold = tf.placeholder(dtype=tf.int8, shape=[None, candidate_count])
+
+        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_count, tree_model.tree_output_size])
+
+        ref_tree_embedding = tree_embeddings[:, 0, :]
+        candidate_tree_embeddings = tree_embeddings[:, 1:, :]
+        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[candidate_count, 1])
+        stacked = tf.stack([ref_tree_embedding_tiled, candidate_tree_embeddings], axis=1)
+        stacked_reshaped = tf.reshape(stacked, shape=[-1, candidate_count, tree_model.tree_output_size])
+
+        fc = tf.contrib.layers.fully_connected(inputs=stacked_reshaped, num_outputs=1000)
+        logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
+        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         softmax = tf.nn.softmax(logits)
         self._probs = softmax[:, 1]
