@@ -34,8 +34,9 @@ from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
     TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT
 from config import Config
-from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
-    data_single_iterator_dbpedianif_context_tfidf, data_single_iterator_dbpedianif_context
+#from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
+#    indices_dbpedianif
+import data_iterators as diters
 
 # non-saveable flags
 tf.flags.DEFINE_string('logdir',
@@ -97,13 +98,18 @@ logger_streamhandler.setLevel(logging.INFO)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 #logger.addHandler(logger_streamhandler)
 
-M_DATA_ITER = 'data_iterator'
+M_INDICES = 'indices'
 M_TEST = 'test'
 M_TRAIN = 'train'
 M_MODEL = 'model'
 M_FNAMES = 'fnames'
 M_TREES = 'trees'
-M_INDICES = 'indices'
+M_TREE_EMBEDDINGS = 'tree_embeddings'
+#M_TARGETS = 'targets'
+M_DATA = 'data'
+M_IDS = 'ids'
+M_TREE_ITER = 'tree_iterator'
+M_INDICES_OTHER = 'indices_other'
 
 
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
@@ -163,8 +169,44 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
     return emit_dict
 
 
-def do_epoch(supervisor, sess, model, dataset_trees, dataset_indices, epoch, train=True, emit=True, test_step=0,
-             test_writer=None, test_result_writer=None, highest_sims_model=None):  # , discrete_model=False):
+def do_epoch(supervisor, sess, model, epoch, #dataset_ids,
+             dataset_target_ids=None, dataset_trees=None,
+             dataset_trees_embedded=None, train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
+             highest_sims_model=None, number_of_samples=0):  # , discrete_model=False):
+
+    id_to_idx = {_id: i for i, _id in enumerate(dataset_ids)}
+
+    #if dataset_indices is None:
+    dataset_indices = np.arange(len(dataset_ids))
+
+    np.random.shuffle(dataset_indices)
+
+    def id_iter():
+        if dataset_target_ids is None:
+            for idx in dataset_indices:
+                _id = dataset_ids[idx]
+                yield (idx, _id, _id)
+        else:
+            for idx in dataset_indices:
+                for target_id in dataset_target_ids[idx]:
+                    yield (idx, dataset_ids[idx], target_id)
+
+    def batch_iter_naive():
+        for idx, _id, _target_id in id_iter():
+            # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target
+            samples = np.random.random_integers(len(dataset_indices)-1, size=number_of_samples+1)
+            # replace "self" with 0
+            samples[samples == idx] = 0
+            # set the first to the correct target
+            samples[0] = _target_id
+
+            all_targets = dataset_target_ids[idx]
+            ix = np.isin(samples, all_targets)
+            probs = np.zeros(shape=(number_of_samples+1), dtype=tf.float32)
+            probs[ix] = 1.0
+
+            return idx, [id_to_idx[s_id] for s_id in samples], probs
+
 
     step = test_step
     feed_dict = {}
@@ -174,7 +216,10 @@ def do_epoch(supervisor, sess, model, dataset_trees, dataset_indices, epoch, tra
         execute_vars['train_op'] = model.train_op
         execute_vars['step'] = model.global_step
     else:
-        feed_dict[model.tree_model.keep_prob] = 1.0
+        if not isinstance(model.tree_model, model_fold.DummyTreeModel):
+            feed_dict[model.tree_model.keep_prob] = 1.0
+
+
 
     if False:
     #if highest_sims_model is not None:
@@ -246,13 +291,18 @@ def do_epoch(supervisor, sess, model, dataset_trees, dataset_indices, epoch, tra
             batch_iter.append(_current_batch_data)
         logger.debug('created highest sims batches')
     else:
-        batch_iter = td.group_by_batches(dataset_trees, config.batch_size)
+        batch_iter = td.group_by_batches(dataset_indices, config.batch_size)
 
     _result_all = []
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for batch in batch_iter:
-        feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
+    for indices_batch in batch_iter:
+        for idx in indices_batch:
+            trees = [dataset_trees[idx]] + [dataset_trees[id_to_idx[target_id]] for target_id in dataset_target_ids[idx]]
+
+
+
+        feed_dict[model.tree_model.compiler.loom_input_tensor] = [for i in ]
         _result_all.append(sess.run(execute_vars, feed_dict))
 
     # list of dicts to dict of lists
@@ -388,28 +438,28 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     meta[M_TEST] = {}
 
     if config.model_type == 'simtuple':
-        data_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
+        tree_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
                               'max_depth': config.max_depth, 'context': config.context, 'transform': True}
-        data_iterator = data_tuple_iterator
+        tree_iterator = diters.data_tuple_iterator
 
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
         discrete_model = False
         load_parents = False
     elif config.model_type == 'tuple':
-        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
         if FLAGS.debug:
             root_strings_store = StringStore()
             root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
-            data_iterator_args['root_strings'] = [s for s in root_strings_store]
+            tree_iterator_args['root_strings'] = [s for s in root_strings_store]
 
-        data_iterator = data_tuple_iterator_dbpedianif
+        tree_iterator = diters.data_tuple_iterator_dbpedianif
         tuple_size = 2
         discrete_model = True
         load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == 'tuple_single':
-        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'get_seealso_ids': True}
         #if FLAGS.debug:
@@ -417,7 +467,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
         #    data_iterator_args['root_strings'] = [s for s in root_strings_store]
 
-        data_iterator = data_single_iterator_dbpedianif_context
+        tree_iterator = diters.tree_iterator
+        indices_getter = diters.indices_dbpedianif
         # TODO: set correct value!
         tuple_size = None
 
@@ -432,16 +483,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             indices = None
         neg_samples = config.neg_samples
         tuple_size = neg_samples + 1
-        data_iterator_args = {'indices': indices, 'neg_samples': neg_samples, 'max_depth': config.max_depth,
+        tree_iterator_args = {'indices': indices, 'neg_samples': neg_samples, 'max_depth': config.max_depth,
                               'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
-        data_iterator = data_tuple_iterator_reroot
+        tree_iterator = diters.data_tuple_iterator_reroot
         del meta[M_TEST]
         discrete_model = True
         load_parents = True
     elif config.model_type == 'tfidf':
-        data_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref}
-        data_iterator = data_single_iterator_dbpedianif_context_tfidf
+        tree_iterator = diters.data_single_iterator_dbpedianif_context_tfidf
 
         # TODO: set correct values!
         tuple_size = None  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
@@ -475,11 +526,15 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.info('use %s for testing' % str(meta[M_TEST][M_FNAMES]))
             del meta[M_TRAIN][M_FNAMES][config.dev_file_index]
 
-    # feed file names to data_iterators
+    forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
+
+    # calc indices (ids, indices, other_indices) from index files
+    logger.info('calc indices from index files ...')
     for m in meta:
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
-        #assert M_DATA_ITER in meta[m], 'no %s data_iterator found' % m
-        meta[m][M_DATA_ITER] = partial(data_iterator, index_files=meta[m][M_FNAMES], **data_iterator_args)
+        meta[m][M_INDICES], meta[m][M_INDICES_OTHER] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
+        # set tree iterator
+        meta[m][M_TREE_ITER] = tree_iterator(indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
 
     # MODEL DEFINITION #################################################################################################
 
@@ -490,33 +545,57 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     sim_measure = getattr(model_fold, config.sim_measure)
     tree_embedder = getattr(model_fold, config.tree_embedder)
 
-    forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
-
     logger.info('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
         with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
             logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-            model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
-                                                      lex_size_var=lexicon.len_var,
-                                                      tree_embedder=tree_embedder,
-                                                      dimension_embeddings=lexicon.vec_size,
-                                                      state_size=config.state_size,
-                                                      leaf_fc_size=config.leaf_fc_size,
-                                                      # add a leading '0' to allow an empty string
-                                                      root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
-                                                      keep_prob=config.keep_prob,
-                                                      tree_count=tuple_size,
-                                                      discrete_values_gold=discrete_model
-                                                      # keep_prob_fixed=config.keep_prob # to enable full head dropout
-                                                      )
-
-            with model_tree.compiler.multiprocessing_pool():
+            if not config.model_type == 'tfidf':
+                model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
+                                                          lex_size_var=lexicon.len_var,
+                                                          tree_embedder=tree_embedder,
+                                                          dimension_embeddings=lexicon.vec_size,
+                                                          state_size=config.state_size,
+                                                          leaf_fc_size=config.leaf_fc_size,
+                                                          # add a leading '0' to allow an empty string
+                                                          root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
+                                                          keep_prob=config.keep_prob,
+                                                          tree_count=tuple_size,
+                                                          discrete_values_gold=discrete_model
+                                                          # keep_prob_fixed=config.keep_prob # to enable full head dropout
+                                                          )
                 for m in meta:
                     logger.info('create %s data set ...' % m)
-                    meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(meta[m][M_DATA_ITER](sequence_trees=forest)))
-                    logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
+                    with model_tree.compiler.multiprocessing_pool():
+                        # meta[m][M_TREES], meta[m][M_IDS], meta[m][M_TARGETS] = zip(*meta[m][M_INDEX_ITER](sequence_trees=forest))
+                        meta[m][M_TREES] = list(
+                            model_tree.compiler.build_loom_inputs(meta[m][M_TREE_ITER], ordered=True))
+                        logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
+            else:
+
+                max_embeddings_dim = -1
+                for m in meta:
+                    logger.info('create %s data set ...' % m)
+                    # if model is None, it is tfidf
+                    meta[m][M_TREE_EMBEDDINGS] = diters.embeddings_tfidf(meta[m][M_TREE_ITER])
+                    current_embeddings_dim = meta[m][M_TREE_EMBEDDINGS].shape[1]
+                    if current_embeddings_dim > max_embeddings_dim:
+                        max_embeddings_dim = current_embeddings_dim
+                    #assert embeddings_dim is None or meta[m][M_TREE_EMBEDDINGS].shape[1] == embeddings_dim, 'embedding_dims are different: %i != %i' % (meta[m][M_TREE_EMBEDDINGS].shape[1], embeddings_dim)
+                    logger.info('%s data size: %s' % (m, len(meta[m][M_TREE_EMBEDDINGS])))
+
+                # pad embedding dimensions
+                for m in meta:
+                    current_embeddings_dim = meta[m][M_TREE_EMBEDDINGS].shape[1]
+                    if current_embeddings_dim < max_embeddings_dim:
+                        shape = meta[m][M_TREE_EMBEDDINGS].shape
+                        padded = np.zeros(shape=[shape[0], max_embeddings_dim])
+                        padded[:shape[0], :shape[1]] = meta[m][M_TREE_EMBEDDINGS]
+                        meta[m][M_TREE_EMBEDDINGS] = padded
+
+                model_tree = model_fold.DummyTreeModel(embeddings_dim=max_embeddings_dim)
+
 
             if config.model_type == 'simtuple':
                 model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
@@ -543,8 +622,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # set model
             for m in meta:
-                if M_DATA_ITER in meta[m]:
-                    meta[m][M_MODEL] = model
+                #if M_INDEX_ITER in meta[m]:
+                meta[m][M_MODEL] = model
 
 
             # PREPARE TRAINING #########################################################################################
@@ -591,13 +670,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 logger.info('init embeddings with external vectors...')
                 feed_dict = {}
                 model_vars = []
-                if lexicon.len_fixed > 0:
-                    feed_dict[model_tree.embedder.lexicon_fix_placeholder] = lexicon.vecs_fixed
-                    model_vars.append(model_tree.embedder.lexicon_fix_init)
-                if lexicon.len_var > 0:
-                    feed_dict[model_tree.embedder.lexicon_var_placeholder] = lexicon.vecs_var
-                    model_vars.append(model_tree.embedder.lexicon_var_init)
-                sess.run(model_vars, feed_dict=feed_dict)
+                if not isinstance(model_tree, model_fold.DummyTreeModel):
+                    if lexicon.len_fixed > 0:
+                        feed_dict[model_tree.embedder.lexicon_fix_placeholder] = lexicon.vecs_fixed
+                        model_vars.append(model_tree.embedder.lexicon_fix_init)
+                    if lexicon.len_var > 0:
+                        feed_dict[model_tree.embedder.lexicon_var_placeholder] = lexicon.vecs_var
+                        model_vars.append(model_tree.embedder.lexicon_var_init)
+                    sess.run(model_vars, feed_dict=feed_dict)
 
             if init_only:
                 supervisor.saver.save(sess, checkpoint_path(logdir, 0))
@@ -616,120 +696,126 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             #     3) regression on train
             #     4) eval on dev/test
 
-            with model_tree.compiler.multiprocessing_pool():
+            #with model_tree.compiler.multiprocessing_pool():
+
+            if M_TEST in meta:
+                logger.info('create test data set ...')
+                if M_TRAIN not in meta:
+                    step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor,
+                                                                                       sess=sess,
+                                                                                       model=meta[M_TEST][M_MODEL],
+                                                                                       dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
+                                                                                       #dataset_ids=meta[M_TEST][M_IDS],
+                                                                                       dataset_target_ids=meta[M_TEST][M_INDICES_OTHER],
+                                                                                       dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
+                                                                                       epoch=0,
+                                                                                       train=False,
+                                                                                       emit=False,
+                                                                                       highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
+                    values_all.dump(os.path.join(logdir, 'sims.np'))
+                    values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
+                    logger.removeHandler(fh_info)
+                    logger.removeHandler(fh_debug)
+                    lexicon.dump(filename=os.path.join(logdir, 'model'))
+                    return stats_dict
+
+
+            # clear vecs in lexicon to clean up memory
+            lexicon.init_vecs()
+
+            logger.info('training the model')
+            loss_test_best = 9999
+            stat_queue = []
+            if M_TEST in meta:
+                if meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_DISCRETE:
+                    stat_key = STAT_KEYS_DISCRETE[0]
+                elif meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_REGRESSION:
+                    stat_key = STAT_KEYS_REGRESSION[0]
+                else:
+                    raise ValueError('stat_key not defined for model_type=%s' % meta[M_TEST][M_MODEL].model_type)
+                # NOTE: this depends on stat_key (pearson/mse/roc/...)
+                TEST_MIN_INIT = -1
+                stat_queue = [{stat_key: TEST_MIN_INIT}]
+            step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
+            max_queue_length = 0
+            for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_IDS])), n=config.epochs, shuffle=True), 1):
+
+                # train
+                if not config.early_stop_queue or len(stat_queue) > 0:
+                    step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess,
+                                                                         model=meta[M_TRAIN][M_MODEL],
+                                                                         dataset_trees=meta[M_TRAIN][M_TREES] if M_TREES in meta[M_TRAIN] else None,
+                                                                         dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
+                                                                         #dataset_ids=meta[M_TRAIN][M_IDS],
+                                                                         dataset_target_ids=meta[M_TRAIN][M_INDICES_OTHER],
+                                                                         epoch=epoch,
+                                                                         highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None)
 
                 if M_TEST in meta:
-                    logger.info('create test data set ...')
-                    if M_TRAIN not in meta:
-                        step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor,
-                                                                                           sess=sess,
-                                                                                           model=meta[M_TEST][M_MODEL],
-                                                                                           dataset_trees=meta[M_TEST][M_TREES],
-                                                                                           dataset_indices=None,
-                                                                                           epoch=0,
-                                                                                           train=False,
-                                                                                           emit=False,
-                                                                                           highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
-                        values_all.dump(os.path.join(logdir, 'sims.np'))
-                        values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
+
+                    # test
+                    step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(supervisor, sess,
+                                                                                       model=meta[M_TEST][M_MODEL],
+                                                                                       dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
+                                                                                       dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
+                                                                                       #dataset_ids=meta[M_TEST][M_IDS],
+                                                                                       dataset_target_ids=meta[M_TEST][M_INDICES_OTHER],
+                                                                                       epoch=epoch,
+                                                                                       train=False,
+                                                                                       test_step=step_train,
+                                                                                       test_writer=test_writer,
+                                                                                       test_result_writer=test_result_writer,
+                                                                                       highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
+
+                    if loss_test < loss_test_best:
+                        loss_test_best = loss_test
+
+                    # EARLY STOPPING ###############################################################################
+
+                    stat = round(stats_test[stat_key], 6)
+
+                    prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
+                    # stop, if current test pearson r is not bigger than previous values. The amount of regarded
+                    # previous values is set by config.early_stop_queue
+                    if stat > prev_max:
+                        stat_queue = []
+                    else:
+                        if len(stat_queue) >= max_queue_length:
+                            max_queue_length = len(stat_queue) + 1
+                    stat_queue.append(stats_test)
+                    stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
+                    rank = stat_queue_sorted.index(stats_test)
+
+                    # write out queue length
+                    emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
+                                writer=test_writer)
+
+                    logger.info(
+                        '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
+                        % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
+                    if 0 < config.early_stop_queue < len(stat_queue):
+                        logger.info('last test %s: %s, last rank: %i' % (stat_key, str(stat_queue), rank))
                         logger.removeHandler(fh_info)
                         logger.removeHandler(fh_debug)
-                        lexicon.dump(filename=os.path.join(logdir, 'model'))
-                        return stats_dict
+                        return stat_queue_sorted[0]
 
-
-                # clear vecs in lexicon to clean up memory
-                lexicon.init_vecs()
-
-                logger.info('training the model')
-                loss_test_best = 9999
-                stat_queue = []
-                if M_TEST in meta:
-                    if meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_DISCRETE:
-                        stat_key = STAT_KEYS_DISCRETE[0]
-                    elif meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_REGRESSION:
-                        stat_key = STAT_KEYS_REGRESSION[0]
+                    # do not save, if score was not the best
+                    # if rank > len(stat_queue) * 0.05:
+                    if len(stat_queue) > 1 and config.early_stop_queue:
+                        # auto restore if enabled
+                        #if config.auto_restore:
+                        #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                        pass
                     else:
-                        raise ValueError('stat_key not defined for model_type=%s' % meta[M_TEST][M_MODEL].model_type)
-                    # NOTE: this depends on stat_key (pearson/mse/roc/...)
-                    TEST_MIN_INIT = -1
-                    stat_queue = [{stat_key: TEST_MIN_INIT}]
-                step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
-                max_queue_length = 0
-                for epoch, shuffled in enumerate(td.epochs(items=meta[M_TRAIN][M_INDICES], n=config.epochs, shuffle=True), 1):
+                        # don't save after first epoch if config.early_stop_queue > 0
+                        if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
+                            supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+                else:
+                    # save model after each step if not dev model is set (training a language model)
+                    supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
-                    # train
-                    if not config.early_stop_queue or len(stat_queue) > 0:
-                        step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess,
-                                                                             model=meta[M_TRAIN][M_MODEL],
-                                                                             dataset_trees=meta[M_TRAIN][M_TREES],
-                                                                             dataset_indices=shuffled,
-                                                                             epoch=epoch,
-                                                                             highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None)
-
-                    if M_TEST in meta:
-
-                        # test
-                        step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(supervisor, sess,
-                                                                                           model=meta[M_TEST][M_MODEL],
-                                                                                           dataset_trees=meta[M_TEST][M_TREES],
-                                                                                           dataset_indices=meta[M_TEST][M_INDICES],
-                                                                                           epoch=epoch,
-                                                                                           train=False,
-                                                                                           test_step=step_train,
-                                                                                           test_writer=test_writer,
-                                                                                           test_result_writer=test_result_writer,
-                                                                                           highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
-
-                        if loss_test < loss_test_best:
-                            loss_test_best = loss_test
-
-                        # EARLY STOPPING ###############################################################################
-
-                        stat = round(stats_test[stat_key], 6)
-
-                        prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
-                        # stop, if current test pearson r is not bigger than previous values. The amount of regarded
-                        # previous values is set by config.early_stop_queue
-                        if stat > prev_max:
-                            stat_queue = []
-                        else:
-                            if len(stat_queue) >= max_queue_length:
-                                max_queue_length = len(stat_queue) + 1
-                        stat_queue.append(stats_test)
-                        stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
-                        rank = stat_queue_sorted.index(stats_test)
-
-                        # write out queue length
-                        emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
-                                    writer=test_writer)
-
-                        logger.info(
-                            '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
-                            % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
-                        if 0 < config.early_stop_queue < len(stat_queue):
-                            logger.info('last test %s: %s, last rank: %i' % (stat_key, str(stat_queue), rank))
-                            logger.removeHandler(fh_info)
-                            logger.removeHandler(fh_debug)
-                            return stat_queue_sorted[0]
-
-                        # do not save, if score was not the best
-                        # if rank > len(stat_queue) * 0.05:
-                        if len(stat_queue) > 1 and config.early_stop_queue:
-                            # auto restore if enabled
-                            #if config.auto_restore:
-                            #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
-                            pass
-                        else:
-                            # don't save after first epoch if config.early_stop_queue > 0
-                            if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
-                                supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
-                    else:
-                        # save model after each step if not dev model is set (training a language model)
-                        supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
-
-                logger.removeHandler(fh_info)
-                logger.removeHandler(fh_debug)
+            logger.removeHandler(fh_info)
+            logger.removeHandler(fh_debug)
 
 
 def set_stat_values(d, stats, prefix=''):

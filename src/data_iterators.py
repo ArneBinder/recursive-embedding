@@ -24,8 +24,24 @@ logger.addHandler(logger_streamhandler)
 logger.propagate = False
 
 
+# TODO: move sampling to do_epoch
 def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indices=None, max_depth=100,
                                link_cost_ref=None, link_cost_ref_seealso=-1, transform=True, **unused):
+    """
+    Maps: index (index files) --> ((children, candidate_heads), probs)
+    First candidate_head is the original head
+
+    :param sequence_trees:
+    :param neg_samples:
+    :param index_files:
+    :param indices:
+    :param max_depth:
+    :param link_cost_ref:
+    :param link_cost_ref_seealso:
+    :param transform:
+    :param unused:
+    :return:
+    """
     logger.debug('size of data: %i' % len(sequence_trees))
     logger.debug('size of lexicon: %i' % len(sequence_trees.lexicon))
     assert max_depth > 0, 'can not produce candidates for zero depth trees (single nodes)'
@@ -90,20 +106,26 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     logger.info('use %i trees for training' % count)
 
 
-def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset=2, link_types=[], remove_types=[]):
-    idx_root = forest.roots[root]
-    idx_context = idx_root + content_offset
-    if root < len(forest.roots) - 1:
-        idx_next_root = forest.roots[root + 1]
-    else:
-        idx_next_root = len(forest)
+def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='sequence', content_offset=2, link_types=[], remove_types=[]):
+    #idx_root = forest.roots[root]
+    #idx_context = idx_root + content_offset
+    #if root < len(forest.roots) - 1:
+    #    idx_next_root = forest.roots[root + 1]
+    #else:
+    #    idx_next_root = len(forest)
 
-    child_offset = forest.get_children(idx_context)[0]
-    idx_content_root = idx_context + child_offset
-    data = np.zeros(idx_next_root-idx_content_root+1, dtype=forest.data.dtype)
-    data[:-1] = forest.data[idx_content_root:idx_next_root]
+    #child_offset = forest.get_children(idx_context)[0]
+    #idx_content_root = idx_context + child_offset
+
+    #data = np.zeros(idx_next_root-idx_content_root+1, dtype=forest.data.dtype)
+    #data[:-1] = forest.data[idx_content_root:idx_next_root]
+    ## append 'nif:context'
+    #data[-1] = forest.data[idx_context]
+
+    data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
+    data[:-1] = forest.data[idx_start:idx_end]
     # append 'nif:context'
-    data[-1] = forest.data[idx_context]
+    data[-1] = data_aggregator
 
     # remove entries
     indices_remove = []
@@ -127,71 +149,144 @@ def get_tree_naive(root, forest, lexicon, concat_mode='sequence', content_offset
             parents[i] = len(parents) - i - 1
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
-    return Forest(data=data, parents=parents, lexicon=lexicon)
+    return Forest(data=data, parents=parents, lexicon=forest.lexicon)
 
 
-def data_single_iterator_dbpedianif_context(index_files, sequence_trees, concat_mode='tree',
-                                            max_depth=9999, context=0, transform=True, offset_context=2,
-                                            link_cost_ref=None, link_cost_ref_seealso=1, get_seealso_ids=True,
-                                            **unused):
+def index_iterator(index_files):
+    """
+    yields index values from plain numpy arrays
+    :param index_files: a list of file names of dumped numpy arrays
+    :return: index values
+    """
+    for file_name in index_files:
+        indices = np.load(file_name)
+        for idx in indices:
+            yield idx
+
+
+def root_id_to_idx_offsets_iterator(indices, mapping, offsets=(2, 3)):
+    """
+    map each index in indices via a list/map and add the offsets
+    :param indices: the indices to map and add the offsets to
+    :param mapping: the mapping list/map
+    :param offsets: offsets that are added to the mapped indices
+    :return: for every index in indices and every offset in offsets, yield the mapped and shifted (by offset) new index
+    """
+    for idx in indices:
+        idx_mapped = mapping[idx]
+        yield [idx] + [o + idx_mapped for o in offsets]
+
+
+def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
+    """
+    For every index in indices and with regard to sequence_trees, yield all root ids referenced via link_type
+    :param indices: indices to sequence_trees.data
+    :param forest: all trees
+    :param link_type: One of TYPE_REF_SEEALSO or TYPE_REF. Defaults to TYPE_REF_SEEALSO.
+    :return: lists of root ids that are referenced from indices
+    """
+    data_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING],
+                                        data_as_hashes=forest.data_as_hashes)
+    data_ref = forest.lexicon.get_d(link_type, data_as_hashes=forest.data_as_hashes)
+    n = 0
+    for idx in indices:
+        target_root_ids = []
+        for child_offset in forest.get_children(idx):
+            child_data = forest.data[idx + child_offset]
+            assert child_data == data_ref, 'link_data (%s) is not as expected (%s)' \
+                                           % (forest.lexicon.get_s(child_data, data_as_hashes=forest.data_as_hashes),
+                                              forest.lexicon.get_s(data_ref, data_as_hashes=forest.data_as_hashes))
+            target_offsets = forest.get_children(idx + child_offset)
+            assert len(target_offsets) == 1, ' link has more or less then one targets: %i' % len(target_offsets)
+
+            target_id_idx = idx + child_offset + target_offsets[0]
+            target_id_data = forest.data[target_id_idx]
+            if target_id_data == data_unknown:
+                continue
+            target_root_id = forest.root_id_mapping.get(target_id_data, None)
+            if target_root_id is None:
+                continue
+            target_root_ids.append(target_root_id)
+
+        yield target_root_ids
+        n += 1
+    logger.info('created %i tree tuples' % n)
+
+
+def tree_iterator(indices, forest, concat_mode='tree',
+                  max_depth=9999, context=0, transform=True,
+                  link_cost_ref=None, link_cost_ref_seealso=1,
+                  **unused):
+    """
+    create trees rooted at indices
+    :param indices:
+    :param forest:
+    :param concat_mode:
+    :param max_depth:
+    :param context:
+    :param transform:
+    :param link_cost_ref:
+    :param link_cost_ref_seealso:
+    :param unused:
+    :return:
+    """
     # TODO: test!
 
-    offset_seealso = 3
-    data_unknown = sequence_trees.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING],
-                                                data_as_hashes=sequence_trees.data_as_hashes)
-
-    lexicon = sequence_trees.lexicon
+    lexicon = forest.lexicon
     costs = {}
-    data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
-    data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+    data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
+    data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
+    data_nif_context = lexicon.get_d(TYPE_ANCHOR, data_as_hashes=forest.data_as_hashes)
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
     remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
                               TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
-    remove_types_naive = [lexicon.get_d(s, data_as_hashes=sequence_trees.data_as_hashes) for s in
+    remove_types_naive = [lexicon.get_d(s, data_as_hashes=forest.data_as_hashes) for s in
                           remove_types_naive_str]
 
     if link_cost_ref is not None:
         costs[data_ref] = link_cost_ref
     costs[data_ref_seealso] = link_cost_ref_seealso
     n = 0
-    for file_name in index_files:
-        indices = np.load(file_name)
-        for root_id in indices:
-            idx_root = sequence_trees.roots[root_id]
-            idx_context_root = idx_root + offset_context
-            # get seealso ids
-            seealso_root_ids = []
-            if get_seealso_ids:
-                idx_seealso_root = idx_root + offset_seealso
-                for c_offset in sequence_trees.get_children(idx_seealso_root):
-                    seealso_root_ids = []
-                    seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
-                    seealso_idx = idx_seealso_root + c_offset + seealso_offset
-                    seealso_data_id = sequence_trees.data[seealso_idx]
-                    if seealso_data_id == data_unknown:
-                        continue
-                    seealso_root_id = sequence_trees.root_id_mapping.get(seealso_data_id, None)
-                    if seealso_root_id is None:
-                        continue
-                    seealso_root_ids.append(seealso_root_id)
 
-            if concat_mode == 'tree':
-                tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
-                                                            context=context, transform=transform,
-                                                            costs=costs,
-                                                            link_types=[data_ref, data_ref_seealso])
-            else:
-                f = get_tree_naive(root=root_id, forest=sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
-                                   link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
-                f.set_children_with_parents()
-                tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-            yield tree_context, root_id, seealso_root_ids
+    if concat_mode == 'tree':
+        for idx in indices:
+            tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth,
+                                                context=context, transform=transform,
+                                                costs=costs,
+                                                link_types=[data_ref, data_ref_seealso])
+            yield tree_context
             n += 1
-    logger.info('created %i tree tuples' % n)
+    else:
+        # TODO: works only if idx points to a data_nif_context and leafs are sequential and in order
+        for idx in indices:
+            # follow to first element of sequential data
+            context_child_offset = forest.get_children(idx)[0]
+            # find last element
+            idx_end = idx+context_child_offset + 1
+            for i in range(idx+context_child_offset, len(forest)):
+                if forest.data[i] == data_nif_context:
+                    break
+                idx_end += 1
+
+            f = get_tree_naive(idx_start=idx+context_child_offset, idx_end=idx_end, forest=forest,
+                               concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
+                               remove_types=remove_types_naive, data_aggregator=data_nif_context)
+            f.set_children_with_parents()
+            tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+            yield tree_context
+            n += 1
+    logger.info('created %i trees' % n)
 
 
-def data_single_iterator_dbpedianif_context_tfidf(*args, **kwargs):
+def embeddings_tfidf(aggregated_trees):
+    """
+    trees --> tf-idf embeddings
+
+    :param aggregated_trees: trees in bag-of-words (i.e. created with concat_mode=aggregate)
+    :return:
+    """
+
     # TODO: test!
     # * create id-list versions of articles
     #   --> use data_single_iterator_dbpedianif_context with concat_mode='aggregate'
@@ -206,8 +301,9 @@ def data_single_iterator_dbpedianif_context_tfidf(*args, **kwargs):
     indices = []
     data = []
     vocabulary = {}
+
     # get id-list versions of articles
-    for tree_context, _, _ in data_single_iterator_dbpedianif_context(*args, concat_mode='aggregate', **kwargs):
+    for tree_context in aggregated_trees:
         d = tree_context[KEY_CHILDREN].keys()
         for term in d:
             index = vocabulary.setdefault(term, len(vocabulary))
@@ -221,6 +317,47 @@ def data_single_iterator_dbpedianif_context_tfidf(*args, **kwargs):
     tf_transformer = TfidfTransformer(use_idf=False).fit(counts)
     tf_idf = tf_transformer.transform(counts)
     return tf_idf
+
+
+def indices_dbpedianif(index_files, forest, **unused):
+
+    # get root indices from files
+    indices = index_iterator(index_files)
+    # map to context and seealso indices
+
+    # TODO: CHECK THIS!!!
+    SEEALSO_ROOT_OFFSET = 2
+    CONTEXT_ROOT_OFFEST = 3
+    indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots, offsets=np.array([CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET]))
+    # unzip (produces lists)
+    root_ids, indices_context_root, indices_seealso_root = zip(*indices_mapped)
+    root_ids_seealsos_iterator = link_root_ids_iterator(indices=indices_seealso_root, forest=forest,
+                                                        link_type=TYPE_REF_SEEALSO)
+
+    indices_seealsos = []
+
+    added_indices_context_root = []
+
+    for root_ids_seealsos in root_ids_seealsos_iterator:
+        current_indices = []
+        for root_id in root_ids_seealsos:
+
+            #idx = id_to_idx.get(root_id, len(id_to_idx))
+            idx_seealso_context = forest.roots[root_id] + CONTEXT_ROOT_OFFEST
+            #if idx == len(id_to_idx):
+            if idx_seealso_context not in indices_context_root:
+                # TODO: add ids, that occur in root_ids_seealsos but not in root_ids, to root_ids (with empty lists for
+                #       root_ids_seealsos and the respective indices_context_root positions)
+                # TODO: fix and check this!!! too slow?
+                added_indices_context_root.append(idx_seealso_context)
+
+
+            current_indices.append(idx_seealso_context)
+
+
+        indices_seealsos.append(current_indices)
+
+    return indices_context_root + added_indices_context_root, indices_seealsos + [[]] * len(added_indices_context_root)
 
 
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',

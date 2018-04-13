@@ -986,6 +986,25 @@ class SequenceTreeModel(object):
         return self._tree_embeddings_all.get_shape().as_list()[1] // self.tree_count
 
 
+class DummyTreeModel(object):
+    def __init__(self, embeddings_dim, **kwargs):
+        self._embeddings_dim = embeddings_dim
+        self._embeddings_placeholder = tf.placeholder(shape=[None, self._embeddings_dim], dtype=tf.float32)
+
+    @property
+    def embeddings_all(self):
+        return self._embeddings_placeholder
+
+    # compatibility: same as embeddings_all
+    @property
+    def embeddings_shaped(self):
+        return tf.reshape(self.embeddings_all, shape=[-1, self.tree_output_size])
+
+    @property
+    def tree_output_size(self):
+        return self._embeddings_dim
+
+
 class BaseTrainModel(object):
     def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0):
 
