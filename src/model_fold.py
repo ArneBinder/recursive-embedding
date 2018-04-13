@@ -911,12 +911,12 @@ def get_jaccard_sim(tree_tuple):
 
 
 class SequenceTreeModel(object):
-    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, discrete_values_gold=False,
+    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, #discrete_values_gold=False,
                  **kwargs):
-        if discrete_values_gold:
-            self._values_gold_dtype = 'int32'
-        else:
-            self._values_gold_dtype = 'float'
+        #if discrete_values_gold:
+        #    self._values_gold_dtype = 'int32'
+        #else:
+        #    self._values_gold_dtype = 'float'
 
         self._tree_count = tree_count
         self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
@@ -926,17 +926,20 @@ class SequenceTreeModel(object):
         embed_tree = self._tree_embed()
         # do not map tree embedding model to input, if it produces a sequence itself
         if isinstance(embed_tree.output_type, tdt.SequenceType):
-            model = td.AllOf(td.GetItem(0) >> embed_tree
-                             >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat(),
-                             td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
+            #model = td.AllOf(td.GetItem(0) >> embed_tree
+            #                 >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat(),
+            #                 td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
+            model = embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat()
         else:
-            model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree)
-                             >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat(),
-                             td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
+            #model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree)
+            #                 >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat(),
+            #                 td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
+            model = td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat()
 
-        # fold model output
+            # fold model output
         self._compiler = td.Compiler.create(model)
-        (self._tree_embeddings_all, self._probs_gold) = self._compiler.output_tensors
+        #(self._tree_embeddings_all, self._probs_gold) = self._compiler.output_tensors
+        self._tree_embeddings_all, = self._compiler.output_tensors
 
     def build_feed_dict(self, data):
         return self._compiler.build_feed_dict(data)
@@ -957,17 +960,17 @@ class SequenceTreeModel(object):
     def embeddings_shaped(self):
         return tf.reshape(self._tree_embeddings_all, shape=[-1, self.tree_output_size])
 
-    @property
-    def values_gold(self):
-        return self._probs_gold
+    #@property
+    #def values_gold(self):
+    #    return self._probs_gold
 
-    @property
-    def values_gold_shaped(self):
-        return tf.reshape(self._probs_gold, shape=[-1])
+    #@property
+    #def values_gold_shaped(self):
+    #    return tf.reshape(self._probs_gold, shape=[-1])
 
-    @property
-    def values_gold_dtype(self):
-        return self._values_gold_dtype
+    #@property
+    #def values_gold_dtype(self):
+    #    return self._values_gold_dtype
 
     @property
     def compiler(self):
@@ -1152,13 +1155,21 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, candidate_count, **kwargs):
-        self._labels_gold = tf.placeholder(dtype=tf.int8, shape=[None, candidate_count])
+        print('candidate_count: '+str(candidate_count))
+
+        self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, candidate_count])
 
         tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_count, tree_model.tree_output_size])
+        #batch_size = tf.shape(tree_embeddings)[0]
+
+        print(tree_embeddings.shape)
 
         ref_tree_embedding = tree_embeddings[:, 0, :]
+        print(ref_tree_embedding.shape)
         candidate_tree_embeddings = tree_embeddings[:, 1:, :]
-        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[candidate_count, 1])
+        print(candidate_tree_embeddings.shape)
+        ref_tree_embedding_tiled = tf.reshape(tf.tile(ref_tree_embedding, multiples=[candidate_count, 1]), shape=[-1, candidate_count, tree_model.tree_output_size])
+        print(ref_tree_embedding_tiled.shape)
         stacked = tf.stack([ref_tree_embedding_tiled, candidate_tree_embeddings], axis=1)
         stacked_reshaped = tf.reshape(stacked, shape=[-1, candidate_count, tree_model.tree_output_size])
 

@@ -363,7 +363,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     indices_context_root_list.extend(added_indices_context_root)
     root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
 
-    return root_ids_list, indices_context_root_list, root_ids_seealsos_list
+    return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
 
 
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',

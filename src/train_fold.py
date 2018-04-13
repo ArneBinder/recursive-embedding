@@ -193,19 +193,24 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
 
     def batch_iter_naive():
         for idx, _id, _target_id in id_iter():
-            # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target
-            samples = np.random.random_integers(len(dataset_indices)-1, size=number_of_samples+1)
+            # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target and +1 to hold
+            # the origin/reference (idx)
+            samples = np.random.random_integers(len(dataset_indices)-1, size=number_of_samples+1+1)
             # replace "self" with 0
             samples[samples == idx] = 0
             # set the first to the correct target
-            samples[0] = _target_id
+            samples[1] = id_to_idx[_target_id]
+            # set the 0th to the origin/reference
+            samples[0] = idx
 
+            # convert candidates to ids
+            candidate_ids = dataset_ids[samples[1:]]
             all_targets = dataset_target_ids[idx]
-            ix = np.isin(samples, all_targets)
-            probs = np.zeros(shape=(number_of_samples+1), dtype=np.int8)
+            ix = np.isin(candidate_ids, all_targets)
+            probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
             probs[ix] = 1
 
-            return [idx] + [id_to_idx[s_id] for s_id in samples], probs
+            yield samples, probs
 
     step = test_step
     feed_dict = {}
@@ -294,11 +299,12 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
     _result_all = []
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for batch in batch_iter:
+    for batch in td.group_by_batches(batch_iter_naive(), config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
         #tree_indices_batches_np = np.array(tree_indices_batched)
         if not isinstance(model.tree_model, model_fold.DummyTreeModel):
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
+            #trees_batched = [[dataset_trees.next() for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
             feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
         else:
             tree_embeddings_batched = [[dataset_trees_embedded[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
@@ -563,7 +569,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                           root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
                                                           keep_prob=config.keep_prob,
                                                           tree_count=tuple_size,
-                                                          discrete_values_gold=discrete_model
+                                                          #discrete_values_gold=discrete_model
                                                           # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                           )
                 for m in meta:
@@ -572,9 +578,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         # meta[m][M_TREES], meta[m][M_IDS], meta[m][M_TARGETS] = zip(*meta[m][M_INDEX_ITER](sequence_trees=forest))
                         meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(meta[m][M_TREE_ITER], ordered=True))
                         #meta[m][M_TREES] = list(meta[m][M_TREE_ITER])
-                        logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
+                        #logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
             else:
-
                 max_embeddings_dim = -1
                 for m in meta:
                     logger.info('create %s data set ...' % m)
@@ -712,6 +717,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        epoch=0,
                                                                                        train=False,
                                                                                        emit=False,
+                                                                                       number_of_samples=config.neg_samples,
                                                                                        highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
@@ -750,6 +756,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                          dataset_ids=meta[M_TRAIN][M_IDS],
                                                                          dataset_target_ids=meta[M_TRAIN][M_IDS_TARGET],
                                                                          epoch=epoch,
+                                                                         number_of_samples=config.neg_samples,
                                                                          highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None)
 
                 if M_TEST in meta:
@@ -761,6 +768,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                                                                                        dataset_ids=meta[M_TEST][M_IDS],
                                                                                        dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
+                                                                                       number_of_samples=config.neg_samples,
                                                                                        epoch=epoch,
                                                                                        train=False,
                                                                                        test_step=step_train,
