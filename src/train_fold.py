@@ -169,7 +169,7 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
     return emit_dict
 
 
-def do_epoch(supervisor, sess, model, epoch, #dataset_ids,
+def do_epoch(supervisor, sess, model, epoch, dataset_ids,
              dataset_target_ids=None, dataset_trees=None,
              dataset_trees_embedded=None, train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
              highest_sims_model=None, number_of_samples=0):  # , discrete_model=False):
@@ -532,7 +532,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     logger.info('calc indices from index files ...')
     for m in meta:
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
-        meta[m][M_INDICES], meta[m][M_INDICES_OTHER] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
+        meta[m][M_IDS], meta[m][M_INDICES], meta[m][M_INDICES_OTHER] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
         # set tree iterator
         meta[m][M_TREE_ITER] = tree_iterator(indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
 
@@ -705,7 +705,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        sess=sess,
                                                                                        model=meta[M_TEST][M_MODEL],
                                                                                        dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
-                                                                                       #dataset_ids=meta[M_TEST][M_IDS],
+                                                                                       dataset_ids=meta[M_TEST][M_IDS],
                                                                                        dataset_target_ids=meta[M_TEST][M_INDICES_OTHER],
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                                                                                        epoch=0,
@@ -746,7 +746,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                          model=meta[M_TRAIN][M_MODEL],
                                                                          dataset_trees=meta[M_TRAIN][M_TREES] if M_TREES in meta[M_TRAIN] else None,
                                                                          dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
-                                                                         #dataset_ids=meta[M_TRAIN][M_IDS],
+                                                                         dataset_ids=meta[M_TRAIN][M_IDS],
                                                                          dataset_target_ids=meta[M_TRAIN][M_INDICES_OTHER],
                                                                          epoch=epoch,
                                                                          highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None)
@@ -758,7 +758,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        model=meta[M_TEST][M_MODEL],
                                                                                        dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
-                                                                                       #dataset_ids=meta[M_TEST][M_IDS],
+                                                                                       dataset_ids=meta[M_TEST][M_IDS],
                                                                                        dataset_target_ids=meta[M_TEST][M_INDICES_OTHER],
                                                                                        epoch=epoch,
                                                                                        train=False,
