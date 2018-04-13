@@ -109,7 +109,7 @@ M_TREE_EMBEDDINGS = 'tree_embeddings'
 M_DATA = 'data'
 M_IDS = 'ids'
 M_TREE_ITER = 'tree_iterator'
-M_INDICES_OTHER = 'indices_other'
+M_IDS_TARGET = 'ids_target'
 
 
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
@@ -202,11 +202,10 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
 
             all_targets = dataset_target_ids[idx]
             ix = np.isin(samples, all_targets)
-            probs = np.zeros(shape=(number_of_samples+1), dtype=tf.float32)
-            probs[ix] = 1.0
+            probs = np.zeros(shape=(number_of_samples+1), dtype=np.int8)
+            probs[ix] = 1
 
-            return idx, [id_to_idx[s_id] for s_id in samples], probs
-
+            return [idx] + [id_to_idx[s_id] for s_id in samples], probs
 
     step = test_step
     feed_dict = {}
@@ -218,7 +217,6 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
     else:
         if not isinstance(model.tree_model, model_fold.DummyTreeModel):
             feed_dict[model.tree_model.keep_prob] = 1.0
-
 
 
     if False:
@@ -291,18 +289,21 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
             batch_iter.append(_current_batch_data)
         logger.debug('created highest sims batches')
     else:
-        batch_iter = td.group_by_batches(dataset_indices, config.batch_size)
+        batch_iter = td.group_by_batches(batch_iter_naive(), config.batch_size)
 
     _result_all = []
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for indices_batch in batch_iter:
-        for idx in indices_batch:
-            trees = [dataset_trees[idx]] + [dataset_trees[id_to_idx[target_id]] for target_id in dataset_target_ids[idx]]
-
-
-
-        feed_dict[model.tree_model.compiler.loom_input_tensor] = [for i in ]
+    for batch in batch_iter:
+        tree_indices_batched, probs_batched = zip(*batch)
+        #tree_indices_batches_np = np.array(tree_indices_batched)
+        if not isinstance(model.tree_model, model_fold.DummyTreeModel):
+            trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
+            feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
+        else:
+            tree_embeddings_batched = [[dataset_trees_embedded[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
+            feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched
+        feed_dict[model.values_gold] = probs_batched
         _result_all.append(sess.run(execute_vars, feed_dict))
 
     # list of dicts to dict of lists
@@ -449,31 +450,31 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
-        if FLAGS.debug:
-            root_strings_store = StringStore()
-            root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
-            tree_iterator_args['root_strings'] = [s for s in root_strings_store]
-
-        tree_iterator = diters.data_tuple_iterator_dbpedianif
-        tuple_size = 2
-        discrete_model = True
-        load_parents = (config.context is not None and config.context > 0)
-    elif config.model_type == 'tuple_single':
-        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
-                              'get_seealso_ids': True}
         #if FLAGS.debug:
         #    root_strings_store = StringStore()
         #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
-        #    data_iterator_args['root_strings'] = [s for s in root_strings_store]
+        #    tree_iterator_args['root_strings'] = [s for s in root_strings_store]
 
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_dbpedianif
-        # TODO: set correct value!
-        tuple_size = None
-
+        tuple_size = config.neg_samples + 1
         discrete_model = True
         load_parents = (config.context is not None and config.context > 0)
+    #elif config.model_type == 'tuple_single':
+    #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+    #                          'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
+    #                          'get_seealso_ids': True}
+    #    #if FLAGS.debug:
+    #    #    root_strings_store = StringStore()
+    #    #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
+    #    #    data_iterator_args['root_strings'] = [s for s in root_strings_store]
+    #
+    #    tree_iterator = diters.tree_iterator
+    #    indices_getter = diters.indices_dbpedianif
+    #    tuple_size = config.neg_samples + 1
+    #
+    #    discrete_model = True
+    #    load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == 'reroot':
         if config.cut_indices is not None:
             indices = np.arange(config.cut_indices)
@@ -532,7 +533,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     logger.info('calc indices from index files ...')
     for m in meta:
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
-        meta[m][M_IDS], meta[m][M_INDICES], meta[m][M_INDICES_OTHER] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
+        meta[m][M_IDS], meta[m][M_INDICES], meta[m][M_IDS_TARGET] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
         # set tree iterator
         meta[m][M_TREE_ITER] = tree_iterator(indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
 
@@ -569,8 +570,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     logger.info('create %s data set ...' % m)
                     with model_tree.compiler.multiprocessing_pool():
                         # meta[m][M_TREES], meta[m][M_IDS], meta[m][M_TARGETS] = zip(*meta[m][M_INDEX_ITER](sequence_trees=forest))
-                        meta[m][M_TREES] = list(
-                            model_tree.compiler.build_loom_inputs(meta[m][M_TREE_ITER], ordered=True))
+                        meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(meta[m][M_TREE_ITER], ordered=True))
+                        #meta[m][M_TREES] = list(meta[m][M_TREE_ITER])
                         logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
             else:
 
@@ -594,8 +595,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         padded[:shape[0], :shape[1]] = meta[m][M_TREE_EMBEDDINGS]
                         meta[m][M_TREE_EMBEDDINGS] = padded
 
-                model_tree = model_fold.DummyTreeModel(embeddings_dim=max_embeddings_dim)
-
+                model_tree = model_fold.DummyTreeModel(embeddings_dim=max_embeddings_dim, tree_count=tuple_size)
 
             if config.model_type == 'simtuple':
                 model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
@@ -604,14 +604,15 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                     sim_measure=sim_measure,
                                                                     clipping_threshold=config.clipping)
             elif config.model_type == 'tuple':
-                model = model_fold.SimilaritySequenceTreeTupleModel_sample(tree_model=model_tree,
-                                                                           optimizer=optimizer,
-                                                                           learning_rate=config.learning_rate,
-                                                                           clipping_threshold=config.clipping)
-                meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
-                                                                                  number_of_embeddings=len(meta[M_TRAIN][M_TREES]))
-                meta[M_TEST]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
-                                                                                 number_of_embeddings=len(meta[M_TEST][M_TREES]))
+                model = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
+                                                                  optimizer=optimizer,
+                                                                  learning_rate=config.learning_rate,
+                                                                  clipping_threshold=config.clipping,
+                                                                  candidate_count=tuple_size-1)
+                #meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
+                #                                                                  number_of_embeddings=len(meta[M_TRAIN][M_TREES]))
+                #meta[M_TEST]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
+                #                                                                 number_of_embeddings=len(meta[M_TEST][M_TREES]))
             elif config.model_type == 'reroot':
                 model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
                                                            optimizer=optimizer,
@@ -706,7 +707,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        model=meta[M_TEST][M_MODEL],
                                                                                        dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
                                                                                        dataset_ids=meta[M_TEST][M_IDS],
-                                                                                       dataset_target_ids=meta[M_TEST][M_INDICES_OTHER],
+                                                                                       dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                                                                                        epoch=0,
                                                                                        train=False,
@@ -747,7 +748,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                          dataset_trees=meta[M_TRAIN][M_TREES] if M_TREES in meta[M_TRAIN] else None,
                                                                          dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
                                                                          dataset_ids=meta[M_TRAIN][M_IDS],
-                                                                         dataset_target_ids=meta[M_TRAIN][M_INDICES_OTHER],
+                                                                         dataset_target_ids=meta[M_TRAIN][M_IDS_TARGET],
                                                                          epoch=epoch,
                                                                          highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None)
 
@@ -759,7 +760,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                                                                                        dataset_ids=meta[M_TEST][M_IDS],
-                                                                                       dataset_target_ids=meta[M_TEST][M_INDICES_OTHER],
+                                                                                       dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
                                                                                        epoch=epoch,
                                                                                        train=False,
                                                                                        test_step=step_train,

@@ -325,45 +325,42 @@ def indices_dbpedianif(index_files, forest, **unused):
     indices = index_iterator(index_files)
     # map to context and seealso indices
 
-    # TODO: CHECK THIS!!!
-    SEEALSO_ROOT_OFFSET = 2
-    CONTEXT_ROOT_OFFEST = 3
-    indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots, offsets=np.array([CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET]))
+    CONTEXT_ROOT_OFFEST = 2
+    SEEALSO_ROOT_OFFSET = 3
+    indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
+                                                     offsets=np.array([CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET]))
     # unzip (produces lists)
     root_ids, indices_context_root, indices_seealso_root = zip(*indices_mapped)
     root_ids_seealsos_iterator = link_root_ids_iterator(indices=indices_seealso_root, forest=forest,
                                                         link_type=TYPE_REF_SEEALSO)
 
-    #indices_seealsos = []
-    root_ids_set = set(root_ids)
+    root_ids_seealsos_list = []
+    root_ids_list = []
+    indices_context_root_list = []
 
-    added_indices_context_root = []
+    # do not use root_id, etc., if root_ids_seealsos is empty
+    for i, root_ids_seealsos in enumerate(root_ids_seealsos_iterator):
+        if len(root_ids_seealsos) > 0:
+            root_ids_seealsos_list.append(root_ids_seealsos)
+            root_ids_list.append(root_ids[i])
+            indices_context_root_list.append(indices_context_root[i])
+
+    root_ids_set = set(root_ids_list)
     added_root_ids = []
+    added_indices_context_root = []
 
-    for root_ids_seealsos in root_ids_seealsos_iterator:
-        #current_indices = []
-        for root_id in root_ids_seealsos:
-
-            #idx = id_to_idx.get(root_id, len(id_to_idx))
-
-            if root_id not in root_ids_set and root_id not in added_root_ids:
-                idx_seealso_context = forest.roots[root_id] + CONTEXT_ROOT_OFFEST
-            #if idx == len(id_to_idx):
-            #if idx_seealso_context not in indices_context_root:
-                # TODO: add ids, that occur in root_ids_seealsos but not in root_ids, to root_ids (with empty lists for
-                #       root_ids_seealsos and the respective indices_context_root positions)
-                # TODO: fix and check this!!! too slow?
+    for ls in root_ids_seealsos_list:
+        for root_id_seealso in ls:
+            if root_id_seealso not in root_ids_set and root_id_seealso not in added_root_ids:
+                added_root_ids.append(root_id_seealso)
+                idx_seealso_context = forest.roots[root_id_seealso] + CONTEXT_ROOT_OFFEST
                 added_indices_context_root.append(idx_seealso_context)
-                added_root_ids.append(root_id)
 
+    root_ids_list.extend(added_root_ids)
+    indices_context_root_list.extend(added_indices_context_root)
+    root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
 
-            #current_indices.append(idx_seealso_context)
-
-
-        #indices_seealsos.append(current_indices)
-
-    return root_ids + added_root_ids, indices_context_root + added_indices_context_root, \
-           list(root_ids_seealsos_iterator) + [[]] * len(added_indices_context_root)
+    return root_ids_list, indices_context_root_list, root_ids_seealsos_list
 
 
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',
