@@ -208,9 +208,12 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
                 continue
             target_root_ids.append(target_root_id)
 
-        yield target_root_ids
-        n += 1
-    logger.info('created %i tree tuples' % n)
+        if len(target_root_ids) > 0:
+            yield target_root_ids
+            n += 1
+        else:
+            yield None
+    logger.info('found %i trees with links (%s)' % (n, link_type))
 
 
 def tree_iterator(indices, forest, concat_mode='tree',
@@ -340,7 +343,7 @@ def indices_dbpedianif(index_files, forest, **unused):
 
     # do not use root_id, etc., if root_ids_seealsos is empty
     for i, root_ids_seealsos in enumerate(root_ids_seealsos_iterator):
-        if len(root_ids_seealsos) > 0:
+        if root_ids_seealsos is not None:
             root_ids_seealsos_list.append(root_ids_seealsos)
             root_ids_list.append(root_ids[i])
             indices_context_root_list.append(indices_context_root[i])
