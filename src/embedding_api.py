@@ -240,31 +240,33 @@ def get_or_calc_sequence_data(params):
         init_forest(data_path)
         current_forest = forest
 
-    if 'idx_tuple_file' in params:
-        fn = '%s.%s' % (data_path, params['idx_tuple_file'])
+    if 'idx_file' in params:
+        fn = '%s.%s' % (data_path, params['idx_file'])
         if not os.path.isfile(fn):
-            raise IOError('could not open idx_tuple_file=%s' % fn)
-        assert 'data_iterator' in params, 'parameter data_iterator is not given, can not iterate idx_tuple_file'
-        data_iterator = getattr(data_iterators, params['data_iterator'])
+            raise IOError('could not open idx_file=%s' % fn)
+        #assert 'data_iterator' in params, 'parameter data_iterator is not given, can not iterate idx_file'
+        assert 'indices_getter' in params, 'parameter indices_getter is not given, can not iterate idx_file'
+        indices_getter = getattr(data_iterators, params['indices_getter'])
 
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
 
         max_depth = params.get('max_depth', 100)
         context = params.get('context', 0)
-        bag_of_seealsos = (params.get('bag_of_seealsos', 'true').lower() in ['true', '1'])
+        #bag_of_seealsos = (params.get('bag_of_seealsos', 'true').lower() in ['true', '1'])
 
         params['transformed_idx'] = True
-        data_iterator_args = {'index_files': [fn], 'sequence_trees': current_forest, 'max_depth': max_depth,
+        tree_iterator_args = {'sequence_trees': current_forest, 'max_depth': max_depth,
                               'context': context, 'transform': params['transformed_idx'],
-                              'bag_of_seealsos': bag_of_seealsos}
+                              #'bag_of_seealsos': bag_of_seealsos
+                              }
 
         if 'link_cost_ref' in params:
-            data_iterator_args['link_cost_ref'] = params['link_cost_ref']
+            tree_iterator_args['link_cost_ref'] = params['link_cost_ref']
         if 'link_cost_ref_seealso' in params:
-            data_iterator_args['link_cost_ref_seealso'] = params['link_cost_ref_seealso']
+            tree_iterator_args['link_cost_ref_seealso'] = params['link_cost_ref_seealso']
         if 'concat_mode' in params:
-            data_iterator_args['concat_mode'] = params['concat_mode']
+            tree_iterator_args['concat_mode'] = params['concat_mode']
 
         params['sequences'] = []
         params['data_sequences'] = []
@@ -274,21 +276,25 @@ def get_or_calc_sequence_data(params):
         tuple_start = params.get('tuple_start', 0)
         tuple_end = params.get('tuple_end', -1)
 
-        for i, (tree_dicts, probs) in enumerate(data_iterator(**data_iterator_args)):
+        ids, indices, ids_target = indices_getter(index_files=[fn], forest=current_forest)
+        # set tree iterator
+        tree_iter = data_iterators.tree_iterator(indices=indices, forest=current_forest, **tree_iterator_args)
+
+        for i, tree_dict in enumerate(tree_iter):
             if i < tuple_start:
                 continue
             if 0 <= tuple_end <= i:
                 break
-            for tree_dict in tree_dicts:
-                vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                                    data_as_hashes=current_forest.data_as_hashes)
+            #for tree_dict in tree_dicts:
+            vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
+                                data_as_hashes=current_forest.data_as_hashes)
 
-                params['data_sequences'].append([vis_forest.data, vis_forest.parents])
-                token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
-                                                       transformed=params['transformed_idx'])
-                params['sequences'].append(token_list)
-            for prob in probs:
-                params['scores_gold'].append(prob)
+            params['data_sequences'].append([vis_forest.data, vis_forest.parents])
+            token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
+                                                   transformed=params['transformed_idx'])
+            params['sequences'].append(token_list)
+            #for prob in probs:
+            #    params['scores_gold'].append(prob)
     elif 'root_start' in params:
         params['sequences'] = []
         params['data_sequences'] = []
