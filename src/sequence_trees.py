@@ -669,7 +669,7 @@ class Forest(object):
                     target_index = i
                 graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
 
-        logger.debug('graph created. write to file ...')
+        logger.debug('graph created. write to file: %s ...' % filename)
         # print(graph.to_string())
         graph.write_svg(filename, encoding='utf-8')
 
