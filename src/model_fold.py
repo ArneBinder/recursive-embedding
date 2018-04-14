@@ -1169,9 +1169,12 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
         print(ref_tree_embedding.shape)
         candidate_tree_embeddings = tree_embeddings[:, 1:, :]
         print(candidate_tree_embeddings.shape)
-        ref_tree_embedding_tiled = tf.reshape(tf.tile(ref_tree_embedding, multiples=[candidate_count, 1]), shape=[-1, candidate_count, tree_model.tree_output_size])
+        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, candidate_count])
         print(ref_tree_embedding_tiled.shape)
-        stacked = tf.stack([ref_tree_embedding_tiled, candidate_tree_embeddings], axis=1)
+        ref_tree_embedding_tiled_reshaped = tf.reshape(ref_tree_embedding_tiled,
+                                                       shape=[-1, candidate_count, tree_model.tree_output_size])
+        print(ref_tree_embedding_tiled_reshaped.shape)
+        stacked = tf.stack([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=1)
         print(stacked.shape)
         stacked_reshaped = tf.reshape(stacked, shape=[-1, candidate_count, tree_model.tree_output_size * 2])
         print(stacked_reshaped.shape)
