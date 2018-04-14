@@ -324,8 +324,8 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
         step = result_all['step'][-1]
 
     sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
-    values_all_ = np.concatenate(result_all['values'])
-    values_all_gold_ = np.concatenate(result_all['values_gold'])
+    values_all_ = np.concatenate(result_all['values']).flatten()
+    values_all_gold_ = np.concatenate(result_all['values_gold']).flatten()
 
     # sum batch losses weighted by individual batch size (can vary at last batch)
     loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
@@ -463,7 +463,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_dbpedianif
-        tuple_size = config.neg_samples + 1
+        #tuple_size = config.neg_samples + 1
+        tuple_size = 1
         discrete_model = True
         load_parents = (config.context is not None and config.context > 0)
     #elif config.model_type == 'tuple_single':
@@ -569,6 +570,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                           root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
                                                           keep_prob=config.keep_prob,
                                                           tree_count=tuple_size,
+                                                          #tree_count=1,
                                                           #discrete_values_gold=discrete_model
                                                           # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                           )
@@ -576,7 +578,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     logger.info('create %s data set ...' % m)
                     with model_tree.compiler.multiprocessing_pool():
                         # meta[m][M_TREES], meta[m][M_IDS], meta[m][M_TARGETS] = zip(*meta[m][M_INDEX_ITER](sequence_trees=forest))
-                        meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(meta[m][M_TREE_ITER], ordered=True))
+                        meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], meta[m][M_TREE_ITER]), ordered=True))
                         #meta[m][M_TREES] = list(meta[m][M_TREE_ITER])
                         #logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
             else:
@@ -613,7 +615,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                   optimizer=optimizer,
                                                                   learning_rate=config.learning_rate,
                                                                   clipping_threshold=config.clipping,
-                                                                  candidate_count=tuple_size-1)
+                                                                  candidate_count=config.neg_samples+1)
                 #meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
                 #                                                                  number_of_embeddings=len(meta[M_TRAIN][M_TREES]))
                 #meta[M_TEST]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,

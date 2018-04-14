@@ -1156,12 +1156,13 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
 
     def __init__(self, tree_model, candidate_count, **kwargs):
         print('candidate_count: '+str(candidate_count))
+        self._candidate_count = candidate_count
 
         self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, candidate_count])
+        print(self._labels_gold.shape)
 
-        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_count, tree_model.tree_output_size])
-        #batch_size = tf.shape(tree_embeddings)[0]
-
+        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, candidate_count + 1, tree_model.tree_output_size])
+        self._batch_size = tf.shape(tree_embeddings)[0]
         print(tree_embeddings.shape)
 
         ref_tree_embedding = tree_embeddings[:, 0, :]
@@ -1171,15 +1172,20 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
         ref_tree_embedding_tiled = tf.reshape(tf.tile(ref_tree_embedding, multiples=[candidate_count, 1]), shape=[-1, candidate_count, tree_model.tree_output_size])
         print(ref_tree_embedding_tiled.shape)
         stacked = tf.stack([ref_tree_embedding_tiled, candidate_tree_embeddings], axis=1)
-        stacked_reshaped = tf.reshape(stacked, shape=[-1, candidate_count, tree_model.tree_output_size])
+        print(stacked.shape)
+        stacked_reshaped = tf.reshape(stacked, shape=[-1, candidate_count, tree_model.tree_output_size * 2])
+        print(stacked_reshaped.shape)
 
         fc = tf.contrib.layers.fully_connected(inputs=stacked_reshaped, num_outputs=1000)
         logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
+        print(logits.shape)
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
+
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         softmax = tf.nn.softmax(logits)
-        self._probs = softmax[:, 1]
+        self._probs = softmax[:, :, 1]
+        print(self._probs.shape)
 
     @property
     def values_gold(self):
