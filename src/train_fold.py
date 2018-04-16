@@ -311,15 +311,11 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
             feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
         else:
-            #tree_embeddings_batched = [[dataset_trees_embedded[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
             tree_indices_batched_np = np.array(tree_indices_batched)
-            batch_shape = tree_indices_batched_np.shape
-            #tree_embeddings_batched = dataset_trees_embedded[tree_indices_batched_np]
+            #batch_shape = tree_indices_batched_np.shape
             tree_embeddings_batched_flat = dataset_trees_embedded[tree_indices_batched_np.flatten()]
-            #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched
-            #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.reshape((batch_shape[0], batch_shape[1], tree_indices_batched_np.shape[-1]))
-            #feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(tree_embeddings_batched_flat)
-            feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.todense()
+            feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(tree_embeddings_batched_flat)
+            #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.todense()
         feed_dict[model.values_gold] = probs_batched
         _result_all.append(sess.run(execute_vars, feed_dict))
 

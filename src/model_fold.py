@@ -984,8 +984,7 @@ class SequenceTreeModel(object):
 class DummyTreeModel(object):
     def __init__(self, embeddings_dim, tree_count, root_fc_sizes=0, keep_prob=1.0, **kwargs):
         self._embeddings_dim = embeddings_dim
-        self._embeddings_placeholder = tf.placeholder(shape=[None, self._embeddings_dim], dtype=tf.float32)
-        #self._embeddings_placeholder = tf.sparse_placeholder(dtype=tf.float32)
+        self._embeddings_placeholder = tf.sparse_placeholder(shape=[None, self._embeddings_dim], dtype=tf.float32)
         self._tree_count = tree_count
 
         self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
@@ -995,8 +994,9 @@ class DummyTreeModel(object):
         else:
             self._root_fc_sizes = [root_fc_sizes]
 
-        #self._embeddings = tf.reshape(tf.sparse_tensor_to_dense(self._embeddings_placeholder), shape=[-1, embeddings_dim])
-        self._embeddings = tf.reshape(self._embeddings_placeholder, shape=[-1, embeddings_dim])
+        self._embeddings = tf.reshape(tf.sparse_tensor_to_dense(self._embeddings_placeholder, validate_indices=False),
+                                      shape=[-1, embeddings_dim])
+
         for s in self._root_fc_sizes:
             if s > 0:
                 fc = tf.contrib.layers.fully_connected(inputs=self._embeddings, num_outputs=s, activation_fn=tf.nn.tanh)
@@ -1005,10 +1005,6 @@ class DummyTreeModel(object):
     @property
     def embeddings_placeholder(self):
         return self._embeddings_placeholder
-
-    #@property
-    #def embeddings_placeholder_sparse(self):
-    #    return self._embeddings_placeholder_sparse
 
     @property
     def embeddings_all(self):
