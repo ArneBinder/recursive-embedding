@@ -1338,15 +1338,21 @@ class SequenceTreeRerootModel(BaseTrainModel):
 
 class HighestSimsModel:
 
-    def __init__(self, embedding_size, number_of_embeddings):
+    def __init__(self, embedding_size, number_of_embeddings, sparse=False):
+        self._sparse = sparse
         #self._normed_reference_embedding = tf.placeholder(tf.float32, [embedding_size])
         self._reference_idx = tf.placeholder(tf.int32, shape=[])
         self._number_of_embeddings = tf.placeholder(tf.int32, shape=[])
         #self._normed_embeddings = tf.placeholder(tf.float32, [None, embedding_size])
         self._normed_embeddings = tf.Variable(tf.constant(0.0, shape=[number_of_embeddings, embedding_size]),
                                               trainable=False, name='EMBEDDED_DOCS')
-
-        self._normed_embeddings_placeholder = tf.placeholder(tf.float32, shape=[number_of_embeddings, embedding_size])
+        #if sparse:
+        #    self._normed_embeddings_placeholder = tf.sparse_placeholder(shape=[number_of_embeddings, embedding_size], dtype=tf.float32)
+        #    #tf.sparse_tensor_to_dense(self._embeddings_placeholder, validate_indices=False)
+        #    self._normed_embeddings_init = self._normed_embeddings.assign(
+        #        tf.sparse_tensor_to_dense(self._normed_embeddings_placeholder, validate_indices=False))
+        #else:
+        self._normed_embeddings_placeholder = tf.placeholder(shape=[number_of_embeddings, embedding_size], dtype=tf.float32)
         self._normed_embeddings_init = self._normed_embeddings.assign(self._normed_embeddings_placeholder)
 
         _normed_reference_embedding = tf.gather(self._normed_embeddings, indices=self._reference_idx)
@@ -1384,3 +1390,7 @@ class HighestSimsModel:
     @property
     def sims(self):
         return self._sims
+
+    @property
+    def sparse(self):
+        return self._sparse

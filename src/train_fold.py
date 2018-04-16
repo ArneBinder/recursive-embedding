@@ -182,17 +182,11 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
 
     id_to_idx = {_id: i for i, _id in enumerate(dataset_ids)}
 
-    #if dataset_indices is None:
     dataset_indices = np.arange(len(dataset_ids))
 
     np.random.shuffle(dataset_indices)
 
     def id_iter():
-        #if dataset_target_ids is None:
-        #    for idx in dataset_indices:
-        #        _id = dataset_ids[idx]
-        #        yield (idx, _id, _id)
-        #else:
         for idx in dataset_indices:
             for target_id in dataset_target_ids[idx]:
                 yield (idx, dataset_ids[idx], target_id)
@@ -248,68 +242,42 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
         execute_vars['train_op'] = model.train_op
         execute_vars['step'] = model.global_step
     else:
-        #if not isinstance(model.tree_model, model_fold.DummyTreeModel):
         feed_dict[model.tree_model.keep_prob] = 1.0
-
-
-    #if False:
-    if highest_sims_model is not None:
-        tree_count = model.tree_model.tree_count
-        tree_output_size = model.tree_model.tree_output_size
-        indices_number = config.batch_size // tree_count
-        if dataset_trees_embedded is None:
-            _tree_embeddings = []
-            #orginal_data = []
-            for batch in td.group_by_batches(dataset_trees, config.batch_size):
-                #orginal_data.extend(batch)
-                feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
-                current_tree_embeddings = sess.run(model.tree_model.embeddings_all, feed_dict)
-                #_tree_embeddings.append(current_tree_embeddings.reshape((-1, tree_count, tree_output_size)))
-                _tree_embeddings.append(current_tree_embeddings)
-            dataset_trees_embedded = np.concatenate(_tree_embeddings)
-            logger.debug('%i * %i embeddings calculated' % (len(dataset_trees_embedded), tree_count))
-        # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
-        s = dataset_trees_embedded.shape[0]
-        sim_batch_size = 1000
-        #normed = pp.normalize(dataset_trees_embedded.reshape((-1, tree_output_size)), norm='l2')\
-        #    .reshape((s, tree_count, tree_output_size))
-        normed = pp.normalize(dataset_trees_embedded, norm='l2')
-        #sims = []
-        #_indices = []
-        neg_sample_indices = np.zeros(shape=(s, indices_number), dtype=np.int32)
-
-        sess.run(highest_sims_model.normed_embeddings_init,
-                 feed_dict={highest_sims_model.normed_embeddings_placeholder: normed})
-        for i in range(s):
-
-            current_sims = sess.run(highest_sims_model.sims,
-                                               {
-                                                   highest_sims_model.reference_idx: i,
-                                               })
-            current_sims[i] = 0
-            current_indices = np.argpartition(current_sims, -indices_number)[-indices_number:]
-            neg_sample_indices[i, :] = current_indices
-        #neg_sample_indices = neg_sample_indices.reshape((s, -1))
-        logger.debug('created neg_sample_indices')
-
-        #batch_iter = [[orginal_data[idx] for idx in [i] + n_indices] for i, n_indices in enumerate(neg_sample_indices)]
-        #batch_iter = []
-        #nearest_indices = {}
-        #for i, n_indices in enumerate(neg_sample_indices):
-        #    #_current_indices = np.concatenate(([i], n_indices))
-        #    #_current_batch_data = [orginal_data[idx] for idx in _current_indices]
-        #    #batch_iter.append(_current_batch_data)
-        #    nearest_indices[]
-        logger.debug('created nearest indices')
-        batch_iter = batch_iter_nearest
-    else:
-        neg_sample_indices = None
-    #    batch_iter = td.group_by_batches(batch_iter_naive(), config.batch_size)
 
     if isinstance(model, model_fold.SequenceTreeRerootModel):
         batch_iter = batch_iter_reroot
     else:
-        batch_iter = batch_iter_naive
+        if highest_sims_model is not None:
+            if dataset_trees_embedded is None:
+                _tree_embeddings = []
+                for batch in td.group_by_batches(dataset_trees, config.batch_size):
+                    feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
+                    current_tree_embeddings = sess.run(model.tree_model.embeddings_all, feed_dict)
+                    _tree_embeddings.append(current_tree_embeddings)
+                dataset_trees_embedded = np.concatenate(_tree_embeddings)
+                logger.debug('%i embeddings calculated' % len(dataset_trees_embedded))
+            # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
+            s = dataset_trees_embedded.shape[0]
+            neg_sample_indices = np.zeros(shape=(s, number_of_samples), dtype=np.int32)
+            normed = pp.normalize(dataset_trees_embedded, norm='l2')
+            sess.run(highest_sims_model.normed_embeddings_init,
+                     #feed_dict={highest_sims_model.normed_embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(normed) if highest_sims_model.sparse else normed}
+                     feed_dict={highest_sims_model.normed_embeddings_placeholder: normed.todense() if highest_sims_model.sparse else normed}
+                     )
+            for i in range(s):
+
+                current_sims = sess.run(highest_sims_model.sims,
+                                                   {
+                                                       highest_sims_model.reference_idx: i,
+                                                   })
+                current_sims[i] = 0
+                current_indices = np.argpartition(current_sims, -number_of_samples)[-number_of_samples:]
+                neg_sample_indices[i, :] = current_indices
+            logger.debug('created nearest indices')
+            batch_iter = batch_iter_nearest
+        else:
+            batch_iter = batch_iter_naive
+
 
     _result_all = []
 
@@ -635,10 +603,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                   candidate_count=config.neg_samples+1)
                 for m in meta:
                     if M_TREES in meta[m]:
-                        meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
+                        meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=model_tree.tree_output_size,
                                                                                           number_of_embeddings=len(meta[M_TRAIN][M_TREES]))
-                #meta[M_TEST]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=lexicon.vec_size,
-                #                                                                 number_of_embeddings=len(meta[M_TEST][M_TREES]))
+                    elif M_TREE_EMBEDDINGS in meta[m]:
+                        meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(
+                            embedding_size=model_tree.tree_output_size,
+                            number_of_embeddings=meta[M_TRAIN][M_TREE_EMBEDDINGS].shape[0],
+                            sparse=True
+                        )
             elif config.model_type == 'reroot':
                 model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
                                                            fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
