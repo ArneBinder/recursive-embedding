@@ -188,14 +188,14 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
     np.random.shuffle(dataset_indices)
 
     def id_iter():
-        if dataset_target_ids is None:
-            for idx in dataset_indices:
-                _id = dataset_ids[idx]
-                yield (idx, _id, _id)
-        else:
-            for idx in dataset_indices:
-                for target_id in dataset_target_ids[idx]:
-                    yield (idx, dataset_ids[idx], target_id)
+        #if dataset_target_ids is None:
+        #    for idx in dataset_indices:
+        #        _id = dataset_ids[idx]
+        #        yield (idx, _id, _id)
+        #else:
+        for idx in dataset_indices:
+            for target_id in dataset_target_ids[idx]:
+                yield (idx, dataset_ids[idx], target_id)
 
     def batch_iter_naive():
         for idx, _id, _target_id in id_iter():
@@ -217,6 +217,12 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
             probs[ix] = 1
 
             yield samples, probs
+
+    def batch_iter_reroot():
+        for idx in dataset_indices:
+            probs = np.zeros(shape=number_of_samples+1, dtype=np.int32)
+            probs[0] = 1
+            return [idx], probs
 
     step = test_step
     feed_dict = {}
@@ -299,13 +305,18 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
             _current_batch_data = [orginal_data[idx] for idx in _current_indices]
             batch_iter.append(_current_batch_data)
         logger.debug('created highest sims batches')
+    #else:
+    #    batch_iter = td.group_by_batches(batch_iter_naive(), config.batch_size)
+
+    if isinstance(model, model_fold.SequenceTreeRerootModel):
+        batch_iter = batch_iter_reroot
     else:
-        batch_iter = td.group_by_batches(batch_iter_naive(), config.batch_size)
+        batch_iter = batch_iter_naive
 
     _result_all = []
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for batch in td.group_by_batches(batch_iter_naive(), config.batch_size):
+    for batch in td.group_by_batches(batch_iter(), config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
         if not isinstance(model.tree_model, model_fold.DummyTreeModel):
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
@@ -493,18 +504,20 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     #    discrete_model = True
     #    load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == 'reroot':
-        if config.cut_indices is not None:
-            indices = np.arange(config.cut_indices)
-            # avoid looking for train index files
-            meta[M_TRAIN][M_FNAMES] = []
-        else:
-            indices = None
+        #if config.cut_indices is not None:
+        #    indices = np.arange(config.cut_indices)
+        #    # avoid looking for train index files
+        #    meta[M_TRAIN][M_FNAMES] = []
+        #else:
+        #    indices = None
         neg_samples = config.neg_samples
         tuple_size = neg_samples + 1
-        tree_iterator_args = {'indices': indices, 'neg_samples': neg_samples, 'max_depth': config.max_depth,
+        tree_iterator_args = {'neg_samples': neg_samples, 'max_depth': config.max_depth,
                               'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
-        tree_iterator = diters.data_tuple_iterator_reroot
-        del meta[M_TEST]
+        #tree_iterator = diters.data_tuple_iterator_reroot
+        tree_iterator = diters.tree_iterator
+        indices_getter = diters.indices_as_ids
+        #del meta[M_TEST]
         discrete_model = True
         load_parents = True
     #elif config.model_type == 'tfidf':
@@ -544,6 +557,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             del meta[M_TRAIN][M_FNAMES][config.dev_file_index]
 
     forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
+    if config.model_type == 'reroot':
+        logger.info('transform data ...')
+        data_transformed = [forest.lexicon.transform_idx(forest.data[idx], root_id_pos=forest.root_id_pos) for idx in range(len(forest))]
+    else:
+        data_transformed = None
+
 
     # calc indices (ids, indices, other_indices) from index files
     logger.info('calc indices from index files ...')
@@ -579,6 +598,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                           root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
                                                           keep_prob=config.keep_prob,
                                                           tree_count=tuple_size,
+                                                          data_transfomed=data_transformed
                                                           #tree_count=1,
                                                           # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                           )
@@ -621,9 +641,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 #                                                                 number_of_embeddings=len(meta[M_TEST][M_TREES]))
             elif config.model_type == 'reroot':
                 model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
+                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                            optimizer=optimizer,
                                                            learning_rate=config.learning_rate,
-                                                           clipping_threshold=config.clipping)
+                                                           clipping_threshold=config.clipping,
+                                                           candidate_count=config.neg_samples + 1)
             else:
                 raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 

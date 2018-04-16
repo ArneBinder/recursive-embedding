@@ -219,7 +219,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 def tree_iterator(indices, forest, concat_mode='tree',
                   max_depth=9999, context=0, transform=True,
-                  link_cost_ref=None, link_cost_ref_seealso=1,
+                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False,
                   **unused):
     """
     create trees rooted at indices
@@ -234,7 +234,8 @@ def tree_iterator(indices, forest, concat_mode='tree',
     :param unused:
     :return:
     """
-    # TODO: test!
+    if reroot:
+        assert concat_mode=='tree', 'reroot requires concat_mode==tree, but found concat_mode: %s' % concat_mode
 
     #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
     sys.setrecursionlimit(1000)
@@ -260,10 +261,12 @@ def tree_iterator(indices, forest, concat_mode='tree',
 
     if concat_mode == 'tree':
         for idx in indices:
-            tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth,
-                                                context=context, transform=transform,
-                                                costs=costs,
-                                                link_types=[data_ref, data_ref_seealso])
+            if reroot:
+                tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, transform=transform,
+                                                           costs=costs, link_types=[data_ref, data_ref_seealso])
+            else:
+                tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
+                                                    costs=costs, link_types=[data_ref, data_ref_seealso])
             yield tree_context
             n += 1
     else:
@@ -387,6 +390,11 @@ def indices_dbpedianif_dummy(forest, **unused):
     # unzip (produces lists)
     root_ids, indices_context_root = zip(*indices_mapped)
     return np.array(root_ids), np.array(indices_context_root), None
+
+
+def indices_as_ids(index_files, **unused):
+    indices = np.fromiter(index_iterator(index_files), dtype=np.int32)
+    return indices, indices, None
 
 
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',

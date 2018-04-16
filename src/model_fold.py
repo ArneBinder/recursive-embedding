@@ -680,25 +680,44 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
 class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
-    def __init__(self, name, tree_count, root_fc_sizes=0, **kwargs):
-        assert root_fc_sizes == 0, 'no root_fc allowed for HTUBatchedHead'
-        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, root_fc_size=root_fc_sizes,
+    def __init__(self, name, tree_count, data_transformed, **kwargs):
+        #assert root_fc_sizes == 0, 'no root_fc allowed for HTUBatchedHead'
+        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, #root_fc_size=root_fc_sizes,
                                                            **kwargs)
-        self._batch_size = tree_count
+        #self._batch_size = tree_count
+        self._data_transformed = data_transformed
+        self._neg_samples = tree_count
 
+    # TODO: implement this!
+    def sample(self, head_ids):
+        result = []
+        for head_id in head_ids:
+            #sampled_indices = np.random.random_integers(len(self._forest), size=self._neg_samples)
+            #sampled_data = [self._forest.lexicon.transform_idx(self._forest.data[idx], root_id_pos=self._forest.root_id_pos) for idx in sampled_indices]
+
+            result.append([head_id] + sampled_data)
+        return result
+
+    # TODO: test this! (requires simple trees and samples additional heads)
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
         #print('_htu_model: %s' % str(_htu_model.output_type))
-        trees_children = td.GetItem(0) >> td.Map(_htu_model)
+        #trees_children = td.GetItem(0) >> td.Map(_htu_model)
+        trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
         #print('trees_children: %s' % str(trees_children.output_type))
         dummy_head = td.Zeros(output_type=_htu_model.output_type)
         reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1)
         #print('reduced_children: %s' % str(reduced_children.output_type))
-        heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
+        #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
+        heads_embedded = td.GetItem(KEY_HEAD) >> td.Function(self.sample) >> td.Map(self.embed() >> self.leaf_fc)
         #print('heads_embedded: %s' % str(heads_embedded.output_type))
         batched = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
         #print('batched: %s' % str(batched.output_type))
         return batched
+
+    @property
+    def neg_samples(self):
+        return self._neg_samples
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
@@ -1266,20 +1285,37 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
 
+# TODO: test this!
 class SequenceTreeRerootModel(BaseTrainModel):
 
-    def __init__(self, tree_model, **kwargs):
-
-        #batch_size = tf.shape(tree_model.embeddings_shaped)[0]
+    def __init__(self, tree_model, candidate_count, fc_sizes=1000, **kwargs):
 
         # unpack tree embeddings
         tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_output_size])
+        #batch_size = tf.shape(tree_model.embeddings_shaped)[0] // (tree_model.neg_samples + 1)
+
+        # create labels_gold: first entry is the correct one
+        #labels_gold_batched = tf.zeros(shape=(batch_size, tree_model.neg_samples + 1), dtype=tf.int32)
+        #labels_gold_batched[:, 0] = 1
+        # flatten labels_gold
+        #self._labels_gold = tf.reshape(labels_gold_batched, shape=[batch_size * (tree_model.neg_samples + 1)])
 
         # unpack (flatten) labels_gold
-        self._labels_gold = tf.reshape(tree_model.values_gold, shape=[tf.shape(tree_embeddings)[0]])
+        #self._labels_gold = tf.reshape(tree_model.values_gold, shape=[tf.shape(tree_embeddings)[0]])
 
-        fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=1000)
-        logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
+        self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, candidate_count])
+
+        if not isinstance(fc_sizes, (list, tuple)):
+            fc_sizes = [fc_sizes]
+
+        # add multiple fc layers
+        for s in fc_sizes:
+            if s > 0:
+                fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=s)
+                tree_embeddings = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
+
+        #fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=1000)
+        logits = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=2, activation_fn=None)
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
