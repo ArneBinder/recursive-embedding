@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import os
 import sys
+import resource
 
 from sklearn.feature_extraction.text import TfidfTransformer
 from scipy.sparse import csr_matrix
@@ -235,11 +236,16 @@ def tree_iterator(indices, forest, concat_mode='tree',
     """
     # TODO: test!
 
+    #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
+    sys.setrecursionlimit(1000)
+    #print(resource.getrlimit(resource.RLIMIT_STACK))
+
     lexicon = forest.lexicon
     costs = {}
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
     data_nif_context = lexicon.get_d(TYPE_ANCHOR, data_as_hashes=forest.data_as_hashes)
+    data_root = lexicon.get_d(TYPE_ROOT, data_as_hashes=forest.data_as_hashes)
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
     remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
@@ -268,7 +274,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
             # find last element
             idx_end = idx+context_child_offset + 1
             for i in range(idx+context_child_offset, len(forest)):
-                if forest.data[i] == data_nif_context:
+                if forest.data[i] == data_root:
                     break
                 idx_end += 1
 
@@ -305,21 +311,27 @@ def embeddings_tfidf(aggregated_trees):
     data = []
     vocabulary = {}
 
+    positions = [0]
+    n = 0
     # get id-list versions of articles
-    for tree_context in aggregated_trees:
-        d = tree_context[KEY_CHILDREN].keys()
-        for term in d:
-            index = vocabulary.setdefault(term, len(vocabulary))
-            indices.append(index)
-            data.append(1)
-        indptr.append(len(indices))
+    for tree_context_iter in aggregated_trees:
+        for tree_context in tree_context_iter:
+            d = [node[KEY_HEAD] for node in tree_context[KEY_CHILDREN]]
+            for term in d:
+                index = vocabulary.setdefault(term, len(vocabulary))
+                indices.append(index)
+                data.append(1)
+            indptr.append(len(indices))
+            n += 1
+        positions.append(n)
+
     counts = csr_matrix((data, indices, indptr), dtype=int)
     logger.debug('shape of count matrix: %s' % str(counts.shape))
 
     # transform to tf-idf
     tf_transformer = TfidfTransformer(use_idf=False).fit(counts)
     tf_idf = tf_transformer.transform(counts)
-    return tf_idf
+    return [tf_idf[positions[i]:positions[i+1], :] for i in range(len(positions)-1)]
 
 
 def indices_dbpedianif(index_files, forest, **unused):
@@ -364,6 +376,17 @@ def indices_dbpedianif(index_files, forest, **unused):
     root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
 
     return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
+
+
+def indices_dbpedianif_dummy(forest, **unused):
+
+    CONTEXT_ROOT_OFFEST = 2
+    #SEEALSO_ROOT_OFFSET = 3
+    indices_mapped = root_id_to_idx_offsets_iterator(indices=range(len(forest.roots)), mapping=forest.roots,
+                                                     offsets=np.array([CONTEXT_ROOT_OFFEST]))
+    # unzip (produces lists)
+    root_ids, indices_context_root = zip(*indices_mapped)
+    return np.array(root_ids), np.array(indices_context_root), None
 
 
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',

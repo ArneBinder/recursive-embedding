@@ -240,12 +240,12 @@ def get_or_calc_sequence_data(params):
         init_forest(data_path)
         current_forest = forest
 
-    if 'idx_file' in params:
-        fn = '%s.%s' % (data_path, params['idx_file'])
-        if not os.path.isfile(fn):
-            raise IOError('could not open idx_file=%s' % fn)
+    if 'indices_getter' in params:
+
+        #if not os.path.isfile(fn):
+        #    raise IOError('could not open idx_file=%s' % fn)
         #assert 'data_iterator' in params, 'parameter data_iterator is not given, can not iterate idx_file'
-        assert 'indices_getter' in params, 'parameter indices_getter is not given, can not iterate idx_file'
+        #assert 'indices_getter' in params, 'parameter indices_getter is not given, can not iterate idx_file'
         indices_getter = getattr(data_iterators, params['indices_getter'])
 
         if current_forest.data_as_hashes:
@@ -276,7 +276,9 @@ def get_or_calc_sequence_data(params):
         tuple_start = params.get('tuple_start', 0)
         tuple_end = params.get('tuple_end', -1)
 
-        ids, indices, ids_target = indices_getter(index_files=[fn], forest=current_forest)
+        fn = '%s.%s' % (data_path, params.get('idx_file', None))
+
+        ids_unused, indices, ids_target_unused = indices_getter(index_files=[fn], forest=current_forest)
         # set tree iterator
         tree_iter = data_iterators.tree_iterator(indices=indices, forest=current_forest, **tree_iterator_args)
 

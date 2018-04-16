@@ -193,18 +193,16 @@ def AttentionReduce(name=None):  # pylint: disable=invalid-name
 
 
 class TreeEmbedding(object):
-    def __init__(self, name, lex_size_fix, lex_size_var, dimension_embeddings, keep_prob_placeholder=None, state_size=None,
-                 leaf_fc_size=0, root_fc_sizes=0, keep_prob_fixed=1.0, **unused):
+    def __init__(self, name, lex_size_fix, lex_size_var, dimension_embeddings, keep_prob_placeholder=None,
+                 state_size=None, leaf_fc_size=0, #root_fc_sizes=0,
+                 keep_prob_fixed=1.0, **unused):
         self._lex_size_fix = lex_size_fix
         self._lex_size_var = lex_size_var
         self._dim_embeddings = dimension_embeddings
 
-        # compatibility
-        #if self._lex_size_fix > 0:
         self._lexicon_fix, self._lexicon_fix_placeholder, self._lexicon_fix_init = create_lexicon(lex_size=self._lex_size_fix,
                                                                                                   dimension_embeddings=self._dim_embeddings,
                                                                                                   trainable=False)
-        #if self._lex_size_var > 0:
         self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
                                                                                                   dimension_embeddings=self._dim_embeddings,
                                                                                                   trainable=True)
@@ -217,14 +215,13 @@ class TreeEmbedding(object):
             self._state_size = state_size
         else:
             self._state_size = self._dim_embeddings  # state_size
-        #self._apply_leaf_fc = (leaf_fc_size > 0)
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
-        if isinstance(root_fc_sizes, (list, tuple)):
-            self._root_fc_sizes = root_fc_sizes
-        else:
-            self._root_fc_sizes = [root_fc_sizes]
+        #if isinstance(root_fc_sizes, (list, tuple)):
+        #    self._root_fc_sizes = root_fc_sizes
+        #else:
+        #    self._root_fc_sizes = [root_fc_sizes]
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._leaf_fc_size:
@@ -233,16 +230,12 @@ class TreeEmbedding(object):
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
                 self._leaf_fc = td.Identity()
-            #if len(root_fc_size) > 0:
-            self._root_fcs = []
-            for i, s in enumerate(root_fc_sizes):
-                if s > 0:
-                    self._root_fcs.append(fc_scoped(num_units=s, activation_fn=tf.nn.tanh, scope=scope,
-                                                    keep_prob=self.keep_prob,
-                                                    name=VAR_PREFIX_FC_ROOT + '%d_%d' % (i, self.state_size)))
-            #else:
-            #    self._root_fc = td.Identity()
-
+            #self._root_fcs = []
+            #for i, s in enumerate(root_fc_sizes):
+            #    if s > 0:
+            #        self._root_fcs.append(fc_scoped(num_units=s, activation_fn=tf.nn.tanh, scope=scope,
+            #                                        keep_prob=self.keep_prob,
+            #                                        name=VAR_PREFIX_FC_ROOT + '%d_%d' % (i, self.state_size)))
             self._reverse_fc = fc_scoped(num_units=self._dim_embeddings,
                                          activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
                                          name=VAR_PREFIX_FC_REVERSE + '_%d' % self._dim_embeddings)
@@ -283,11 +276,6 @@ class TreeEmbedding(object):
                                         >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x), self.lexicon_size)))
                                         >> self._reverse_fc,
                         })
-        # compatibility
-        #if self._lex_size_fix > 0:
-        #    return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.abs(x)))
-        #if self._lex_size_var > 0:
-        #    return td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon_var, x))
 
     def head(self, name='head_embed'):
         #return td.Pipe(td.GetItem(KEY_HEAD), td.Scalar(dtype='int32'), self.embed(), name=name)
@@ -316,20 +304,20 @@ class TreeEmbedding(object):
     def leaf_fc_size(self):
         return self._leaf_fc_size or 0
 
-    @property
-    def root_fc_size(self):
-        if len(self._root_fc_sizes) > 0:
-            return self._root_fc_sizes[-1]
-        return 0
+    #@property
+    #def root_fc_size(self):
+    #    if len(self._root_fc_sizes) > 0:
+    #        return self._root_fc_sizes[-1]
+    #    return 0
 
-    @property
-    def root_fc(self):
-        # return self._root_fcs
-        if len(self._root_fcs) == 0:
-            return td.Identity()
-        elif len(self._root_fcs) == 1:
-            return self._root_fcs[0]
-        return td.Pipe(*self._root_fcs)
+    #@property
+    #def root_fc(self):
+    #    # return self._root_fcs
+    #    if len(self._root_fcs) == 0:
+    #        return td.Identity()
+    #    elif len(self._root_fcs) == 1:
+    #        return self._root_fcs[0]
+    #    return td.Pipe(*self._root_fcs)
 
     @property
     def lexicon_var(self):
@@ -398,7 +386,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
 
         # TODO: use only h state. DONE, but needs testing!
         #return cases >> td.Concat() >> self.output_fc
-        return cases >> td.GetItem(1) >> self.root_fc
+        return cases >> td.GetItem(1) #>> self.root_fc
 
 
 class TreeEmbedding_map(TreeEmbedding):
@@ -467,7 +455,8 @@ class TreeEmbedding_reduceGRU(TreeEmbedding_reduce):
 
     @property
     def output_size(self):
-        return self.root_fc_size or self.state_size
+        #return self.root_fc_size or self.state_size
+        return self.state_size
 
 
 def lstm_cell(scope, state_size, keep_prob, input_size, state_is_tuple=True):
@@ -510,7 +499,8 @@ class TreeEmbedding_reduceLSTM(TreeEmbedding_reduce):
 
     @property
     def output_size(self):
-        return self.root_fc_size or self.state_size
+        #return self.root_fc_size or self.state_size
+        return self.state_size
 
 
 class TreeEmbedding_mapFC(TreeEmbedding_map):
@@ -623,11 +613,11 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
         children = self.children() >> td.Map(embed_tree())
-        #state = td.AllOf(self.head(), children) >> self.reduce >> self.map
         state = self.new_state(self.head(), children)
         embed_tree.resolve_to(state)
-        model = state >> self.root_fc
-        return model
+       #model = state >> self.root_fc
+        #return model
+        return state
 
 
 class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
@@ -682,8 +672,9 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
 
         embed_tree.resolve_to(cases)
 
-        model = cases >> self.root_fc
-        return model
+        #model = cases >> self.root_fc
+        #return model
+        return cases
 
 
 class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
@@ -718,7 +709,7 @@ class TreeEmbedding_FLAT(TreeEmbedding_reduce):
         super(TreeEmbedding_FLAT, self).__init__(name='FLAT_' + name, **kwargs)
 
     def __call__(self):
-        model = self.children() >> td.Map(self.head()) >> td.AllOf(td.Void(), td.Identity()) >> self.reduce >> td.GetItem(1) >> self.root_fc
+        model = self.children() >> td.Map(self.head()) >> td.AllOf(td.Void(), td.Identity()) >> self.reduce >> td.GetItem(1)# >> self.root_fc
         if model.output_type is None:
             model.set_output_type(tdt.TensorType(shape=(self.output_size,), dtype='float32'))
         return model
@@ -816,7 +807,8 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding_reduceAVG, TreeEmbedding_FLAT):
 
     @property
     def output_size(self):
-        return self.root_fc_size or self.head_size
+        #return self.root_fc_size or self.head_size
+        return self.head_size
 
 
 class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT2levels):
@@ -830,7 +822,8 @@ class TreeEmbedding_FLAT_SUM(TreeEmbedding_reduceSUM, TreeEmbedding_FLAT):
 
     @property
     def output_size(self):
-        return self.root_fc_size or self.head_size
+        #return self.root_fc_size or self.head_size
+        return self.head_size
 
 
 class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT2levels):
@@ -911,12 +904,7 @@ def get_jaccard_sim(tree_tuple):
 
 
 class SequenceTreeModel(object):
-    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, #discrete_values_gold=False,
-                 **kwargs):
-        #if discrete_values_gold:
-        #    self._values_gold_dtype = 'int32'
-        #else:
-        #    self._values_gold_dtype = 'float'
+    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, root_fc_sizes=0, **kwargs):
 
         self._tree_count = tree_count
         self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
@@ -926,20 +914,24 @@ class SequenceTreeModel(object):
         embed_tree = self._tree_embed()
         # do not map tree embedding model to input, if it produces a sequence itself
         if isinstance(embed_tree.output_type, tdt.SequenceType):
-            #model = td.AllOf(td.GetItem(0) >> embed_tree
-            #                 >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat(),
-            #                 td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
             model = embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat()
         else:
-            #model = td.AllOf(td.GetItem(0) >> td.Map(embed_tree)
-            #                 >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat(),
-            #                 td.GetItem(1) >> td.Vector(self._tree_count, dtype=self._values_gold_dtype))
             model = td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat()
 
-            # fold model output
+        # fold model output
         self._compiler = td.Compiler.create(model)
-        #(self._tree_embeddings_all, self._probs_gold) = self._compiler.output_tensors
         self._tree_embeddings_all, = self._compiler.output_tensors
+
+        if isinstance(root_fc_sizes, (list, tuple)):
+            self._root_fc_sizes = root_fc_sizes
+        else:
+            self._root_fc_sizes = [root_fc_sizes]
+
+        self._embeddings = tf.reshape(self._tree_embeddings_all, shape=[-1, self.tree_output_size])
+        for s in self._root_fc_sizes:
+            if s > 0:
+                fc = tf.contrib.layers.fully_connected(inputs=self._embeddings, num_outputs=s, activation_fn=tf.nn.tanh)
+                self._embeddings = tf.nn.dropout(fc, keep_prob=self._keep_prob)
 
     def build_feed_dict(self, data):
         return self._compiler.build_feed_dict(data)
@@ -990,30 +982,53 @@ class SequenceTreeModel(object):
 
 
 class DummyTreeModel(object):
-    def __init__(self, embeddings_dim, tree_count, **kwargs):
+    def __init__(self, embeddings_dim, tree_count, root_fc_sizes=0, keep_prob=1.0, **kwargs):
         self._embeddings_dim = embeddings_dim
-        self._embeddings_placeholder = tf.placeholder(shape=[None, tree_count, self._embeddings_dim], dtype=tf.float32)
+        self._embeddings_placeholder = tf.placeholder(shape=[None, self._embeddings_dim], dtype=tf.float32)
+        #self._embeddings_placeholder = tf.sparse_placeholder(dtype=tf.float32)
         self._tree_count = tree_count
+
+        self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
+
+        if isinstance(root_fc_sizes, (list, tuple)):
+            self._root_fc_sizes = root_fc_sizes
+        else:
+            self._root_fc_sizes = [root_fc_sizes]
+
+        #self._embeddings = tf.reshape(tf.sparse_tensor_to_dense(self._embeddings_placeholder), shape=[-1, embeddings_dim])
+        self._embeddings = tf.reshape(self._embeddings_placeholder, shape=[-1, embeddings_dim])
+        for s in self._root_fc_sizes:
+            if s > 0:
+                fc = tf.contrib.layers.fully_connected(inputs=self._embeddings, num_outputs=s, activation_fn=tf.nn.tanh)
+                self._embeddings = tf.nn.dropout(fc, keep_prob=self._keep_prob)
 
     @property
     def embeddings_placeholder(self):
         return self._embeddings_placeholder
 
+    #@property
+    #def embeddings_placeholder_sparse(self):
+    #    return self._embeddings_placeholder_sparse
+
     @property
     def embeddings_all(self):
-        return tf.reshape(self._embeddings_placeholder, shape=[-1, self.tree_output_size * self.tree_count])
+        return tf.reshape(self._embeddings, shape=[-1, self.tree_output_size * self.tree_count])
 
     @property
     def embeddings_shaped(self):
-        return tf.reshape(self._embeddings_placeholder, shape=[-1, self.tree_output_size])
+        return tf.reshape(self._embeddings, shape=[-1, self.tree_output_size])
 
     @property
     def tree_output_size(self):
-        return self._embeddings_dim
+        return int(self._embeddings.shape[-1])
 
     @property
     def tree_count(self):
         return self._tree_count
+
+    @property
+    def keep_prob(self):
+        return self._keep_prob
 
 
 class BaseTrainModel(object):

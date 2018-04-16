@@ -32,7 +32,7 @@ import mytools
 from mytools import numpy_load
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
-    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT
+    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE
 from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -169,6 +169,12 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
     return emit_dict
 
 
+def convert_sparse_matrix_to_sparse_tensor(X):
+    coo = X.tocoo()
+    indices = np.mat([coo.row, coo.col]).transpose()
+    return tf.SparseTensorValue(indices, coo.data, coo.shape)
+
+
 def do_epoch(supervisor, sess, model, epoch, dataset_ids,
              dataset_target_ids=None, dataset_trees=None,
              dataset_trees_embedded=None, train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
@@ -220,8 +226,8 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
         execute_vars['train_op'] = model.train_op
         execute_vars['step'] = model.global_step
     else:
-        if not isinstance(model.tree_model, model_fold.DummyTreeModel):
-            feed_dict[model.tree_model.keep_prob] = 1.0
+        #if not isinstance(model.tree_model, model_fold.DummyTreeModel):
+        feed_dict[model.tree_model.keep_prob] = 1.0
 
 
     if False:
@@ -301,14 +307,19 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for batch in td.group_by_batches(batch_iter_naive(), config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
-        #tree_indices_batches_np = np.array(tree_indices_batched)
         if not isinstance(model.tree_model, model_fold.DummyTreeModel):
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
-            #trees_batched = [[dataset_trees.next() for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
             feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
         else:
-            tree_embeddings_batched = [[dataset_trees_embedded[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
-            feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched
+            #tree_embeddings_batched = [[dataset_trees_embedded[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
+            tree_indices_batched_np = np.array(tree_indices_batched)
+            batch_shape = tree_indices_batched_np.shape
+            #tree_embeddings_batched = dataset_trees_embedded[tree_indices_batched_np]
+            tree_embeddings_batched_flat = dataset_trees_embedded[tree_indices_batched_np.flatten()]
+            #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched
+            #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.reshape((batch_shape[0], batch_shape[1], tree_indices_batched_np.shape[-1]))
+            #feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(tree_embeddings_batched_flat)
+            feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.todense()
         feed_dict[model.values_gold] = probs_batched
         _result_all.append(sess.run(execute_vars, feed_dict))
 
@@ -456,6 +467,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
+        if config.tree_embedder == 'tfidf':
+            tree_iterator_args['concat_mode'] = CM_AGGREGATE
+            tree_iterator_args['context'] = 0
         #if FLAGS.debug:
         #    root_strings_store = StringStore()
         #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
@@ -466,7 +480,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #tuple_size = config.neg_samples + 1
         tuple_size = 1
         discrete_model = True
-        load_parents = (config.context is not None and config.context > 0)
+        load_parents = (tree_iterator_args['context'] > 0)
     #elif config.model_type == 'tuple_single':
     #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
     #                          'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
@@ -497,16 +511,15 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         del meta[M_TEST]
         discrete_model = True
         load_parents = True
-    elif config.model_type == 'tfidf':
-        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref}
-        tree_iterator = diters.data_single_iterator_dbpedianif_context_tfidf
-
-        # TODO: set correct values!
-        tuple_size = None  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
-        discrete_model = True
-
-        load_parents = False
+    #elif config.model_type == 'tfidf':
+    #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+    #                          'concat_mode': CM_AGGREGATE}
+    #    tree_iterator = diters.tree_iterator
+    #    indices_getter = diters.indices_dbpedianif
+    #    # tuple_size = config.neg_samples + 1
+    #    tuple_size = 1
+    #    discrete_model = True
+    #    load_parents = False
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -551,7 +564,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         optimizer = getattr(tf.train, optimizer)
 
     sim_measure = getattr(model_fold, config.sim_measure)
-    tree_embedder = getattr(model_fold, config.tree_embedder)
 
     logger.info('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
@@ -559,7 +571,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
             logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-            if not config.model_type == 'tfidf':
+            if not config.tree_embedder == 'tfidf':
+                tree_embedder = getattr(model_fold, config.tree_embedder)
                 model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
                                                           lex_size_var=lexicon.len_var,
                                                           tree_embedder=tree_embedder,
@@ -575,34 +588,24 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                           # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                           )
                 for m in meta:
-                    logger.info('create %s data set ...' % m)
+                    logger.info('create %s data set (tree-embeddings) ...' % m)
                     with model_tree.compiler.multiprocessing_pool():
-                        # meta[m][M_TREES], meta[m][M_IDS], meta[m][M_TARGETS] = zip(*meta[m][M_INDEX_ITER](sequence_trees=forest))
                         meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], meta[m][M_TREE_ITER]), ordered=True))
-                        #meta[m][M_TREES] = list(meta[m][M_TREE_ITER])
-                        #logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
+                        logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
             else:
-                max_embeddings_dim = -1
-                for m in meta:
-                    logger.info('create %s data set ...' % m)
-                    # if model is None, it is tfidf
-                    meta[m][M_TREE_EMBEDDINGS] = diters.embeddings_tfidf(meta[m][M_TREE_ITER])
-                    current_embeddings_dim = meta[m][M_TREE_EMBEDDINGS].shape[1]
-                    if current_embeddings_dim > max_embeddings_dim:
-                        max_embeddings_dim = current_embeddings_dim
-                    #assert embeddings_dim is None or meta[m][M_TREE_EMBEDDINGS].shape[1] == embeddings_dim, 'embedding_dims are different: %i != %i' % (meta[m][M_TREE_EMBEDDINGS].shape[1], embeddings_dim)
-                    logger.info('%s data size: %s' % (m, len(meta[m][M_TREE_EMBEDDINGS])))
+                logger.info('create %s data sets (tf-idf) ...' % ', '.join(meta.keys()))
+                _tree_embeddings_tfidf = diters.embeddings_tfidf([meta[m][M_TREE_ITER] for m in meta.keys()])
+                embedding_dim = -1
+                for i, m in enumerate(meta):
+                    meta[m][M_TREE_EMBEDDINGS] = _tree_embeddings_tfidf[i]
+                    logger.info('%s data size: %s' % (m, str(meta[m][M_TREE_EMBEDDINGS].shape)))
+                    current_embedding_dim = meta[m][M_TREE_EMBEDDINGS].shape[1]
+                    assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
+                    embedding_dim = current_embedding_dim
+                assert embedding_dim != -1, 'no data sets created'
 
-                # pad embedding dimensions
-                for m in meta:
-                    current_embeddings_dim = meta[m][M_TREE_EMBEDDINGS].shape[1]
-                    if current_embeddings_dim < max_embeddings_dim:
-                        shape = meta[m][M_TREE_EMBEDDINGS].shape
-                        padded = np.zeros(shape=[shape[0], max_embeddings_dim])
-                        padded[:shape[0], :shape[1]] = meta[m][M_TREE_EMBEDDINGS]
-                        meta[m][M_TREE_EMBEDDINGS] = padded
-
-                model_tree = model_fold.DummyTreeModel(embeddings_dim=max_embeddings_dim, tree_count=tuple_size)
+                model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
+                                                       keep_prob=config.keep_prob)
 
             if config.model_type == 'simtuple':
                 model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
