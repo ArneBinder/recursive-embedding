@@ -1165,7 +1165,7 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 class TreeTupleModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, candidate_count, **kwargs):
+    def __init__(self, tree_model, candidate_count, fc_sizes=1000, **kwargs):
         #print('candidate_count: %s' % candidate_count)
         self._candidate_count = candidate_count
 
@@ -1188,9 +1188,16 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
         concat = tf.concat([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=-1)
         #print('%s\t concat.shape' % concat.shape)
 
-        fc = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=1000)
-        fc_dropout = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
-        logits = tf.contrib.layers.fully_connected(inputs=fc_dropout, num_outputs=2, activation_fn=None)
+        if not isinstance(fc_sizes, (list, tuple)):
+            fc_sizes = [fc_sizes]
+
+        # add multiple fc layers
+        for s in fc_sizes:
+            if s > 0:
+                fc = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=s)
+                concat = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
+
+        logits = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=2, activation_fn=None)
         #print('%s\tlogits.shape' % logits.shape)
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
 
@@ -1198,7 +1205,7 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
 
         softmax = tf.nn.softmax(logits)
         self._probs = softmax[:, :, 1]
-        print('%s\tprobs.shape' % self._probs.shape)
+        #print('%s\tprobs.shape' % self._probs.shape)
 
     @property
     def values_gold(self):

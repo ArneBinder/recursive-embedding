@@ -34,14 +34,14 @@ default_config = {'train_data_path': ['DEFINE_string',
                                      1,
                                      'Which file of the train data files should be used as test data.',
                                      'devfidx'],
-                  'sim_measure': ['DEFINE_string',
-                                  'sim_cosine',
-                                  'similarity measure implementation (tensorflow) from model_fold for similarity score '
-                                  'calculation. Currently implemented:'
-                                  '"sim_cosine" -> cosine'
-                                  '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
-                                  '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
-                                  'sm'],
+                  #'sim_measure': ['DEFINE_string',
+                  #                'sim_cosine',
+                  #                'similarity measure implementation (tensorflow) from model_fold for similarity score '
+                  #                'calculation. Currently implemented:'
+                  #                '"sim_cosine" -> cosine'
+                  #                '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
+                  #                '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
+                  #                'sm'],
                   'tree_embedder': ['DEFINE_string',
                                     'TreeEmbedding_FLAT_AVG',
                                     'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
@@ -75,6 +75,14 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     'Apply fully connected layers with these sizes after composition. '
                                     'Format: String containing a comma separated list of positive integers.',
                                     'rootfc'
+                                    ],
+                  'fc_sizes': ['DEFINE_string',
+                                    '1000',
+                                    # '50,100,50',
+                                    'Apply fully connected layers with these sizes to the concateneated embeddings '
+                                    '(before final softmax). '
+                                    'Format: String containing a comma separated list of positive integers.',
+                                    'fc'
                                     ],
                   'state_size': ['DEFINE_integer',
                                  50,

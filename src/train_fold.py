@@ -559,7 +559,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     if optimizer is not None:
         optimizer = getattr(tf.train, optimizer)
 
-    sim_measure = getattr(model_fold, config.sim_measure)
+    #sim_measure = getattr(model_fold, config.sim_measure)
 
     logger.info('create tensorflow graph ...')
     with tf.Graph().as_default() as graph:
@@ -580,7 +580,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                           keep_prob=config.keep_prob,
                                                           tree_count=tuple_size,
                                                           #tree_count=1,
-                                                          #discrete_values_gold=discrete_model
                                                           # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                           )
                 for m in meta:
@@ -611,6 +610,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                     clipping_threshold=config.clipping)
             elif config.model_type == 'tuple':
                 model = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
+                                                                  fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                                   optimizer=optimizer,
                                                                   learning_rate=config.learning_rate,
                                                                   clipping_threshold=config.clipping,

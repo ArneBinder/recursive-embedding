@@ -78,6 +78,7 @@ $DOCKER run -it \
         --early_stop_queue=$EARLY_STOP_QUEUE \
         --root_fc_sizes=$ROOT_FC_SIZES \
         --leaf_fc_size=$LEAF_FC_SIZE \
+        --fc_sizes=$FC_SIZES \
         --state_size=$STATE_SIZE \
         --keep_prob=$KEEP_PROB \
         --init_only=$INIT_ONLY \
