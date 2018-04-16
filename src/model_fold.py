@@ -1166,40 +1166,39 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, candidate_count, **kwargs):
-        print('candidate_count: '+str(candidate_count))
+        #print('candidate_count: %s' % candidate_count)
         self._candidate_count = candidate_count
 
         self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, candidate_count])
-        print(self._labels_gold.shape)
+        #print('%s\tlabels_gold.shape' % self._labels_gold.shape)
 
         tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, candidate_count + 1, tree_model.tree_output_size])
         self._batch_size = tf.shape(tree_embeddings)[0]
-        print(tree_embeddings.shape)
+        #print('%s\ttree_embeddings.shape' % tree_embeddings.shape)
 
         ref_tree_embedding = tree_embeddings[:, 0, :]
-        print(ref_tree_embedding.shape)
+        #print('%s\tref_tree_embedding.shape' % ref_tree_embedding.shape)
         candidate_tree_embeddings = tree_embeddings[:, 1:, :]
-        print(candidate_tree_embeddings.shape)
+        #print('%s\tcandidate_tree_embeddings.shape' % candidate_tree_embeddings.shape)
         ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, candidate_count])
-        print(ref_tree_embedding_tiled.shape)
+        #print('%s\tref_tree_embedding_tiled.shape' % ref_tree_embedding_tiled.shape)
         ref_tree_embedding_tiled_reshaped = tf.reshape(ref_tree_embedding_tiled,
                                                        shape=[-1, candidate_count, tree_model.tree_output_size])
-        print(ref_tree_embedding_tiled_reshaped.shape)
-        stacked = tf.stack([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=1)
-        print(stacked.shape)
-        stacked_reshaped = tf.reshape(stacked, shape=[-1, candidate_count, tree_model.tree_output_size * 2])
-        print(stacked_reshaped.shape)
+        #print('%s\tref_tree_embedding_tiled_reshaped.shape' % ref_tree_embedding_tiled_reshaped.shape)
+        concat = tf.concat([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=-1)
+        #print('%s\t concat.shape' % concat.shape)
 
-        fc = tf.contrib.layers.fully_connected(inputs=stacked_reshaped, num_outputs=1000)
-        logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
-        print(logits.shape)
+        fc = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=1000)
+        fc_dropout = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
+        logits = tf.contrib.layers.fully_connected(inputs=fc_dropout, num_outputs=2, activation_fn=None)
+        #print('%s\tlogits.shape' % logits.shape)
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
 
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         softmax = tf.nn.softmax(logits)
         self._probs = softmax[:, :, 1]
-        print(self._probs.shape)
+        print('%s\tprobs.shape' % self._probs.shape)
 
     @property
     def values_gold(self):
