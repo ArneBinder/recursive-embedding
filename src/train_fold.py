@@ -603,12 +603,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                   candidate_count=config.neg_samples+1)
                 for m in meta:
                     if M_TREES in meta[m]:
-                        meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=model_tree.tree_output_size,
-                                                                                          number_of_embeddings=len(meta[M_TRAIN][M_TREES]))
+                        meta[m]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=model_tree.tree_output_size,
+                                                                                    number_of_embeddings=len(meta[m][M_TREES]))
                     elif M_TREE_EMBEDDINGS in meta[m]:
-                        meta[M_TRAIN]['model_highest_sims'] = model_fold.HighestSimsModel(
+                        meta[m]['model_highest_sims'] = model_fold.HighestSimsModel(
                             embedding_size=model_tree.tree_output_size,
-                            number_of_embeddings=meta[M_TRAIN][M_TREE_EMBEDDINGS].shape[0],
+                            number_of_embeddings=meta[m][M_TREE_EMBEDDINGS].shape[0],
                             sparse=True
                         )
             elif config.model_type == 'reroot':
