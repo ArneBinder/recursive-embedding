@@ -152,14 +152,17 @@ def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='seq
         raise ValueError('unknown concat_mode=%s' % concat_mode)
     # consistency check
     found = False
-    for d in data:
+    data_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    for i, d in enumerate(data):
         if d in forest.root_id_mapping:
-            logger.debug('get_tree_naive: root_id=%i is still in data (idx_start=%i, idx_end=%i)' % (d, idx_start, idx_end))
+            logger.debug('get_tree_naive: root_id=%i is still in data (idx_start=%i, idx_end=%i). Set to %s'
+                         % (d, idx_start, idx_end, vocab_manual[UNKNOWN_EMBEDDING]))
             found = True
-    if found:
-        logger.debug(data.tolist())
-        logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in data])
-        logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in forest.data[idx_start:idx_end]])
+            data[i] = data_unknown
+    #if found:
+    #    logger.debug(data.tolist())
+    #    logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in data])
+    #    logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in forest.data[idx_start:idx_end]])
     return Forest(data=data, parents=parents, lexicon=forest.lexicon)
 
 
