@@ -150,6 +150,10 @@ def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='seq
             parents[i] = len(parents) - i - 1
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
+    # consistency check
+    for d in data:
+        if d in forest.root_id_mapping:
+            logger.debug('get_tree_naive: root_id=%i is still in data')
     return Forest(data=data, parents=parents, lexicon=forest.lexicon)
 
 
@@ -270,7 +274,9 @@ def tree_iterator(indices, forest, concat_mode='tree',
             yield tree_context
             n += 1
     else:
-        # TODO: works only if idx points to a data_nif_context and leafs are sequential and in order
+        # TODO:
+        # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
+        # root_ids occur only directly after link_types
         for idx in indices:
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
