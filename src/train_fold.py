@@ -175,64 +175,111 @@ def convert_sparse_matrix_to_sparse_tensor(X):
     return tf.SparseTensorValue(indices, coo.data, coo.shape)
 
 
-def do_epoch(supervisor, sess, model, epoch, dataset_ids,
-             dataset_target_ids=None, dataset_trees=None,
-             dataset_trees_embedded=None, train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=0):  # , discrete_model=False):
+def id_iter(dataset_indices, dataset_ids, dataset_target_ids):
+    for idx in dataset_indices:
+        for target_id in dataset_target_ids[idx]:
+            yield (idx, dataset_ids[idx], target_id)
+
+
+def batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids):
+    id_to_idx = {_id: i for i, _id in enumerate(dataset_ids)}
+    for idx, _id, _target_id in id_iter(dataset_indices, dataset_ids, dataset_target_ids):
+        # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target and +1 to hold
+        # the origin/reference (idx)
+        samples = np.random.random_integers(len(dataset_indices) - 1, size=number_of_samples + 1 + 1)
+        # replace "self" with 0
+        samples[samples == idx] = 0
+        # set the first to the correct target
+        samples[1] = id_to_idx[_target_id]
+        # set the 0th to the origin/reference
+        samples[0] = idx
+
+        # convert candidates to ids
+        candidate_ids = dataset_ids[samples[1:]]
+        all_targets = dataset_target_ids[idx]
+        ix = np.isin(candidate_ids, all_targets)
+        probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
+        probs[ix] = 1
+
+        yield samples, probs
+
+
+def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess, tree_model,
+                       highest_sims_model, dataset_trees=None, dataset_trees_embedded=None):
+    if dataset_trees_embedded is None:
+        _tree_embeddings = []
+        feed_dict = {}
+        for batch in td.group_by_batches(dataset_trees, config.batch_size):
+            feed_dict[tree_model.compiler.loom_input_tensor] = batch
+            current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
+            _tree_embeddings.append(current_tree_embeddings)
+        dataset_trees_embedded = np.concatenate(_tree_embeddings)
+        logger.debug('%i embeddings calculated' % len(dataset_trees_embedded))
+    # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
+    s = dataset_trees_embedded.shape[0]
+    neg_sample_indices = np.zeros(shape=(s, number_of_samples), dtype=np.int32)
+    normed = pp.normalize(dataset_trees_embedded, norm='l2')
+    sess.run(highest_sims_model.normed_embeddings_init,
+             # feed_dict={highest_sims_model.normed_embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(normed) if highest_sims_model.sparse else normed}
+             feed_dict={
+                 highest_sims_model.normed_embeddings_placeholder: normed.todense() if highest_sims_model.sparse else normed}
+             )
+    for i in range(s):
+        current_sims = sess.run(highest_sims_model.sims,
+                                {
+                                    highest_sims_model.reference_idx: i,
+                                })
+        current_sims[i] = 0
+        current_indices = np.argpartition(current_sims, -number_of_samples)[-number_of_samples:]
+        neg_sample_indices[i, :] = current_indices
+    logger.debug('created nearest indices')
 
     id_to_idx = {_id: i for i, _id in enumerate(dataset_ids)}
+    for idx, _id, _target_id in id_iter(dataset_indices, dataset_ids, dataset_target_ids):
+        samples = np.zeros(shape=number_of_samples + 1 + 1, dtype=np.int32)
+        samples[1] = id_to_idx[_target_id]
+        target_nearest_indices = neg_sample_indices[id_to_idx[_target_id]]
+        samples[2:] = target_nearest_indices
+        samples[0] = idx
+
+        # convert candidates to ids
+        candidate_ids = dataset_ids[samples[1:]]
+        all_targets = dataset_target_ids[idx]
+        ix = np.isin(candidate_ids, all_targets)
+        probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
+        probs[ix] = 1
+        yield samples, probs
+
+
+def batch_iter_reroot(number_of_samples, dataset_indices):
+    for idx in dataset_indices:
+        probs = np.zeros(shape=number_of_samples + 1, dtype=np.int32)
+        probs[0] = 1
+        return [idx], probs
+
+
+def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids):
+    for idx in dataset_indices:
+        samples = np.zeros(shape=len(dataset_indices) + 1, dtype=np.int32)
+        samples[1:] = dataset_indices
+        samples[0] = idx
+
+        # convert candidates to ids
+        candidate_ids = dataset_ids[samples[1:]]
+        all_targets = dataset_target_ids[idx]
+        ix = np.isin(candidate_ids, all_targets)
+        probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
+        probs[ix] = 1
+        yield samples, probs
+
+
+def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=None, dataset_trees=None,
+             dataset_trees_embedded=None, train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
+             highest_sims_model=None, number_of_samples=None):  # , discrete_model=False):
 
     dataset_indices = np.arange(len(dataset_ids))
 
     np.random.shuffle(dataset_indices)
-
-    def id_iter():
-        for idx in dataset_indices:
-            for target_id in dataset_target_ids[idx]:
-                yield (idx, dataset_ids[idx], target_id)
-
-    def batch_iter_naive():
-        for idx, _id, _target_id in id_iter():
-            # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target and +1 to hold
-            # the origin/reference (idx)
-            samples = np.random.random_integers(len(dataset_indices)-1, size=number_of_samples+1+1)
-            # replace "self" with 0
-            samples[samples == idx] = 0
-            # set the first to the correct target
-            samples[1] = id_to_idx[_target_id]
-            # set the 0th to the origin/reference
-            samples[0] = idx
-
-            # convert candidates to ids
-            candidate_ids = dataset_ids[samples[1:]]
-            all_targets = dataset_target_ids[idx]
-            ix = np.isin(candidate_ids, all_targets)
-            probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
-            probs[ix] = 1
-
-            yield samples, probs
-
-    def batch_iter_nearest():
-        for idx, _id, _target_id in id_iter():
-            samples = np.zeros(shape=number_of_samples+1+1, dtype=np.int32)
-            samples[1] = id_to_idx[_target_id]
-            target_nearest_indices = neg_sample_indices[id_to_idx[_target_id]]
-            samples[2:] = target_nearest_indices
-            samples[0] = idx
-
-            # convert candidates to ids
-            candidate_ids = dataset_ids[samples[1:]]
-            all_targets = dataset_target_ids[idx]
-            ix = np.isin(candidate_ids, all_targets)
-            probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
-            probs[ix] = 1
-            yield samples, probs
-
-    def batch_iter_reroot():
-        for idx in dataset_indices:
-            probs = np.zeros(shape=number_of_samples+1, dtype=np.int32)
-            probs[0] = 1
-            return [idx], probs
 
     step = test_step
     feed_dict = {}
@@ -245,44 +292,26 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
         feed_dict[model.tree_model.keep_prob] = 1.0
 
     if isinstance(model, model_fold.SequenceTreeRerootModel):
-        batch_iter = batch_iter_reroot
+        logger.debug('use batch_iter_reroot')
+        batch_iter = batch_iter_reroot(number_of_samples, dataset_indices)
     else:
-        if highest_sims_model is not None:
-            if dataset_trees_embedded is None:
-                _tree_embeddings = []
-                for batch in td.group_by_batches(dataset_trees, config.batch_size):
-                    feed_dict[model.tree_model.compiler.loom_input_tensor] = batch
-                    current_tree_embeddings = sess.run(model.tree_model.embeddings_all, feed_dict)
-                    _tree_embeddings.append(current_tree_embeddings)
-                dataset_trees_embedded = np.concatenate(_tree_embeddings)
-                logger.debug('%i embeddings calculated' % len(dataset_trees_embedded))
-            # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
-            s = dataset_trees_embedded.shape[0]
-            neg_sample_indices = np.zeros(shape=(s, number_of_samples), dtype=np.int32)
-            normed = pp.normalize(dataset_trees_embedded, norm='l2')
-            sess.run(highest_sims_model.normed_embeddings_init,
-                     #feed_dict={highest_sims_model.normed_embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(normed) if highest_sims_model.sparse else normed}
-                     feed_dict={highest_sims_model.normed_embeddings_placeholder: normed.todense() if highest_sims_model.sparse else normed}
-                     )
-            for i in range(s):
-
-                current_sims = sess.run(highest_sims_model.sims,
-                                                   {
-                                                       highest_sims_model.reference_idx: i,
-                                                   })
-                current_sims[i] = 0
-                current_indices = np.argpartition(current_sims, -number_of_samples)[-number_of_samples:]
-                neg_sample_indices[i, :] = current_indices
-            logger.debug('created nearest indices')
-            batch_iter = batch_iter_nearest
+        if number_of_samples is None:
+            logger.debug('use batch_iter_all')
+            batch_iter = batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids)
+        elif highest_sims_model is not None:
+            logger.debug('use batch_iter_nearest')
+            batch_iter = batch_iter_nearest(number_of_samples=number_of_samples, dataset_indices=dataset_indices,
+                                            dataset_ids=dataset_ids, dataset_target_ids=dataset_target_ids, sess=sess,
+                                            tree_model=model.tree_model, highest_sims_model=highest_sims_model,
+                                            dataset_trees=dataset_trees, dataset_trees_embedded=dataset_trees_embedded)
         else:
-            batch_iter = batch_iter_naive
-
+            logger.debug('use batch_iter_naive')
+            batch_iter = batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids)
 
     _result_all = []
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for batch in td.group_by_batches(batch_iter(), config.batch_size):
+    for batch in td.group_by_batches(batch_iter, config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
         if not isinstance(model.tree_model, model_fold.DummyTreeModel):
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
@@ -293,6 +322,7 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids,
             tree_embeddings_batched_flat = dataset_trees_embedded[tree_indices_batched_np.flatten()]
             feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(tree_embeddings_batched_flat)
             #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.todense()
+        feed_dict[model.candidate_count] = len(probs_batched[0])
         feed_dict[model.values_gold] = probs_batched
         _result_all.append(sess.run(execute_vars, feed_dict))
 
@@ -600,7 +630,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                   optimizer=optimizer,
                                                                   learning_rate=config.learning_rate,
                                                                   clipping_threshold=config.clipping,
-                                                                  candidate_count=config.neg_samples+1)
+                                                                  )
                 for m in meta:
                     if M_TREES in meta[m]:
                         meta[m]['model_highest_sims'] = model_fold.HighestSimsModel(embedding_size=model_tree.tree_output_size,
@@ -712,7 +742,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        epoch=0,
                                                                                        train=False,
                                                                                        emit=False,
-                                                                                       number_of_samples=config.neg_samples,
+                                                                                       #number_of_samples=config.neg_samples,
+                                                                                       number_of_samples=None,
                                                                                        highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
@@ -763,7 +794,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                                                                                        dataset_ids=meta[M_TEST][M_IDS],
                                                                                        dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
-                                                                                       number_of_samples=config.neg_samples,
+                                                                                       #number_of_samples=config.neg_samples,
+                                                                                       number_of_samples=None,
                                                                                        epoch=epoch,
                                                                                        train=False,
                                                                                        test_step=step_train,

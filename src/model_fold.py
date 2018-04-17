@@ -1129,14 +1129,16 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 class TreeTupleModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, candidate_count, fc_sizes=1000, **kwargs):
+    def __init__(self, tree_model, fc_sizes=1000, **kwargs):
         #print('candidate_count: %s' % candidate_count)
-        self._candidate_count = candidate_count
+        #self._candidate_count = candidate_count
+        self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
 
-        self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, candidate_count])
+        #self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, self._candidate_count])
+        self._labels_gold = tf.placeholder(dtype=tf.int32)
         #print('%s\tlabels_gold.shape' % self._labels_gold.shape)
 
-        tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, candidate_count + 1, tree_model.tree_output_size])
+        tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, self._candidate_count + 1, tree_model.tree_output_size])
         self._batch_size = tf.shape(tree_embeddings)[0]
         #print('%s\ttree_embeddings.shape' % tree_embeddings.shape)
 
@@ -1144,10 +1146,10 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
         #print('%s\tref_tree_embedding.shape' % ref_tree_embedding.shape)
         candidate_tree_embeddings = tree_embeddings[:, 1:, :]
         #print('%s\tcandidate_tree_embeddings.shape' % candidate_tree_embeddings.shape)
-        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, candidate_count])
+        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, self._candidate_count])
         #print('%s\tref_tree_embedding_tiled.shape' % ref_tree_embedding_tiled.shape)
         ref_tree_embedding_tiled_reshaped = tf.reshape(ref_tree_embedding_tiled,
-                                                       shape=[-1, candidate_count, tree_model.tree_output_size])
+                                                       shape=[-1, self._candidate_count, tree_model.tree_output_size])
         #print('%s\tref_tree_embedding_tiled_reshaped.shape' % ref_tree_embedding_tiled_reshaped.shape)
         concat = tf.concat([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=-1)
         #print('%s\t concat.shape' % concat.shape)
@@ -1182,6 +1184,10 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
     @property
     def model_type(self):
         return MODEL_TYPE_DISCRETE
+
+    @property
+    def candidate_count(self):
+        return self._candidate_count
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
