@@ -742,8 +742,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        epoch=0,
                                                                                        train=False,
                                                                                        emit=False,
-                                                                                       #number_of_samples=config.neg_samples,
-                                                                                       number_of_samples=None,
+                                                                                       number_of_samples=config.neg_samples,
+                                                                                       #number_of_samples=None,
                                                                                        highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
@@ -794,8 +794,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                                                                                        dataset_ids=meta[M_TEST][M_IDS],
                                                                                        dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
-                                                                                       #number_of_samples=config.neg_samples,
-                                                                                       number_of_samples=None,
+                                                                                       number_of_samples=config.neg_samples,
+                                                                                       #number_of_samples=None,
                                                                                        epoch=epoch,
                                                                                        train=False,
                                                                                        test_step=step_train,
