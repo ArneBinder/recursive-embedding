@@ -151,9 +151,15 @@ def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='seq
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
     # consistency check
+    found = False
     for d in data:
         if d in forest.root_id_mapping:
             logger.debug('get_tree_naive: root_id=%i is still in data (idx_start=%i, idx_end=%i)' % (d, idx_start, idx_end))
+            found = True
+    if found:
+        logger.debug(data.tolist())
+        logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in data])
+        logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in forest.data[idx_start:idx_end]])
     return Forest(data=data, parents=parents, lexicon=forest.lexicon)
 
 
