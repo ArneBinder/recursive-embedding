@@ -218,10 +218,6 @@ class TreeEmbedding(object):
         self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
-        #if isinstance(root_fc_sizes, (list, tuple)):
-        #    self._root_fc_sizes = root_fc_sizes
-        #else:
-        #    self._root_fc_sizes = [root_fc_sizes]
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._leaf_fc_size:
@@ -230,12 +226,6 @@ class TreeEmbedding(object):
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
                 self._leaf_fc = td.Identity()
-            #self._root_fcs = []
-            #for i, s in enumerate(root_fc_sizes):
-            #    if s > 0:
-            #        self._root_fcs.append(fc_scoped(num_units=s, activation_fn=tf.nn.tanh, scope=scope,
-            #                                        keep_prob=self.keep_prob,
-            #                                        name=VAR_PREFIX_FC_ROOT + '%d_%d' % (i, self.state_size)))
             self._reverse_fc = fc_scoped(num_units=self._dim_embeddings,
                                          activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
                                          name=VAR_PREFIX_FC_REVERSE + '_%d' % self._dim_embeddings)
@@ -278,7 +268,6 @@ class TreeEmbedding(object):
                         })
 
     def head(self, name='head_embed'):
-        #return td.Pipe(td.GetItem(KEY_HEAD), td.Scalar(dtype='int32'), self.embed(), name=name)
         return td.Pipe(td.GetItem(KEY_HEAD), self.embed(), self.leaf_fc, name=name)
 
     def children(self, name=KEY_CHILDREN):
@@ -303,21 +292,6 @@ class TreeEmbedding(object):
     @property
     def leaf_fc_size(self):
         return self._leaf_fc_size or 0
-
-    #@property
-    #def root_fc_size(self):
-    #    if len(self._root_fc_sizes) > 0:
-    #        return self._root_fc_sizes[-1]
-    #    return 0
-
-    #@property
-    #def root_fc(self):
-    #    # return self._root_fcs
-    #    if len(self._root_fcs) == 0:
-    #        return td.Identity()
-    #    elif len(self._root_fcs) == 1:
-    #        return self._root_fcs[0]
-    #    return td.Pipe(*self._root_fcs)
 
     @property
     def lexicon_var(self):
@@ -362,6 +336,10 @@ class TreeEmbedding(object):
     @property
     def head_size(self):
         return self.leaf_fc_size or self._dim_embeddings
+
+    @property
+    def output_size(self):
+        raise NotImplementedError
 
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
@@ -615,9 +593,13 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
         children = self.children() >> td.Map(embed_tree())
         state = self.new_state(self.head(), children)
         embed_tree.resolve_to(state)
-       #model = state >> self.root_fc
-        #return model
         return state
+
+    @property
+    def output_size(self):
+        # depends on self.new_state
+        ot = self.map.output_type
+        return ot.shape[-1]
 
 
 class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
@@ -629,6 +611,12 @@ class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
     def new_state(self, head, children):
         children_mapped = td.AllOf(head >> td.Broadcast(), children) >> td.Zip() >> td.Map(self.map)
         return td.AllOf(self.head(), children_mapped) >> self.reduce >> td.GetItem(1)
+
+    @property
+    def output_size(self):
+        # depends on self.new_state
+        ot = self.reduce.output_type
+        return ot[1].shape[-1]
 
 
 class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
@@ -671,9 +659,6 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
                           })
 
         embed_tree.resolve_to(cases)
-
-        #model = cases >> self.root_fc
-        #return model
         return cases
 
 
@@ -728,7 +713,7 @@ class TreeEmbedding_FLAT(TreeEmbedding_reduce):
         super(TreeEmbedding_FLAT, self).__init__(name='FLAT_' + name, **kwargs)
 
     def __call__(self):
-        model = self.children() >> td.Map(self.head()) >> td.AllOf(td.Void(), td.Identity()) >> self.reduce >> td.GetItem(1)# >> self.root_fc
+        model = self.children() >> td.Map(self.head()) >> td.AllOf(td.Void(), td.Identity()) >> self.reduce >> td.GetItem(1)
         if model.output_type is None:
             model.set_output_type(tdt.TensorType(shape=(self.output_size,), dtype='float32'))
         return model
@@ -922,128 +907,88 @@ def get_jaccard_sim(tree_tuple):
     return len(heads1 & heads2) / float(len(heads1 | heads2))
 
 
-class SequenceTreeModel(object):
-    def __init__(self, tree_embedder=TreeEmbedding_TREE_LSTM, keep_prob=1.0, tree_count=2, root_fc_sizes=0, **kwargs):
+class TreeModel(object):
+    def __init__(self, embeddings_plain, keep_prob_placeholder=None, keep_prob_default=1.0, root_fc_sizes=0, **kwargs):
 
-        self._tree_count = tree_count
-        self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
-
-        self._tree_embed = tree_embedder(keep_prob_placeholder=self._keep_prob, tree_count=tree_count, **kwargs)
-
-        embed_tree = self._tree_embed()
-        # do not map tree embedding model to input, if it produces a sequence itself
-        if isinstance(embed_tree.output_type, tdt.SequenceType):
-            model = embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, self._tree_count) >> td.Concat()
-        else:
-            model = td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, self._tree_count) >> td.Concat()
-
-        # fold model output
-        self._compiler = td.Compiler.create(model)
-        self._tree_embeddings_all, = self._compiler.output_tensors
+        if keep_prob_placeholder is None:
+            keep_prob_placeholder = tf.placeholder_with_default(keep_prob_default, shape=())
+        self._keep_prob = keep_prob_placeholder
 
         if isinstance(root_fc_sizes, (list, tuple)):
             self._root_fc_sizes = root_fc_sizes
         else:
             self._root_fc_sizes = [root_fc_sizes]
 
-        self._embeddings = tf.reshape(self._tree_embeddings_all, shape=[-1, self.tree_output_size])
+        self._embeddings_plain = embeddings_plain
+
         for s in self._root_fc_sizes:
             if s > 0:
-                fc = tf.contrib.layers.fully_connected(inputs=self._embeddings, num_outputs=s, activation_fn=tf.nn.tanh)
-                self._embeddings = tf.nn.dropout(fc, keep_prob=self._keep_prob)
+                fc = tf.contrib.layers.fully_connected(inputs=self._embeddings_plain, num_outputs=s, activation_fn=tf.nn.tanh)
+                self._embeddings_plain = tf.nn.dropout(fc, keep_prob=self._keep_prob)
 
-    def build_feed_dict(self, data):
-        return self._compiler.build_feed_dict(data)
+    @property
+    def embeddings_all(self):
+        return self._embeddings_plain
 
     @property
     def keep_prob(self):
         return self._keep_prob
+
+    @property
+    def tree_output_size(self):
+        return int(self._embeddings_plain.shape[-1])
+
+
+class SequenceTreeModel(TreeModel):
+    def __init__(self, tree_count, tree_embedder, keep_prob_default, **kwargs):
+        keep_prob_placeholder = tf.placeholder_with_default(keep_prob_default, shape=())
+
+        self._tree_embed = tree_embedder(keep_prob_placeholder=keep_prob_placeholder, **kwargs)
+
+        embed_tree = self._tree_embed()
+        # do not map tree embedding model to input, if it produces a sequence itself
+        if isinstance(embed_tree.output_type, tdt.SequenceType):
+            model = embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, tree_count) >> td.Concat()
+        else:
+            model = td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, tree_count) >> td.Concat()
+
+        # fold model output
+        self._compiler = td.Compiler.create(model)
+        self._tree_embeddings_all, = self._compiler.output_tensors
+
+        super(SequenceTreeModel, self).__init__(
+            embeddings_plain=tf.reshape(self._tree_embeddings_all, shape=[-1, self.embedder.output_size]),
+            keep_prob_placeholder=keep_prob_placeholder,
+            **kwargs)
+
+    def build_feed_dict(self, data):
+        return self._compiler.build_feed_dict(data)
 
     @property
     def embedder(self):
         return self._tree_embed
 
     @property
-    def embeddings_all(self):
-        return self._tree_embeddings_all
-
-    @property
-    def embeddings_shaped(self):
-        return tf.reshape(self._tree_embeddings_all, shape=[-1, self.tree_output_size])
-
-    #@property
-    #def values_gold(self):
-    #    return self._probs_gold
-
-    #@property
-    #def values_gold_shaped(self):
-    #    return tf.reshape(self._probs_gold, shape=[-1])
-
-    #@property
-    #def values_gold_dtype(self):
-    #    return self._values_gold_dtype
-
-    @property
     def compiler(self):
         return self._compiler
 
-    @property
-    def tree_count(self):
-        return self._tree_count
 
-    #@property
-    #def prob_count(self):
-    #    return self._prob_count
+class DummyTreeModel(TreeModel):
+    def __init__(self, embeddings_dim, sparse=False, **kwargs):
 
-    @property
-    def tree_output_size(self):
-        return self._tree_embeddings_all.get_shape().as_list()[1] // self.tree_count
-
-
-class DummyTreeModel(object):
-    def __init__(self, embeddings_dim, tree_count, root_fc_sizes=0, keep_prob=1.0, **kwargs):
-        self._embeddings_dim = embeddings_dim
-        self._embeddings_placeholder = tf.sparse_placeholder(shape=[None, self._embeddings_dim], dtype=tf.float32)
-        self._tree_count = tree_count
-
-        self._keep_prob = tf.placeholder_with_default(keep_prob, shape=())
-
-        if isinstance(root_fc_sizes, (list, tuple)):
-            self._root_fc_sizes = root_fc_sizes
+        if sparse:
+            self._embeddings_placeholder = tf.sparse_placeholder(shape=[None, embeddings_dim], dtype=tf.float32)
         else:
-            self._root_fc_sizes = [root_fc_sizes]
+            self._embeddings_placeholder = tf.placeholder(shape=[None, embeddings_dim], dtype=tf.float32)
 
-        self._embeddings = tf.reshape(tf.sparse_tensor_to_dense(self._embeddings_placeholder, validate_indices=False),
+        embeddings_plain = tf.reshape(tf.sparse_tensor_to_dense(self._embeddings_placeholder, validate_indices=False),
                                       shape=[-1, embeddings_dim])
-
-        for s in self._root_fc_sizes:
-            if s > 0:
-                fc = tf.contrib.layers.fully_connected(inputs=self._embeddings, num_outputs=s, activation_fn=tf.nn.tanh)
-                self._embeddings = tf.nn.dropout(fc, keep_prob=self._keep_prob)
+        super(DummyTreeModel, self).__init__(embeddings_plain=embeddings_plain,
+                                             **kwargs)
 
     @property
     def embeddings_placeholder(self):
         return self._embeddings_placeholder
-
-    @property
-    def embeddings_all(self):
-        return tf.reshape(self._embeddings, shape=[-1, self.tree_output_size * self.tree_count])
-
-    @property
-    def embeddings_shaped(self):
-        return tf.reshape(self._embeddings, shape=[-1, self.tree_output_size])
-
-    @property
-    def tree_output_size(self):
-        return int(self._embeddings.shape[-1])
-
-    @property
-    def tree_count(self):
-        return self._tree_count
-
-    @property
-    def keep_prob(self):
-        return self._keep_prob
 
 
 class BaseTrainModel(object):
@@ -1106,7 +1051,7 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
         self._scores_gold = tf.reshape(tree_model.values_gold_shaped, shape=[-1, 2])[:, 1]
         # pack tree embeddings in pairs of two
-        self._tree_embeddings_reshaped = tf.reshape(tree_model.embeddings_shaped, shape=[-1, 2, tree_model.tree_output_size])
+        self._tree_embeddings_reshaped = tf.reshape(tree_model.embeddings_all, shape=[-1, 2, tree_model.tree_output_size])
         # apply sim measure
         self._scores = sim_measure(self._tree_embeddings_reshaped)
 
@@ -1135,7 +1080,7 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
         #self._scores_gold = tf.reshape(tree_model.probs_gold_shaped, shape=[-1, 2])[:, 0]
 
         # pack tree embeddings in pairs of two
-        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, 2, tree_model.tree_output_size])
+        tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, 2, tree_model.tree_output_size])
 
         batch_size = tf.shape(tree_embeddings)[0]
 
@@ -1191,7 +1136,7 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
         self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, candidate_count])
         #print('%s\tlabels_gold.shape' % self._labels_gold.shape)
 
-        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, candidate_count + 1, tree_model.tree_output_size])
+        tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, candidate_count + 1, tree_model.tree_output_size])
         self._batch_size = tf.shape(tree_embeddings)[0]
         #print('%s\ttree_embeddings.shape' % tree_embeddings.shape)
 
@@ -1244,6 +1189,7 @@ class ScoredSequenceTreeTupleModel(BaseTrainModel):
 
     def __init__(self, tree_model, probs_count=2, **kwargs):
 
+        # TODO: check shapes! (is embeddings_shaped correct?)
         self._prediction_logits = tf.contrib.layers.fully_connected(tree_model.embeddings_all, probs_count,
                                                                     activation_fn=None, scope=DEFAULT_SCOPE_SCORING)
         loss = tf.reduce_mean(
@@ -1278,7 +1224,7 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
                                                    stddev=1.0 / math.sqrt(float(tree_model.tree_output_size))),
                                name='scoring_weights')
         _bias = tf.Variable(tf.truncated_normal([1]), name='scoring_bias')
-        _prediction_logits = tf.reshape(tf.matmul(tree_model.embeddings_shaped, _weights) + _bias, shape=[-1])
+        _prediction_logits = tf.reshape(tf.matmul(tree_model.embeddings_all, _weights) + _bias, shape=[-1])
         #loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
         loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.values_gold_shaped, logits=_prediction_logits))
 
@@ -1291,7 +1237,7 @@ class SequenceTreeRerootModel(BaseTrainModel):
     def __init__(self, tree_model, candidate_count, fc_sizes=1000, **kwargs):
 
         # unpack tree embeddings
-        tree_embeddings = tf.reshape(tree_model.embeddings_shaped, shape=[-1, tree_model.tree_output_size])
+        tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, tree_model.tree_output_size])
         #batch_size = tf.shape(tree_model.embeddings_shaped)[0] // (tree_model.neg_samples + 1)
 
         # create labels_gold: first entry is the correct one

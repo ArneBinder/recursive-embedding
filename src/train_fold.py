@@ -562,7 +562,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                           leaf_fc_size=config.leaf_fc_size,
                                                           # add a leading '0' to allow an empty string
                                                           root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
-                                                          keep_prob=config.keep_prob,
+                                                          keep_prob_default=config.keep_prob,
                                                           tree_count=tuple_size,
                                                           data_transfomed=data_transformed
                                                           #tree_count=1,
@@ -586,7 +586,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 assert embedding_dim != -1, 'no data sets created'
 
                 model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
-                                                       keep_prob=config.keep_prob)
+                                                       keep_prob=config.keep_prob, sparse=True)
 
             if config.model_type == 'simtuple':
                 model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
