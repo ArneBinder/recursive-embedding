@@ -830,9 +830,9 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding_reduceAVG, TreeEmbedding_FLAT):
         return self.head_size
 
 
-class TreeEmbedding_FLAT_AVG_2levels(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT2levels):
+class TreeEmbedding_FLAT2levels_AVG(TreeEmbedding_FLAT_AVG, TreeEmbedding_FLAT2levels):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_FLAT_AVG_2levels, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_FLAT2levels_AVG, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_FLAT_SUM(TreeEmbedding_reduceSUM, TreeEmbedding_FLAT):
@@ -845,9 +845,9 @@ class TreeEmbedding_FLAT_SUM(TreeEmbedding_reduceSUM, TreeEmbedding_FLAT):
         return self.head_size
 
 
-class TreeEmbedding_FLAT_SUM_2levels(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT2levels):
+class TreeEmbedding_FLAT2levels_SUM(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT2levels):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_FLAT_SUM_2levels, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_FLAT2levels_SUM, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_reduceLSTM, TreeEmbedding_FLAT):
@@ -855,19 +855,19 @@ class TreeEmbedding_FLAT_LSTM(TreeEmbedding_reduceLSTM, TreeEmbedding_FLAT):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_FLAT_LSTM_2levels(TreeEmbedding_FLAT_LSTM, TreeEmbedding_FLAT2levels):
+class TreeEmbedding_FLAT2levels_LSTM(TreeEmbedding_FLAT_LSTM, TreeEmbedding_FLAT2levels):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_FLAT_LSTM, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_FLAT_reduceGRU(TreeEmbedding_reduceGRU, TreeEmbedding_FLAT):
+class TreeEmbedding_FLAT_GRU(TreeEmbedding_reduceGRU, TreeEmbedding_FLAT):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_FLAT_reduceGRU, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_FLAT_GRU, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_FLAT2levels_reduceGRU(TreeEmbedding_FLAT_reduceGRU, TreeEmbedding_FLAT2levels):
+class TreeEmbedding_FLAT2Levels_GRU(TreeEmbedding_FLAT_GRU, TreeEmbedding_FLAT2levels):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_FLAT2levels_reduceGRU, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_FLAT2Levels_GRU, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU, TreeEmbedding_HTUBatchedHead):
