@@ -107,21 +107,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     logger.info('use %i trees for training' % count)
 
 
-def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='sequence', content_offset=2, link_types=[], remove_types=[]):
-    #idx_root = forest.roots[root]
-    #idx_context = idx_root + content_offset
-    #if root < len(forest.roots) - 1:
-    #    idx_next_root = forest.roots[root + 1]
-    #else:
-    #    idx_next_root = len(forest)
-
-    #child_offset = forest.get_children(idx_context)[0]
-    #idx_content_root = idx_context + child_offset
-
-    #data = np.zeros(idx_next_root-idx_content_root+1, dtype=forest.data.dtype)
-    #data[:-1] = forest.data[idx_content_root:idx_next_root]
-    ## append 'nif:context'
-    #data[-1] = forest.data[idx_context]
+def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='sequence', link_types=[], remove_types=[]):
 
     data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
     data[:-1] = forest.data[idx_start:idx_end]
@@ -150,19 +136,7 @@ def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='seq
             parents[i] = len(parents) - i - 1
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
-    # consistency check
-    #found = False
-    #data_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    #for i, d in enumerate(data):
-    #    if d in forest.root_id_mapping:
-    #        logger.debug('get_tree_naive: root_id=%i is still in data (idx_start=%i, idx_end=%i). Set to %s'
-    #                     % (d, idx_start, idx_end, vocab_manual[UNKNOWN_EMBEDDING]))
-    #        found = True
-    #        data[i] = data_unknown
-    #if found:
-    #    logger.debug(data.tolist())
-    #    logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in data])
-    #    logger.debug([forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in forest.data[idx_start:idx_end]])
+
     return Forest(data=data, parents=parents, lexicon=forest.lexicon)
 
 
@@ -412,6 +386,7 @@ def indices_as_ids(index_files, **unused):
     return indices, indices, None
 
 
+# DEPRECATED
 def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',
                                    max_depth=9999, context=0, transform=True, offset_context=2,
                                    offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
