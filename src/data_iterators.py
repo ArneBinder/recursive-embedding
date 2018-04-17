@@ -153,7 +153,7 @@ def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='seq
     # consistency check
     for d in data:
         if d in forest.root_id_mapping:
-            logger.debug('get_tree_naive: root_id=%i is still in data')
+            logger.debug('get_tree_naive: root_id=%i is still in data (idx_start=%i, idx_end=%i)' % (d, idx_start, idx_end))
     return Forest(data=data, parents=parents, lexicon=forest.lexicon)
 
 
