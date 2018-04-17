@@ -749,7 +749,9 @@ class Lexicon(object):
         if idx_trans is not None:
             return self.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
 
-        raise ValueError('idx=%i not in ids_fixed, ids_var or root_id_pos' % idx)
+        #raise ValueError('idx=%i not in ids_fixed, ids_var or root_id_pos' % idx)
+        logger.warning('idx=%i not in ids_fixed, ids_var or root_id_pos. Set to UNKNOWN.' % idx)
+        return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
 
     def transform_idx_back(self, idx):
         """
