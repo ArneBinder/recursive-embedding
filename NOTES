@@ -13,3 +13,38 @@ CORPUS INFO (bag_of_seealsos=True):
 2018-03-30 18:30:31,016 INFO create train data set ...
 2018-03-30 18:30:31,017 INFO training the model
 2018-03-30 19:35:25,118 INFO created 716843 tree tuples
+
+
+
+DBPEDIANIF/1000:
+
+resource with root_id=3487167 is erroneous:
+    "http://dbpedia.org/resource",
+    "ROOT_ID:3487167(UNKNOWN)",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso",
+    "http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso",
+    "ROOT_ID:1247029(UNKNOWN)",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section",
+X   "ROOT_ID:3487168(UNKNOWN)",
+^   "http://purl.org/olia/olia.owl#Lexeme/also",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title",
+    "http://purl.org/olia/olia.owl#Lexeme/\n",
+    "http://purl.org/olia/olia.owl#Lexeme/*",
+    "http://purl.org/olia/olia.owl#Lexeme/ ",
+    "http://www.w3.org/2005/11/its/rdf#taIdentRef",
+    "ROOT_ID:1247029(UNKNOWN)",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
+    "http://purl.org/olia/olia.owl#Lexeme/unyago",
+    "http://www.w3.org/2005/11/its/rdf#taIdentRef",
+    "ROOT_ID:1247029(UNKNOWN)",
+    "http://purl.org/olia/olia.owl#Lexeme/\n",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
+    "http://purl.org/olia/olia.owl#Lexeme/*",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
+    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph",
+    "http://dbpedia.org/resource",
+    "ROOT_ID:3487169(UNKNOWN)",
