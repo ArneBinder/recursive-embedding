@@ -181,10 +181,15 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
         target_root_ids = []
         for child_offset in forest.get_children(idx):
             child_data = forest.data[idx + child_offset]
-            assert child_data == data_ref, 'link_data (%s, data=%i) is not as expected (%s)' \
+            assert child_data == data_ref, 'link_data (%s, data=%i, idx=%i) is not as expected (%s). parent: %s, data=%i, idx=%i' \
                                            % (forest.lexicon.get_s(child_data, data_as_hashes=forest.data_as_hashes),
                                               child_data,
-                                              forest.lexicon.get_s(data_ref, data_as_hashes=forest.data_as_hashes))
+                                              idx + child_offset,
+                                              forest.lexicon.get_s(data_ref, data_as_hashes=forest.data_as_hashes),
+                                              forest.lexicon.get_s(forest.data[idx], data_as_hashes=forest.data_as_hashes),
+                                              forest.data[idx],
+                                              idx
+                                              )
             target_offsets = forest.get_children(idx + child_offset)
             assert len(target_offsets) == 1, ' link has more or less then one targets: %i' % len(target_offsets)
 
