@@ -24,8 +24,9 @@ services:
                                   --batch-size ${BATCH_SIZE}
                                   --start-offset ${START}
                                   --batch-count=${BATCH_COUNT}
-    cpus: ${LIMIT_CPUS}
+    #cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
 
   corpus-dbpedia-nif-batches:
     build:
@@ -44,8 +45,9 @@ services:
                                   --num-threads-query ${NUM_THREADS_QUERY}
                                   --num-threads-parse ${NUM_THREADS_PARSE}
                                   --num-threads-parse-pipe ${NUM_THREADS_PARSE_PIPE}
-    cpus: ${LIMIT_CPUS}
+    #cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
   corpus-dbpedia-nif-merge:
     build:
       context: ../../..
@@ -57,8 +59,9 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py MERGE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF/${BATCH_SIZE}
                                   --min-count ${MIN_COUNT}
-    cpus: ${LIMIT_CPUS}
+    #cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
 
   corpus-dbpedia-nif-indices:
     build:
@@ -73,5 +76,6 @@ services:
                                   --seealso-min ${SEEALSO_MIN_COUNT}
                                   --seealso-max ${SEEALSO_MAX_COUNT}
                                   --split-count ${SPLIT_COUNT}
-    cpus: ${LIMIT_CPUS}
+    #cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}

@@ -1072,6 +1072,8 @@ def _collect_root_context_sizes(forest_merged, root_seealso_counts, out_path_mer
 @plac.annotations(
     out_path=('corpora out path', 'option', 'o', str),
     min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
+    # shows the coverage for min_count=100:
+    # (len(data) - sum(counts_sorted[-len(np.where(counts_sorted >= 100)[0]):])) / float(len(data))
     #min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
 def process_merge_batches(out_path, min_count=1):#, min_count_root_id=-1):
