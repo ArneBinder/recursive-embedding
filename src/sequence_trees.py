@@ -144,11 +144,12 @@ def _compare_tree_dicts(tree1, tree2):
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None, children=None,
                  children_pos=None, data_as_hashes=False, root_ids=None, root_pos=None,
-                 load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True,
+                 load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True, lexicon_roots=None,
                  transformed_indices=False):
         self.reset_cache_values()
         self._as_hashes = data_as_hashes
         self._lexicon = None
+        self._lexicon_roots = lexicon_roots
         self._data = None
         self._parents = None
         self._children = None
@@ -639,12 +640,17 @@ class Forest(object):
                 if transformed:
                     d, reverted = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
+                root_id = self.root_id_mapping.get(d, None)
                 if self.data_as_hashes:
                     d = self.lexicon.mapping[self.lexicon.strings[s]]
-                else:
-                    root_id = self.root_id_mapping.get(d, None)
-                    if root_id is not None:
+
+                if root_id is not None:
+                    if self.lexicon_roots is not None:
+                        root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
+                        s = root_s
+                    else:
                         s = 'ROOT_ID:%s(%s)' % (root_id, s)
+
                 if self.lexicon.is_fixed(d):
                     color = "dodgerblue"
                 else:
@@ -707,7 +713,11 @@ class Forest(object):
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 root_id = self.root_id_mapping.get(d, None)
                 if root_id is not None:
-                    s = 'ROOT_ID:%s(%s)' % (root_id, s)
+                    if self.lexicon_roots is not None:
+                        root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
+                        s = root_s
+                    else:
+                        s = 'ROOT_ID:%s(%s)' % (root_id, s)
                 if s == vocab_manual[UNKNOWN_EMBEDDING]:
                     s = 'ID:%s(%s)' % (d, s)
 
@@ -795,6 +805,10 @@ class Forest(object):
         return self._root_pos
 
     @property
+    def root_ids(self):
+        return self._root_ids
+
+    @property
     def depths(self):
         if self._depths is None:
             self._depths = np.zeros(shape=self.data.shape, dtype=DTYPE_DEPTH)
@@ -814,6 +828,10 @@ class Forest(object):
     @property
     def lexicon(self):
         return self._lexicon
+
+    @property
+    def lexicon_roots(self):
+        return self._lexicon_roots
 
     @property
     def data_as_hashes(self):

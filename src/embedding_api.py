@@ -289,7 +289,8 @@ def get_or_calc_sequence_data(params):
                 break
             #for tree_dict in tree_dicts:
             vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                                data_as_hashes=current_forest.data_as_hashes)
+                                data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
+                                lexicon_roots=current_forest.lexicon_roots)
 
             params['data_sequences'].append([vis_forest.data, vis_forest.parents])
             token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
@@ -310,7 +311,8 @@ def get_or_calc_sequence_data(params):
             params['data_sequences'].append([tree[0].tolist(), tree[1].tolist()])
         for data_sequence in params['data_sequences']:
             token_list = Forest(forest=data_sequence, lexicon=lexicon,
-                                data_as_hashes=params['data_as_hashes']).get_text_plain(
+                                data_as_hashes=params['data_as_hashes'], root_ids=current_forest.root_ids,
+                                lexicon_roots=current_forest.lexicon_roots).get_text_plain(
                 blacklist=params.get('prefix_blacklist', None))
             params['sequences'].append(" ".join(token_list))
     elif 'idx_start' in params:
@@ -347,7 +349,8 @@ def get_or_calc_sequence_data(params):
                                                  transform=params['transformed_idx'],
                                                  costs=costs, link_types=[d_ref, d_ref_seealso])
         vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                            data_as_hashes=current_forest.data_as_hashes)
+                            data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
+                            lexicon_roots=current_forest.lexicon_roots)
         params['data_as_hashes'] = vis_forest.data_as_hashes
         params['data_sequences'] = [[vis_forest.data, vis_forest.parents]]
         token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
@@ -380,7 +383,9 @@ def get_or_calc_sequence_data(params):
 
             tree_dict = {KEY_HEAD: candidate_heads[0], KEY_CHILDREN: tree_dict_children}
             vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                                data_as_hashes=current_forest.data_as_hashes)
+                                data_as_hashes=current_forest.data_as_hashes,
+                                root_ids=current_forest.root_ids,
+                                lexicon_roots=current_forest.lexicon_roots)
             params['data_sequences'].append([vis_forest.data, vis_forest.parents])
             token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
                                                    transformed=params['transformed_idx'])
@@ -388,7 +393,9 @@ def get_or_calc_sequence_data(params):
 
             canidates_forest = Forest(data=candidate_heads[1:],
                                       parents=np.zeros(shape=len(candidate_heads)-1, dtype=DTYPE_OFFSET),
-                                      lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes)
+                                      lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes,
+                                      root_ids=current_forest.root_ids, lexicon_roots=current_forest.lexicon_roots
+                                      )
             params['data_sequences'].append([canidates_forest.data, canidates_forest.parents])
             token_list = canidates_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
                                                          transformed=params['transformed_idx'])
@@ -720,7 +727,13 @@ def init_forest(data_path):
     if forest is None:
         assert data_path is not None, 'No data loaded. Use /api/load to load a corpus.'
         assert Forest.exist(data_path), 'Could not open corpus: %s' % data_path
-        forest = Forest(filename=data_path, lexicon=lexicon)
+        lexicon_root_fn = '%s.root.id' % data_path
+        if Lexicon.exist(lexicon_root_fn, types_only=True):
+            logging.info('load lexicon_roots from %s' % lexicon_root_fn)
+            lexicon_roots = Lexicon(filename=lexicon_root_fn, load_vecs=False)
+        else:
+            lexicon_roots = None
+        forest = Forest(filename=data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
 
 
 def main(data_source):
