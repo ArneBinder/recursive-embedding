@@ -275,7 +275,7 @@ def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids):
 
 def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=None, dataset_trees=None,
              dataset_trees_embedded=None, train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=None):  # , discrete_model=False):
+             highest_sims_model=None, number_of_samples=None, batch_iter=''):  # , discrete_model=False):
 
     dataset_indices = np.arange(len(dataset_ids))
 
@@ -291,27 +291,30 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=Non
     else:
         feed_dict[model.tree_model.keep_prob] = 1.0
 
-    if isinstance(model, model_fold.SequenceTreeRerootModel):
-        logger.debug('use batch_iter_reroot')
-        batch_iter = batch_iter_reroot(number_of_samples, dataset_indices)
-    else:
-        if number_of_samples is None:
-            logger.debug('use batch_iter_all')
-            batch_iter = batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids)
-        elif highest_sims_model is not None:
-            logger.debug('use batch_iter_nearest')
-            batch_iter = batch_iter_nearest(number_of_samples=number_of_samples, dataset_indices=dataset_indices,
-                                            dataset_ids=dataset_ids, dataset_target_ids=dataset_target_ids, sess=sess,
-                                            tree_model=model.tree_model, highest_sims_model=highest_sims_model,
-                                            dataset_trees=dataset_trees, dataset_trees_embedded=dataset_trees_embedded)
-        else:
-            logger.debug('use batch_iter_naive')
-            batch_iter = batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids)
+    iter_args = {batch_iter_naive: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids],
+                 batch_iter_nearest: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess,
+                                      model.tree_model, highest_sims_model, dataset_trees, dataset_trees_embedded],
+                 batch_iter_all: [dataset_indices, dataset_ids, dataset_target_ids],
+                 batch_iter_reroot: [number_of_samples, dataset_indices]}
 
+    if batch_iter is not None and batch_iter.strip() != '':
+        _iter = globals()[batch_iter]
+    else:
+        if isinstance(model, model_fold.SequenceTreeRerootModel):
+            _iter = batch_iter_reroot
+        else:
+            if number_of_samples is None:
+                _iter = batch_iter_all
+            elif highest_sims_model is not None:
+                _iter = batch_iter_nearest
+            else:
+                _iter = batch_iter_naive
+    logger.debug('use %s' % _iter.__name__)
+    _batch_iter = _iter(*iter_args[_iter])
     _result_all = []
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for batch in td.group_by_batches(batch_iter, config.batch_size):
+    for batch in td.group_by_batches(_batch_iter, config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
         if not isinstance(model.tree_model, model_fold.DummyTreeModel):
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
@@ -744,7 +747,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        emit=False,
                                                                                        number_of_samples=config.neg_samples,
                                                                                        #number_of_samples=None,
-                                                                                       highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
+                                                                                       highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None,
+                                                                                       batch_iter=config.batch_iter)
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                     logger.removeHandler(fh_info)
@@ -783,7 +787,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                          dataset_target_ids=meta[M_TRAIN][M_IDS_TARGET],
                                                                          epoch=epoch,
                                                                          number_of_samples=config.neg_samples,
-                                                                         highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None)
+                                                                         highest_sims_model=meta[M_TRAIN]['model_highest_sims'] if 'model_highest_sims' in meta[M_TRAIN] else None,
+                                                                         batch_iter=config.batch_iter)
 
                 if M_TEST in meta:
 
@@ -801,7 +806,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        test_step=step_train,
                                                                                        test_writer=test_writer,
                                                                                        test_result_writer=test_result_writer,
-                                                                                       highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None)
+                                                                                       highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None,
+                                                                                       batch_iter=config.batch_iter)
 
                     if loss_test < loss_test_best:
                         loss_test_best = loss_test
