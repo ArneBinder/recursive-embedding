@@ -210,7 +210,7 @@ class Forest(object):
         assert self._parents is not None or (self._children is not None and self._children_pos is not None), \
             'no structure data (parents or children) loaded'
         #if load_root_ids and os.path.exists('%s.%s' % (filename, FE_ROOT_ID)):
-        if load_root_pos:
+        if load_root_ids:
             #self._root_ids = np.load('%s.%s' % (filename, FE_ROOT_ID))
             self._root_ids = numpy_load('%s.%s' % (filename, FE_ROOT_ID), assert_exists=False)
         else:
