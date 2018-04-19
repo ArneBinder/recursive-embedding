@@ -6,7 +6,7 @@ import os
 import pydot
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
-    LOGGING_FORMAT, SEPARATOR, vocab_manual
+    LOGGING_FORMAT, SEPARATOR, vocab_manual, UNKNOWN_EMBEDDING
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -645,6 +645,9 @@ class Forest(object):
                     color = "dodgerblue"
                 else:
                     color = "limegreen"
+                if s == vocab_manual[UNKNOWN_EMBEDDING]:
+                    s = 'ID: %s (%s)' % (d, s)
+
                 l = Forest.filter_and_shorten_label(s, do_filter=True)
 
                 if reverted:
@@ -698,6 +701,9 @@ class Forest(object):
                 if transformed:
                     d, reverted = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
+                if s == vocab_manual[UNKNOWN_EMBEDDING]:
+                    s = 'ID: %s (%s)' % (d, s)
+
                 l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
                     if reverted:
