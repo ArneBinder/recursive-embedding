@@ -641,12 +641,16 @@ class Forest(object):
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 if self.data_as_hashes:
                     d = self.lexicon.mapping[self.lexicon.strings[s]]
+                else:
+                    root_id = self.root_id_mapping.get(d, None)
+                    if root_id is not None:
+                        s = 'ROOT_ID:%s(%s)' % (root_id, s)
                 if self.lexicon.is_fixed(d):
                     color = "dodgerblue"
                 else:
                     color = "limegreen"
                 if s == vocab_manual[UNKNOWN_EMBEDDING]:
-                    s = 'ID: %s (%s)' % (d, s)
+                    s = 'ID:%s(%s)' % (d, s)
 
                 l = Forest.filter_and_shorten_label(s, do_filter=True)
 
@@ -701,8 +705,11 @@ class Forest(object):
                 if transformed:
                     d, reverted = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
+                root_id = self.root_id_mapping.get(d, None)
+                if root_id is not None:
+                    s = 'ROOT_ID:%s(%s)' % (root_id, s)
                 if s == vocab_manual[UNKNOWN_EMBEDDING]:
-                    s = 'ID: %s (%s)' % (d, s)
+                    s = 'ID:%s(%s)' % (d, s)
 
                 l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
