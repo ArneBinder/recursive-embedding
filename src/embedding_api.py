@@ -314,7 +314,7 @@ def get_or_calc_sequence_data(params):
                                 data_as_hashes=params['data_as_hashes'], root_ids=current_forest.root_ids,
                                 lexicon_roots=current_forest.lexicon_roots).get_text_plain(
                 blacklist=params.get('prefix_blacklist', None))
-            params['sequences'].append(" ".join(token_list))
+            params['sequences'].append(token_list)
     elif 'idx_start' in params:
         params['sequences'] = []
         params['data_sequences'] = []
@@ -586,7 +586,8 @@ def visualize():
                     root_ids = None
                 forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params.get('data_as_hashes', False),
                                      root_ids=root_ids)
-                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False))
+                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
+                                      token_list=params['sequences'][i])
             assert len(params['data_sequences']) > 0, 'empty data_sequences'
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 

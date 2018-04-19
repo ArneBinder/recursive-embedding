@@ -627,7 +627,7 @@ class Forest(object):
                       root_ids=new_root_ids,
                       root_pos=new_root_pos)
 
-    def visualize(self, filename, start=0, end=None, transformed=False):
+    def visualize(self, filename, start=0, end=None, transformed=False, token_list=None):
         if end is None:
             end = len(self)
         assert self.lexicon is not None, 'lexicon is not set'
@@ -644,21 +644,25 @@ class Forest(object):
                 if self.data_as_hashes:
                     d = self.lexicon.mapping[self.lexicon.strings[s]]
 
-                if root_id is not None:
-                    if self.lexicon_roots is not None:
-                        root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
-                        s = root_s
-                    else:
-                        s = 'ROOT_ID:%s(%s)' % (root_id, s)
+                if token_list is not None:
+                    s = token_list[i]
+                else:
+                    if root_id is not None:
+                        if self.lexicon_roots is not None:
+                            root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
+                            s = root_s
+                        else:
+                            s = 'ROOT_ID:%s(%s)' % (root_id, s)
+
+                    if s == vocab_manual[UNKNOWN_EMBEDDING]:
+                        s = 'ID:%s(%s)' % (d, s)
+
+                l = Forest.filter_and_shorten_label(s, do_filter=True)
 
                 if self.lexicon.is_fixed(d):
                     color = "dodgerblue"
                 else:
                     color = "limegreen"
-                if s == vocab_manual[UNKNOWN_EMBEDDING]:
-                    s = 'ID:%s(%s)' % (d, s)
-
-                l = Forest.filter_and_shorten_label(s, do_filter=True)
 
                 if reverted:
                     nodes.append(pydot.Node(i, label="'" + l + "'", style="filled",
