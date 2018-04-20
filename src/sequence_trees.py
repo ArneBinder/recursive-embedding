@@ -522,6 +522,24 @@ class Forest(object):
                 break
         return result
 
+    def get_data_span_cleaned(self, idx_start, idx_end, link_types, remove_types, transform=False):
+        data = self.data[idx_start:idx_end]
+        ## remove entries
+        indices_remove = []
+        ## remove link entries
+        for link_type in link_types:
+            indices_remove.append(np.where(data == link_type)[0] + 1)
+        ## remove other entries of specified types
+        for remove_type in remove_types:
+            indices_remove.append(np.where(data == remove_type)[0])
+        indices_remove_np = np.sort(np.concatenate(indices_remove))
+        mask = np.ones(data.shape, dtype=bool)
+        mask[indices_remove_np] = False
+        if transform:
+            return self.lexicon.transform_indices(indices=data[mask], root_id_pos=self.root_id_pos)
+        else:
+            return data[mask]
+
     @staticmethod
     def meta_matches(a, b, operation):
         assert a.lexicon == b.lexicon or b.lexicon is None, 'lexica do not match, can not %s.' % operation

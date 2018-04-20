@@ -108,28 +108,27 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
 
 
 def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='sequence', link_types=[], remove_types=[]):
-    # DEBUG OFF
-    #data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
-    #data[:-1] = forest.data[idx_start:idx_end]
+
+    data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
+    data[:-1] = forest.data[idx_start:idx_end]
     ## append 'nif:context'
-    #data[-1] = data_aggregator
+    data[-1] = data_aggregator
 
     ## remove entries
-    #indices_remove = []
+    indices_remove = []
     ## remove link entries
-    #for link_type in link_types:
-    #    indices_remove.append(np.where(data == link_type)[0] + 1)
+    for link_type in link_types:
+        indices_remove.append(np.where(data == link_type)[0] + 1)
     ## remove other entries of specified types
-    #for remove_type in remove_types:
-    #    indices_remove.append(np.where(data == remove_type)[0])
-    #indices_remove_np = np.sort(np.concatenate(indices_remove))
-    #mask = np.ones(data.shape, dtype=bool)
-    #mask[indices_remove_np] = False
-    #data = data[mask]
-    # DEBUG OFF end
+    for remove_type in remove_types:
+        indices_remove.append(np.where(data == remove_type)[0])
+    indices_remove_np = np.sort(np.concatenate(indices_remove))
+    mask = np.ones(data.shape, dtype=bool)
+    mask[indices_remove_np] = False
+    data = data[mask]
 
-    d_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    data = np.ones(shape=idx_end-idx_start, dtype=forest.data.dtype) * d_unknown
+    #d_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    #data = np.ones(shape=idx_end-idx_start, dtype=forest.data.dtype) * d_unknown
 
     if concat_mode == 'sequence':
         parents = np.ones(len(data), dtype=DTYPE_OFFSET)
@@ -273,28 +272,24 @@ def tree_iterator(indices, forest, concat_mode='tree',
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
         # root_ids occur only directly after link_types
         for idx in indices:
-
-            # DEBUG OFF
-            t = {KEY_HEAD: data_nif_context, KEY_CHILDREN: [{KEY_HEAD: data_unknown, KEY_CHILDREN: []}]}
-            yield t
-            n += 1
-            continue
-            # DEBUG OFF end
-
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
             # find last element
-            idx_end = idx + context_child_offset + 1
-            for i in range(idx + context_child_offset, len(forest)):
-                if forest.data[i] == data_root:
+            idx_end = idx + context_child_offset
+            for idx_end in range(idx + context_child_offset, len(forest)):
+                if forest.data[idx_end] == data_root:
                     break
-                idx_end += 1
 
-            f = get_tree_naive(idx_start=idx + context_child_offset, idx_end=idx_end, forest=forest,
-                               concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
-                               remove_types=remove_types_naive, data_aggregator=data_nif_context)
-            f.set_children_with_parents()
-            tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+            #f = get_tree_naive(idx_start=idx + context_child_offset, idx_end=idx_end, forest=forest,
+            #                   concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
+            #                   remove_types=remove_types_naive, data_aggregator=data_nif_context)
+            #f.set_children_with_parents()
+            #tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+            data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx + context_child_offset, idx_end=idx_end,
+                                                             link_types=[data_ref, data_ref_seealso],
+                                                             remove_types=remove_types_naive, transform=transform)
+            tree_context = {KEY_HEAD: data_nif_context,
+                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             yield tree_context
             n += 1
     elif concat_mode == 'sequence':
@@ -305,11 +300,10 @@ def tree_iterator(indices, forest, concat_mode='tree',
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
             # find last element
-            idx_end = idx+context_child_offset + 1
-            for i in range(idx+context_child_offset, len(forest)):
-                if forest.data[i] == data_root:
+            idx_end = idx + context_child_offset
+            for idx_end in range(idx + context_child_offset, len(forest)):
+                if forest.data[idx_end] == data_root:
                     break
-                idx_end += 1
 
             f = get_tree_naive(idx_start=idx+context_child_offset, idx_end=idx_end, forest=forest,
                                concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],

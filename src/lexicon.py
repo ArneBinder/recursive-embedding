@@ -753,6 +753,9 @@ class Lexicon(object):
         logger.warning('idx=%i not in ids_fixed, ids_var or root_id_pos. Set to UNKNOWN.' % idx)
         return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
 
+    def transform_indices(self, indices, revert=False, root_id_pos={}):
+        return [self.transform_idx(idx=idx, revert=revert, root_id_pos=root_id_pos) for idx in indices]
+
     def transform_idx_back(self, idx):
         """
         revert transform_idx: transform index for vecs_fix (negative) or vecs_var (positive) index into lexicon index
