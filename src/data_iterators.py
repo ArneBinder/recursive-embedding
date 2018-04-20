@@ -268,12 +268,15 @@ def tree_iterator(indices, forest, concat_mode='tree',
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
     data_nif_context = lexicon.get_d(TYPE_ANCHOR, data_as_hashes=forest.data_as_hashes)
+    data_nif_context_transformed = data_nif_context
+    data_unknown_transformed = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     if transform:
         data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context, root_id_pos=forest.root_id_pos)
-    else:
-        data_nif_context_transformed = data_nif_context
+        data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed, root_id_pos=forest.root_id_pos)
     data_root = lexicon.get_d(TYPE_ROOT, data_as_hashes=forest.data_as_hashes)
-    data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+
+    if transform:
+
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
     remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
@@ -286,6 +289,8 @@ def tree_iterator(indices, forest, concat_mode='tree',
     costs[data_ref_seealso] = link_cost_ref_seealso
     n = 0
 
+    logger.debug('create trees with concat_mode=%s' % concat_mode)
+
     if concat_mode == 'tree':
         for idx in indices:
             if reroot:
@@ -294,7 +299,6 @@ def tree_iterator(indices, forest, concat_mode='tree',
             else:
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
                                                     costs=costs, link_types=[data_ref, data_ref_seealso])
-            print(tree_context)
             yield tree_context
             n += 1
     elif concat_mode == 'aggregate':
@@ -347,7 +351,15 @@ def tree_iterator(indices, forest, concat_mode='tree',
     elif concat_mode == 'dummy':
         for idx in indices:
             yield {'h': 12, 'c': [{'h': 14, 'c': [{'h': 16, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': -1952, 'c': [{'h': -1300, 'c': [{'h': 15, 'c': []}]}, {'h': -23, 'c': [{'h': -12238, 'c': [{'h': -15, 'c': []}, {'h': -12237, 'c': []}, {'h': -3650, 'c': []}, {'h': -1045, 'c': []}]}]}, {'h': -23, 'c': [{'h': -712, 'c': [{'h': -10, 'c': []}, {'h': -517, 'c': [{'h': 15, 'c': []}]}]}]}, {'h': -19, 'c': []}]}]}, {'h': -1275, 'c': [{'h': -2472, 'c': [{'h': -42, 'c': []}, {'h': -4600, 'c': []}]}, {'h': -21, 'c': []}, {'h': -32626, 'c': []}, {'h': -6, 'c': [{'h': -9978, 'c': [{'h': -15, 'c': []}, {'h': -2037, 'c': [{'h': -4600, 'c': []}]}, {'h': -4600, 'c': []}, {'h': -8127, 'c': []}, {'h': 15, 'c': []}, {'h': -1, 'c': []}, {'h': -66750, 'c': []}, {'h': -8, 'c': []}]}]}, {'h': -19, 'c': []}]}]}, {'h': -5279, 'c': [{'h': 0, 'c': []}, {'h': -1300, 'c': []}, {'h': -119, 'c': [{'h': -14, 'c': [{'h': -15, 'c': []}, {'h': -9665, 'c': [{'h': 0, 'c': []}, {'h': 15, 'c': []}, {'h': 0, 'c': []}]}, {'h': -10, 'c': []}, {'h': -1838, 'c': [{'h': -361, 'c': []}, {'h': -477, 'c': []}, {'h': -104, 'c': []}, {'h': -464, 'c': [{'h': -5244, 'c': [{'h': -20136, 'c': []}]}, {'h': -79, 'c': [{'h': -1503, 'c': []}]}]}]}]}]}, {'h': -19, 'c': []}]}]}]}]}]}
-
+            n += 1
+    elif concat_mode == 'dummy2':
+        for idx in indices:
+            yield {KEY_HEAD: 12, KEY_CHILDREN: [{KEY_HEAD: 14, KEY_CHILDREN: []}]}
+            n += 1
+    elif concat_mode == 'dummy3':
+        for idx in indices:
+            yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}]}
+            n += 1
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
     logger.info('created %i trees' % n)
