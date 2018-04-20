@@ -869,18 +869,21 @@ class Lexicon(object):
     @property
     def ids_fixed_dict(self):
         if self._ids_fixed_dict is None:
+            logger.debug('lexicon: create ids_fixed_dict from ids_fixed')
             self._ids_fixed_dict = {k: i for i, k in enumerate(self.ids_fixed)}
         return self._ids_fixed_dict
 
     @property
     def ids_var_dict(self):
         if self._ids_var_dict is None:
+            logger.debug('lexicon: create ids_var_dict from ids_var')
             self._ids_var_dict = {k: i for i, k in enumerate(self.ids_var)}
         return self._ids_var_dict
 
     @property
     def ids_var(self):
         if self._ids_var is None:
+            logger.debug('lexicon: create ids_var with ids_fixed')
             self._ids_var = np.array([i for i in range(len(self)) if i not in self._ids_fixed])
         return self._ids_var
 
@@ -889,6 +892,7 @@ class Lexicon(object):
         # maps positions to hashes
         #return self._types
         if self._types is None:
+            logger.debug('lexicon: create types from strings')
             self._types = np.zeros(shape=(len(self.strings),), dtype=DTYPE_HASH)
             for i, s in enumerate(self.strings):
                 self._types[i] = self.strings[s]
@@ -902,6 +906,7 @@ class Lexicon(object):
     def mapping(self):
         # maps hashes to positions
         if self._mapping is None:
+            logger.debug('lexicon: create mapping from strings')
             #self._mapping = mapping_from_list(self._types)
             self._mapping = {}
             for i, s in enumerate(self.strings):

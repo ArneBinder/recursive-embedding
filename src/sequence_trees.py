@@ -813,6 +813,7 @@ class Forest(object):
     @property
     def parents(self):
         if self._parents is None:
+            logger.debug('forest: create parents from children')
             self.set_parents_with_children()
         return self._parents
 
@@ -823,6 +824,7 @@ class Forest(object):
     @property
     def roots(self):
         if self._root_pos is None:
+            logger.debug('forest: create roots from parents')
             self._root_pos = np.where(self.parents == 0)[0].astype(DTYPE_IDX)
         return self._root_pos
 
@@ -833,6 +835,7 @@ class Forest(object):
     @property
     def depths(self):
         if self._depths is None:
+            logger.debug('forest: create depths')
             self._depths = np.zeros(shape=self.data.shape, dtype=DTYPE_DEPTH)
             self._set_depths(self.roots, 0)
             self._depths_collected = None
@@ -841,6 +844,7 @@ class Forest(object):
     @property
     def depths_collected(self):
         if self._depths_collected is None:
+            logger.debug('forest: create depths_collected')
             self._depths_collected = []
             m = np.max(self.depths)
             for depth in range(m + 1):
@@ -862,6 +866,7 @@ class Forest(object):
     @property
     def root_id_pos(self):
         if self._root_id_pos is None:
+            logger.debug('forest: create root_id_pos from root_ids')
             #assert self._root_ids is not None, 'root_ids not set'
             if self._root_ids is not None:
                 self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
@@ -872,6 +877,7 @@ class Forest(object):
     @property
     def root_id_mapping(self):
         if self._root_id_mapping is None:
+            logger.debug('forest: create root_id_mapping from root_ids')
             #assert self._root_ids is not None, 'root_ids not set'
             if self._root_ids is not None:
                 self._root_id_mapping = {v: i for i, v in enumerate(self._root_ids)}
