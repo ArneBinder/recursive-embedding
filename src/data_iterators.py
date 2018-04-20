@@ -306,10 +306,17 @@ def tree_iterator(indices, forest, concat_mode='tree',
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
             # find last element
-            idx_end = idx + context_child_offset
-            for idx_end in range(idx + context_child_offset, len(forest)):
-                if forest.data[idx_end] == data_root:
-                    break
+            idx_start = idx + context_child_offset
+            #idx_end = idx + context_child_offset
+            #for idx_end in range(idx_start, len(forest)):
+            #    if forest.data[idx_end] == data_root:
+            #        break
+
+            idx_end_offset = np.argmax(forest.data[idx_start:] == data_root)
+            if idx_end_offset == 0 and forest.data[idx_start] != data_root:
+                idx_end = len(forest)
+            else:
+                idx_end = idx_start + idx_end_offset
 
             #f = get_tree_naive(idx_start=idx + context_child_offset, idx_end=idx_end, forest=forest,
             #                   concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
@@ -317,11 +324,11 @@ def tree_iterator(indices, forest, concat_mode='tree',
             #f.set_children_with_parents()
             #tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
 
-            #data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx + context_child_offset, idx_end=idx_end,
-            #                                                 link_types=[data_ref, data_ref_seealso],
-            #                                                 remove_types=remove_types_naive, transform=transform)
-            #tree_context = {KEY_HEAD: data_nif_context_transformed,
-            #                KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
+            data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx + context_child_offset, idx_end=idx_end,
+                                                             link_types=[data_ref, data_ref_seealso],
+                                                             remove_types=remove_types_naive, transform=transform)
+            tree_context = {KEY_HEAD: data_nif_context_transformed,
+                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             #yield tree_context
             yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
@@ -349,11 +356,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
         for idx in indices:
             yield {'h': 12, 'c': [{'h': 14, 'c': [{'h': 16, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': -1952, 'c': [{'h': -1300, 'c': [{'h': 15, 'c': []}]}, {'h': -23, 'c': [{'h': -12238, 'c': [{'h': -15, 'c': []}, {'h': -12237, 'c': []}, {'h': -3650, 'c': []}, {'h': -1045, 'c': []}]}]}, {'h': -23, 'c': [{'h': -712, 'c': [{'h': -10, 'c': []}, {'h': -517, 'c': [{'h': 15, 'c': []}]}]}]}, {'h': -19, 'c': []}]}]}, {'h': -1275, 'c': [{'h': -2472, 'c': [{'h': -42, 'c': []}, {'h': -4600, 'c': []}]}, {'h': -21, 'c': []}, {'h': -32626, 'c': []}, {'h': -6, 'c': [{'h': -9978, 'c': [{'h': -15, 'c': []}, {'h': -2037, 'c': [{'h': -4600, 'c': []}]}, {'h': -4600, 'c': []}, {'h': -8127, 'c': []}, {'h': 15, 'c': []}, {'h': -1, 'c': []}, {'h': -66750, 'c': []}, {'h': -8, 'c': []}]}]}, {'h': -19, 'c': []}]}]}, {'h': -5279, 'c': [{'h': 0, 'c': []}, {'h': -1300, 'c': []}, {'h': -119, 'c': [{'h': -14, 'c': [{'h': -15, 'c': []}, {'h': -9665, 'c': [{'h': 0, 'c': []}, {'h': 15, 'c': []}, {'h': 0, 'c': []}]}, {'h': -10, 'c': []}, {'h': -1838, 'c': [{'h': -361, 'c': []}, {'h': -477, 'c': []}, {'h': -104, 'c': []}, {'h': -464, 'c': [{'h': -5244, 'c': [{'h': -20136, 'c': []}]}, {'h': -79, 'c': [{'h': -1503, 'c': []}]}]}]}]}]}, {'h': -19, 'c': []}]}]}]}]}]}
             n += 1
-    elif concat_mode == 'dummy2':
-        for idx in indices:
-            yield {KEY_HEAD: 12, KEY_CHILDREN: [{KEY_HEAD: 14, KEY_CHILDREN: []}]}
-            n += 1
-    elif concat_mode == 'dummy3':
+    elif concat_mode == 'dummy_unknown':
         for idx in indices:
             yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
@@ -448,7 +451,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     root_ids_list.extend(added_root_ids)
     indices_context_root_list.extend(added_indices_context_root)
     root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
-    logger.debug('found %i root_ids' % len(root_ids_list))
+    logger.debug('selected %i root_ids' % len(root_ids_list))
 
     return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
 
