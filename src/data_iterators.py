@@ -108,7 +108,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
 
 
 def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='sequence', link_types=[], remove_types=[]):
-
+    # DEBUG OFF
     #data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
     #data[:-1] = forest.data[idx_start:idx_end]
     ## append 'nif:context'
@@ -126,6 +126,7 @@ def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='seq
     #mask = np.ones(data.shape, dtype=bool)
     #mask[indices_remove_np] = False
     #data = data[mask]
+    # DEBUG OFF end
 
     d_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     data = np.ones(shape=idx_end-idx_start, dtype=forest.data.dtype) * d_unknown
@@ -244,6 +245,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
     data_nif_context = lexicon.get_d(TYPE_ANCHOR, data_as_hashes=forest.data_as_hashes)
     data_root = lexicon.get_d(TYPE_ROOT, data_as_hashes=forest.data_as_hashes)
+    data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
     remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
@@ -266,7 +268,36 @@ def tree_iterator(indices, forest, concat_mode='tree',
                                                     costs=costs, link_types=[data_ref, data_ref_seealso])
             yield tree_context
             n += 1
-    else:
+    elif concat_mode == 'aggregate':
+        # TODO:
+        # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
+        # root_ids occur only directly after link_types
+        for idx in indices:
+
+            # DEBUG OFF
+            t = {KEY_HEAD: data_nif_context, KEY_CHILDREN: [{KEY_HEAD: data_unknown, KEY_CHILDREN: []}]}
+            yield t
+            n += 1
+            continue
+            # DEBUG OFF end
+
+            # follow to first element of sequential data
+            context_child_offset = forest.get_children(idx)[0]
+            # find last element
+            idx_end = idx + context_child_offset + 1
+            for i in range(idx + context_child_offset, len(forest)):
+                if forest.data[i] == data_root:
+                    break
+                idx_end += 1
+
+            f = get_tree_naive(idx_start=idx + context_child_offset, idx_end=idx_end, forest=forest,
+                               concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
+                               remove_types=remove_types_naive, data_aggregator=data_nif_context)
+            f.set_children_with_parents()
+            tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+            yield tree_context
+            n += 1
+    elif concat_mode == 'sequence':
         # TODO:
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
         # root_ids occur only directly after link_types
@@ -287,6 +318,8 @@ def tree_iterator(indices, forest, concat_mode='tree',
             tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
             yield tree_context
             n += 1
+    else:
+        raise ValueError('unknown concat_mode=%s' % concat_mode)
     logger.info('created %i trees' % n)
 
 
