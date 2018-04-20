@@ -275,9 +275,6 @@ def tree_iterator(indices, forest, concat_mode='tree',
         data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed, root_id_pos=forest.root_id_pos)
     data_root = lexicon.get_d(TYPE_ROOT, data_as_hashes=forest.data_as_hashes)
 
-    if transform:
-
-
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
     remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
                               TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
@@ -358,7 +355,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
             n += 1
     elif concat_mode == 'dummy3':
         for idx in indices:
-            yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}]}
+            yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
