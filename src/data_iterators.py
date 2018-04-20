@@ -7,7 +7,7 @@ import resource
 from sklearn.feature_extraction.text import TfidfTransformer
 from scipy.sparse import csr_matrix
 
-from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
+from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
     vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, \
     LOGGING_FORMAT, IDENTITY_EMBEDDING
 from sequence_trees import Forest
@@ -412,12 +412,15 @@ def indices_dbpedianif_dummy(forest, **unused):
 
     CONTEXT_ROOT_OFFEST = 2
     #SEEALSO_ROOT_OFFSET = 3
-    indices_mapped = root_id_to_idx_offsets_iterator(indices=range(len(forest.roots)), mapping=forest.roots,
-                                                     offsets=np.array([CONTEXT_ROOT_OFFEST]))
-    # unzip (produces lists)
-    root_ids, indices_context_root = zip(*indices_mapped)
+    #indices_mapped = root_id_to_idx_offsets_iterator(indices=np.arange(len(forest.roots), dtype=DTYPE_IDX), mapping=forest.roots,
+    #                                                 offsets=np.array([CONTEXT_ROOT_OFFEST]))
+    ## unzip (produces lists)
+    #root_ids, indices_context_root = zip(*indices_mapped)
+    root_ids = np.arange(len(forest.roots))
+    indices_context_root = forest.roots + CONTEXT_ROOT_OFFEST
     logger.debug('found %i root_ids' % len(root_ids))
-    return np.array(root_ids), np.array(indices_context_root), None
+    #return np.array(root_ids), np.array(indices_context_root), None
+    return root_ids, indices_context_root, None
 
 
 def indices_as_ids(index_files, **unused):
