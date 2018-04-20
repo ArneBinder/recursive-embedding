@@ -337,13 +337,13 @@ def tree_iterator(indices, forest, concat_mode='tree',
             ##f.set_children_with_parents()
             ##tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
 
-            #data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
-            #                                                 link_types=[data_ref, data_ref_seealso],
-            #                                                 remove_types=remove_types_naive, transform=transform)
-            #tree_context = {KEY_HEAD: data_nif_context_transformed,
-            #                KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
-            #yield tree_context
-            yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
+            data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
+                                                             link_types=[data_ref, data_ref_seealso],
+                                                             remove_types=remove_types_naive, transform=transform)
+            tree_context = {KEY_HEAD: data_nif_context_transformed,
+                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
+            yield tree_context
+            #yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
     elif concat_mode == 'sequence':
         # TODO:
