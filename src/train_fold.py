@@ -258,19 +258,22 @@ def batch_iter_reroot(number_of_samples, dataset_indices):
         return [idx], probs
 
 
-def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids):
+def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids, number_of_candidates):
     for idx in dataset_indices:
-        samples = np.zeros(shape=len(dataset_indices) + 1, dtype=np.int32)
-        samples[1:] = dataset_indices
-        samples[0] = idx
 
         # convert candidates to ids
-        candidate_ids = dataset_ids[samples[1:]]
+        candidate_ids = dataset_ids[dataset_indices]
         all_targets = dataset_target_ids[idx]
         ix = np.isin(candidate_ids, all_targets)
         probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
         probs[ix] = 1
-        yield samples, probs
+        for start in range(0, len(candidate_ids), number_of_candidates):
+            current_indices = dataset_indices[start:start+number_of_candidates]
+            # do not yield, if it is not full (end of the dataset)
+            if len(current_indices) < number_of_candidates:
+                continue
+            current_probs = probs[start:start+number_of_candidates]
+            yield np.concatenate(([idx], current_indices)), current_probs
 
 
 def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=None, dataset_trees=None,
@@ -294,7 +297,7 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=Non
     iter_args = {batch_iter_naive: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids],
                  batch_iter_nearest: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess,
                                       model.tree_model, highest_sims_model, dataset_trees, dataset_trees_embedded],
-                 batch_iter_all: [dataset_indices, dataset_ids, dataset_target_ids],
+                 batch_iter_all: [dataset_indices, dataset_ids, dataset_target_ids, 10],
                  batch_iter_reroot: [number_of_samples, dataset_indices]}
 
     if batch_iter is not None and batch_iter.strip() != '':
@@ -748,7 +751,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        number_of_samples=config.neg_samples,
                                                                                        #number_of_samples=None,
                                                                                        highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None,
-                                                                                       batch_iter=config.batch_iter)
+                                                                                       batch_iter='batch_iter_all')
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                     logger.removeHandler(fh_info)
@@ -807,7 +810,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        test_writer=test_writer,
                                                                                        test_result_writer=test_result_writer,
                                                                                        highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None,
-                                                                                       batch_iter=config.batch_iter)
+                                                                                       batch_iter='batch_iter_all')
 
                     if loss_test < loss_test_best:
                         loss_test_best = loss_test
