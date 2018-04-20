@@ -294,6 +294,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
             else:
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
                                                     costs=costs, link_types=[data_ref, data_ref_seealso])
+            print(tree_context)
             yield tree_context
             n += 1
     elif concat_mode == 'aggregate':
@@ -341,6 +342,9 @@ def tree_iterator(indices, forest, concat_mode='tree',
             tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
             yield tree_context
             n += 1
+    elif concat_mode == 'dummy':
+        pass
+
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
     logger.info('created %i trees' % n)
