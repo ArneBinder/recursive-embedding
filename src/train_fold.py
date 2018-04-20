@@ -297,7 +297,7 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=Non
     iter_args = {batch_iter_naive: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids],
                  batch_iter_nearest: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess,
                                       model.tree_model, highest_sims_model, dataset_trees, dataset_trees_embedded],
-                 batch_iter_all: [dataset_indices, dataset_ids, dataset_target_ids, 10],
+                 batch_iter_all: [dataset_indices, dataset_ids, dataset_target_ids, number_of_samples + 1],
                  batch_iter_reroot: [number_of_samples, dataset_indices]}
 
     if batch_iter is not None and batch_iter.strip() != '':
