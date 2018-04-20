@@ -156,6 +156,18 @@ def index_iterator(index_files):
             yield idx
 
 
+def index_np(index_files):
+    """
+    yields index values from plain numpy arrays
+    :param index_files: a list of file names of dumped numpy arrays
+    :return: index values
+    """
+    indices = []
+    for file_name in index_files:
+        indices.append(np.load(file_name))
+    return np.concatenate(indices)
+
+
 def root_id_to_idx_offsets_iterator(indices, mapping, offsets=(2, 3)):
     """
     map each index in indices via a list/map and add the offsets
@@ -167,6 +179,19 @@ def root_id_to_idx_offsets_iterator(indices, mapping, offsets=(2, 3)):
     for idx in indices:
         idx_mapped = mapping[idx]
         yield [idx] + [o + idx_mapped for o in offsets]
+
+
+def root_id_to_idx_offsets_np(indices, mapping, offsets=(2, 3)):
+    """
+    map each index in indices via a list/map and add the offsets
+    :param indices: the indices to map and add the offsets to
+    :param mapping: the mapping list/map
+    :param offsets: offsets that are added to the mapped indices
+    :return: for every index in indices and every offset in offsets, yield the mapped and shifted (by offset) new index
+    """
+    indices_mapped = mapping[indices]
+    indices_mapped_offset = [indices_mapped + offset for offset in offsets]
+    return indices_mapped_offset
 
 
 def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
@@ -232,7 +257,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
     :return:
     """
     if reroot:
-        assert concat_mode=='tree', 'reroot requires concat_mode==tree, but found concat_mode: %s' % concat_mode
+        assert concat_mode == 'tree', 'reroot requires concat_mode==tree, but found concat_mode: %s' % concat_mode
 
     #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
     sys.setrecursionlimit(1000)
@@ -243,6 +268,10 @@ def tree_iterator(indices, forest, concat_mode='tree',
     data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
     data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
     data_nif_context = lexicon.get_d(TYPE_ANCHOR, data_as_hashes=forest.data_as_hashes)
+    if transform:
+        data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context, root_id_pos=forest.root_id_pos)
+    else:
+        data_nif_context_transformed = data_nif_context
     data_root = lexicon.get_d(TYPE_ROOT, data_as_hashes=forest.data_as_hashes)
     data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
 
@@ -288,7 +317,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
             data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx + context_child_offset, idx_end=idx_end,
                                                              link_types=[data_ref, data_ref_seealso],
                                                              remove_types=remove_types_naive, transform=transform)
-            tree_context = {KEY_HEAD: data_nif_context,
+            tree_context = {KEY_HEAD: data_nif_context_transformed,
                             KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             yield tree_context
             n += 1
