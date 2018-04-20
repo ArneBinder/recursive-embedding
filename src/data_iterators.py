@@ -316,15 +316,15 @@ def tree_iterator(indices, forest, concat_mode='tree',
             #                   remove_types=remove_types_naive, data_aggregator=data_nif_context)
             #f.set_children_with_parents()
             #tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-            data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx + context_child_offset, idx_end=idx_end,
-                                                             link_types=[data_ref, data_ref_seealso],
-                                                             remove_types=remove_types_naive, transform=transform)
-            tree_context = {KEY_HEAD: data_nif_context_transformed,
-                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
-            yield tree_context
+
+            #data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx + context_child_offset, idx_end=idx_end,
+            #                                                 link_types=[data_ref, data_ref_seealso],
+            #                                                 remove_types=remove_types_naive, transform=transform)
+            #tree_context = {KEY_HEAD: data_nif_context_transformed,
+            #                KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
+            #yield tree_context
+            yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
-            if n > 1000:
-                break
     elif concat_mode == 'sequence':
         # TODO:
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
