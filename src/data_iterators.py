@@ -322,6 +322,8 @@ def tree_iterator(indices, forest, concat_mode='tree',
                             KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             yield tree_context
             n += 1
+            if n > 1000:
+                break
     elif concat_mode == 'sequence':
         # TODO:
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
@@ -343,7 +345,8 @@ def tree_iterator(indices, forest, concat_mode='tree',
             yield tree_context
             n += 1
     elif concat_mode == 'dummy':
-        pass
+        for idx in indices:
+            yield {'h': 12, 'c': [{'h': 14, 'c': [{'h': 16, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': -1952, 'c': [{'h': -1300, 'c': [{'h': 15, 'c': []}]}, {'h': -23, 'c': [{'h': -12238, 'c': [{'h': -15, 'c': []}, {'h': -12237, 'c': []}, {'h': -3650, 'c': []}, {'h': -1045, 'c': []}]}]}, {'h': -23, 'c': [{'h': -712, 'c': [{'h': -10, 'c': []}, {'h': -517, 'c': [{'h': 15, 'c': []}]}]}]}, {'h': -19, 'c': []}]}]}, {'h': -1275, 'c': [{'h': -2472, 'c': [{'h': -42, 'c': []}, {'h': -4600, 'c': []}]}, {'h': -21, 'c': []}, {'h': -32626, 'c': []}, {'h': -6, 'c': [{'h': -9978, 'c': [{'h': -15, 'c': []}, {'h': -2037, 'c': [{'h': -4600, 'c': []}]}, {'h': -4600, 'c': []}, {'h': -8127, 'c': []}, {'h': 15, 'c': []}, {'h': -1, 'c': []}, {'h': -66750, 'c': []}, {'h': -8, 'c': []}]}]}, {'h': -19, 'c': []}]}]}, {'h': -5279, 'c': [{'h': 0, 'c': []}, {'h': -1300, 'c': []}, {'h': -119, 'c': [{'h': -14, 'c': [{'h': -15, 'c': []}, {'h': -9665, 'c': [{'h': 0, 'c': []}, {'h': 15, 'c': []}, {'h': 0, 'c': []}]}, {'h': -10, 'c': []}, {'h': -1838, 'c': [{'h': -361, 'c': []}, {'h': -477, 'c': []}, {'h': -104, 'c': []}, {'h': -464, 'c': [{'h': -5244, 'c': [{'h': -20136, 'c': []}]}, {'h': -79, 'c': [{'h': -1503, 'c': []}]}]}]}]}]}, {'h': -19, 'c': []}]}]}]}]}]}
 
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
