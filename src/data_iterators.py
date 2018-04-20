@@ -16,6 +16,9 @@ from mytools import numpy_load
 RECURSION_LIMIT_MIN = 1000
 RECURSION_LIMIT_ADD = 100
 
+CONTEXT_ROOT_OFFEST = 2
+SEEALSO_ROOT_OFFSET = 3
+
 logger = logging.getLogger('data_iterators')
 logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
@@ -299,32 +302,42 @@ def tree_iterator(indices, forest, concat_mode='tree',
             yield tree_context
             n += 1
     elif concat_mode == 'aggregate':
-        # TODO:
-        # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
-        # root_ids occur only directly after link_types
+        # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
+        # sequential and in order, especially root_ids occur in data only directly after link_types
         for idx in indices:
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
-            # find last element
             idx_start = idx + context_child_offset
-            #idx_end = idx + context_child_offset
-            #for idx_end in range(idx_start, len(forest)):
-            #    if forest.data[idx_end] == data_root:
-            #        break
 
-            idx_end_offset = np.argmax(forest.data[idx_start:] == data_root)
-            if idx_end_offset == 0 and forest.data[idx_start] != data_root:
+            root_pos = idx - CONTEXT_ROOT_OFFEST
+            root_idx = forest.root_mapping[root_pos]
+            if root_idx == len(forest.roots) - 1:
                 idx_end = len(forest)
             else:
-                idx_end = idx_start + idx_end_offset
+                idx_end = forest.roots[root_idx+1]
 
-            #f = get_tree_naive(idx_start=idx + context_child_offset, idx_end=idx_end, forest=forest,
-            #                   concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
-            #                   remove_types=remove_types_naive, data_aggregator=data_nif_context)
-            #f.set_children_with_parents()
-            #tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+            ## follow to first element of sequential data
+            #context_child_offset = forest.get_children(idx)[0]
+            ## find last element
+            #idx_start = idx + context_child_offset
+            ##idx_end = idx + context_child_offset
+            ##for idx_end in range(idx_start, len(forest)):
+            ##    if forest.data[idx_end] == data_root:
+            ##        break
 
-            #data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx + context_child_offset, idx_end=idx_end,
+            #idx_end_offset = np.argmax(forest.data[idx_start:] == data_root)
+            #if idx_end_offset == 0 and forest.data[idx_start] != data_root:
+            #    idx_end = len(forest)
+            #else:
+            #    idx_end = idx_start + idx_end_offset
+
+            ##f = get_tree_naive(idx_start=idx + context_child_offset, idx_end=idx_end, forest=forest,
+            ##                   concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
+            ##                   remove_types=remove_types_naive, data_aggregator=data_nif_context)
+            ##f.set_children_with_parents()
+            ##tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+
+            #data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
             #                                                 link_types=[data_ref, data_ref_seealso],
             #                                                 remove_types=remove_types_naive, transform=transform)
             #tree_context = {KEY_HEAD: data_nif_context_transformed,
@@ -417,8 +430,6 @@ def indices_dbpedianif(index_files, forest, **unused):
     indices = index_iterator(index_files)
     # map to context and seealso indices
 
-    CONTEXT_ROOT_OFFEST = 2
-    SEEALSO_ROOT_OFFSET = 3
     indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
                                                      offsets=np.array([CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET]))
     # unzip (produces lists)
@@ -451,7 +462,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     root_ids_list.extend(added_root_ids)
     indices_context_root_list.extend(added_indices_context_root)
     root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
-    logger.debug('selected %i root_ids' % len(root_ids_list))
+    logger.debug('selected %i root_ids (source + target trees)' % len(root_ids_list))
 
     return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
 

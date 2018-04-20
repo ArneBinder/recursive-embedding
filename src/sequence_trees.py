@@ -182,6 +182,7 @@ class Forest(object):
         self._dicts = {}
         self._root_id_pos = None
         self._root_id_mapping = None
+        self._root_mapping = None
 
     def load(self, filename, load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True):
         logger.debug('load data and parents from %s ...' % filename)
@@ -884,3 +885,10 @@ class Forest(object):
             else:
                 self._root_id_mapping = {}
         return self._root_id_mapping
+
+    @property
+    def root_mapping(self):
+        if self._root_mapping is None:
+            logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_ids))
+            self._root_mapping = {pos: i for i, pos in enumerate(self.roots)}
+        return self._root_mapping
