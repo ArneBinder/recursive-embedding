@@ -109,31 +109,35 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
 
 def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='sequence', link_types=[], remove_types=[]):
 
-    data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
-    data[:-1] = forest.data[idx_start:idx_end]
-    # append 'nif:context'
-    data[-1] = data_aggregator
+    #data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
+    #data[:-1] = forest.data[idx_start:idx_end]
+    ## append 'nif:context'
+    #data[-1] = data_aggregator
 
-    # remove entries
-    indices_remove = []
-    # remove link entries
-    for link_type in link_types:
-        indices_remove.append(np.where(data == link_type)[0] + 1)
-    # remove other entries of specified types
-    for remove_type in remove_types:
-        indices_remove.append(np.where(data == remove_type)[0])
-    indices_remove_np = np.sort(np.concatenate(indices_remove))
-    mask = np.ones(data.shape, dtype=bool)
-    mask[indices_remove_np] = False
-    data = data[mask]
+    ## remove entries
+    #indices_remove = []
+    ## remove link entries
+    #for link_type in link_types:
+    #    indices_remove.append(np.where(data == link_type)[0] + 1)
+    ## remove other entries of specified types
+    #for remove_type in remove_types:
+    #    indices_remove.append(np.where(data == remove_type)[0])
+    #indices_remove_np = np.sort(np.concatenate(indices_remove))
+    #mask = np.ones(data.shape, dtype=bool)
+    #mask[indices_remove_np] = False
+    #data = data[mask]
+
+    d_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    data = np.ones(shape=idx_end-idx_start, dtype=forest.data.dtype) * d_unknown
 
     if concat_mode == 'sequence':
         parents = np.ones(len(data), dtype=DTYPE_OFFSET)
         parents[-1] = 0
     elif concat_mode == 'aggregate':
-        parents = np.zeros(len(data), dtype=DTYPE_OFFSET)
-        for i in range(len(parents)-1):
-            parents[i] = len(parents) - i - 1
+        #parents = np.zeros(len(data), dtype=DTYPE_OFFSET)
+        #for i in range(len(parents)-1):
+        #    parents[i] = len(parents) - i - 1
+        parents = np.arange(len(data))[::-1]
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
 
