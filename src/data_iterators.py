@@ -403,6 +403,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     root_ids_list.extend(added_root_ids)
     indices_context_root_list.extend(added_indices_context_root)
     root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
+    logger.debug('found %i root_ids' % len(root_ids_list))
 
     return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
 
@@ -415,6 +416,7 @@ def indices_dbpedianif_dummy(forest, **unused):
                                                      offsets=np.array([CONTEXT_ROOT_OFFEST]))
     # unzip (produces lists)
     root_ids, indices_context_root = zip(*indices_mapped)
+    logger.debug('found %i root_ids' % len(root_ids))
     return np.array(root_ids), np.array(indices_context_root), None
 
 
