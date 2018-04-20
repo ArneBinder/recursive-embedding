@@ -330,7 +330,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
             #tree_context = {KEY_HEAD: data_nif_context_transformed,
             #                KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             #yield tree_context
-            #yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
+            yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
     elif concat_mode == 'sequence':
         # TODO:
