@@ -735,6 +735,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             #with model_tree.compiler.multiprocessing_pool():
 
+            if config.batch_iter_test is '':
+                batch_iter_test = config.batch_iter
+            else:
+                batch_iter_test = config.batch_iter_test
+
+            if config.neg_samples_test is '':
+                neg_samples_test = config.neg_samples
+            else:
+                neg_samples_test = int(config.neg_samples_test)
+
             if M_TEST in meta:
                 logger.info('create test data set ...')
                 if M_TRAIN not in meta:
@@ -748,10 +758,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        epoch=0,
                                                                                        train=False,
                                                                                        emit=False,
-                                                                                       number_of_samples=config.neg_samples,
+                                                                                       number_of_samples=neg_samples_test,
                                                                                        #number_of_samples=None,
                                                                                        highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None,
-                                                                                       batch_iter='batch_iter_all')
+                                                                                       batch_iter=batch_iter_test)
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                     logger.removeHandler(fh_info)
@@ -802,7 +812,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                                                                                        dataset_ids=meta[M_TEST][M_IDS],
                                                                                        dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
-                                                                                       number_of_samples=config.neg_samples,
+                                                                                       number_of_samples=neg_samples_test,
                                                                                        #number_of_samples=None,
                                                                                        epoch=epoch,
                                                                                        train=False,
@@ -810,7 +820,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                                        test_writer=test_writer,
                                                                                        test_result_writer=test_result_writer,
                                                                                        highest_sims_model=meta[M_TEST]['model_highest_sims'] if 'model_highest_sims' in meta[M_TEST] else None,
-                                                                                       batch_iter='batch_iter_all')
+                                                                                       batch_iter=batch_iter_test)
 
                     if loss_test < loss_test_best:
                         loss_test_best = loss_test

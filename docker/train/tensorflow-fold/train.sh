@@ -86,6 +86,8 @@ $DOCKER run -it \
         --max_depth=$MAX_DEPTH \
         --context=$CONTEXT \
         --neg_samples=$NEG_SAMPLES \
+        --neg_samples_test=$NEG_SAMPLES_TEST \
         --train_files=$TRAIN_FILES \
         --no_fixed_vecs=$NO_FIXED_VECS \
-        --batch_iter=$BATCH_ITER
+        --batch_iter=$BATCH_ITER \
+        --batch_iter_test=$BATCH_ITER_TEST
