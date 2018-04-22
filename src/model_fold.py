@@ -1290,8 +1290,8 @@ class SequenceTreeRerootModel(BaseTrainModel):
 
 class HighestSimsModel:
 
-    def __init__(self, embedding_size, number_of_embeddings, sparse=False):
-        self._sparse = sparse
+    def __init__(self, embedding_size, number_of_embeddings):
+        #self._sparse = sparse
         #self._normed_reference_embedding = tf.placeholder(tf.float32, [embedding_size])
         self._reference_idx = tf.placeholder(tf.int32, shape=[])
         self._number_of_embeddings = tf.placeholder(tf.int32, shape=[])
@@ -1343,6 +1343,6 @@ class HighestSimsModel:
     def sims(self):
         return self._sims
 
-    @property
-    def sparse(self):
-        return self._sparse
+    #@property
+    #def sparse(self):
+    #    return self._sparse
