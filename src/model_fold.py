@@ -665,12 +665,13 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
 class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
-    def __init__(self, name, tree_count, data_transformed, **kwargs):
+    def __init__(self, name, tree_count, #data_transformed,
+                 **kwargs):
         #assert root_fc_sizes == 0, 'no root_fc allowed for HTUBatchedHead'
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, #root_fc_size=root_fc_sizes,
                                                            **kwargs)
         #self._batch_size = tree_count
-        self._data_transformed = data_transformed
+        #self._data_transformed = data_transformed
         self._neg_samples = tree_count
 
     # TODO: implement this!
@@ -921,10 +922,13 @@ class TreeModel(object):
 
         self._embeddings_plain = embeddings_plain
 
+        #self._output_size = int(self._embeddings_plain.shape[-1])
+
         for s in self._root_fc_sizes:
             if s > 0:
                 fc = tf.contrib.layers.fully_connected(inputs=self._embeddings_plain, num_outputs=s, activation_fn=tf.nn.tanh)
                 self._embeddings_plain = tf.nn.dropout(fc, keep_prob=self._keep_prob)
+                #self._output_size = s
 
     @property
     def embeddings_all(self):
@@ -937,6 +941,7 @@ class TreeModel(object):
     @property
     def tree_output_size(self):
         return int(self._embeddings_plain.shape[-1])
+        #return self._output_size
 
 
 class SequenceTreeModel(TreeModel):
@@ -1290,11 +1295,11 @@ class SequenceTreeRerootModel(BaseTrainModel):
 
 class HighestSimsModel:
 
-    def __init__(self, embedding_size, number_of_embeddings):
+    def __init__(self, number_of_embeddings, embedding_size):
         #self._sparse = sparse
         #self._normed_reference_embedding = tf.placeholder(tf.float32, [embedding_size])
         self._reference_idx = tf.placeholder(tf.int32, shape=[])
-        self._number_of_embeddings = tf.placeholder(tf.int32, shape=[])
+        #self._number_of_embeddings = tf.placeholder(tf.int32, shape=[])
         #self._normed_embeddings = tf.placeholder(tf.float32, [None, embedding_size])
         self._normed_embeddings = tf.Variable(tf.constant(0.0, shape=[number_of_embeddings, embedding_size]),
                                               trainable=False, name='EMBEDDED_DOCS')

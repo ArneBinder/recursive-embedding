@@ -620,7 +620,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                           root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
                                                           keep_prob_default=config.keep_prob,
                                                           tree_count=tuple_size,
-                                                          data_transfomed=data_transformed
+                                                          #data_transfomed=data_transformed
                                                           #tree_count=1,
                                                           # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                           )
@@ -642,7 +642,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 assert embedding_dim != -1, 'no data sets created'
 
                 model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
-                                                       keep_prob=config.keep_prob, sparse=True)
+                                                       keep_prob=config.keep_prob, sparse=True,
+                                                       root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],)
 
             #if config.model_type == 'simtuple':
             #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
@@ -666,8 +667,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         s = len(meta[m][M_TREES])
                     logger.debug('create %s model_highest_sims (number_of_embeddings=%i, embedding_size=%i)' % (m, s, model_tree.tree_output_size))
                     meta[m]['model_highest_sims'] = model_fold.HighestSimsModel(
+                        number_of_embeddings=s,
                         embedding_size=model_tree.tree_output_size,
-                        number_of_embeddings=s
                     )
                     #elif M_TREE_EMBEDDINGS in meta[m]:
                     #else:
