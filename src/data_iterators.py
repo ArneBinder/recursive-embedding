@@ -244,7 +244,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 def tree_iterator(indices, forest, concat_mode='tree',
                   max_depth=9999, context=0, transform=True,
-                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False,
+                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=10000000,
                   **unused):
     """
     create trees rooted at indices
@@ -343,7 +343,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
                                                              remove_types=remove_types_naive, transform=transform)
             sizes.append([root_idx, len(data_span_cleaned)])
             tree_context = {KEY_HEAD: data_nif_context_transformed,
-                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
+                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned[:max_size_plain]]}
             yield tree_context
             #yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
@@ -454,12 +454,25 @@ def indices_dbpedianif(index_files, forest, **unused):
     root_ids_list = []
     indices_context_root_list = []
 
+    root_id_prefix_exclude = 'http://dbpedia.org/resource/List_of_'
+
     # do not use root_id, etc., if root_ids_seealsos is empty
     for i, root_ids_seealsos in enumerate(root_ids_seealsos_iterator):
         if root_ids_seealsos is not None:
-            root_ids_seealsos_list.append(root_ids_seealsos)
-            root_ids_list.append(root_ids[i])
-            indices_context_root_list.append(indices_context_root[i])
+            skip = False
+            curren_root_ids_seealsos = []
+            for root_id_seealso in root_ids_seealsos:
+                root_id_str = forest.lexicon_roots.get_s(root_id_seealso, data_as_hashes=forest.data_as_hashes)
+                if root_id_str[:len(root_id_prefix_exclude)] == root_id_prefix_exclude:
+                    skip = True
+                else:
+                    curren_root_ids_seealsos.append(root_id_seealso)
+            if not skip:
+                root_id_str = forest.lexicon_roots.get_s(root_ids[i], data_as_hashes=forest.data_as_hashes)
+                if root_id_str[:len(root_id_prefix_exclude)] != root_id_prefix_exclude:
+                    root_ids_seealsos_list.append(curren_root_ids_seealsos)
+                    root_ids_list.append(root_ids[i])
+                    indices_context_root_list.append(indices_context_root[i])
 
     root_ids_set = set(root_ids_list)
     added_root_ids = []

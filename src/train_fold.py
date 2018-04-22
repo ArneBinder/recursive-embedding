@@ -23,7 +23,8 @@ from sklearn.metrics import roc_auc_score
 from sklearn import preprocessing as pp
 from spacy.strings import StringStore
 
-import lexicon as lex
+#import lexicon as lex
+from lexicon import Lexicon
 import model_fold
 from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION
 
@@ -419,13 +420,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
-        lexicon = lex.Lexicon(filename=os.path.join(logdir, 'model'), load_ids_fixed=(not config.no_fixed_vecs))
+        lexicon = Lexicon(filename=os.path.join(logdir, 'model'), load_ids_fixed=(not config.no_fixed_vecs))
         #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         lexicon.init_vecs(checkpoint_reader=reader)
     else:
-        lexicon = lex.Lexicon(filename=config.train_data_path, load_ids_fixed=(not config.no_fixed_vecs))
+        lexicon = Lexicon(filename=config.train_data_path, load_ids_fixed=(not config.no_fixed_vecs))
         ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         if logdir_pretrained:
@@ -433,7 +434,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
             assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
             reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-            lexicon_old = lex.Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
+            lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
             lexicon_old.init_vecs(checkpoint_reader=reader_old)
             lexicon.merge(lexicon_old, add=False, remove=False)
 
@@ -558,7 +559,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.info('use %s for testing' % str(meta[M_TEST][M_FNAMES]))
             del meta[M_TRAIN][M_FNAMES][config.dev_file_index]
 
-    forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
+    lexicon_root_fn = '%s.root.id' % config.train_data_path
+    if Lexicon.exist(lexicon_root_fn, types_only=True):
+        logging.info('load lexicon_roots from %s' % lexicon_root_fn)
+        lexicon_roots = Lexicon(filename=lexicon_root_fn, load_vecs=False)
+    else:
+        lexicon_roots = None
+    forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
     if config.model_type == 'reroot':
         logger.info('transform data ...')
         data_transformed = [forest.lexicon.transform_idx(forest.data[idx], root_id_pos=forest.root_id_pos) for idx in range(len(forest))]
