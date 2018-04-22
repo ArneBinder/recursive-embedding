@@ -112,6 +112,8 @@ M_IDS = 'ids'
 M_TREE_ITER = 'tree_iterator'
 M_IDS_TARGET = 'ids_target'
 
+DT_PROBS = np.float32
+
 
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
     summary = tf.Summary()
@@ -199,7 +201,7 @@ def batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_ta
         candidate_ids = dataset_ids[samples[1:]]
         all_targets = dataset_target_ids[idx]
         ix = np.isin(candidate_ids, all_targets)
-        probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
+        probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
 
         yield samples, probs
@@ -256,14 +258,14 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
         candidate_ids = dataset_ids[samples[1:]]
         all_targets = dataset_target_ids[idx]
         ix = np.isin(candidate_ids, all_targets)
-        probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
+        probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
         yield samples, probs
 
 
 def batch_iter_reroot(number_of_samples, dataset_indices):
     for idx in dataset_indices:
-        probs = np.zeros(shape=number_of_samples + 1, dtype=np.int32)
+        probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
         probs[0] = 1
         return [idx], probs
 
@@ -275,7 +277,7 @@ def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids, number_of_c
         candidate_ids = dataset_ids[dataset_indices]
         all_targets = dataset_target_ids[idx]
         ix = np.isin(candidate_ids, all_targets)
-        probs = np.zeros(shape=len(candidate_ids), dtype=np.int32)
+        probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
         for start in range(0, len(candidate_ids), number_of_candidates):
             current_indices = dataset_indices[start:start+number_of_candidates]

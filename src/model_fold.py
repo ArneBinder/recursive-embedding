@@ -1140,11 +1140,11 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
         self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
 
         #self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, self._candidate_count])
-        self._labels_gold = tf.placeholder(dtype=tf.int32)
+        self._labels_gold = tf.placeholder(dtype=tf.float32)
         #print('%s\tlabels_gold.shape' % self._labels_gold.shape)
 
         tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, self._candidate_count + 1, tree_model.tree_output_size])
-        self._batch_size = tf.shape(tree_embeddings)[0]
+        batch_size = tf.shape(tree_embeddings)[0]
         #print('%s\ttree_embeddings.shape' % tree_embeddings.shape)
 
         ref_tree_embedding = tree_embeddings[:, 0, :]
@@ -1168,14 +1168,17 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
                 fc = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=s)
                 concat = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
-        logits = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=2, activation_fn=None)
+        # logits = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=2, activation_fn=None)
+        logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=concat, num_outputs=1, activation_fn=None),
+                            shape=[batch_size, self._candidate_count])
         #print('%s\tlogits.shape' % logits.shape)
-        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
-
+        #cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
+        cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=self._labels_gold))
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
-        softmax = tf.nn.softmax(logits)
-        self._probs = softmax[:, :, 1]
+        #softmax = tf.nn.softmax(logits)
+        #self._probs = softmax[:, :, 1]
+        self._probs = tf.sigmoid(logits)
         #print('%s\tprobs.shape' % self._probs.shape)
 
     @property
