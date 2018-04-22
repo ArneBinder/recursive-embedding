@@ -615,14 +615,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     logger.info('create %s data set (tree-embeddings) ...' % m)
                     with model_tree.compiler.multiprocessing_pool():
                         meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], meta[m][M_TREE_ITER]), ordered=True))
-                        logger.info('%s data size: %s' % (m, len(meta[m][M_TREES])))
+                        logger.info('%s dataset: use %s different trees' % (m, len(meta[m][M_TREES])))
             else:
                 logger.info('create %s data sets (tf-idf) ...' % ', '.join(meta.keys()))
                 _tree_embeddings_tfidf = diters.embeddings_tfidf([meta[m][M_TREE_ITER] for m in meta.keys()])
                 embedding_dim = -1
                 for i, m in enumerate(meta):
                     meta[m][M_TREE_EMBEDDINGS] = _tree_embeddings_tfidf[i]
-                    logger.info('%s data size: %s' % (m, str(meta[m][M_TREE_EMBEDDINGS].shape)))
+                    logger.info('%s dataset: use %s different trees' % (m, str(meta[m][M_TREE_EMBEDDINGS].shape)))
                     current_embedding_dim = meta[m][M_TREE_EMBEDDINGS].shape[1]
                     assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
                     embedding_dim = current_embedding_dim
