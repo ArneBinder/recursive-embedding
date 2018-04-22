@@ -304,6 +304,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
     elif concat_mode == 'aggregate':
         # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
         # sequential and in order, especially root_ids occur in data only directly after link_types
+        sizes = []
         for idx in indices:
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
@@ -340,11 +341,14 @@ def tree_iterator(indices, forest, concat_mode='tree',
             data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
                                                              link_types=[data_ref, data_ref_seealso],
                                                              remove_types=remove_types_naive, transform=transform)
+            sizes.append([root_idx, len(data_span_cleaned)])
             tree_context = {KEY_HEAD: data_nif_context_transformed,
                             KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             yield tree_context
             #yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
+        np.array(sizes).dump('sizes_plain.npy')
+        logger.debug('wrote sizes to: sizes_plain.npy')
     elif concat_mode == 'sequence':
         # TODO:
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
