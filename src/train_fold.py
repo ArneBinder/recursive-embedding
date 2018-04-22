@@ -235,26 +235,26 @@ def batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_ta
 def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess, tree_model,
                        highest_sims_model, dataset_trees, tree_model_batch_size#=None, dataset_trees_embedded=None
                        ):
+    _tree_embeddings = []
+    feed_dict = {}
+    if isinstance(tree_model, model_fold.DummyTreeModel):
+        #for batch in td.group_by_batches(dataset_trees, config.batch_size):
+        for start in range(0, dataset_trees.shape[0], tree_model_batch_size):
+            feed_dict[tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(dataset_trees[start:start+tree_model_batch_size])
+            current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
+            _tree_embeddings.append(current_tree_embeddings)
+
+    #if dataset_trees_embedded is None:
+    else:
+        for batch in td.group_by_batches(dataset_trees, tree_model_batch_size):
+            feed_dict[tree_model.compiler.loom_input_tensor] = batch
+            current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
+            _tree_embeddings.append(current_tree_embeddings)
+    dataset_trees_embedded = np.concatenate(_tree_embeddings)
+    logger.debug('%i embeddings calculated' % len(dataset_trees_embedded))
 
     with tf.device(get_ith_device(1)):
-        _tree_embeddings = []
-        feed_dict = {}
-        if isinstance(tree_model, model_fold.DummyTreeModel):
-            #for batch in td.group_by_batches(dataset_trees, config.batch_size):
-            for start in range(0, dataset_trees.shape[0], tree_model_batch_size):
-                feed_dict[tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(dataset_trees[start:start+tree_model_batch_size])
-                current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
-                _tree_embeddings.append(current_tree_embeddings)
-
-        #if dataset_trees_embedded is None:
-        else:
-            for batch in td.group_by_batches(dataset_trees, tree_model_batch_size):
-                feed_dict[tree_model.compiler.loom_input_tensor] = batch
-                current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
-                _tree_embeddings.append(current_tree_embeddings)
-        dataset_trees_embedded = np.concatenate(_tree_embeddings)
-        logger.debug('%i embeddings calculated' % len(dataset_trees_embedded))
-
+        logger.debug('calc nearest on device: %s' % str(get_ith_device(1)))
         # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
         s = dataset_trees_embedded.shape[0]
         neg_sample_indices = np.zeros(shape=(s, number_of_samples), dtype=np.int32)
