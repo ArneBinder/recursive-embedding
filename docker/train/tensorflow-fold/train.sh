@@ -11,6 +11,20 @@ cd "$HOST_SCRIPT_DIR/../../.."
 HOST_PROJECT_ROOT_DIR="$(pwd)"
 echo "HOST_PROJECT_ROOT_DIR=$HOST_PROJECT_ROOT_DIR"
 
+## use first argument as container name, if available
+if [ -n "$1" ]; then
+    CONTAINER_NAME="$1"
+else
+    CONTAINER_NAME=train
+fi
+echo "create container: $CONTAINER_NAME"
+
+SHOW_CONTAINER="$(docker ps -aq -f name=$CONTAINER_NAME)"
+if [ -n "${SHOW_CONTAINER}" ]; then
+    echo "ATTENTION: The docker container $CONTAINER_NAME already exists. Delete it."
+    docker rm $CONTAINER_NAME
+fi
+
 ## add variables from .env file
 source "$HOST_SCRIPT_DIR/.env"
 
@@ -58,6 +72,7 @@ fi
 
 ## start training
 $DOCKER run -it \
+    --name "$CONTAINER_NAME" \
     --cpuset-cpus "$CPU_SET" \
     --env-file "$HOST_SCRIPT_DIR/.env" \
     --memory-swap "$MEM_LIMIT" \
