@@ -25,12 +25,20 @@ if [ -n "${SHOW_CONTAINER}" ]; then
     docker rm $CONTAINER_NAME
 fi
 
+## use second argument as env file name, if available
+if [ -n "$2" ]; then
+    ENV_FILE="$2"
+else
+    ENV_FILE=.env
+fi
+echo "use environment vars file: $ENV_FILE"
+
 ## add variables from .env file
-source "$HOST_SCRIPT_DIR/.env"
+source "$HOST_SCRIPT_DIR/$ENV_FILE"
 
 ## check variables content
 array=( HOST_CORPORA_OUT HOST_TRAIN TRAIN_DATA TRAIN_LOGDIR HOST_PORT_NOTEBOOK HOST_PORT_TENSORBOARD MEM_LIMIT CPU_SET NV_GPU MODEL_TYPE DEV_FILE_INDEX BATCH_SIZE BATCH_ITER TREE_EMBEDDER LEARNING_RATE OPTIMIZER EARLY_STOP_QUEUE ROOT_FC_SIZES LEAF_FC_SIZE FC_SIZES STATE_SIZE KEEP_PROB INIT_ONLY CONCAT_MODE MAX_DEPTH CONTEXT NEG_SAMPLES NO_FIXED_VECS TRAIN_FILES )
-echo ".env vars:"
+echo "$ENV_FILE vars:"
 for i in "${array[@]}"
 do
 	if [ -z "${!i}" ]; then
@@ -74,7 +82,7 @@ fi
 $DOCKER run -it \
     --name "$CONTAINER_NAME" \
     --cpuset-cpus "$CPU_SET" \
-    --env-file "$HOST_SCRIPT_DIR/.env" \
+    --env-file "$HOST_SCRIPT_DIR/$ENV_FILE" \
     --memory-swap "$MEM_LIMIT" \
     --memory "$MEM_LIMIT" \
     -v "$HOST_TRAIN:/root/train" \
