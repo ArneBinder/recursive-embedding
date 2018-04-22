@@ -120,12 +120,20 @@ def get_available_gpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
+
 def get_available_cpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'CPU']
 
-def get_devices():
-    return get_available_cpus() + get_available_gpus()
+
+#def get_devices():
+#    return get_available_cpus() + get_available_gpus()
+
+
+def get_ith_device(i):
+    devices = get_available_gpus() + get_available_cpus()
+    idx = min(len(devices)-1, i)
+    return devices[idx]
 
 
 def emit_values(supervisor, session, step, values, writer=None, csv_writer=None):
@@ -228,7 +236,7 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
                        highest_sims_model, dataset_trees, tree_model_batch_size#=None, dataset_trees_embedded=None
                        ):
 
-    with tf.device(get_devices()[-1]):
+    with tf.device(get_ith_device(1)):
         _tree_embeddings = []
         feed_dict = {}
         if isinstance(tree_model, model_fold.DummyTreeModel):
@@ -631,7 +639,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     #sim_measure = getattr(model_fold, config.sim_measure)
 
     logger.info('create tensorflow graph ...')
-    with tf.device(get_devices()[0]):
+    with tf.device(get_ith_device(0)):
         with tf.Graph().as_default() as graph:
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
                 logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
@@ -688,7 +696,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                       clipping_threshold=config.clipping,
                                                                       )
 
-                    with tf.device(get_devices()[-1]):
+                    with tf.device(get_ith_device(1)):
                         for m in meta:
                             #if M_TREES in meta[m]:
                             if isinstance(model_tree, model_fold.DummyTreeModel):
