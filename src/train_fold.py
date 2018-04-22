@@ -19,7 +19,7 @@ import tensorflow as tf
 import tensorflow_fold as td
 from scipy.stats.mstats import spearmanr
 from scipy.stats.stats import pearsonr
-from sklearn.metrics import roc_auc_score
+from sklearn import metrics
 from sklearn import preprocessing as pp
 from spacy.strings import StringStore
 
@@ -157,7 +157,11 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
                       % (epoch, step, suffix, loss, suffix, p_r[0], np.average(values), np.var(values),
                          np.average(values_gold), np.var(values_gold))
     elif model_type == MODEL_TYPE_DISCRETE:
-        roc = roc_auc_score(values_gold, values)
+        filtered = np.argwhere(values_gold[:, 0] == 1).flatten()
+        if len(filtered) < len(values_gold):
+            logger.warning('discarded %i (of %i) values for evalution (roc)'
+                           % (len(values_gold) - len(filtered), len(values_gold)))
+        roc = metrics.roc_auc_score(values_gold[filtered].flatten(), values[filtered].flatten())
         emit_dict.update({
             'roc': roc
         })
@@ -204,7 +208,7 @@ def batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_ta
         probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
 
-        yield samples, probs
+        yield samples, probs / np.sum(probs)
 
 
 def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess, tree_model,
@@ -260,14 +264,14 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
         ix = np.isin(candidate_ids, all_targets)
         probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
-        yield samples, probs
+        yield samples, probs / np.sum(probs)
 
 
 def batch_iter_reroot(number_of_samples, dataset_indices):
     for idx in dataset_indices:
         probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
         probs[0] = 1
-        return [idx], probs
+        return [idx], probs / np.sum(probs)
 
 
 def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids, number_of_candidates):
@@ -279,6 +283,7 @@ def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids, number_of_c
         ix = np.isin(candidate_ids, all_targets)
         probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
+        # TODO: ATTENTION, probs are not normalized!
         for start in range(0, len(candidate_ids), number_of_candidates):
             current_indices = dataset_indices[start:start+number_of_candidates]
             # do not yield, if it is not full (end of the dataset)
@@ -358,8 +363,8 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=Non
         step = result_all['step'][-1]
 
     sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
-    values_all_ = np.concatenate(result_all['values']).flatten()
-    values_all_gold_ = np.concatenate(result_all['values_gold']).flatten()
+    values_all_ = np.concatenate(result_all['values'])
+    values_all_gold_ = np.concatenate(result_all['values_gold'])
 
     # sum batch losses weighted by individual batch size (can vary at last batch)
     loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
@@ -437,7 +442,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        lexicon.init_vecs(checkpoint_reader=reader)
+        try:
+            lexicon.init_vecs(checkpoint_reader=reader)
+        except AssertionError:
+            logger.warning('no embedding vecs found in model')
+            lexicon.init_vecs()
     else:
         lexicon = Lexicon(filename=config.train_data_path, load_ids_fixed=(not config.no_fixed_vecs))
         ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
