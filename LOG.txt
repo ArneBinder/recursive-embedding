@@ -11,3 +11,4 @@
      max size of tokens per article decreases from >11k to 5k
  * added length threshold for concat_mode==aggregate (default: 1k) in tree_iterator
  * fixed batch_iter_nearest for DummyTreeModel (tfidf)
+ * note: batch_iter_nearest can lead to crashes because normed_embeddings stays in gpu memory

@@ -248,6 +248,10 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
         current_sims[i] = 0
         current_indices = np.argpartition(current_sims, -number_of_samples)[-number_of_samples:]
         neg_sample_indices[i, :] = current_indices
+
+    # TODO: clear normed_embeddings (or move to second gpu?)
+    #sess.run(highest_sims_model.normed_embeddings_init,
+    #         feed_dict={highest_sims_model.normed_embeddings_placeholder: normed})
     logger.debug('created nearest indices')
 
     id_to_idx = {_id: i for i, _id in enumerate(dataset_ids)}
