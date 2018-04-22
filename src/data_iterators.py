@@ -347,8 +347,17 @@ def tree_iterator(indices, forest, concat_mode='tree',
             yield tree_context
             #yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
-        np.array(sizes).dump('sizes_plain.npy')
-        logger.debug('wrote sizes to: sizes_plain.npy')
+        # statistics
+        sizes_np = np.array(sizes)
+        sizes_fn = 'sizes_plain.npy'
+        if os.path.exists(sizes_fn):
+            sizes_np_loaded = np.load(sizes_fn)
+            sizes_np = np.concatenate((sizes_np_loaded, sizes_np))
+            logger.debug('append sizes to: %s' % sizes_fn)
+        else:
+            logger.debug('write sizes to: %s' % sizes_fn)
+        sizes_np.dump(sizes_fn)
+
     elif concat_mode == 'sequence':
         # TODO:
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
