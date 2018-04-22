@@ -80,7 +80,6 @@ $DOCKER run -it \
     -v "$HOST_TRAIN:/root/train" \
     -v "$HOST_CORPORA_OUT:/root/corpora_out" \
     -v "$HOST_PROJECT_ROOT_DIR/src:$DOCKER_PROJECT_ROOT/src" \
-    -p "$HOST_PORT_NOTEBOOK:8888" \
     $IMAGE \
         --train_data_path=/root/corpora_out/$TRAIN_DATA \
         --logdir=/root/train/$TRAIN_LOGDIR \

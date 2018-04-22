@@ -230,12 +230,10 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
     s = dataset_trees_embedded.shape[0]
     neg_sample_indices = np.zeros(shape=(s, number_of_samples), dtype=np.int32)
     normed = pp.normalize(dataset_trees_embedded, norm='l2')
+
+    # initialize normed embeddings
     sess.run(highest_sims_model.normed_embeddings_init,
-             # feed_dict={highest_sims_model.normed_embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(normed) if highest_sims_model.sparse else normed}
-             feed_dict={
-                 #highest_sims_model.normed_embeddings_placeholder: normed.todense() if highest_sims_model.sparse else normed}
-                 highest_sims_model.normed_embeddings_placeholder: normed}
-             )
+             feed_dict={highest_sims_model.normed_embeddings_placeholder: normed})
     for i in range(s):
         current_sims = sess.run(highest_sims_model.sims,
                                 {

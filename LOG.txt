@@ -10,3 +10,4 @@
  * filter out List_of_... dbpedianif articles (source + target roots):
      max size of tokens per article decreases from >11k to 5k
  * added length threshold for concat_mode==aggregate (default: 1k) in tree_iterator
+ * fixed batch_iter_nearest for DummyTreeModel (tfidf)
