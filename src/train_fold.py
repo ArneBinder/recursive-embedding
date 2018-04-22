@@ -628,14 +628,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     logger.info('create %s data set (tree-embeddings) ...' % m)
                     with model_tree.compiler.multiprocessing_pool():
                         meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], meta[m][M_TREE_ITER]), ordered=True))
-                        logger.info('%s dataset: use %s different trees' % (m, len(meta[m][M_TREES])))
+                        logger.info('%s dataset: use %i different trees' % (m, len(meta[m][M_TREES])))
             else:
                 logger.info('create %s data sets (tf-idf) ...' % ', '.join(meta.keys()))
                 _tree_embeddings_tfidf = diters.embeddings_tfidf([meta[m][M_TREE_ITER] for m in meta.keys()])
                 embedding_dim = -1
                 for i, m in enumerate(meta):
                     meta[m][M_TREES] = _tree_embeddings_tfidf[i]
-                    logger.info('%s dataset: use %s different trees' % (m, str(meta[m][M_TREES].shape)))
+                    logger.info('%s dataset: use %i different trees' % (m, meta[m][M_TREES].shape[0]))
                     current_embedding_dim = meta[m][M_TREES].shape[1]
                     assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
                     embedding_dim = current_embedding_dim
@@ -657,13 +657,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                                   learning_rate=config.learning_rate,
                                                                   clipping_threshold=config.clipping,
                                                                   )
-                logger.debug('create model_highest_sims')
+
                 for m in meta:
                     #if M_TREES in meta[m]:
                     if isinstance(model_tree, model_fold.DummyTreeModel):
                         s = meta[m][M_TREES].shape[0]
                     else:
                         s = len(meta[m][M_TREES])
+                    logger.debug('create %s model_highest_sims (number_of_embeddings=%i, embedding_size=%i)' % (m, s, model_tree.tree_output_size))
                     meta[m]['model_highest_sims'] = model_fold.HighestSimsModel(
                         embedding_size=model_tree.tree_output_size,
                         number_of_embeddings=s
