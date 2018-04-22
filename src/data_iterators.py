@@ -9,7 +9,7 @@ from scipy.sparse import csr_matrix
 
 from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
     vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, \
-    LOGGING_FORMAT, IDENTITY_EMBEDDING
+    LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, CM_SEQUENCE
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -110,7 +110,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     logger.info('use %i trees for training' % count)
 
 
-def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='sequence', link_types=[], remove_types=[]):
+def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode=CM_SEQUENCE, link_types=[], remove_types=[]):
 
     data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
     data[:-1] = forest.data[idx_start:idx_end]
@@ -133,10 +133,10 @@ def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode='seq
     #d_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     #data = np.ones(shape=idx_end-idx_start, dtype=forest.data.dtype) * d_unknown
 
-    if concat_mode == 'sequence':
+    if concat_mode == CM_SEQUENCE:
         parents = np.ones(len(data), dtype=DTYPE_OFFSET)
         parents[-1] = 0
-    elif concat_mode == 'aggregate':
+    elif concat_mode == CM_AGGREGATE:
         #parents = np.zeros(len(data), dtype=DTYPE_OFFSET)
         #for i in range(len(parents)-1):
         #    parents[i] = len(parents) - i - 1
@@ -242,10 +242,8 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
     logger.info('found %i trees with links (%s)' % (n, link_type))
 
 
-def tree_iterator(indices, forest, concat_mode='tree',
-                  max_depth=9999, context=0, transform=True,
-                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=10000000,
-                  **unused):
+def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
+                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000, **unused):
     """
     create trees rooted at indices
     :param indices:
@@ -260,7 +258,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
     :return:
     """
     if reroot:
-        assert concat_mode == 'tree', 'reroot requires concat_mode==tree, but found concat_mode: %s' % concat_mode
+        assert concat_mode == CM_TREE, 'reroot requires concat_mode==%s, but found concat_mode: %s' % (CM_TREE, concat_mode)
 
     #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
     sys.setrecursionlimit(1000)
@@ -291,7 +289,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
 
     logger.debug('create trees with concat_mode=%s' % concat_mode)
 
-    if concat_mode == 'tree':
+    if concat_mode == CM_TREE:
         for idx in indices:
             if reroot:
                 tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, transform=transform,
@@ -301,7 +299,7 @@ def tree_iterator(indices, forest, concat_mode='tree',
                                                     costs=costs, link_types=[data_ref, data_ref_seealso])
             yield tree_context
             n += 1
-    elif concat_mode == 'aggregate':
+    elif concat_mode == CM_AGGREGATE:
         # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
         # sequential and in order, especially root_ids occur in data only directly after link_types
         sizes = []
@@ -317,35 +315,15 @@ def tree_iterator(indices, forest, concat_mode='tree',
             else:
                 idx_end = forest.roots[root_idx+1]
 
-            ## follow to first element of sequential data
-            #context_child_offset = forest.get_children(idx)[0]
-            ## find last element
-            #idx_start = idx + context_child_offset
-            ##idx_end = idx + context_child_offset
-            ##for idx_end in range(idx_start, len(forest)):
-            ##    if forest.data[idx_end] == data_root:
-            ##        break
-
-            #idx_end_offset = np.argmax(forest.data[idx_start:] == data_root)
-            #if idx_end_offset == 0 and forest.data[idx_start] != data_root:
-            #    idx_end = len(forest)
-            #else:
-            #    idx_end = idx_start + idx_end_offset
-
-            ##f = get_tree_naive(idx_start=idx + context_child_offset, idx_end=idx_end, forest=forest,
-            ##                   concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
-            ##                   remove_types=remove_types_naive, data_aggregator=data_nif_context)
-            ##f.set_children_with_parents()
-            ##tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-
             data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
                                                              link_types=[data_ref, data_ref_seealso],
                                                              remove_types=remove_types_naive, transform=transform)
+            if len(data_span_cleaned) > max_size_plain:
+                logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.' % (len(data_span_cleaned), max_size_plain))
             sizes.append([root_idx, len(data_span_cleaned)])
             tree_context = {KEY_HEAD: data_nif_context_transformed,
                             KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned[:max_size_plain]]}
             yield tree_context
-            #yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
             n += 1
         # statistics
         sizes_np = np.array(sizes)
@@ -358,7 +336,8 @@ def tree_iterator(indices, forest, concat_mode='tree',
             logger.debug('write sizes to: %s' % sizes_fn)
         sizes_np.dump(sizes_fn)
 
-    elif concat_mode == 'sequence':
+    elif concat_mode == CM_SEQUENCE:
+        logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
         # TODO:
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
         # root_ids occur only directly after link_types
@@ -488,7 +467,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     root_ids_list.extend(added_root_ids)
     indices_context_root_list.extend(added_indices_context_root)
     root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
-    logger.debug('selected %i root_ids (source + target trees)' % len(root_ids_list))
+    logger.debug('selected %i root_ids (filtered; source + target trees)' % len(root_ids_list))
 
     return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
 
@@ -514,7 +493,7 @@ def indices_as_ids(index_files, **unused):
 
 
 # DEPRECATED
-def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tree',
+def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode=CM_TREE,
                                    max_depth=9999, context=0, transform=True, offset_context=2,
                                    offset_seealso=3, link_cost_ref=None, link_cost_ref_seealso=1,
                                    bag_of_seealsos=True, root_strings=None,
@@ -564,7 +543,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tre
                 seealso_root_id = sequence_trees.root_id_mapping.get(seealso_data_id, None)
                 if seealso_root_id is None:
                     continue
-                if concat_mode == 'tree':
+                if concat_mode == CM_TREE:
                     idx_root_seealso = sequence_trees.roots[seealso_root_id] + offset_context
                     tree_seealso = sequence_trees.get_tree_dict(idx=idx_root_seealso, max_depth=max_depth-2,
                                                                 context=context, transform=transform,
@@ -579,7 +558,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode='tre
                 children.append({KEY_HEAD: data_ref_seealso_transformed, KEY_CHILDREN: [tree_seealso]})
                 seealso_root_ids.append(seealso_root_id)
             if len(children) > 0:
-                if concat_mode == 'tree':
+                if concat_mode == CM_TREE:
                     tree_context = sequence_trees.get_tree_dict(idx=idx_context_root, max_depth=max_depth,
                                                                 context=context, transform=transform,
                                                                 costs=costs,

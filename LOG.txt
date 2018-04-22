@@ -1,0 +1,12 @@
+
+
+20-04-18
+========
+ * fixed (optimized, now usable) train_iter for concat_mode=aggregate
+ * (inner) batching in batch_iter_all
+
+22-04-18
+========
+ * filter out List_of_... dbpedianif articles (source + target roots):
+     max size of tokens per article decreases from >11k to 5k
+ * added length threshold for concat_mode==aggregate (default: 1k) in tree_iterator
