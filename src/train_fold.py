@@ -90,8 +90,10 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
 FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
-STAT_KEYS_DISCRETE = ['roc']
+STAT_KEYS_DISCRETE = ['roc_micro', 'roc_samples', 'ranking_loss_inv', 'f1_t33', 'f1_t50', 'f1_t66', 'acc_t33', 'acc_t50', 'acc_t66']
+#STAT_KEY_MAIN_DISCRETE = 'roc_micro'
 STAT_KEYS_REGRESSION = ['pearson_r', 'mse']
+#STAT_KEY_MAIN_REGRESSION = 'pearson_r'
 
 logger = logging.getLogger('')
 logger.setLevel(logging.DEBUG)
@@ -178,15 +180,40 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
                       % (epoch, step, suffix, loss, suffix, p_r[0], np.average(values), np.var(values),
                          np.average(values_gold), np.var(values_gold))
     elif model_type == MODEL_TYPE_DISCRETE:
-        filtered = np.argwhere(values_gold[:, 0] == 1).flatten()
-        if len(filtered) < len(values_gold):
-            logger.warning('discarded %i (of %i) values for evalution (roc)'
-                           % (len(values_gold) - len(filtered), len(values_gold)))
-        roc = metrics.roc_auc_score(values_gold[filtered].flatten(), values[filtered].flatten())
+        #filtered = np.argwhere(values_gold[:, 0] == 1).flatten()
+        #if len(filtered) < len(values_gold):
+        #    logger.warning('discarded %i (of %i) values for evalution (roc)'
+        #                   % (len(values_gold) - len(filtered), len(values_gold)))
+        #roc = metrics.roc_auc_score(values_gold[filtered].flatten(), values[filtered].flatten())
+        roc_micro = metrics.roc_auc_score(values_gold, values, average='micro')
+        roc_samples = metrics.roc_auc_score(values_gold, values, average='samples')
+
+        values_discrete_t50 = (values + 0.50).astype(int)
+        values_discrete_t33 = (values + 0.66).astype(int)
+        values_discrete_t66 = (values + 0.33).astype(int)
+        f1_t50 = metrics.f1_score(values_gold, values_discrete_t50, average='micro')
+        f1_t33 = metrics.f1_score(values_gold, values_discrete_t33, average='micro')
+        f1_t66 = metrics.f1_score(values_gold, values_discrete_t66, average='micro')
+
+        acc_t50 = metrics.accuracy_score(values_gold, values_discrete_t50, normalize=True)
+        acc_t33 = metrics.accuracy_score(values_gold, values_discrete_t33, normalize=True)
+        acc_t66 = metrics.accuracy_score(values_gold, values_discrete_t66, normalize=True)
+
+        ranking_loss_inv = 1.0 - metrics.label_ranking_loss(values_gold, values)
+
         emit_dict.update({
-            'roc': roc
+            'roc_micro': roc_micro,
+            'roc_samples': roc_samples,
+            'ranking_loss_inv': ranking_loss_inv,
+            'f1_t50': f1_t50,
+            'f1_t33': f1_t33,
+            'f1_t66': f1_t66,
+            'acc_t50': acc_t50,
+            'acc_t33': acc_t33,
+            'acc_t66': acc_t66,
         })
-        info_string = 'epoch=%d step=%d: loss_%s=%f\troc=%f' % (epoch, step, suffix, loss, roc)
+        stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k]) for k in STAT_KEYS_DISCRETE])
+        info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     else:
         raise ValueError('unknown model type: %s. Use %s or %s.' % (model_type, MODEL_TYPE_DISCRETE,
                                                                     MODEL_TYPE_REGRESSION))
@@ -229,7 +256,7 @@ def batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_ta
         probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
 
-        yield samples, probs / np.sum(probs)
+        yield samples, probs
 
 
 def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess, tree_model,
@@ -291,14 +318,14 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
         ix = np.isin(candidate_ids, all_targets)
         probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
-        yield samples, probs / np.sum(probs)
+        yield samples, probs
 
 
 def batch_iter_reroot(number_of_samples, dataset_indices):
     for idx in dataset_indices:
         probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
         probs[0] = 1
-        return [idx], probs / np.sum(probs)
+        return [idx], probs
 
 
 def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids, number_of_candidates):
