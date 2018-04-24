@@ -58,6 +58,19 @@ TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Ti
 TYPE_SECTION = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section'
 TYPE_SENTENCE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence'
 
+M_INDICES = 'indices'
+M_TEST = 'test'
+M_TRAIN = 'train'
+M_MODEL = 'model'
+M_FNAMES = 'fnames'
+M_TREES = 'trees'
+#M_TREE_EMBEDDINGS = 'tree_embeddings'
+#M_TARGETS = 'targets'
+M_DATA = 'data'
+M_IDS = 'ids'
+M_TREE_ITER = 'tree_iterator'
+M_IDS_TARGET = 'ids_target'
+
 #DEPRECATED
 
 # edges

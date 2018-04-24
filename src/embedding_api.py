@@ -4,6 +4,7 @@ import ast
 import json
 import logging
 import os
+import scipy
 import sys
 import time
 import re
@@ -30,8 +31,9 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
-from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN
+from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, M_TREES, M_TRAIN, M_TEST, M_INDICES
 import data_iterators
+from src import mytools
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -804,23 +806,87 @@ def main(data_source):
 
         # sim_measure = getattr(model_fold, model_config.sim_measure)
         discrete_model = (model_config.model_type in ['tuple', 'reroot'])
-        with tf.Graph().as_default():
+        optimizer = model_config.optimizer
+        if optimizer is not None:
+            optimizer = getattr(tf.train, optimizer)
+        # TODO: check this!
+        tuple_size = 1
+        #logger.info('create tensorflow graph ...')
+        with tf.Graph().as_default() as graph:
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
                 logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
                 logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
-                model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
-                                                          lex_size_var=lexicon.len_var,
-                                                          dimension_embeddings=lexicon.vec_size,
-                                                          tree_embedder=tree_embedder,
-                                                          state_size=model_config.state_size,
-                                                          #lexicon_trainable=False,
-                                                          leaf_fc_size=model_config.leaf_fc_size,
-                                                          root_fc_size=model_config.root_fc_size,
-                                                          keep_prob=1.0,
-                                                          tree_count=1,
-                                                          discrete_values_gold=discrete_model)#,
-                                                          #prob_count=0)
 
+                if not model_config.tree_embedder == 'tfidf':
+                    tree_embedder = getattr(model_fold, model_config.tree_embedder)
+                    model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
+                                                              lex_size_var=lexicon.len_var,
+                                                              tree_embedder=tree_embedder,
+                                                              dimension_embeddings=lexicon.vec_size,
+                                                              state_size=model_config.state_size,
+                                                              leaf_fc_size=model_config.leaf_fc_size,
+                                                              # add a leading '0' to allow an empty string
+                                                              root_fc_sizes=[int(s) for s in
+                                                                             ('0' + model_config.root_fc_sizes).split(
+                                                                                 ',')],
+                                                              keep_prob_default=model_config.keep_prob,
+
+                                                              tree_count=tuple_size,
+                                                              # data_transfomed=data_transformed
+                                                              # tree_count=1,
+                                                              # keep_prob_fixed=config.keep_prob # to enable full head dropout
+                                                              )
+                else:
+                    # TODO: set meta as global
+                    meta = {'test': None, 'train': None}
+                    logging.info('create %s data sets (tf-idf) ...' % ', '.join(meta.keys()))
+                    #_tree_embeddings_tfidf = diters.embeddings_tfidf([meta[m][M_TREE_ITER] for m in meta.keys()])
+                    embedding_dim = -1
+                    for i, m in enumerate(meta):
+                        #meta[m][M_TREES] = _tree_embeddings_tfidf[i]
+                        meta[m][M_TREES] = scipy.sparse.load_npz(os.path.join(data_source, 'embeddings_tfidf.%s.npz' % m))
+                        meta[m][M_INDICES] = mytools.numpy_load(os.path.join(data_source, 'embeddings_indices.%s.npy' % m))
+                        logging.info('%s dataset: use %i different trees' % (m, meta[m][M_TREES].shape[0]))
+                        current_embedding_dim = meta[m][M_TREES].shape[1]
+                        assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
+                        current_embedding_dim, embedding_dim)
+                        embedding_dim = current_embedding_dim
+                    assert embedding_dim != -1, 'no data sets created'
+
+                    model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
+                                                           keep_prob=1.0, sparse=True,
+                                                           root_fc_sizes=[int(s) for s in
+                                                                          ('0' + model_config.root_fc_sizes).split(
+                                                                              ',')], )
+
+                # if config.model_type == 'simtuple':
+                #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+                #                                                        optimizer=optimizer,
+                #                                                        learning_rate=config.learning_rate,
+                #                                                        sim_measure=sim_measure,
+                #                                                        clipping_threshold=config.clipping)
+                if model_config.model_type == 'tuple':
+                    model = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
+                                                                      fc_sizes=[int(s) for s in
+                                                                                ('0' + model_config.fc_sizes).split(',')],
+                                                                      optimizer=optimizer,
+                                                                      learning_rate=model_config.learning_rate,
+                                                                      clipping_threshold=model_config.clipping,
+                                                                      )
+
+
+                #elif model_config.model_type == 'reroot':
+                #    model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
+                #                                               fc_sizes=[int(s) for s in
+                #                                                         ('0' + config.fc_sizes).split(',')],
+                #                                               optimizer=optimizer,
+                #                                               learning_rate=config.learning_rate,
+                #                                               clipping_threshold=config.clipping,
+                #                                               candidate_count=config.neg_samples + 1)
+                else:
+                    raise NotImplementedError('model_type=%s not implemented' % model_config.model_type)
+
+                # TODO: still ok?
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
                     vars_without_embed = [v for v in vars_all if v != model_tree.embedder.lexicon_var]

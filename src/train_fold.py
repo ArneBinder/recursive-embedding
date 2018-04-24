@@ -11,6 +11,7 @@ import os
 import re
 # import google3
 # import shutil
+import scipy
 from functools import reduce, partial
 
 import numpy as np
@@ -34,7 +35,7 @@ import mytools
 from mytools import numpy_load
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
-    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE
+    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, M_INDICES, M_TEST, M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_DATA, M_IDS, M_TREE_ITER, M_IDS_TARGET
 from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -101,19 +102,6 @@ logger_streamhandler = logging.StreamHandler()
 logger_streamhandler.setLevel(logging.INFO)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 #logger.addHandler(logger_streamhandler)
-
-M_INDICES = 'indices'
-M_TEST = 'test'
-M_TRAIN = 'train'
-M_MODEL = 'model'
-M_FNAMES = 'fnames'
-M_TREES = 'trees'
-#M_TREE_EMBEDDINGS = 'tree_embeddings'
-#M_TARGETS = 'targets'
-M_DATA = 'data'
-M_IDS = 'ids'
-M_TREE_ITER = 'tree_iterator'
-M_IDS_TARGET = 'ids_target'
 
 DT_PROBS = np.float32
 
@@ -719,6 +707,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     embedding_dim = -1
                     for i, m in enumerate(meta):
                         meta[m][M_TREES] = _tree_embeddings_tfidf[i]
+                        scipy.sparse.save_npz(file=os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m), matrix=meta[m][M_TREES])
+                        mytools.numpy_dump(os.path.join(logdir, 'embeddings_indices.%s.npy' % m), meta[m][M_INDICES])
                         logger.info('%s dataset: use %i different trees' % (m, meta[m][M_TREES].shape[0]))
                         current_embedding_dim = meta[m][M_TREES].shape[1]
                         assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
