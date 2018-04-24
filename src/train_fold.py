@@ -90,7 +90,7 @@ tf.flags.DEFINE_integer('ps_tasks', 0,
 FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
-STAT_KEYS_DISCRETE = ['roc_micro', 'roc_samples', 'ranking_loss_inv', 'f1_t33', 'f1_t50', 'f1_t66', 'acc_t33', 'acc_t50', 'acc_t66']
+STAT_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t33', 'f1_t50', 'f1_t66', 'acc_t33', 'acc_t50', 'acc_t66']
 #STAT_KEY_MAIN_DISCRETE = 'roc_micro'
 STAT_KEYS_REGRESSION = ['pearson_r', 'mse']
 #STAT_KEY_MAIN_REGRESSION = 'pearson_r'
@@ -186,7 +186,7 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
         #                   % (len(values_gold) - len(filtered), len(values_gold)))
         #roc = metrics.roc_auc_score(values_gold[filtered].flatten(), values[filtered].flatten())
         roc_micro = metrics.roc_auc_score(values_gold, values, average='micro')
-        roc_samples = metrics.roc_auc_score(values_gold, values, average='samples')
+        #roc_samples = metrics.roc_auc_score(values_gold, values, average='samples')
 
         values_discrete_t50 = (values + 0.50).astype(int)
         values_discrete_t33 = (values + 0.66).astype(int)
@@ -203,7 +203,7 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
 
         emit_dict.update({
             'roc_micro': roc_micro,
-            'roc_samples': roc_samples,
+            #'roc_samples': roc_samples,
             'ranking_loss_inv': ranking_loss_inv,
             'f1_t50': f1_t50,
             'f1_t33': f1_t33,
@@ -654,7 +654,27 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     for m in meta:
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
         meta[m][M_IDS], meta[m][M_INDICES], meta[m][M_IDS_TARGET] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
-        # set tree iterator
+
+    logger.info('check for occurrences of test_target_id->test_id in train data...')
+    if M_TEST in meta and M_TRAIN in meta:
+        del_count_all = 0
+        count_all = 0
+        ids_train_rev = {id_train: i for i, id_train in enumerate(meta[M_TRAIN][M_IDS])}
+        for i, id_test in enumerate(meta[M_TEST][M_IDS]):
+            del_count = 0
+            for j in range(len(meta[M_TEST][M_IDS_TARGET][i])):
+                id_target_test = meta[M_TEST][M_IDS_TARGET][i][j-del_count]
+                idx_train = ids_train_rev.get(id_target_test, None)
+                if idx_train is not None and id_target_test in meta[M_TRAIN][M_IDS_TARGET][idx_train]:
+                    del meta[M_TEST][M_IDS_TARGET][i][j-del_count]
+                    del_count += 1
+                else:
+                    count_all += 1
+            del_count_all += del_count
+        logger.info('deleted %i test targets. %i test targets remain.' % (del_count_all, count_all))
+
+    # set tree iterator
+    for m in meta:
         meta[m][M_TREE_ITER] = tree_iterator(indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
 
     # MODEL DEFINITION #################################################################################################
