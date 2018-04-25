@@ -724,7 +724,6 @@ def show_roots():
 
 @app.route("/api/tuple_scores", methods=['GET'])
 def get_tuple_scores():
-    #global data_path
     try:
         start = time.time()
         logging.info('Show roots requested')
@@ -732,13 +731,23 @@ def get_tuple_scores():
         init_forest(data_path)
 
         root_id = params['root_id']
-        root_ids_target = params['root_ids_target']
+        root_ids_target_nbr = params.get('root_ids_target_nbr', len(forest.roots))
+        root_ids_target = params.get('root_ids_target', range(root_ids_target_nbr))
         concat_mode = params.get('concat_mode', 'tree')
         max_depth = params.get('max_depth', 10)
-        scores = calc_tuple_scores(root_id, root_ids_target, forest, concat_mode=concat_mode, max_depth=max_depth)
+        top = params.get('top', len(root_ids_target))
+        scores = calc_tuple_scores(root_id, root_ids_target, forest, concat_mode=concat_mode, max_depth=max_depth).flatten()
+        logging.debug('scores calculated')
 
-        params['tuple_scores'] = scores
-        #params['root_strings'] = root_strings
+        indices_sorted = np.argsort(scores)[::-1][:top]
+
+        params['tuple_scores'] = scores[indices_sorted]
+        params['root_ids_target'] = np.array(root_ids_target)[indices_sorted].tolist()
+
+        if forest.lexicon_roots is not None:
+            params['root_id_string'] = forest.lexicon_roots.get_s(root_id, data_as_hashes=False)
+            params['root_ids_target_string'] = np.array([forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in root_ids_target])[indices_sorted].tolist()
+
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
         response = Response(json_data, mimetype=return_type)
@@ -911,7 +920,7 @@ def main(data_source):
                                                               root_fc_sizes=[int(s) for s in
                                                                              ('0' + model_config.root_fc_sizes).split(
                                                                                  ',')],
-                                                              keep_prob_default=model_config.keep_prob,
+                                                              keep_prob_default=1.0,
 
                                                               tree_count=tuple_size,
                                                               # data_transfomed=data_transformed
