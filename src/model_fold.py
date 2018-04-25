@@ -1179,8 +1179,8 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
 
         #softmax = tf.nn.softmax(logits)
         #self._probs = softmax[:, :, 1]
-        #self._probs = tf.sigmoid(logits)
-        self._probs = tf.nn.softmax(logits)
+        self._probs = tf.sigmoid(logits)
+        #self._probs = tf.nn.softmax(logits)
 
     @property
     def values_gold(self):
