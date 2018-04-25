@@ -70,6 +70,9 @@ M_DATA = 'data'
 M_IDS = 'ids'
 M_TREE_ITER = 'tree_iterator'
 M_IDS_TARGET = 'ids_target'
+M_BATCH_ITER = 'batch_iter'
+M_NEG_SAMPLES = 'neg_samples'
+M_MODEL_NEAREST = 'model_nearest'
 
 #DEPRECATED
 
