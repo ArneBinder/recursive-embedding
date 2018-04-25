@@ -442,8 +442,17 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=1
     context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
     tree_iterator = diter.tree_iterator(indices=context_root_indices, forest=forest, concat_mode=concat_mode,
                                         max_depth=max_depth)
-    # TODO: finish
 
+    trees = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
+
+    #trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
+    feed_dict = {model_tree.compiler.loom_input_tensor: [trees],
+                 model_tuple.candidate_count: len(root_ids_target)}
+
+    #feed_dict[model_tuple.values_gold] = probs_batched
+    scores = sess.run(model_tuple.values_predicted, feed_dict)
+
+    return scores
 
 
 def concat_visualizations_svg(file_name, count):
@@ -683,7 +692,7 @@ def show_enhanced_tree_dict():
 
 @app.route("/api/roots", methods=['GET'])
 def show_roots():
-    global data_path
+    #global data_path
     try:
         start = time.time()
         logging.info('Show roots requested')
@@ -703,6 +712,33 @@ def show_roots():
 
         params['root_ids'] = root_ids.tolist()
         params['root_strings'] = root_strings
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
+
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+    return response
+
+
+@app.route("/api/tuple_scores", methods=['GET'])
+def get_tuple_scores():
+    #global data_path
+    try:
+        start = time.time()
+        logging.info('Show roots requested')
+        params = get_params(request)
+        init_forest(data_path)
+
+        root_id = params['root_id']
+        root_ids_target = params['root_ids_target']
+        concat_mode = params.get('concat_mode', 'tree')
+        max_depth = params.get('max_depth', 10)
+        scores = calc_tuple_scores(root_id, root_ids_target, forest, concat_mode=concat_mode, max_depth=max_depth)
+
+        params['tuple_scores'] = scores
+        #params['root_strings'] = root_strings
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
         response = Response(json_data, mimetype=return_type)

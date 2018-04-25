@@ -327,7 +327,6 @@ def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids, number_of_c
         ix = np.isin(candidate_ids, all_targets)
         probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
         probs[ix] = 1
-        # TODO: ATTENTION, probs are not normalized!
         for start in range(0, len(candidate_ids), number_of_candidates):
             current_indices = dataset_indices[start:start+number_of_candidates]
             # do not yield, if it is not full (end of the dataset)
