@@ -34,6 +34,8 @@ from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, M_TREES, M_TRAIN, M_TEST, M_INDICES
 import data_iterators
 from src import mytools
+from data_iterators import CONTEXT_ROOT_OFFEST
+import data_iterators as diter
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -85,6 +87,7 @@ FLAGS = tf.flags.FLAGS
 nlp = None
 sess = None
 model_tree = None
+model_tuple = None
 lexicon = None
 forest = None
 data_path = None
@@ -433,6 +436,16 @@ def get_or_calc_embeddings(params):
         raise ValueError('no embeddings or sequences found in request')
 
 
+def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=10):
+    root_ids = [root_id] + root_ids_target
+    root_indices = forest.roots[root_ids]
+    context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
+    tree_iterator = diter.tree_iterator(indices=context_root_indices, forest=forest, concat_mode=concat_mode,
+                                        max_depth=max_depth)
+    # TODO: finish
+
+
+
 def concat_visualizations_svg(file_name, count):
     file_names = [file_name + '.' + str(i) for i in range(count)]
     # plots = [fig.getroot() for fig in map(sg.fromfile, file_names)]
@@ -668,6 +681,38 @@ def show_enhanced_tree_dict():
     return response
 
 
+@app.route("/api/roots", methods=['GET'])
+def show_roots():
+    global data_path
+    try:
+        start = time.time()
+        logging.info('Show roots requested')
+        params = get_params(request)
+        init_forest(data_path)
+        root_start = params.get('root_start', 0)
+        root_end = params.get('root_end', len(forest.roots))
+        root_ids = np.arange(root_end-root_start+1, dtype=np.int32) + root_start
+        root_strings = []
+        if forest.lexicon_roots is not None:
+            for i, root_string in enumerate(forest.lexicon_roots.strings):
+                if i < root_start:
+                    continue
+                root_strings.append(root_string)
+                if i == root_end:
+                    break
+
+        params['root_ids'] = root_ids.tolist()
+        params['root_strings'] = root_strings
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
+
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+    return response
+
+
 @app.route("/api/load", methods=['POST'])
 def load_data_source():
     try:
@@ -740,9 +785,10 @@ def init_forest(data_path):
 
 
 def main(data_source):
-    global sess, model_tree, lexicon, data_path, forest
+    global sess, model_tree, model_tuple, lexicon, data_path, forest
     sess = None
     model_tree = None
+    model_tuple = None
     lexicon = None
     forest = None
     data_path = None
@@ -866,7 +912,7 @@ def main(data_source):
                 #                                                        sim_measure=sim_measure,
                 #                                                        clipping_threshold=config.clipping)
                 if model_config.model_type == 'tuple':
-                    model = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
+                    model_tuple = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
                                                                       fc_sizes=[int(s) for s in
                                                                                 ('0' + model_config.fc_sizes).split(',')],
                                                                       optimizer=optimizer,
