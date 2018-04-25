@@ -28,7 +28,7 @@ from tensorflow.python.client import device_lib
 #import lexicon as lex
 from lexicon import Lexicon
 import model_fold
-from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION
+from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_sparse_matrix_to_sparse_tensor
 
 # model flags (saved in flags.json)
 import mytools
@@ -212,12 +212,6 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
     if print_out:
         logger.info(info_string)
     return emit_dict
-
-
-def convert_sparse_matrix_to_sparse_tensor(X):
-    coo = X.tocoo()
-    indices = np.mat([coo.row, coo.col]).transpose()
-    return tf.SparseTensorValue(indices, coo.data, coo.shape)
 
 
 def id_iter(dataset_indices, dataset_ids, dataset_target_ids):
@@ -722,7 +716,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     for i, m in enumerate(meta):
                         meta[m][M_TREES] = _tree_embeddings_tfidf[i]
                         scipy.sparse.save_npz(file=os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m), matrix=meta[m][M_TREES])
-                        mytools.numpy_dump(os.path.join(logdir, 'embeddings_indices.%s.npy' % m), meta[m][M_INDICES])
+                        mytools.numpy_dump(os.path.join(logdir, 'embeddings_indices.%s' % m), meta[m][M_INDICES])
                         logger.info('%s dataset: use %i different trees' % (m, meta[m][M_TREES].shape[0]))
                         current_embedding_dim = meta[m][M_TREES].shape[1]
                         assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)

@@ -37,6 +37,12 @@ def block_info(block):
     print("%s: %s -> %s" % (block, block.input_type, block.output_type))
 
 
+def convert_sparse_matrix_to_sparse_tensor(X):
+    coo = X.tocoo()
+    indices = np.mat([coo.row, coo.col]).transpose()
+    return tf.SparseTensorValue(indices, coo.data, coo.shape)
+
+
 def SeqToTuple(T, N):
     return (td.InputTransform(lambda x: tuple(x))
             .set_input_type(td.SequenceType(T))

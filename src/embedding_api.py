@@ -91,6 +91,9 @@ model_tuple = None
 lexicon = None
 forest = None
 data_path = None
+tfidf_data = None
+tfidf_root_indices = None
+tfidf_root_ids = None
 
 
 ##################################################
@@ -437,17 +440,25 @@ def get_or_calc_embeddings(params):
 
 
 def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=10):
-    root_ids = [root_id] + root_ids_target
-    root_indices = forest.roots[root_ids]
-    context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
-    tree_iterator = diter.tree_iterator(indices=context_root_indices, forest=forest, concat_mode=concat_mode,
-                                        max_depth=max_depth)
+    from model_fold import convert_sparse_matrix_to_sparse_tensor
+    root_ids = np.concatenate(([root_id], root_ids_target))
+    feed_dict = {model_tuple.candidate_count: len(root_ids_target)}
+    if tfidf_root_ids is not None:
+        _mapping = {_id: i for i, _id in enumerate(tfidf_root_ids)}
+        _indices = np.array([_mapping[_id] for _id in root_ids])
+        selected_tfidf_data = tfidf_data[_indices]
+        feed_dict[model_tree.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data)
 
-    trees = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
+    else:
+        root_indices = forest.roots[root_ids]
+        context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
+        tree_iterator = diter.tree_iterator(indices=context_root_indices, forest=forest, concat_mode=concat_mode,
+                                            max_depth=max_depth)
 
-    #trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
-    feed_dict = {model_tree.compiler.loom_input_tensor: [trees],
-                 model_tuple.candidate_count: len(root_ids_target)}
+        trees = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
+
+        #trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
+        feed_dict[model_tree.compiler.loom_input_tensor] = [trees]
 
     #feed_dict[model_tuple.values_gold] = probs_batched
     scores = sess.run(model_tuple.values_predicted, feed_dict)
@@ -480,6 +491,13 @@ def concat_visualizations_svg(file_name, count):
 
     for fn in file_names:
         os.remove(fn)
+
+
+def current_root_ids():
+    if tfidf_root_ids is not None:
+        return tfidf_root_ids
+    else:
+        return np.arange(len(forest.roots), dtype=np.int32)
 
 
 @app.route("/api/embed", methods=['POST'])
@@ -692,23 +710,18 @@ def show_enhanced_tree_dict():
 
 @app.route("/api/roots", methods=['GET'])
 def show_roots():
-    #global data_path
     try:
         start = time.time()
         logging.info('Show roots requested')
         params = get_params(request)
         init_forest(data_path)
+        assert forest.lexicon_roots is not None, 'lexicon_roots is None. Load data with lexicon_roots via /api/load.'
         root_start = params.get('root_start', 0)
-        root_end = params.get('root_end', len(forest.roots))
-        root_ids = np.arange(root_end-root_start+1, dtype=np.int32) + root_start
-        root_strings = []
-        if forest.lexicon_roots is not None:
-            for i, root_string in enumerate(forest.lexicon_roots.strings):
-                if i < root_start:
-                    continue
-                root_strings.append(root_string)
-                if i == root_end:
-                    break
+        all_root_ids = current_root_ids()
+        root_end = params.get('root_end', len(all_root_ids))
+        indices = np.arange(root_start, root_end, dtype=np.int32)
+        root_ids = all_root_ids[indices]
+        root_strings = [forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in root_ids]
 
         params['root_ids'] = root_ids.tolist()
         params['root_strings'] = root_strings
@@ -731,8 +744,9 @@ def get_tuple_scores():
         init_forest(data_path)
 
         root_id = params['root_id']
-        root_ids_target_nbr = params.get('root_ids_target_nbr', len(forest.roots))
-        root_ids_target = params.get('root_ids_target', range(root_ids_target_nbr))
+        all_root_ids = current_root_ids()
+        root_ids_target_nbr = params.get('root_ids_target_nbr', len(all_root_ids))
+        root_ids_target = params.get('root_ids_target', all_root_ids[np.arange(root_ids_target_nbr)])
         concat_mode = params.get('concat_mode', 'tree')
         max_depth = params.get('max_depth', 10)
         top = params.get('top', len(root_ids_target))
@@ -816,7 +830,7 @@ def init_nlp():
 
 
 def init_forest(data_path):
-    global forest
+    global forest, tfidf_root_ids
     if forest is None:
         assert data_path is not None, 'No data loaded. Use /api/load to load a corpus.'
         assert Forest.exist(data_path), 'Could not open corpus: %s' % data_path
@@ -827,16 +841,23 @@ def init_forest(data_path):
         else:
             lexicon_roots = None
         forest = Forest(filename=data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
+        if tfidf_root_indices is not None:
+            tfidf_root_ids = np.array([forest.root_mapping[root_idx] for root_idx in tfidf_root_indices])
+        else:
+            tfidf_root_ids = None
 
 
 def main(data_source):
-    global sess, model_tree, model_tuple, lexicon, data_path, forest
+    global sess, model_tree, model_tuple, lexicon, data_path, forest, tfidf_data, tfidf_root_indices, tfidf_root_ids
     sess = None
     model_tree = None
     model_tuple = None
     lexicon = None
     forest = None
     data_path = None
+    tfidf_data = None
+    tfidf_root_indices = None
+    tfidf_root_ids = None
 
     if data_source is None:
         logging.info('Start api without data source. Use /api/load before any other request.')
@@ -852,7 +873,11 @@ def main(data_source):
         lexicon = Lexicon(filename=os.path.join(data_source, 'model'))
         reader = tf.train.NewCheckpointReader(input_checkpoint)
         logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
-        lexicon.init_vecs(checkpoint_reader=reader)
+        try:
+            lexicon.init_vecs(checkpoint_reader=reader)
+        except AssertionError:
+            logging.warning('no embedding vecs found in model')
+            lexicon.init_vecs()
     # take data_source as corpus path
     else:
         data_path = data_source
@@ -878,28 +903,27 @@ def main(data_source):
     #else:
     #    lexicon.pad()
     if checkpoint:
-        assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
-                                  (len(lexicon), len(lexicon.vecs))
+        assert lexicon.vecs is None or lexicon.is_filled, \
+            'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' \
+            % (len(lexicon), len(lexicon.vecs))
 
     # load model
     if checkpoint:
         import model_fold
         model_config = Config(logdir_continue=data_source)
         data_path = model_config.train_data_path
-        tree_embedder = getattr(model_fold, model_config.tree_embedder)
 
-        saved_shapes = reader.get_variable_to_shape_map()
-        scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
-        if len(scoring_var_names) > 0:
-            logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
-        else:
-            logging.info('no scoring vars found. Disable scoring functionality.')
+        #saved_shapes = reader.get_variable_to_shape_map()
+        #scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
+        #if len(scoring_var_names) > 0:
+        #    logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
+        #else:
+        #    logging.info('no scoring vars found. Disable scoring functionality.')
 
         # sim_measure = getattr(model_fold, model_config.sim_measure)
-        discrete_model = (model_config.model_type in ['tuple', 'reroot'])
-        optimizer = model_config.optimizer
-        if optimizer is not None:
-            optimizer = getattr(tf.train, optimizer)
+        #discrete_model = (model_config.model_type in ['tuple', 'reroot'])
+
+
         # TODO: check this!
         tuple_size = 1
         #logger.info('create tensorflow graph ...')
@@ -928,27 +952,39 @@ def main(data_source):
                                                               # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                               )
                 else:
-                    # TODO: set meta as global
-                    meta = {'test': None, 'train': None}
-                    logging.info('create %s data sets (tf-idf) ...' % ', '.join(meta.keys()))
-                    #_tree_embeddings_tfidf = diters.embeddings_tfidf([meta[m][M_TREE_ITER] for m in meta.keys()])
                     embedding_dim = -1
-                    for i, m in enumerate(meta):
+                    _indices = []
+                    _tfidf = []
+                    for i, m in enumerate([M_TRAIN, M_TEST]):
                         #meta[m][M_TREES] = _tree_embeddings_tfidf[i]
-                        meta[m][M_TREES] = scipy.sparse.load_npz(os.path.join(data_source, 'embeddings_tfidf.%s.npz' % m))
-                        meta[m][M_INDICES] = mytools.numpy_load(os.path.join(data_source, 'embeddings_indices.%s.npy' % m))
-                        logging.info('%s dataset: use %i different trees' % (m, meta[m][M_TREES].shape[0]))
-                        current_embedding_dim = meta[m][M_TREES].shape[1]
-                        assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
-                        current_embedding_dim, embedding_dim)
-                        embedding_dim = current_embedding_dim
+                        fn_tfidf_data = os.path.join(data_source, 'embeddings_tfidf.%s.npz' % m)
+                        fn_tfidf_indices = os.path.join(data_source, 'embeddings_indices.%s.npy' % m)
+                        if os.path.exists(fn_tfidf_data):
+                            assert os.path.exists(fn_tfidf_indices), 'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tfidf_indices)
+                            current_tfidf = scipy.sparse.load_npz(fn_tfidf_data)
+                            _tfidf.append(current_tfidf)
+                            _indices.append(mytools.numpy_load(fn_tfidf_indices))
+                            logging.info('%s dataset: use %i different trees' % (m, current_tfidf.shape[0]))
+                            current_embedding_dim = current_tfidf.shape[1]
+                            assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
+                            current_embedding_dim, embedding_dim)
+                            embedding_dim = current_embedding_dim
                     assert embedding_dim != -1, 'no data sets created'
 
-                    model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
-                                                           keep_prob=1.0, sparse=True,
-                                                           root_fc_sizes=[int(s) for s in
-                                                                          ('0' + model_config.root_fc_sizes).split(
-                                                                              ',')], )
+                    tfidf_data = scipy.sparse.vstack(_tfidf)
+                    logging.info('total tfidf shape: %s' % str(tfidf_data.shape))
+                    tfidf_indices = np.concatenate(_indices)
+                    tfidf_root_indices = tfidf_indices - CONTEXT_ROOT_OFFEST
+                    logging.debug('number of tfidf_root_indices: %i' % len(tfidf_root_indices))
+                    # find duplicates
+                    #u, indices_inverse, counts = np.unique(tfidf_root_indices, return_inverse=True, return_counts=True)
+                    #c = counts[indices_inverse]
+                    #indices = np.argwhere(c == 0)
+                    #u[indices]
+
+                    model_tree = model_fold.DummyTreeModel(
+                        embeddings_dim=embedding_dim, tree_count=tuple_size, keep_prob=1.0, sparse=True,
+                        root_fc_sizes=[int(s) for s in ('0' + model_config.root_fc_sizes).split(',')], )
 
                 # if config.model_type == 'simtuple':
                 #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
@@ -957,13 +993,12 @@ def main(data_source):
                 #                                                        sim_measure=sim_measure,
                 #                                                        clipping_threshold=config.clipping)
                 if model_config.model_type == 'tuple':
-                    model_tuple = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
-                                                                      fc_sizes=[int(s) for s in
-                                                                                ('0' + model_config.fc_sizes).split(',')],
-                                                                      optimizer=optimizer,
-                                                                      learning_rate=model_config.learning_rate,
-                                                                      clipping_threshold=model_config.clipping,
-                                                                      )
+                    optimizer = getattr(tf.train, model_config.optimizer)
+                    model_tuple = model_fold.TreeTupleModel_with_candidates(
+                        tree_model=model_tree, fc_sizes=[int(s) for s in ('0' + model_config.fc_sizes).split(',')],
+                        optimizer=optimizer, learning_rate=model_config.learning_rate,
+                        clipping_threshold=model_config.clipping,
+                    )
 
 
                 #elif model_config.model_type == 'reroot':
