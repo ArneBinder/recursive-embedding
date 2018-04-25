@@ -22,3 +22,5 @@
 25-04-18
 ========
  * create model_nearest only if batch_iter_nearest is used (for test/train)
+ * implemented embedding_api endpoint /tuple_scores
+ * TreeTupleModel_with_candidates: return sigmoid (instead softmax) of logits as values_predicted

@@ -726,7 +726,7 @@ def show_roots():
 def get_tuple_scores():
     try:
         start = time.time()
-        logging.info('Show roots requested')
+        logging.info('Tuple scoring requested')
         params = get_params(request)
         init_forest(data_path)
 
