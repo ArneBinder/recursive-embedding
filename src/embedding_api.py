@@ -461,15 +461,16 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=1
         context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
         tree_iterator = diter.tree_iterator(indices=context_root_indices, forest=forest, concat_mode=concat_mode,
                                             max_depth=max_depth)
-        tree_src = tree_iterator.next()
-        for start in range(0, len(root_ids_target), batch_size):
-            current_size = min(batch_size, len(root_ids_target) - start)
-            # entries have to lists of size one (tuple_size)
-            current_trees = [[tree_src]] + [[tree_iterator.next()] for _ in range(current_size)]
-            current_trees_compiled = list(model_tree.compiler.build_loom_inputs(current_trees, ordered=True))
-            feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees_compiled],
-                         model_tuple.candidate_count: len(current_trees_compiled) - 1}
-            _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
+
+        with model_tree.compiler.multiprocessing_pool():
+            trees_compiled_iter = model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True)
+            tree_src = trees_compiled_iter.next()
+            for start in range(0, len(root_ids_target), batch_size):
+                current_size = min(batch_size, len(root_ids_target) - start)
+                current_trees = [tree_src] + [trees_compiled_iter.next() for _ in range(current_size)]
+                feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees],
+                             model_tuple.candidate_count: len(current_trees) - 1}
+                _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
 
     scores = np.concatenate(_scores)
 
