@@ -148,8 +148,8 @@ RUN echo "PROJECT_ROOT=$PROJECT_ROOT"
 
 RUN mkdir "$PROJECT_ROOT"
 RUN chmod 777 /root
-COPY docker/set-user-with-folder.sh "$PROJECT_ROOT"/set-user-with-folder.sh
-RUN chmod +x "$PROJECT_ROOT"/set-user-with-folder.sh
+COPY docker/set-user-with-folder.sh /root/set-user-with-folder.sh
+RUN chmod +x /root/set-user-with-folder.sh
 
 # install graphiz (used by pydot)
 RUN apt-get update \
