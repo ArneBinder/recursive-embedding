@@ -33,7 +33,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
-RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
+RUN pip install --no-cache-dir 'tensorflow==1.3' \
+    && pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
 
 COPY src "$PROJECT_ROOT"/src
 WORKDIR "$PROJECT_ROOT"/src
