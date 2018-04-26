@@ -120,7 +120,5 @@ EXPOSE 8888
 
 VOLUME /root/train
 
-ENV NVIDIA_VISIBLE_DEVICES=""
-
 ENTRYPOINT ["/root/set-user-with-folder.sh", "/root/train", "python", "train_fold.py"]
 

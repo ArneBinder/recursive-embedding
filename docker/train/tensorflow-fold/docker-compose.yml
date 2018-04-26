@@ -8,7 +8,8 @@ services:
       args:
         OWN_LOCATION: docker/train/tensorflow-fold
         PROJECT_ROOT: /root/recursive-embedding
-        _NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES}
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=${NVIDIA_VISIBLE_DEVICES}
     image: tensorflowfold:${DOCKERFILE_EXT}
     volumes:
       - ../../../src:/root/recursive-embedding/src
