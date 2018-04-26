@@ -92,8 +92,10 @@ lexicon = None
 forest = None
 data_path = None
 tfidf_data = None
-tfidf_root_indices = None
+tfidf_indices = None
 tfidf_root_ids = None
+embedding_indices = None
+embeddings = None
 
 
 ##################################################
@@ -439,42 +441,95 @@ def get_or_calc_embeddings(params):
         raise ValueError('no embeddings or sequences found in request')
 
 
-def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=10, batch_size=100):
-    from model_fold import convert_sparse_matrix_to_sparse_tensor
-    root_ids = np.concatenate(([root_id], root_ids_target))
-    #feed_dict = {model_tuple.candidate_count: len(root_ids_target)}
-    _scores = []
-    if tfidf_root_ids is not None:
-        _mapping = {_id: i for i, _id in enumerate(tfidf_root_ids)}
-        _indices = np.array([_mapping[_id] for _id in root_ids])
-        _idx_src = _indices[0]
-        _indices_target = _indices[1:]
-        for start in range(0, len(root_ids_target), batch_size):
-            current_indices = np.concatenate(([_idx_src], _indices_target[start:start+batch_size]))
-            selected_tfidf_data = tfidf_data[current_indices]
-            feed_dict = {
-                model_tree.embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data),
-                model_tuple.candidate_count: len(current_indices) - 1}
-            _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
+def calc_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
+    global embeddings, embedding_indices
+    if embedding_indices is None:
+        new_indices = indices
+        #new_root_ids = root_ids
     else:
-        root_indices = forest.roots[root_ids]
-        context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
-        tree_iterator = diter.tree_iterator(indices=context_root_indices, forest=forest, concat_mode=concat_mode,
+        new_indices_candidates = indices
+        mask_new = ~np.isin(new_indices_candidates, embedding_indices)
+        new_indices = new_indices_candidates[mask_new]
+        #new_root_ids = root_ids[mask_new]
+    logging.debug('checked existing embeddings')
+
+    #feed_dict = {model_tuple.candidate_count: len(root_ids_target)}
+    _embeddings = []
+    #_scores = []
+    if tfidf_indices is not None:
+        from model_fold import convert_sparse_matrix_to_sparse_tensor
+        _mapping = {_idx: i for i, _idx in enumerate(tfidf_indices)}
+        _indices_tfidf_data = np.array([_mapping[_idx] for _idx in new_indices])
+        #_idx_src = _indices_tfidf_data[0]
+        #_indices_target = _indices_tfidf_data[1:]
+        #for start in range(0, len(root_ids_target), batch_size):
+        for start in range(0, len(new_indices), batch_size):
+            #current_indices = np.concatenate(([_idx_src], _indices_target[start:start+batch_size]))
+            current_indices = _indices_tfidf_data[start:start+batch_size]
+            selected_tfidf_data = tfidf_data[current_indices]
+            #feed_dict = {
+            #    model_tree.embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data),
+            #    model_tuple.candidate_count: len(current_indices) - 1}
+            feed_dict = {model_tree.embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data)}
+            #_scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
+            _embeddings.append(sess.run(model_tree.embeddings_all, feed_dict))
+    else:
+        #root_indices = forest.roots[root_ids]
+        #context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
+        tree_iterator = diter.tree_iterator(indices=new_indices, forest=forest, concat_mode=concat_mode,
                                             max_depth=max_depth)
 
         with model_tree.compiler.multiprocessing_pool():
             trees_compiled_iter = model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True)
-            tree_src = trees_compiled_iter.next()
+            #tree_src = trees_compiled_iter.next()
             #trees_compiled = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
             #tree_src = trees_compiled[0]
-            for start in range(0, len(root_ids_target), batch_size):
-                current_size = min(batch_size, len(root_ids_target) - start)
-                current_trees = [tree_src] + [trees_compiled_iter.next() for _ in range(current_size)]
+            #for start in range(0, len(root_ids_target), batch_size):
+            for start in range(0, len(new_indices), batch_size):
+                current_size = min(batch_size, len(new_indices) - start)
+                #current_trees = [tree_src] + [trees_compiled_iter.next() for _ in range(current_size)]
+                current_trees = [trees_compiled_iter.next() for _ in range(current_size)]
                 #current_trees = [tree_src] + trees_compiled[start+1:start+1+batch_size]
-                feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees],
-                             model_tuple.candidate_count: len(current_trees) - 1}
-                _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
+                #feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees],
+                #             model_tuple.candidate_count: len(current_trees) - 1}
+                #_scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
+                feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees]}
+                _embeddings.append(sess.run(model_tree.embeddings_all, feed_dict))
 
+    if len(_embeddings) > 0:
+        new_embeddings = np.concatenate(_embeddings)
+        logging.debug('%i new embeddings calculated' % len(new_embeddings))
+        if embeddings is None:
+            embeddings = new_embeddings
+            embedding_indices = new_indices
+        else:
+            embeddings = np.concatenate((embeddings, new_embeddings))
+            embedding_indices = np.concatenate((embedding_indices, new_indices))
+    else:
+        logging.debug('no new embeddings calculated')
+
+
+def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, model_tree, model_tuple, max_depth=10, batch_size=100):
+
+    root_ids = np.concatenate(([root_id], root_ids_target))
+    root_indices = forest.roots[root_ids]
+    scoring_indices = root_indices + CONTEXT_ROOT_OFFEST
+
+    calc_embeddings(indices=scoring_indices, forest=forest, concat_mode=concat_mode, model_tree=model_tree,
+                    max_depth=max_depth, batch_size=batch_size)
+
+    embedding_indices_mapping = {idx: i for i, idx in enumerate(embedding_indices)}
+    indices_scoring_embeddings = np.array([embedding_indices_mapping[idx] for idx in scoring_indices], dtype=np.int32)
+    logging.debug('mappings calculated')
+
+    scoring_embeddings = embeddings[indices_scoring_embeddings]
+    _scores = []
+    embedding_src = scoring_embeddings[0, :]
+    for start in range(0, len(root_ids)-1, batch_size):
+        current_embeddings = np.concatenate(([embedding_src], scoring_embeddings[start+1:start+batch_size+1, :]))
+        feed_dict = {model_tuple.tree_model.embeddings_placeholder: current_embeddings,
+                     model_tuple.candidate_count: len(current_embeddings) - 1}
+        _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
     scores = np.concatenate(_scores)
     logging.debug('scores calculated')
 
@@ -772,7 +827,8 @@ def get_tuple_scores():
         max_depth = params.get('max_depth', 10)
         top = params.get('top', len(root_ids_target))
         batch_size = params.get('batch_size', 100)
-        _scores, seealso_root_ids = calc_tuple_scores(root_id, root_ids_target, forest, concat_mode=concat_mode,
+        _scores, seealso_root_ids = calc_tuple_scores(root_id, root_ids_target, forest, model_tree=model_tree,
+                                                      model_tuple=model_tuple, concat_mode=concat_mode,
                                                       max_depth=max_depth, batch_size=batch_size)
         params['root_ids_seealso'] = seealso_root_ids
         params['root_ids_seealso_string'] = [forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in seealso_root_ids]
@@ -799,6 +855,20 @@ def get_tuple_scores():
     except Exception as e:
         raise InvalidUsage(e.message)
     return response
+
+
+@app.route("/api/clear", methods=['POST'])
+def clear_cached_embeddings():
+    global embeddings, embedding_indices
+    try:
+        start = time.time()
+        logging.info('Clear embeddings requested')
+        embeddings = None
+        embedding_indices = None
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+    return "reload successful"
 
 
 @app.route("/api/load", methods=['POST'])
@@ -870,14 +940,14 @@ def init_forest(data_path):
         else:
             lexicon_roots = None
         forest = Forest(filename=data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
-        if tfidf_root_indices is not None:
-            tfidf_root_ids = np.array([forest.root_mapping[root_idx] for root_idx in tfidf_root_indices])
+        if tfidf_indices is not None:
+            tfidf_root_ids = np.array([forest.root_mapping[root_idx] for root_idx in (tfidf_indices - CONTEXT_ROOT_OFFEST)])
         else:
             tfidf_root_ids = None
 
 
 def main(data_source):
-    global sess, model_tree, model_tuple, lexicon, data_path, forest, tfidf_data, tfidf_root_indices, tfidf_root_ids
+    global sess, model_tree, model_tuple, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, embedding_indices, embeddings
     sess = None
     model_tree = None
     model_tuple = None
@@ -885,8 +955,10 @@ def main(data_source):
     forest = None
     data_path = None
     tfidf_data = None
-    tfidf_root_indices = None
+    tfidf_indices = None
     tfidf_root_ids = None
+    embedding_indices = None
+    embeddings = None
 
     if data_source is None:
         logging.info('Start api without data source. Use /api/load before any other request.')
@@ -1003,8 +1075,8 @@ def main(data_source):
                     tfidf_data = scipy.sparse.vstack(_tfidf)
                     logging.info('total tfidf shape: %s' % str(tfidf_data.shape))
                     tfidf_indices = np.concatenate(_indices)
-                    tfidf_root_indices = tfidf_indices - CONTEXT_ROOT_OFFEST
-                    logging.debug('number of tfidf_root_indices: %i' % len(tfidf_root_indices))
+                    #tfidf_indices = tfidf_indices - CONTEXT_ROOT_OFFEST
+                    logging.debug('number of tfidf_indices: %i' % len(tfidf_indices))
                     # find duplicates
                     #u, indices_inverse, counts = np.unique(tfidf_root_indices, return_inverse=True, return_counts=True)
                     #c = counts[indices_inverse]
@@ -1023,8 +1095,11 @@ def main(data_source):
                 #                                                        clipping_threshold=config.clipping)
                 if model_config.model_type == 'tuple':
                     optimizer = getattr(tf.train, model_config.optimizer)
+                    dummy_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size,
+                                                                 sparse=False, tree_count=1, keep_prob=1.0,
+                                                                 root_fc_sizes=0)
                     model_tuple = model_fold.TreeTupleModel_with_candidates(
-                        tree_model=model_tree, fc_sizes=[int(s) for s in ('0' + model_config.fc_sizes).split(',')],
+                        tree_model=dummy_tree_model, fc_sizes=[int(s) for s in ('0' + model_config.fc_sizes).split(',')],
                         optimizer=optimizer, learning_rate=model_config.learning_rate,
                         clipping_threshold=model_config.clipping,
                     )
