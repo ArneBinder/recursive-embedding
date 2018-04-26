@@ -989,13 +989,14 @@ class DummyTreeModel(TreeModel):
 
         if sparse:
             self._embeddings_placeholder = tf.sparse_placeholder(shape=[None, embeddings_dim], dtype=tf.float32)
+            embeddings_plain = tf.reshape(
+                tf.sparse_tensor_to_dense(self._embeddings_placeholder, validate_indices=False),
+                shape=[-1, embeddings_dim])
         else:
             self._embeddings_placeholder = tf.placeholder(shape=[None, embeddings_dim], dtype=tf.float32)
+            embeddings_plain = tf.reshape(self._embeddings_placeholder, shape=[-1, embeddings_dim])
 
-        embeddings_plain = tf.reshape(tf.sparse_tensor_to_dense(self._embeddings_placeholder, validate_indices=False),
-                                      shape=[-1, embeddings_dim])
-        super(DummyTreeModel, self).__init__(embeddings_plain=embeddings_plain,
-                                             **kwargs)
+        super(DummyTreeModel, self).__init__(embeddings_plain=embeddings_plain, **kwargs)
 
     @property
     def embeddings_placeholder(self):
