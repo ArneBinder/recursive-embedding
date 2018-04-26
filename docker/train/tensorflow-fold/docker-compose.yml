@@ -1,59 +1,15 @@
 version: '2.3'
 services:
-  train-fold-cpu:
+  train-fold:
+    runtime: ${DOCKER_RUNTIME}
     build:
       context: ../../..
-      dockerfile: docker/train/tensorflow-fold/Dockerfile.tf1_3_cpu_mkl
+      dockerfile: docker/train/tensorflow-fold/Dockerfile.${DOCKERFILE_EXT}
       args:
         OWN_LOCATION: docker/train/tensorflow-fold
         PROJECT_ROOT: /root/recursive-embedding
+        _NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES}
     image: tensorflowfold:tf1_3_cpu_mkl
-    volumes:
-      - ../../../src:/root/recursive-embedding/src
-      - ${HOST_TRAIN}:/root/train
-      - ${HOST_CORPORA_OUT}:/root/corpora_out
-    ports:
-      - ${HOST_PORT_NOTEBOOK}:8888
-    command: >
-        --train_data_path=/root/corpora_out/${TRAIN_DATA}
-        --logdir=/root/train/${TRAIN_LOGDIR}
-        --model_type=${MODEL_TYPE}
-        --dev_file_index=${DEV_FILE_INDEX}
-        --batch_size=${BATCH_SIZE}
-        --tree_embedder=${TREE_EMBEDDER}
-        --learning_rate=${LEARNING_RATE}
-        --optimizer=${OPTIMIZER}
-        --early_stop_queue=${EARLY_STOP_QUEUE}
-        --root_fc_sizes=${ROOT_FC_SIZES}
-        --leaf_fc_size=${LEAF_FC_SIZE}
-        --fc_sizes=${FC_SIZES}
-        --state_size=${STATE_SIZE}
-        --keep_prob=${KEEP_PROB}
-        --init_only=${INIT_ONLY}
-        --concat_mode=${CONCAT_MODE}
-        --max_depth=${MAX_DEPTH}
-        --context=${CONTEXT}
-        --neg_samples=${NEG_SAMPLES}
-        --neg_samples_test=${NEG_SAMPLES_TEST}
-        --train_files=${TRAIN_FILES}
-        --no_fixed_vecs=${NO_FIXED_VECS}
-        --batch_iter=${BATCH_ITER}
-        --batch_iter_test=${BATCH_ITER_TEST}
-    cpuset: ${CPU_SET}
-    mem_limit: ${MEM_LIMIT}
-
-
-## ATTENTION: THIS IS DEPRECATED. Training via nvidia-docker can not be restricted to some GPUs, when called by
-## docker-compose. Use train.sh instead (set the variable NV_GPU defined via .env file to enable training on GPU(s)).
-  train-fold-gpu:
-    runtime: nvidia
-    build:
-      context: ../../..
-      dockerfile: docker/train/tensorflow-fold/Dockerfile.tf1_3_gpu
-      args:
-        OWN_LOCATION: docker/train/tensorflow-fold
-        PROJECT_ROOT: /root/recursive-embedding
-    image: tensorflowfold:tf1_3_gpu
     volumes:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_TRAIN}:/root/train
