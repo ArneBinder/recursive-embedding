@@ -171,3 +171,5 @@ VOLUME /root/corpora_out
 
 #ENTRYPOINT ["/root/recursive-embedding/set-user-with-folder.sh", "/root/train", "python", "train_fold.py"]
 
+# pass as env variable
+ENV NVIDIA_VISIBLE_DEVICES="$NVIDIA_VISIBLE_DEVICES"

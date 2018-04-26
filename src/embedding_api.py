@@ -448,7 +448,6 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=1
         _indices = np.array([_mapping[_id] for _id in root_ids])
         selected_tfidf_data = tfidf_data[_indices]
         feed_dict[model_tree.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data)
-
     else:
         root_indices = forest.roots[root_ids]
         context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
