@@ -1,0 +1,170 @@
+FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04 as builder
+
+MAINTAINER Arne Binder <arne.b.binder@gmail.com>
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        git \
+        gosu \
+        libcurl3-dev \
+        libfreetype6-dev \
+        libpng12-dev \
+        libzmq3-dev \
+        pkg-config \
+        python-dev \
+        rsync \
+        software-properties-common \
+        unzip \
+        zip \
+        zlib1g-dev \
+        openjdk-8-jdk \
+        openjdk-8-jre-headless \
+        wget \
+        && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
+    python get-pip.py && \
+    rm get-pip.py
+
+RUN pip --no-cache-dir install numpy
+
+# Set up Bazel.
+
+# Running bazel inside a `docker build` command causes trouble, cf:
+#   https://github.com/bazelbuild/bazel/issues/134
+# The easiest solution is to set up a bazelrc file forcing --batch.
+RUN echo "startup --batch" >>/etc/bazel.bazelrc
+# Similarly, we need to workaround sandboxing issues:
+#   https://github.com/bazelbuild/bazel/issues/418
+RUN echo "build --spawn_strategy=standalone --genrule_strategy=standalone" \
+    >>/etc/bazel.bazelrc
+# Install the most recent bazel release.
+ENV BAZEL_VERSION 0.5.0
+WORKDIR /
+RUN mkdir /bazel && \
+    cd /bazel && \
+    curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -O https://github.com/bazelbuild/bazel/releases/download/$BAZEL_VERSION/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
+    curl -H "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/57.0.2987.133 Safari/537.36" -fSsL -o /bazel/LICENSE.txt https://raw.githubusercontent.com/bazelbuild/bazel/master/LICENSE && \
+    chmod +x bazel-*.sh && \
+    ./bazel-$BAZEL_VERSION-installer-linux-x86_64.sh && \
+    cd / && \
+    rm -f /bazel/bazel-$BAZEL_VERSION-installer-linux-x86_64.sh
+
+########################################
+# get TensorFlow Fold and TensorFlow   #
+########################################
+
+# fold with tensorflow 1.1 (works):
+#ARG TD_BRANCH=7c498a4
+# fold with tensorflow 1.3:
+#ARG TD_BRANCH=b6ee778
+ARG TD_BRANCH=af06b85
+# fold with tensorflow 1.4:
+#ARG TD_BRANCH=cc9bcef
+
+RUN echo use TD_BRANCH=${TD_BRANCH}
+
+RUN git clone --recurse-submodules https://github.com/tensorflow/fold \
+    && cd fold \
+    && git checkout ${TD_BRANCH} \
+    && git submodule update --recursive
+
+#RUN cd /fold/tensorflow && tensorflow/tools/ci_build/builds/configured CPU
+# necessary to find "configure" script when executing "configured" (re-check!)
+WORKDIR /fold/tensorflow
+
+# Configure the build for our CUDA configuration.
+ENV CI_BUILD_PYTHON python
+ENV LD_LIBRARY_PATH /usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH
+ENV TF_NEED_CUDA 1
+ENV TF_CUDA_COMPUTE_CAPABILITIES=3.0,3.5,5.2,6.0,6.1
+
+RUN tensorflow/tools/ci_build/builds/configured GPU
+## FIX for nccl not found. see https://github.com/tensorflow/serving/issues/336
+## and https://github.com/tensorflow/serving/issues/327#issuecomment-305771708
+WORKDIR /
+RUN git clone https://github.com/NVIDIA/nccl.git && cd nccl \
+    && make CUDA_HOME=/usr/local/cuda \
+    && make install \
+    && mkdir -p /usr/local/include/external/nccl_archive/src \
+    && ln -s /usr/local/include/nccl.h /usr/local/include/external/nccl_archive/src/nccl.h \
+    && cd / \
+    && rm -rf nccl
+## FIX end
+WORKDIR /fold
+RUN echo "import %workspace%/tensorflow/.tf_configure.bazelrc" > .bazelrc \
+    && bazel build --verbose_failures -c opt --config=opt --config=cuda \
+    --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow_fold/util:build_pip_package \
+    && bazel-bin/tensorflow_fold/util/build_pip_package /wheel_pkg/fold_pkg \
+    && cd /fold/tensorflow \
+    && bazel build --verbose_failures -c opt --config=opt --config=cuda \
+    --cxxopt="-D_GLIBCXX_USE_CXX11_ABI=0" tensorflow/tools/pip_package:build_pip_package \
+    && bazel-bin/tensorflow/tools/pip_package/build_pip_package /wheel_pkg/tensorflow_pkg \
+    && rm -rf /root/.cache
+#RUN pip --no-cache-dir install --upgrade ${WHEEL_OUT}/tensorflow_pkg/* ${WHEEL_OUT}/fold_pkg/*
+#RUN rm -rf /root/.cache
+# Clean up pip wheel and Bazel cache when done.
+
+#######################################################################################################################
+
+FROM nvidia/cuda:8.0-cudnn6-devel-ubuntu16.04
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        curl \
+        git \
+        gosu \
+        libcurl3-dev \
+        python-dev \
+        software-properties-common \
+        wget \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py \
+    && python get-pip.py \
+    && rm get-pip.py
+
+RUN pip --no-cache-dir install numpy jupyter
+
+COPY --from=builder /wheel_pkg /wheel_pkg
+RUN pip --no-cache-dir install --upgrade /wheel_pkg/tensorflow_pkg/* /wheel_pkg/fold_pkg/*
+
+# TensorBoard
+EXPOSE 6006
+# jupyter notebook
+EXPOSE 8888
+
+#######################################################################################################################
+
+## NOTE: overwrite when building this image
+ARG OWN_LOCATION=.
+RUN echo "OWN_LOCATION=$OWN_LOCATION"
+ARG PROJECT_ROOT=/root/project
+RUN echo "PROJECT_ROOT=$PROJECT_ROOT"
+
+RUN mkdir "$PROJECT_ROOT"
+RUN chmod 777 /root
+COPY docker/set-user-with-folder.sh "$PROJECT_ROOT"/set-user-with-folder.sh
+RUN chmod +x "$PROJECT_ROOT"/set-user-with-folder.sh
+
+# install graphiz (used by pydot)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends graphviz \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
+RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
+
+COPY src "$PROJECT_ROOT"/src
+
+WORKDIR "$PROJECT_ROOT"/src
+
+VOLUME /root/train
+
+ENTRYPOINT ["/root/recursive-embedding/set-user-with-folder.sh", "/root/train", "python", "train_fold.py"]
+
