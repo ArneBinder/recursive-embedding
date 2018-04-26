@@ -160,5 +160,8 @@ WORKDIR "$PROJECT_ROOT"/src
 
 VOLUME /root/train
 
+# pass as env variable
+ENV NVIDIA_VISIBLE_DEVICES="$NVIDIA_VISIBLE_DEVICES"
+
 ENTRYPOINT ["/root/set-user-with-folder.sh", "/root/train", "python", "train_fold.py"]
 

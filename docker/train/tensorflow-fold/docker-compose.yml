@@ -15,25 +15,32 @@ services:
     ports:
       - ${HOST_PORT_NOTEBOOK}:8888
     command: >
-                                  --train_data_path=/root/corpora_out/${TRAIN_DATA}
-                                  --logdir=/root/train/${TRAIN_LOGDIR}
-                                  --model_type=tuple
-                                  --dev_file_index=0
-                                  --batch_size=10
-                                  --tree_embedder=TreeEmbedding_HTU_reduceSUM_mapGRU
-                                  --learning_rate=0.003
-                                  --optimizer=AdamOptimizer
-                                  --early_stop_queue=0
-                                  --root_fc_size=0
-                                  --leaf_fc_size=300
-                                  --state_size=150
-                                  --keep_prob=0.9
-                                  --init_only=False
-                                  --concat_mode=tree
-                                  --max_depth=10
-                                  --context=0
-#    cpus: ${LIMIT_CPUS}
+        --train_data_path=/root/corpora_out/${TRAIN_DATA}
+        --logdir=/root/train/${TRAIN_LOGDIR}
+        --model_type=${MODEL_TYPE}
+        --dev_file_index=${DEV_FILE_INDEX}
+        --batch_size=${BATCH_SIZE}
+        --tree_embedder=${TREE_EMBEDDER}
+        --learning_rate=${LEARNING_RATE}
+        --optimizer=${OPTIMIZER}
+        --early_stop_queue=${EARLY_STOP_QUEUE}
+        --root_fc_sizes=${ROOT_FC_SIZES}
+        --leaf_fc_size=${LEAF_FC_SIZE}
+        --fc_sizes=${FC_SIZES}
+        --state_size=${STATE_SIZE}
+        --keep_prob=${KEEP_PROB}
+        --init_only=${INIT_ONLY}
+        --concat_mode=${CONCAT_MODE}
+        --max_depth=${MAX_DEPTH}
+        --context=${CONTEXT}
+        --neg_samples=${NEG_SAMPLES}
+        --neg_samples_test=${NEG_SAMPLES_TEST}
+        --train_files=${TRAIN_FILES}
+        --no_fixed_vecs=${NO_FIXED_VECS}
+        --batch_iter=${BATCH_ITER}
+        --batch_iter_test=${BATCH_ITER_TEST}
     cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
 
 
 ## ATTENTION: THIS IS DEPRECATED. Training via nvidia-docker can not be restricted to some GPUs, when called by
@@ -53,31 +60,33 @@ services:
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     ports:
       - ${HOST_PORT_NOTEBOOK}:8888
-#    devices:
-#      - "/dev/nvidiactl:/dev/nvidiactl"
-#      - "/dev/nvidia-uvm:/dev/nvidia-uvm"
-#      - "/dev/nvidia6:/dev/nvidia7"
     command: >
-      /root/recursive-embedding/set-user-with-folder.sh /root/train python train_fold.py
-                                  --train_data_path=/root/corpora_out/${TRAIN_DATA}
-                                  --logdir=/root/train/${TRAIN_LOGDIR}
-                                  --model_type=tuple
-                                  --dev_file_index=0
-                                  --batch_size=10
-                                  --tree_embedder=TreeEmbedding_HTU_reduceSUM_mapGRU
-                                  --learning_rate=0.003
-                                  --optimizer=AdamOptimizer
-                                  --early_stop_queue=0
-                                  --root_fc_size=0
-                                  --leaf_fc_size=300
-                                  --state_size=150
-                                  --keep_prob=0.9
-                                  --init_only=False
-                                  --concat_mode=tree
-                                  --max_depth=10
-                                  --context=0
-#    cpus: ${LIMIT_CPUS}
+        --train_data_path=/root/corpora_out/${TRAIN_DATA}
+        --logdir=/root/train/${TRAIN_LOGDIR}
+        --model_type=${MODEL_TYPE}
+        --dev_file_index=${DEV_FILE_INDEX}
+        --batch_size=${BATCH_SIZE}
+        --tree_embedder=${TREE_EMBEDDER}
+        --learning_rate=${LEARNING_RATE}
+        --optimizer=${OPTIMIZER}
+        --early_stop_queue=${EARLY_STOP_QUEUE}
+        --root_fc_sizes=${ROOT_FC_SIZES}
+        --leaf_fc_size=${LEAF_FC_SIZE}
+        --fc_sizes=${FC_SIZES}
+        --state_size=${STATE_SIZE}
+        --keep_prob=${KEEP_PROB}
+        --init_only=${INIT_ONLY}
+        --concat_mode=${CONCAT_MODE}
+        --max_depth=${MAX_DEPTH}
+        --context=${CONTEXT}
+        --neg_samples=${NEG_SAMPLES}
+        --neg_samples_test=${NEG_SAMPLES_TEST}
+        --train_files=${TRAIN_FILES}
+        --no_fixed_vecs=${NO_FIXED_VECS}
+        --batch_iter=${BATCH_ITER}
+        --batch_iter_test=${BATCH_ITER_TEST}
     cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
 
   tensorboard:
     image: tensorflow/tensorflow:1.4.1
