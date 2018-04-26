@@ -868,7 +868,7 @@ def clear_cached_embeddings():
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage(e.message)
-    return "reload successful"
+    return "clearing embeddings successful"
 
 
 @app.route("/api/load", methods=['POST'])
