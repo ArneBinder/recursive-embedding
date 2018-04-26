@@ -159,6 +159,8 @@ RUN apt-get update \
 
 COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
 RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
+# install spacy models
+RUN python -m spacy download en_core_web_md && python -m spacy link en_core_web_md en
 
 COPY src "$PROJECT_ROOT"/src
 
