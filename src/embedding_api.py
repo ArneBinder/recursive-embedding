@@ -33,7 +33,7 @@ from sequence_trees import Forest
 from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, M_TREES, M_TRAIN, M_TEST, M_INDICES
 import data_iterators
-from src import mytools
+from mytools import numpy_load
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
 
@@ -963,7 +963,7 @@ def main(data_source):
                             assert os.path.exists(fn_tfidf_indices), 'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tfidf_indices)
                             current_tfidf = scipy.sparse.load_npz(fn_tfidf_data)
                             _tfidf.append(current_tfidf)
-                            _indices.append(mytools.numpy_load(fn_tfidf_indices))
+                            _indices.append(numpy_load(fn_tfidf_indices))
                             logging.info('%s dataset: use %i different trees' % (m, current_tfidf.shape[0]))
                             current_embedding_dim = current_tfidf.shape[1]
                             assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
