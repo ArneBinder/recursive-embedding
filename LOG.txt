@@ -30,3 +30,4 @@
  * restrict gpus via docker-compose: set NVIDIA_VISIBLE_DEVICES explicitly as environment variable (via "ENV" in docker
    file or "environment" section in compose file)
  * batching for calc_tuple_scores (embedding_api)
+ * entangled embedding calculation and scoring to enable caching of embeddings (calc_tuple_scores)
