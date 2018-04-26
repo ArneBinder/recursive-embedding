@@ -530,7 +530,10 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, model_tree,
         feed_dict = {model_tuple.tree_model.embeddings_placeholder: current_embeddings,
                      model_tuple.candidate_count: len(current_embeddings) - 1}
         _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
-    scores = np.concatenate(_scores)
+    if len(_scores) > 0:
+        scores = np.concatenate(_scores)
+    else:
+        scores = np.zeros(shape=0, dtype=np.float32)
     logging.debug('scores calculated')
 
     # get true seealsos
