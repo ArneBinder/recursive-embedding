@@ -61,3 +61,23 @@ for i in 4543240 3015247 443516 3593651 1449629 2031183 1152555 4829211 2650278 
 too long (root indices):
 1322150
 4578529
+
+
+========================================================================================================================
+
+best FLATSUM:
+2018-04-25 15:25:39,576 DEBUG use batch_iter_naive
+2018-04-25 15:26:48,318 INFO epoch=5 step=28220 test : loss=0.278186	roc_micro=0.831780	ranking_loss_inv=0.891471	f1_t33=0.749054	f1_t50=0.763980	f1_t66=0.777751	acc_t33=0.386204	acc_t50=0.453332	acc_t66=0.519944
+
+
+best TFIDF:
+2018-04-25 14:41:02,308 DEBUG use batch_iter_naive
+2018-04-25 14:41:42,748 INFO epoch=2 step=11288 test : loss=0.111811	roc_micro=0.904567	ranking_loss_inv=0.959969	f1_t33=0.813416	f1_t50=0.790862	f1_t66=0.760155	acc_t33=0.645785	acc_t50=0.618048	acc_t66=0.579636
+
+
+best TREE:
+2018-04-26 00:29:46,846 DEBUG use batch_iter_naive
+2018-04-26 00:31:07,276 INFO epoch=23 step=12995 test : loss=0.075533	roc_micro=0.974056	ranking_loss_inv=0.976551	f1_t33=0.920052	f1_t50=0.916146	f1_t66=0.905233	acc_t33=0.845550	acc_t50=0.841280	acc_t66=0.824200
+
+
+best FLATGRU:
