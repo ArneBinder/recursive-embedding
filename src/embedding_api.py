@@ -439,29 +439,41 @@ def get_or_calc_embeddings(params):
         raise ValueError('no embeddings or sequences found in request')
 
 
-def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=10):
+def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=10, batch_size=100):
     from model_fold import convert_sparse_matrix_to_sparse_tensor
     root_ids = np.concatenate(([root_id], root_ids_target))
-    feed_dict = {model_tuple.candidate_count: len(root_ids_target)}
+    #feed_dict = {model_tuple.candidate_count: len(root_ids_target)}
+    _scores = []
     if tfidf_root_ids is not None:
         _mapping = {_id: i for i, _id in enumerate(tfidf_root_ids)}
         _indices = np.array([_mapping[_id] for _id in root_ids])
-        selected_tfidf_data = tfidf_data[_indices]
-        feed_dict[model_tree.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data)
+        _idx_src = _indices[0]
+        _indices_target = _indices[1:]
+        for start in range(0, len(root_ids_target), batch_size):
+            current_indices = np.concatenate(([_idx_src], _indices_target[start:start+batch_size]))
+            selected_tfidf_data = tfidf_data[current_indices]
+            feed_dict = {
+                model_tree.embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data),
+                model_tuple.candidate_count: len(current_indices) - 1}
+            _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
     else:
         root_indices = forest.roots[root_ids]
         context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
         tree_iterator = diter.tree_iterator(indices=context_root_indices, forest=forest, concat_mode=concat_mode,
                                             max_depth=max_depth)
+        tree_src = tree_iterator.next()
+        for start in range(0, len(root_ids_target), batch_size):
+            current_size = min(batch_size, len(root_ids_target) - start)
+            # entries have to lists of size one (tuple_size)
+            current_trees = [[tree_src]] + [[tree_iterator.next()] for _ in range(current_size)]
+            current_trees_compiled = list(model_tree.compiler.build_loom_inputs(current_trees, ordered=True))
+            feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees_compiled],
+                         model_tuple.candidate_count: len(current_trees_compiled) - 1}
+            _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
 
-        trees = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
+    scores = np.concatenate(_scores)
 
-        #trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
-        feed_dict[model_tree.compiler.loom_input_tensor] = [trees]
-
-    #feed_dict[model_tuple.values_gold] = probs_batched
-    scores = sess.run(model_tuple.values_predicted, feed_dict)
-
+    # get true seealsos
     seealso_root_idx = forest.roots[root_id] + diter.SEEALSO_ROOT_OFFSET
     seealso_root_ids = diter.link_root_ids_iterator(indices=[seealso_root_idx], forest=forest, link_type=TYPE_REF_SEEALSO).next()
     if seealso_root_ids is None:
@@ -754,8 +766,9 @@ def get_tuple_scores():
         concat_mode = params.get('concat_mode', 'tree')
         max_depth = params.get('max_depth', 10)
         top = params.get('top', len(root_ids_target))
+        batch_size = params.get('batch_size', 100)
         _scores, seealso_root_ids = calc_tuple_scores(root_id, root_ids_target, forest, concat_mode=concat_mode,
-                                                      max_depth=max_depth)
+                                                      max_depth=max_depth, batch_size=batch_size)
         params['root_ids_seealso'] = seealso_root_ids
         params['root_ids_seealso_string'] = [forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in seealso_root_ids]
         scores = _scores.flatten()
