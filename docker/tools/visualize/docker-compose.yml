@@ -10,5 +10,6 @@ services:
     volumes:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
+      - ${HOST_TRAIN}:/root/train
     command: >
       /root/set-user-with-folder.sh /root/corpora_out python embedding_api.py
