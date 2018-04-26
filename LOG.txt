@@ -24,3 +24,8 @@
  * create model_nearest only if batch_iter_nearest is used (for test/train)
  * implemented embedding_api endpoint /tuple_scores
  * TreeTupleModel_with_candidates: return sigmoid (instead softmax) of logits as values_predicted
+
+26-04-18
+========
+ * restrict gpus via docker-compose: set NVIDIA_VISIBLE_DEVICES explicitly as environment variable (via "ENV" in docker
+   file or "environment" section in compose file)

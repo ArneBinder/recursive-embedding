@@ -462,7 +462,12 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=1
     #feed_dict[model_tuple.values_gold] = probs_batched
     scores = sess.run(model_tuple.values_predicted, feed_dict)
 
-    return scores
+    seealso_root_idx = forest.roots[root_id] + diter.SEEALSO_ROOT_OFFSET
+    seealso_root_ids = diter.link_root_ids_iterator(indices=[seealso_root_idx], forest=forest, link_type=TYPE_REF_SEEALSO).next()
+    if seealso_root_ids is None:
+        seealso_root_ids = []
+
+    return scores, seealso_root_ids
 
 
 def concat_visualizations_svg(file_name, count):
@@ -749,7 +754,11 @@ def get_tuple_scores():
         concat_mode = params.get('concat_mode', 'tree')
         max_depth = params.get('max_depth', 10)
         top = params.get('top', len(root_ids_target))
-        scores = calc_tuple_scores(root_id, root_ids_target, forest, concat_mode=concat_mode, max_depth=max_depth).flatten()
+        _scores, seealso_root_ids = calc_tuple_scores(root_id, root_ids_target, forest, concat_mode=concat_mode,
+                                                      max_depth=max_depth)
+        params['root_ids_seealso'] = seealso_root_ids
+        params['root_ids_seealso_string'] = [forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in seealso_root_ids]
+        scores = _scores.flatten()
         logging.debug('scores calculated')
 
         indices_sorted = np.argsort(scores)[::-1][:top]
@@ -757,9 +766,12 @@ def get_tuple_scores():
         params['tuple_scores'] = scores[indices_sorted]
         params['root_ids_target'] = np.array(root_ids_target)[indices_sorted].tolist()
 
-        if forest.lexicon_roots is not None:
-            params['root_id_string'] = forest.lexicon_roots.get_s(root_id, data_as_hashes=False)
-            params['root_ids_target_string'] = np.array([forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in root_ids_target])[indices_sorted].tolist()
+        #if forest.lexicon_roots is not None:
+        params['root_id_string'] = forest.lexicon_roots.get_s(root_id, data_as_hashes=False)
+        params['root_ids_target_string'] = np.array([forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in root_ids_target])[indices_sorted].tolist()
+
+        #params['merged'] = [[params['tuple_scores'][i], params['root_ids_target'][i], params['root_ids_target_string'][i]] for i in range(len(indices_sorted))]
+        params['merged'] = ["%10i: %.4f %s" % (params['root_ids_target'][i], params['tuple_scores'][i], params['root_ids_target_string'][i]) for i in range(len(indices_sorted))]
 
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
