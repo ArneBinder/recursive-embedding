@@ -463,19 +463,20 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, max_depth=1
                                             max_depth=max_depth)
 
         with model_tree.compiler.multiprocessing_pool():
-            #trees_compiled_iter = model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True)
-            #tree_src = trees_compiled_iter.next()
-            trees_compiled = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
-            tree_src = trees_compiled[0]
+            trees_compiled_iter = model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True)
+            tree_src = trees_compiled_iter.next()
+            #trees_compiled = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
+            #tree_src = trees_compiled[0]
             for start in range(0, len(root_ids_target), batch_size):
                 current_size = min(batch_size, len(root_ids_target) - start)
-                #current_trees = [tree_src] + [trees_compiled_iter.next() for _ in range(current_size)]
-                current_trees = [tree_src] + trees_compiled[start+1:start+1+batch_size]
+                current_trees = [tree_src] + [trees_compiled_iter.next() for _ in range(current_size)]
+                #current_trees = [tree_src] + trees_compiled[start+1:start+1+batch_size]
                 feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees],
                              model_tuple.candidate_count: len(current_trees) - 1}
                 _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
 
     scores = np.concatenate(_scores)
+    logging.debug('scores calculated')
 
     # get true seealsos
     seealso_root_idx = forest.roots[root_id] + diter.SEEALSO_ROOT_OFFSET
@@ -776,7 +777,7 @@ def get_tuple_scores():
         params['root_ids_seealso'] = seealso_root_ids
         params['root_ids_seealso_string'] = [forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in seealso_root_ids]
         scores = _scores.flatten()
-        logging.debug('scores calculated')
+
 
         indices_sorted = np.argsort(scores)[::-1][:top]
 
