@@ -441,6 +441,270 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 #    logger.debug('dataset size: %i' % ds)
 #    return ds
 
+def get_lexicon(logdir, logdir_pretrained=None, logdir_continue=None):
+    checkpoint_fn = tf.train.latest_checkpoint(logdir)
+    if logdir_continue:
+        assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
+    old_checkpoint_fn = None
+    if checkpoint_fn is not None:
+        if not checkpoint_fn.startswith(logdir):
+            raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
+        logger.info('read lex_size from model ...')
+        reader = tf.train.NewCheckpointReader(checkpoint_fn)
+        saved_shapes = reader.get_variable_to_shape_map()
+        logger.debug(saved_shapes)
+        logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
+
+        lexicon = Lexicon(filename=os.path.join(logdir, 'model'), load_ids_fixed=(not config.no_fixed_vecs))
+        # assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
+        #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
+        #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+        try:
+            lexicon.init_vecs(checkpoint_reader=reader)
+        except AssertionError:
+            logger.warning('no embedding vecs found in model')
+            lexicon.init_vecs()
+    else:
+        lexicon = Lexicon(filename=config.train_data_path, load_ids_fixed=(not config.no_fixed_vecs))
+        #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
+        #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+        if logdir_pretrained:
+            logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
+            old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
+            assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
+            reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
+            lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
+            lexicon_old.init_vecs(checkpoint_reader=reader_old)
+            lexicon.merge(lexicon_old, add=False, remove=False)
+
+        # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+        # lexicon.pad()
+
+        lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
+        assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
+                                  (len(lexicon), len(lexicon.vecs))
+
+
+
+    logger.info('lexicon size: %i' % len(lexicon))
+    #logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
+    #logger.debug('ROOT_idx: %i' % ROOT_idx)
+    return lexicon, old_checkpoint_fn, checkpoint_fn is not None
+
+
+def init_model_type(config):
+    ## set index and tree getter
+    if config.model_type == 'simtuple':
+        raise NotImplementedError('model_type=%s is deprecated' % config.model_type)
+        tree_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
+                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
+        tree_iterator = diters.data_tuple_iterator
+
+        tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
+        discrete_model = False
+        load_parents = False
+    elif config.model_type == 'tuple':
+        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
+                              'bag_of_seealsos': False}
+        if config.tree_embedder == 'tfidf':
+            tree_iterator_args['concat_mode'] = CM_AGGREGATE
+            tree_iterator_args['context'] = 0
+        # if FLAGS.debug:
+        #    root_strings_store = StringStore()
+        #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
+        #    tree_iterator_args['root_strings'] = [s for s in root_strings_store]
+
+        tree_iterator = diters.tree_iterator
+        indices_getter = diters.indices_dbpedianif
+        # tuple_size = config.neg_samples + 1
+        tuple_size = 1
+        discrete_model = True
+        load_parents = (tree_iterator_args['context'] > 0)
+    # elif config.model_type == 'tuple_single':
+    #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+    #                          'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
+    #                          'get_seealso_ids': True}
+    #    #if FLAGS.debug:
+    #    #    root_strings_store = StringStore()
+    #    #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
+    #    #    data_iterator_args['root_strings'] = [s for s in root_strings_store]
+    #
+    #    tree_iterator = diters.tree_iterator
+    #    indices_getter = diters.indices_dbpedianif
+    #    tuple_size = config.neg_samples + 1
+    #
+    #    discrete_model = True
+    #    load_parents = (config.context is not None and config.context > 0)
+    elif config.model_type == 'reroot':
+        # if config.cut_indices is not None:
+        #    indices = np.arange(config.cut_indices)
+        #    # avoid looking for train index files
+        #    meta[M_TRAIN][M_FNAMES] = []
+        # else:
+        #    indices = None
+        neg_samples = config.neg_samples
+        tuple_size = neg_samples + 1
+        tree_iterator_args = {'neg_samples': neg_samples, 'max_depth': config.max_depth,
+                              'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
+        # tree_iterator = diters.data_tuple_iterator_reroot
+        tree_iterator = diters.tree_iterator
+        indices_getter = diters.indices_as_ids
+        # del meta[M_TEST]
+        discrete_model = True
+        load_parents = True
+    # elif config.model_type == 'tfidf':
+    #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+    #                          'concat_mode': CM_AGGREGATE}
+    #    tree_iterator = diters.tree_iterator
+    #    indices_getter = diters.indices_dbpedianif
+    #    # tuple_size = config.neg_samples + 1
+    #    tuple_size = 1
+    #    discrete_model = True
+    #    load_parents = False
+    else:
+        raise NotImplementedError('model_type=%s not implemented' % config.model_type)
+
+    return tree_iterator, tree_iterator_args, indices_getter, load_parents, tuple_size
+
+
+def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
+
+    fnames_train = None
+    fnames_test = None
+    if FLAGS.train_files is not None and FLAGS.train_files != '':
+        logger.info('use train data index files: %s' % FLAGS.train_files)
+        fnames_train = [os.path.join(parent_dir, fn) for fn in FLAGS.train_files.split(',')]
+    if test_files is not None and test_files != '':
+        fnames_test = [os.path.join(parent_dir, fn) for fn in FLAGS.test_files.split(',')]
+    if not test_only:
+        #if M_FNAMES not in meta[M_TRAIN]:
+        if fnames_train is None:
+            logger.info('collect train data from: ' + config.train_data_path + ' ...')
+            regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
+            _train_fnames = filter(regex.search, os.listdir(parent_dir))
+            fnames_train = [os.path.join(parent_dir, fn) for fn in sorted(_train_fnames)]
+        assert len(fnames_train) > 0, 'no matching train data files found for ' + config.train_data_path
+        logger.info('found ' + str(len(fnames_train)) + ' train data files')
+        #if M_TEST in meta and M_FNAMES not in meta[M_TEST]:
+        if fnames_test is None:
+            fnames_test = [fnames_train[config.dev_file_index]]
+            logger.info('use %s for testing' % str(fnames_test))
+            del fnames_train[config.dev_file_index]
+    return fnames_train, fnames_test
+
+
+def check_train_test_overlap(ids_train, ids_train_target, ids_test, ids_test_target):
+    logger.info('check for occurrences of test_target_id->test_id in train data...')
+    del_count_all = 0
+    count_all = 0
+    ids_train_rev = {id_train: i for i, id_train in enumerate(ids_train)}
+    for i, id_test in enumerate(ids_test):
+        del_count = 0
+        for j in range(len(ids_test_target[i])):
+            id_target_test = ids_test_target[i][j - del_count]
+            idx_train = ids_train_rev.get(id_target_test, None)
+            if idx_train is not None and id_target_test in ids_train_target[idx_train]:
+                del ids_test_target[i][j - del_count]
+                del_count += 1
+            else:
+                count_all += 1
+        del_count_all += del_count
+    logger.info('deleted %i test targets. %i test targets remain.' % (del_count_all, count_all))
+    return ids_test_target
+
+
+# TODO: entangle meta
+def create_models(config, lexicon, tuple_size, meta):
+    optimizer = config.optimizer
+    if optimizer is not None:
+        optimizer = getattr(tf.train, optimizer)
+
+    if not config.tree_embedder == 'tfidf':
+        tree_embedder = getattr(model_fold, config.tree_embedder)
+        model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
+                                                  lex_size_var=lexicon.len_var,
+                                                  tree_embedder=tree_embedder,
+                                                  dimension_embeddings=lexicon.vec_size,
+                                                  state_size=config.state_size,
+                                                  leaf_fc_size=config.leaf_fc_size,
+                                                  # add a leading '0' to allow an empty string
+                                                  root_fc_sizes=[int(s) for s in
+                                                                 ('0' + config.root_fc_sizes).split(',')],
+                                                  keep_prob_default=config.keep_prob,
+                                                  tree_count=tuple_size,
+                                                  # data_transfomed=data_transformed
+                                                  # tree_count=1,
+                                                  # keep_prob_fixed=config.keep_prob # to enable full head dropout
+                                                  )
+        for m in meta:
+            logger.info('create %s data set (tree-embeddings) ...' % m)
+            with model_tree.compiler.multiprocessing_pool():
+                meta[m][M_TREES] = list(
+                    model_tree.compiler.build_loom_inputs(map(lambda x: [x], meta[m][M_TREE_ITER]), ordered=True))
+                logger.info('%s dataset: use %i different trees' % (m, len(meta[m][M_TREES])))
+    else:
+        logger.info('create %s data sets (tf-idf) ...' % ', '.join(meta.keys()))
+        _tree_embeddings_tfidf = diters.embeddings_tfidf([meta[m][M_TREE_ITER] for m in meta.keys()])
+        embedding_dim = -1
+        for i, m in enumerate(meta):
+            meta[m][M_TREES] = _tree_embeddings_tfidf[i]
+            scipy.sparse.save_npz(file=os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m), matrix=meta[m][M_TREES])
+            mytools.numpy_dump(os.path.join(logdir, 'embeddings_indices.%s' % m), meta[m][M_INDICES])
+            logger.info('%s dataset: use %i different trees' % (m, meta[m][M_TREES].shape[0]))
+            current_embedding_dim = meta[m][M_TREES].shape[1]
+            assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
+            current_embedding_dim, embedding_dim)
+            embedding_dim = current_embedding_dim
+        assert embedding_dim != -1, 'no data sets created'
+
+        model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
+                                               keep_prob=config.keep_prob, sparse=True,
+                                               root_fc_sizes=[int(s) for s in
+                                                              ('0' + config.root_fc_sizes).split(',')], )
+
+    # if config.model_type == 'simtuple':
+    #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
+    #                                                        optimizer=optimizer,
+    #                                                        learning_rate=config.learning_rate,
+    #                                                        sim_measure=sim_measure,
+    #                                                        clipping_threshold=config.clipping)
+    if config.model_type == 'tuple':
+        model = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
+                                                          fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
+                                                          optimizer=optimizer,
+                                                          learning_rate=config.learning_rate,
+                                                          clipping_threshold=config.clipping,
+                                                          )
+
+        # set up highest_sims_models
+        with tf.device(get_ith_device(1)):
+            for m in meta:
+                if meta[m][M_BATCH_ITER].strip() == batch_iter_nearest.__name__:
+                    # if M_TREES in meta[m]:
+                    if isinstance(model_tree, model_fold.DummyTreeModel):
+                        s = meta[m][M_TREES].shape[0]
+                    else:
+                        s = len(meta[m][M_TREES])
+                    logger.debug('create %s model_highest_sims (number_of_embeddings=%i, embedding_size=%i)' % (
+                    m, s, model_tree.tree_output_size))
+                    meta[m][M_MODEL_NEAREST] = model_fold.HighestSimsModel(
+                        number_of_embeddings=s,
+                        embedding_size=model_tree.tree_output_size,
+                    )
+
+    elif config.model_type == 'reroot':
+        model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
+                                                   fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
+                                                   optimizer=optimizer,
+                                                   learning_rate=config.learning_rate,
+                                                   clipping_threshold=config.clipping,
+                                                   candidate_count=config.neg_samples + 1)
+    else:
+        raise NotImplementedError('model_type=%s not implemented' % config.model_type)
+
+    return model_tree, model, meta
+
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None):
     config.set_run_description()
@@ -461,163 +725,35 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
-    checkpoint_fn = tf.train.latest_checkpoint(logdir)
-    if logdir_continue:
-        assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
-    old_checkpoint_fn = None
-    if checkpoint_fn:
-        if not checkpoint_fn.startswith(logdir):
-            raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
-        logger.info('read lex_size from model ...')
-        reader = tf.train.NewCheckpointReader(checkpoint_fn)
-        saved_shapes = reader.get_variable_to_shape_map()
-        logger.debug(saved_shapes)
-        logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
+    ## get lexicon
+    lexicon, old_checkpoint_fn, loaded_from_checkpoint = get_lexicon(logdir=logdir, logdir_pretrained=logdir_pretrained,
+                                                                     logdir_continue=logdir_continue)
+    if loaded_from_checkpoint:
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
-        lexicon = Lexicon(filename=os.path.join(logdir, 'model'), load_ids_fixed=(not config.no_fixed_vecs))
-        #assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
-        ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
-        IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        try:
-            lexicon.init_vecs(checkpoint_reader=reader)
-        except AssertionError:
-            logger.warning('no embedding vecs found in model')
-            lexicon.init_vecs()
     else:
-        lexicon = Lexicon(filename=config.train_data_path, load_ids_fixed=(not config.no_fixed_vecs))
-        ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
-        IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        if logdir_pretrained:
-            logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
-            old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
-            assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
-            reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-            lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
-            lexicon_old.init_vecs(checkpoint_reader=reader_old)
-            lexicon.merge(lexicon_old, add=False, remove=False)
-
-        #lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
-        #lexicon.pad()
-
-        lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
-        assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
-                                  (len(lexicon), len(lexicon.vecs))
-
-        # dump config
-        config.dump(logdir=logdir)
-
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'))
         test_result_writer.writeheader()
+        # dump config
+        config.dump(logdir=logdir)
 
-    logger.info('lexicon size: %i' % len(lexicon))
-    logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
-    logger.debug('ROOT_idx: %i' % ROOT_idx)
 
     # TRAINING and TEST DATA ###########################################################################################
 
     meta = {}
-
     parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
+
+    ## handle train/test index files
+    fnames_train, fnames_test = get_index_file_names(config=config, parent_dir=parent_dir, test_files=test_file,
+                                                     test_only=test_only)
     if not (test_only or init_only):
-        meta[M_TRAIN] = {}
-    meta[M_TEST] = {}
+        meta[M_TRAIN] = {M_FNAMES: fnames_train}
+    meta[M_TEST] = {M_FNAMES: fnames_test}
 
-    if config.model_type == 'simtuple':
-        tree_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
-                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
-        tree_iterator = diters.data_tuple_iterator
+    tree_iterator, tree_iterator_args, indices_getter, load_parents, tuple_size = init_model_type(config)
 
-        tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
-        discrete_model = False
-        load_parents = False
-    elif config.model_type == 'tuple':
-        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
-                              'bag_of_seealsos': False}
-        if config.tree_embedder == 'tfidf':
-            tree_iterator_args['concat_mode'] = CM_AGGREGATE
-            tree_iterator_args['context'] = 0
-        #if FLAGS.debug:
-        #    root_strings_store = StringStore()
-        #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
-        #    tree_iterator_args['root_strings'] = [s for s in root_strings_store]
-
-        tree_iterator = diters.tree_iterator
-        indices_getter = diters.indices_dbpedianif
-        #tuple_size = config.neg_samples + 1
-        tuple_size = 1
-        discrete_model = True
-        load_parents = (tree_iterator_args['context'] > 0)
-    #elif config.model_type == 'tuple_single':
-    #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-    #                          'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
-    #                          'get_seealso_ids': True}
-    #    #if FLAGS.debug:
-    #    #    root_strings_store = StringStore()
-    #    #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
-    #    #    data_iterator_args['root_strings'] = [s for s in root_strings_store]
-    #
-    #    tree_iterator = diters.tree_iterator
-    #    indices_getter = diters.indices_dbpedianif
-    #    tuple_size = config.neg_samples + 1
-    #
-    #    discrete_model = True
-    #    load_parents = (config.context is not None and config.context > 0)
-    elif config.model_type == 'reroot':
-        #if config.cut_indices is not None:
-        #    indices = np.arange(config.cut_indices)
-        #    # avoid looking for train index files
-        #    meta[M_TRAIN][M_FNAMES] = []
-        #else:
-        #    indices = None
-        neg_samples = config.neg_samples
-        tuple_size = neg_samples + 1
-        tree_iterator_args = {'neg_samples': neg_samples, 'max_depth': config.max_depth,
-                              'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
-        #tree_iterator = diters.data_tuple_iterator_reroot
-        tree_iterator = diters.tree_iterator
-        indices_getter = diters.indices_as_ids
-        #del meta[M_TEST]
-        discrete_model = True
-        load_parents = True
-    #elif config.model_type == 'tfidf':
-    #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-    #                          'concat_mode': CM_AGGREGATE}
-    #    tree_iterator = diters.tree_iterator
-    #    indices_getter = diters.indices_dbpedianif
-    #    # tuple_size = config.neg_samples + 1
-    #    tuple_size = 1
-    #    discrete_model = True
-    #    load_parents = False
-    else:
-        raise NotImplementedError('model_type=%s not implemented' % config.model_type)
-
-    #if M_TRAIN in meta:
-    #    meta[M_TRAIN][M_DATA_ITER] = partial(data_iterator, **data_iterator_args)
-    #if M_TEST in meta:
-    #    meta[M_TEST][M_DATA_ITER] = partial(data_iterator, **data_iterator_args)
-
-    if FLAGS.train_files is not None and FLAGS.train_files != '':
-        logger.info('use train data index files: %s' % FLAGS.train_files)
-        meta[M_TRAIN][M_FNAMES] = [os.path.join(parent_dir, fn) for fn in FLAGS.train_files.split(',')]
-    if test_file is not None and test_file != '':
-        meta[M_TEST][M_FNAMES] = [os.path.join(parent_dir, test_file)]
-
-    if not (test_only or init_only):
-        if M_FNAMES not in meta[M_TRAIN]:
-            logger.info('collect train data from: ' + config.train_data_path + ' ...')
-            regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
-            train_fnames = filter(regex.search, os.listdir(parent_dir))
-            meta[M_TRAIN][M_FNAMES] = [os.path.join(parent_dir, fn) for fn in sorted(train_fnames)]
-        assert len(meta[M_TRAIN][M_FNAMES]) > 0, 'no matching train data files found for ' + config.train_data_path
-        logger.info('found ' + str(len(meta[M_TRAIN][M_FNAMES])) + ' train data files')
-        if M_TEST in meta and M_FNAMES not in meta[M_TEST]:
-            meta[M_TEST][M_FNAMES] = [meta[M_TRAIN][M_FNAMES][config.dev_file_index]]
-            logger.info('use %s for testing' % str(meta[M_TEST][M_FNAMES]))
-            del meta[M_TRAIN][M_FNAMES][config.dev_file_index]
-
+    ## load forest data
     lexicon_root_fn = '%s.root.id' % config.train_data_path
     if Lexicon.exist(lexicon_root_fn, types_only=True):
         logging.info('load lexicon_roots from %s' % lexicon_root_fn)
@@ -625,6 +761,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     else:
         lexicon_roots = None
     forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
+    # TODO: use this?
     if config.model_type == 'reroot':
         logger.info('transform data ...')
         data_transformed = [forest.lexicon.transform_idx(forest.data[idx], root_id_pos=forest.root_id_pos) for idx in range(len(forest))]
@@ -638,23 +775,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
         meta[m][M_IDS], meta[m][M_INDICES], meta[m][M_IDS_TARGET] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
 
-    logger.info('check for occurrences of test_target_id->test_id in train data...')
     if M_TEST in meta and M_TRAIN in meta:
-        del_count_all = 0
-        count_all = 0
-        ids_train_rev = {id_train: i for i, id_train in enumerate(meta[M_TRAIN][M_IDS])}
-        for i, id_test in enumerate(meta[M_TEST][M_IDS]):
-            del_count = 0
-            for j in range(len(meta[M_TEST][M_IDS_TARGET][i])):
-                id_target_test = meta[M_TEST][M_IDS_TARGET][i][j-del_count]
-                idx_train = ids_train_rev.get(id_target_test, None)
-                if idx_train is not None and id_target_test in meta[M_TRAIN][M_IDS_TARGET][idx_train]:
-                    del meta[M_TEST][M_IDS_TARGET][i][j-del_count]
-                    del_count += 1
-                else:
-                    count_all += 1
-            del_count_all += del_count
-        logger.info('deleted %i test targets. %i test targets remain.' % (del_count_all, count_all))
+        meta[M_TEST][M_IDS_TARGET] = check_train_test_overlap(ids_train=meta[M_TRAIN][M_IDS],
+                                                              ids_train_target=meta[M_TRAIN][M_IDS_TARGET],
+                                                              ids_test=meta[M_TEST][M_IDS],
+                                                              ids_test_target=meta[M_TEST][M_IDS_TARGET])
 
     # set tree iterator
     for m in meta:
@@ -662,11 +787,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     # MODEL DEFINITION #################################################################################################
 
-    optimizer = config.optimizer
-    if optimizer is not None:
-        optimizer = getattr(tf.train, optimizer)
-
-    #sim_measure = getattr(model_fold, config.sim_measure)
+    ## set batch iterators and numbers of negative samples
     if M_TEST in meta:
         if config.batch_iter_test is '':
             meta[M_TEST][M_BATCH_ITER] = config.batch_iter
@@ -688,83 +809,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
                 logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-                if not config.tree_embedder == 'tfidf':
-                    tree_embedder = getattr(model_fold, config.tree_embedder)
-                    model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
-                                                              lex_size_var=lexicon.len_var,
-                                                              tree_embedder=tree_embedder,
-                                                              dimension_embeddings=lexicon.vec_size,
-                                                              state_size=config.state_size,
-                                                              leaf_fc_size=config.leaf_fc_size,
-                                                              # add a leading '0' to allow an empty string
-                                                              root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
-                                                              keep_prob_default=config.keep_prob,
-                                                              tree_count=tuple_size,
-                                                              #data_transfomed=data_transformed
-                                                              #tree_count=1,
-                                                              # keep_prob_fixed=config.keep_prob # to enable full head dropout
-                                                              )
-                    for m in meta:
-                        logger.info('create %s data set (tree-embeddings) ...' % m)
-                        with model_tree.compiler.multiprocessing_pool():
-                            meta[m][M_TREES] = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], meta[m][M_TREE_ITER]), ordered=True))
-                            logger.info('%s dataset: use %i different trees' % (m, len(meta[m][M_TREES])))
-                else:
-                    logger.info('create %s data sets (tf-idf) ...' % ', '.join(meta.keys()))
-                    _tree_embeddings_tfidf = diters.embeddings_tfidf([meta[m][M_TREE_ITER] for m in meta.keys()])
-                    embedding_dim = -1
-                    for i, m in enumerate(meta):
-                        meta[m][M_TREES] = _tree_embeddings_tfidf[i]
-                        scipy.sparse.save_npz(file=os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m), matrix=meta[m][M_TREES])
-                        mytools.numpy_dump(os.path.join(logdir, 'embeddings_indices.%s' % m), meta[m][M_INDICES])
-                        logger.info('%s dataset: use %i different trees' % (m, meta[m][M_TREES].shape[0]))
-                        current_embedding_dim = meta[m][M_TREES].shape[1]
-                        assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
-                        embedding_dim = current_embedding_dim
-                    assert embedding_dim != -1, 'no data sets created'
-
-                    model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
-                                                           keep_prob=config.keep_prob, sparse=True,
-                                                           root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],)
-
-                #if config.model_type == 'simtuple':
-                #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                #                                                        optimizer=optimizer,
-                #                                                        learning_rate=config.learning_rate,
-                #                                                        sim_measure=sim_measure,
-                #                                                        clipping_threshold=config.clipping)
-                if config.model_type == 'tuple':
-                    model = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
-                                                                      fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
-                                                                      optimizer=optimizer,
-                                                                      learning_rate=config.learning_rate,
-                                                                      clipping_threshold=config.clipping,
-                                                                      )
-
-                    # set up highest_sims_models
-                    with tf.device(get_ith_device(1)):
-                        for m in meta:
-                            if meta[m][M_BATCH_ITER].strip() == batch_iter_nearest.__name__:
-                                #if M_TREES in meta[m]:
-                                if isinstance(model_tree, model_fold.DummyTreeModel):
-                                    s = meta[m][M_TREES].shape[0]
-                                else:
-                                    s = len(meta[m][M_TREES])
-                                logger.debug('create %s model_highest_sims (number_of_embeddings=%i, embedding_size=%i)' % (m, s, model_tree.tree_output_size))
-                                meta[m][M_MODEL_NEAREST] = model_fold.HighestSimsModel(
-                                    number_of_embeddings=s,
-                                    embedding_size=model_tree.tree_output_size,
-                                )
-
-                elif config.model_type == 'reroot':
-                    model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
-                                                               fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
-                                                               optimizer=optimizer,
-                                                               learning_rate=config.learning_rate,
-                                                               clipping_threshold=config.clipping,
-                                                               candidate_count=config.neg_samples + 1)
-                else:
-                    raise NotImplementedError('model_type=%s not implemented' % config.model_type)
+                model_tree, model, meta = create_models(config=config, lexicon=lexicon, tuple_size=tuple_size, meta=meta)
 
                 # set model
                 for m in meta:
@@ -843,8 +888,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 #     4) eval on dev/test
 
                 #with model_tree.compiler.multiprocessing_pool():
-
-
 
                 if M_TEST in meta:
                     logger.info('create test data set ...')
