@@ -31,11 +31,13 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
-from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, M_TREES, M_TRAIN, M_TEST, M_INDICES
+from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, M_TREES, \
+    M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES
 import data_iterators
 from mytools import numpy_load
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
+from train_fold import get_lexicon
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -967,52 +969,53 @@ def main(data_source):
         logging.info('Start api without data source. Use /api/load before any other request.')
         return
 
-    # We retrieve our checkpoint fullpath
-    checkpoint = tf.train.get_checkpoint_state(data_source)
-    # if a checkpoint file exist, take data_source as model dir
-    if checkpoint:
-        logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % data_source)
-        # use latest checkpoint in data_source
-        input_checkpoint = checkpoint.model_checkpoint_path
-        lexicon = Lexicon(filename=os.path.join(data_source, 'model'))
-        reader = tf.train.NewCheckpointReader(input_checkpoint)
-        logging.info('extract embeddings from model: ' + input_checkpoint + ' ...')
-        try:
-            lexicon.init_vecs(checkpoint_reader=reader)
-        except AssertionError:
-            logging.warning('no embedding vecs found in model')
-            lexicon.init_vecs()
-    # take data_source as corpus path
-    else:
-        data_path = data_source
-        logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
-        assert Lexicon.exist(data_source, types_only=True), 'No lexicon found at: %s' % data_source
-        logging.info('load lexicon from: %s' % data_source)
-        lexicon = Lexicon(filename=data_source, load_vecs=False)
+    lexicon, checkpoint_fn, _ = get_lexicon(logdir=data_source, train_data_path=data_source, dont_dump=True)
+    ## We retrieve our checkpoint fullpath
+    #checkpoint = tf.train.get_checkpoint_state(data_source)
+    ## if a checkpoint file exist, take data_source as model dir
+    #if checkpoint:
+    #    logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % data_source)
+    #    # use latest checkpoint in data_source
+    #    checkpoint_fn = checkpoint.model_checkpoint_path
+    #    lexicon = Lexicon(filename=os.path.join(data_source, 'model'))
+    #    reader = tf.train.NewCheckpointReader(checkpoint_fn)
+    #    logging.info('extract embeddings from model: ' + checkpoint_fn + ' ...')
+    #    try:
+    #        lexicon.init_vecs(checkpoint_reader=reader)
+    #    except AssertionError:
+    #        logging.warning('no embedding vecs found in model')
+    #        lexicon.init_vecs()
+    ## take data_source as corpus path
+    #else:
+    #    data_path = data_source
+    #    logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
+    #    assert Lexicon.exist(data_source, types_only=True), 'No lexicon found at: %s' % data_source
+    #    logging.info('load lexicon from: %s' % data_source)
+     #   lexicon = Lexicon(filename=data_source, load_vecs=False)
 
-    if FLAGS.external_lexicon:
-        logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
-        lexicon_external = Lexicon(filename=FLAGS.external_lexicon)
-        lexicon.merge(lexicon_external, add=True, remove=False)
-    if FLAGS.merge_nlp_lexicon:
-        logging.info('extract nlp embeddings and types ...')
-        init_nlp()
-        lexicon_nlp = Lexicon(nlp_vocab=nlp.vocab)
-        logging.info('merge nlp embeddings into loaded embeddings ...')
-        lexicon.merge(lexicon_nlp, add=True, remove=False)
+    #if FLAGS.external_lexicon:
+    #    logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
+    #    lexicon_external = Lexicon(filename=FLAGS.external_lexicon)
+    #    lexicon.merge(lexicon_external, add=True, remove=False)
+    #if FLAGS.merge_nlp_lexicon:
+    #    logging.info('extract nlp embeddings and types ...')
+    #    init_nlp()
+    #    lexicon_nlp = Lexicon(nlp_vocab=nlp.vocab)
+    #    logging.info('merge nlp embeddings into loaded embeddings ...')
+    #    lexicon.merge(lexicon_nlp, add=True, remove=False)
 
     # has to happen after integration of additional lexicon data (external_lexicon or merge_nlp_lexicon)
     #if not checkpoint:
     #    lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
     #else:
     #    lexicon.pad()
-    if checkpoint:
+    if checkpoint_fn:
         assert lexicon.vecs is None or lexicon.is_filled, \
             'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' \
             % (len(lexicon), len(lexicon.vecs))
 
     # load model
-    if checkpoint:
+    if checkpoint_fn:
         import model_fold
         model_config = Config(logdir_continue=data_source)
         data_path = model_config.train_data_path
@@ -1028,7 +1031,6 @@ def main(data_source):
         #discrete_model = (model_config.model_type in ['tuple', 'reroot'])
 
 
-        # TODO: check this!
         tuple_size = 1
         #logger.info('create tensorflow graph ...')
         with tf.Graph().as_default() as graph:
@@ -1062,7 +1064,7 @@ def main(data_source):
                     for i, m in enumerate([M_TRAIN, M_TEST]):
                         #meta[m][M_TREES] = _tree_embeddings_tfidf[i]
                         fn_tfidf_data = os.path.join(data_source, 'embeddings_tfidf.%s.npz' % m)
-                        fn_tfidf_indices = os.path.join(data_source, 'embeddings_indices.%s.npy' % m)
+                        fn_tfidf_indices = os.path.join(data_source, '%s.%s.npy' % (FN_TREE_INDICES, m))
                         if os.path.exists(fn_tfidf_data):
                             assert os.path.exists(fn_tfidf_indices), 'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tfidf_indices)
                             current_tfidf = scipy.sparse.load_npz(fn_tfidf_data)
@@ -1133,8 +1135,8 @@ def main(data_source):
                 sess = tf.Session()
                 # Restore variables from disk.
                 if saver:
-                    logging.info('restore model from: ' + input_checkpoint + '...')
-                    saver.restore(sess, input_checkpoint)
+                    logging.info('restore model from: %s ...' % checkpoint_fn)
+                    saver.restore(sess, checkpoint_fn)
 
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                     logging.info('init embeddings with external vectors ...')

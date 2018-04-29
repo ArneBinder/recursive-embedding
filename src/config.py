@@ -176,6 +176,8 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     'nfx'],
                   }
 
+ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']
+
 
 class Config(object):
     def __init__(self, logdir_continue=None, logdir_pretrained=None, values=None):
@@ -215,6 +217,14 @@ class Config(object):
 
     def __iter__(self):
         return iter(self.__dict__['__values'])
+
+    def add_entry(self, name, value, _type='string', description='', short_name=None):
+        if name in self.__dict__['__values']:
+            raise AttributeError('entry with name=%s already exists' % name)
+        assert _type in ALLOWED_TYPES, '_type=%s, but has to be one of: %s' % (_type, ', '.join(ALLOWED_TYPES))
+        self.__dict__['__values'][name] = ['DEFINE_%s' % _type, value, description]
+        if short_name is not None:
+            self.__dict__['__values'][name].append(short_name)
 
     def dump(self, logdir):
         # write flags for current run

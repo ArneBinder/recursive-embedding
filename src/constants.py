@@ -74,6 +74,8 @@ M_BATCH_ITER = 'batch_iter'
 M_NEG_SAMPLES = 'neg_samples'
 M_MODEL_NEAREST = 'model_nearest'
 
+FN_TREE_INDICES = 'tree_indices'
+
 #DEPRECATED
 
 # edges
