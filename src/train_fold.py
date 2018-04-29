@@ -122,8 +122,14 @@ def get_available_cpus():
 #    return get_available_cpus() + get_available_gpus()
 
 
-def get_ith_device(i):
-    devices = get_available_gpus() + get_available_cpus()
+def get_ith_best_device(i):
+    gpus = get_available_gpus()
+    cpus = get_available_cpus()
+    if len(gpus) > 0:
+        devices = gpus
+    else:
+        devices = cpus
+    assert len(devices) > 0, 'no devices for calculation available'
     idx = min(len(devices)-1, i)
     return devices[idx]
 
@@ -264,8 +270,9 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
     dataset_trees_embedded = np.concatenate(_tree_embeddings)
     logger.debug('%i embeddings calculated' % len(dataset_trees_embedded))
 
-    with tf.device(get_ith_device(1)):
-        logger.debug('calc nearest on device: %s' % str(get_ith_device(1)))
+    current_device = get_ith_best_device(1)
+    with tf.device(current_device):
+        logger.debug('calc nearest on device: %s' % str(current_device))
         # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
         s = dataset_trees_embedded.shape[0]
         neg_sample_indices = np.zeros(shape=(s, number_of_samples), dtype=np.int32)
@@ -731,7 +738,9 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
 def create_models_nearest(prepared_embeddings, model_tree):
     models_nearest = {}
     # set up highest_sims_models
-    with tf.device(get_ith_device(1)):
+    current_device = get_ith_best_device(1)
+    with tf.device(current_device):
+        logger.debug('create nearest model on device: %s' % str(current_device))
         for m in prepared_embeddings.keys():
             if isinstance(model_tree, model_fold.DummyTreeModel):
                 s = prepared_embeddings[m].shape[0]
@@ -849,8 +858,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
         meta[M_TRAIN][M_NEG_SAMPLES] = config.neg_samples
 
-    logger.info('create tensorflow graph ...')
-    with tf.device(get_ith_device(0)):
+    current_device = get_ith_best_device(0)
+    logger.info('create tensorflow graph on device: %s ...' % str(current_device))
+    with tf.device(current_device):
         with tf.Graph().as_default() as graph:
             #with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
