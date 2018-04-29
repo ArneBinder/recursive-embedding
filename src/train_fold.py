@@ -616,7 +616,7 @@ def check_train_test_overlap(ids_train, ids_train_target, ids_test, ids_test_tar
     return ids_test_target
 
 
-def create_models(config, lexicon, tuple_size, tree_iterators, logdir=None):
+def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False):
 
     prepared_embeddings = {}
     optimizer = config.optimizer
@@ -647,43 +647,34 @@ def create_models(config, lexicon, tuple_size, tree_iterators, logdir=None):
                     model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]), ordered=True))
                 logger.info('%s dataset: use %i different trees' % (m, len(prepared_embeddings[m])))
     else:
-        # TODO: load, if available (and use this method in embedding_api, too) --> finish and check this
-        tfidf_exist = {}
+        # check, if tfidf data exists
+        tfidf_exist = []
         for i, m in enumerate([M_TRAIN, M_TEST]):
-            # meta[m][M_TREES] = _tree_embeddings_tfidf[i]
             fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
-            #fn_tfidf_indices = os.path.join(logdir, '%s.%s.npy' % (FN_TREE_INDICES, m))
             if os.path.exists(fn_tfidf_data):
-                tfidf_exist.append(tfidf_exist)
+                tfidf_exist.append(m)
+        # if tfidf data exists, load tfidf_data and indices
         if len(tfidf_exist) > 0:
             embedding_dim = -1
-            _indices = []
             prepared_embeddings = {}
-            for i, m in tfidf_exist:
-                # meta[m][M_TREES] = _tree_embeddings_tfidf[i]
+            tree_indices = {}
+            indices_nbr = 0
+            for m in tfidf_exist:
                 fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
-                fn_tfidf_indices = os.path.join(logdir, '%s.%s.npy' % (FN_TREE_INDICES, m))
+                fn_tree_indices = os.path.join(logdir, '%s.%s.npy' % (FN_TREE_INDICES, m))
                 if os.path.exists(fn_tfidf_data):
-                    assert os.path.exists(
-                        fn_tfidf_indices), 'found tfidf data (%s), but no related indices file (%s)' % (
-                    fn_tfidf_data, fn_tfidf_indices)
-                    current_tfidf = scipy.sparse.load_npz(fn_tfidf_data)
-                    prepared_embeddings[m] = current_tfidf
-                    _indices.append(numpy_load(fn_tfidf_indices))
-                    logging.info('%s dataset: use %i different trees' % (m, current_tfidf.shape[0]))
-                    current_embedding_dim = current_tfidf.shape[1]
+                    assert os.path.exists(fn_tree_indices), \
+                        'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tree_indices)
+                    prepared_embeddings[m] = scipy.sparse.load_npz(fn_tfidf_data)
+                    tree_indices[m] = numpy_load(fn_tree_indices)
+                    logging.info('%s dataset: use %i different tree embeddings' % (m, prepared_embeddings[m].shape[0]))
+                    current_embedding_dim = prepared_embeddings[m].shape[1]
                     assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
                         current_embedding_dim, embedding_dim)
                     embedding_dim = current_embedding_dim
+                    indices_nbr += len(tree_indices[m])
             assert embedding_dim != -1, 'no data sets created'
-
-            # TODO: return this as prepared_embeddings? no
-            # TODO: correct this
-            tfidf_data = scipy.sparse.vstack(prepared_embeddings.values())
-            logging.info('total tfidf shape: %s' % str(tfidf_data.shape))
-            tfidf_indices = np.concatenate(_indices)
-            # end
-            logging.debug('number of tfidf_indices: %i' % len(tfidf_indices))
+            logging.debug('number of tfidf_indices: %i with dimension: %i' % (indices_nbr, embedding_dim))
         else:
             logger.info('create %s data sets (tf-idf) ...' % ', '.join(tree_iterators.keys()))
             assert logdir is not None, 'no logdir provided to dump tfidf embeddings'
@@ -704,6 +695,12 @@ def create_models(config, lexicon, tuple_size, tree_iterators, logdir=None):
                                                root_fc_sizes=[int(s) for s in
                                                               ('0' + config.root_fc_sizes).split(',')], )
 
+    if use_inception_tree_model:
+        inception_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size, sparse=False,
+                                                     tree_count=tuple_size, keep_prob=config.keep_prob, root_fc_sizes=0)
+    else:
+        inception_tree_model = model_tree
+
     # if config.model_type == 'simtuple':
     #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
     #                                                        optimizer=optimizer,
@@ -711,31 +708,15 @@ def create_models(config, lexicon, tuple_size, tree_iterators, logdir=None):
     #                                                        sim_measure=sim_measure,
     #                                                        clipping_threshold=config.clipping)
     if config.model_type == 'tuple':
-        model = model_fold.TreeTupleModel_with_candidates(tree_model=model_tree,
+        model = model_fold.TreeTupleModel_with_candidates(tree_model=inception_tree_model,
                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                           optimizer=optimizer,
                                                           learning_rate=config.learning_rate,
                                                           clipping_threshold=config.clipping,
                                                           )
 
-        # set up highest_sims_models
-        #with tf.device(get_ith_device(1)):
-        #    for m in meta:
-        #        if meta[m][M_BATCH_ITER].strip() == batch_iter_nearest.__name__:
-        #            # if M_TREES in meta[m]:
-        #            if isinstance(model_tree, model_fold.DummyTreeModel):
-        #                s = meta[m][M_TREES].shape[0]
-        #            else:
-        #                s = len(meta[m][M_TREES])
-        #            logger.debug('create %s model_highest_sims (number_of_embeddings=%i, embedding_size=%i)' % (
-        #            m, s, model_tree.tree_output_size))
-        #            meta[m][M_MODEL_NEAREST] = model_fold.HighestSimsModel(
-        #                number_of_embeddings=s,
-        #                embedding_size=model_tree.tree_output_size,
-        #            )
-
     elif config.model_type == 'reroot':
-        model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
+        model = model_fold.SequenceTreeRerootModel(tree_model=inception_tree_model,
                                                    fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                    optimizer=optimizer,
                                                    learning_rate=config.learning_rate,
@@ -744,7 +725,7 @@ def create_models(config, lexicon, tuple_size, tree_iterators, logdir=None):
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-    return model_tree, model, prepared_embeddings
+    return model_tree, model, prepared_embeddings, tree_indices
 
 
 def create_models_nearest(prepared_embeddings, model_tree):
@@ -752,8 +733,6 @@ def create_models_nearest(prepared_embeddings, model_tree):
     # set up highest_sims_models
     with tf.device(get_ith_device(1)):
         for m in prepared_embeddings.keys():
-            #if meta[m][M_BATCH_ITER].strip() == batch_iter_nearest.__name__:
-            # if M_TREES in meta[m]:
             if isinstance(model_tree, model_fold.DummyTreeModel):
                 s = prepared_embeddings[m].shape[0]
             else:
@@ -877,9 +856,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
             logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-            model_tree, model, prepared_embeddings = create_models(config=config, lexicon=lexicon, tuple_size=tuple_size,
-                                                                   tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
-                                                                   logdir=logdir)
+            model_tree, model, prepared_embeddings, tree_indices = create_models(
+                config=config, lexicon=lexicon,  tuple_size=tuple_size, logdir=logdir,
+                tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
+                tree_indices={m: meta[m][M_INDICES] for m in meta})
 
             models_nearest = create_models_nearest(model_tree=model_tree,
                                                    prepared_embeddings={m: prepared_embeddings[m] for m in meta.keys()
@@ -892,6 +872,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 if m in models_nearest:
                     meta[m][M_MODEL_NEAREST] = models_nearest[m]
                 meta[m][M_TREES] = prepared_embeddings[m]
+                meta[m][M_INDICES] = tree_indices[m]
 
 
             # PREPARE TRAINING #########################################################################################

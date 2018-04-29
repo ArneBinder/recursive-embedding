@@ -26,7 +26,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 import svgutils.transform as sg
 
 import constants
-import corpus_simtuple
 import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
@@ -34,10 +33,9 @@ from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, M_TREES, \
     M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES
 import data_iterators
-from mytools import numpy_load
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
-from train_fold import get_lexicon
+from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -443,58 +441,33 @@ def get_or_calc_embeddings(params):
         raise ValueError('no embeddings or sequences found in request')
 
 
-def calc_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
+def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
     global embeddings, embedding_indices
     if embedding_indices is None:
         new_indices = indices
-        #new_root_ids = root_ids
     else:
         new_indices_candidates = indices
         mask_new = ~np.isin(new_indices_candidates, embedding_indices)
         new_indices = new_indices_candidates[mask_new]
-        #new_root_ids = root_ids[mask_new]
     logging.debug('checked existing embeddings')
 
-    #feed_dict = {model_tuple.candidate_count: len(root_ids_target)}
     _embeddings = []
-    #_scores = []
     if tfidf_indices is not None:
-        from model_fold import convert_sparse_matrix_to_sparse_tensor
         _mapping = {_idx: i for i, _idx in enumerate(tfidf_indices)}
         _indices_tfidf_data = np.array([_mapping[_idx] for _idx in new_indices])
-        #_idx_src = _indices_tfidf_data[0]
-        #_indices_target = _indices_tfidf_data[1:]
-        #for start in range(0, len(root_ids_target), batch_size):
         for start in range(0, len(new_indices), batch_size):
-            #current_indices = np.concatenate(([_idx_src], _indices_target[start:start+batch_size]))
             current_indices = _indices_tfidf_data[start:start+batch_size]
             selected_tfidf_data = tfidf_data[current_indices]
-            #feed_dict = {
-            #    model_tree.embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data),
-            #    model_tuple.candidate_count: len(current_indices) - 1}
             feed_dict = {model_tree.embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data)}
-            #_scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
             _embeddings.append(sess.run(model_tree.embeddings_all, feed_dict))
     else:
-        #root_indices = forest.roots[root_ids]
-        #context_root_indices = root_indices + CONTEXT_ROOT_OFFEST
         tree_iterator = diter.tree_iterator(indices=new_indices, forest=forest, concat_mode=concat_mode,
                                             max_depth=max_depth)
-
         with model_tree.compiler.multiprocessing_pool():
             trees_compiled_iter = model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True)
-            #tree_src = trees_compiled_iter.next()
-            #trees_compiled = list(model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True))
-            #tree_src = trees_compiled[0]
-            #for start in range(0, len(root_ids_target), batch_size):
             for start in range(0, len(new_indices), batch_size):
                 current_size = min(batch_size, len(new_indices) - start)
-                #current_trees = [tree_src] + [trees_compiled_iter.next() for _ in range(current_size)]
                 current_trees = [trees_compiled_iter.next() for _ in range(current_size)]
-                #current_trees = [tree_src] + trees_compiled[start+1:start+1+batch_size]
-                #feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees],
-                #             model_tuple.candidate_count: len(current_trees) - 1}
-                #_scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
                 feed_dict = {model_tree.compiler.loom_input_tensor: [current_trees]}
                 _embeddings.append(sess.run(model_tree.embeddings_all, feed_dict))
 
@@ -517,8 +490,8 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, model_tree,
     root_indices = forest.roots[root_ids]
     scoring_indices = root_indices + CONTEXT_ROOT_OFFEST
 
-    calc_embeddings(indices=scoring_indices, forest=forest, concat_mode=concat_mode, model_tree=model_tree,
-                    max_depth=max_depth, batch_size=batch_size)
+    calc_missing_embeddings(indices=scoring_indices, forest=forest, concat_mode=concat_mode, model_tree=model_tree,
+                            max_depth=max_depth, batch_size=batch_size)
 
     embedding_indices_mapping = {idx: i for i, idx in enumerate(embedding_indices)}
     indices_scoring_embeddings = np.array([embedding_indices_mapping[idx] for idx in scoring_indices], dtype=np.int32)
@@ -832,9 +805,10 @@ def get_tuple_scores():
         max_depth = params.get('max_depth', 10)
         top = params.get('top', len(root_ids_target))
         batch_size = params.get('batch_size', 100)
-        _scores, seealso_root_ids = calc_tuple_scores(root_id, root_ids_target, forest, model_tree=model_tree,
-                                                      model_tuple=model_tuple, concat_mode=concat_mode,
-                                                      max_depth=max_depth, batch_size=batch_size)
+        _scores, seealso_root_ids = calc_tuple_scores(root_id=root_id, root_ids_target=root_ids_target, forest=forest,
+                                                      model_tree=model_tree, model_tuple=model_tuple,
+                                                      concat_mode=concat_mode, max_depth=max_depth,
+                                                      batch_size=batch_size)
         params['root_ids_seealso'] = seealso_root_ids
         params['root_ids_seealso_string'] = [forest.lexicon_roots.get_s(_id, data_as_hashes=False) for _id in seealso_root_ids]
         scores = _scores.flatten()
@@ -970,45 +944,6 @@ def main(data_source):
         return
 
     lexicon, checkpoint_fn, _ = get_lexicon(logdir=data_source, train_data_path=data_source, dont_dump=True)
-    ## We retrieve our checkpoint fullpath
-    #checkpoint = tf.train.get_checkpoint_state(data_source)
-    ## if a checkpoint file exist, take data_source as model dir
-    #if checkpoint:
-    #    logging.info('Model checkpoint found in "%s". Load the tensorflow model.' % data_source)
-    #    # use latest checkpoint in data_source
-    #    checkpoint_fn = checkpoint.model_checkpoint_path
-    #    lexicon = Lexicon(filename=os.path.join(data_source, 'model'))
-    #    reader = tf.train.NewCheckpointReader(checkpoint_fn)
-    #    logging.info('extract embeddings from model: ' + checkpoint_fn + ' ...')
-    #    try:
-    #        lexicon.init_vecs(checkpoint_reader=reader)
-    #    except AssertionError:
-    #        logging.warning('no embedding vecs found in model')
-    #        lexicon.init_vecs()
-    ## take data_source as corpus path
-    #else:
-    #    data_path = data_source
-    #    logging.info('No model checkpoint found in "%s". Load as train data corpus.' % data_source)
-    #    assert Lexicon.exist(data_source, types_only=True), 'No lexicon found at: %s' % data_source
-    #    logging.info('load lexicon from: %s' % data_source)
-     #   lexicon = Lexicon(filename=data_source, load_vecs=False)
-
-    #if FLAGS.external_lexicon:
-    #    logging.info('read external types: ' + FLAGS.external_lexicon + '.type ...')
-    #    lexicon_external = Lexicon(filename=FLAGS.external_lexicon)
-    #    lexicon.merge(lexicon_external, add=True, remove=False)
-    #if FLAGS.merge_nlp_lexicon:
-    #    logging.info('extract nlp embeddings and types ...')
-    #    init_nlp()
-    #    lexicon_nlp = Lexicon(nlp_vocab=nlp.vocab)
-    #    logging.info('merge nlp embeddings into loaded embeddings ...')
-    #    lexicon.merge(lexicon_nlp, add=True, remove=False)
-
-    # has to happen after integration of additional lexicon data (external_lexicon or merge_nlp_lexicon)
-    #if not checkpoint:
-    #    lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
-    #else:
-    #    lexicon.pad()
     if checkpoint_fn:
         assert lexicon.vecs is None or lexicon.is_filled, \
             'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' \
@@ -1016,110 +951,25 @@ def main(data_source):
 
     # load model
     if checkpoint_fn:
-        import model_fold
         model_config = Config(logdir_continue=data_source)
         data_path = model_config.train_data_path
 
-        #saved_shapes = reader.get_variable_to_shape_map()
-        #scoring_var_names = [vn for vn in saved_shapes if vn.startswith(model_fold.DEFAULT_SCOPE_SCORING)]
-        #if len(scoring_var_names) > 0:
-        #    logging.info('found scoring vars: ' + ', '.join(scoring_var_names) + '. Enable scoring functionality.')
-        #else:
-        #    logging.info('no scoring vars found. Disable scoring functionality.')
-
-        # sim_measure = getattr(model_fold, model_config.sim_measure)
-        #discrete_model = (model_config.model_type in ['tuple', 'reroot'])
-
-
-        tuple_size = 1
-        #logger.info('create tensorflow graph ...')
         with tf.Graph().as_default() as graph:
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
                 logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
                 logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-                if not model_config.tree_embedder == 'tfidf':
-                    tree_embedder = getattr(model_fold, model_config.tree_embedder)
-                    model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
-                                                              lex_size_var=lexicon.len_var,
-                                                              tree_embedder=tree_embedder,
-                                                              dimension_embeddings=lexicon.vec_size,
-                                                              state_size=model_config.state_size,
-                                                              leaf_fc_size=model_config.leaf_fc_size,
-                                                              # add a leading '0' to allow an empty string
-                                                              root_fc_sizes=[int(s) for s in
-                                                                             ('0' + model_config.root_fc_sizes).split(
-                                                                                 ',')],
-                                                              keep_prob_default=1.0,
+                assert model_config.model_type == 'tuple', 'only model_type=tuple implemented'
+                model_tree, model_tuple, prepared_embeddings, tree_indices = create_models(
+                    config=model_config, lexicon=lexicon, tuple_size=1, tree_iterators={}, tree_indices=None,
+                    logdir=data_source, use_inception_tree_model=True)
 
-                                                              tree_count=tuple_size,
-                                                              # data_transfomed=data_transformed
-                                                              # tree_count=1,
-                                                              # keep_prob_fixed=config.keep_prob # to enable full head dropout
-                                                              )
-                else:
-                    embedding_dim = -1
-                    _indices = []
-                    _tfidf = []
-                    for i, m in enumerate([M_TRAIN, M_TEST]):
-                        #meta[m][M_TREES] = _tree_embeddings_tfidf[i]
-                        fn_tfidf_data = os.path.join(data_source, 'embeddings_tfidf.%s.npz' % m)
-                        fn_tfidf_indices = os.path.join(data_source, '%s.%s.npy' % (FN_TREE_INDICES, m))
-                        if os.path.exists(fn_tfidf_data):
-                            assert os.path.exists(fn_tfidf_indices), 'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tfidf_indices)
-                            current_tfidf = scipy.sparse.load_npz(fn_tfidf_data)
-                            _tfidf.append(current_tfidf)
-                            _indices.append(numpy_load(fn_tfidf_indices))
-                            logging.info('%s dataset: use %i different trees' % (m, current_tfidf.shape[0]))
-                            current_embedding_dim = current_tfidf.shape[1]
-                            assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
-                            current_embedding_dim, embedding_dim)
-                            embedding_dim = current_embedding_dim
-                    assert embedding_dim != -1, 'no data sets created'
-
+                if model_config.tree_embedder == 'tfidf':
+                    _indices, _tfidf = zip(*[(tree_indices[m], prepared_embeddings[m]) for m in tree_indices.keys()])
                     tfidf_data = scipy.sparse.vstack(_tfidf)
                     logging.info('total tfidf shape: %s' % str(tfidf_data.shape))
                     tfidf_indices = np.concatenate(_indices)
-                    #tfidf_indices = tfidf_indices - CONTEXT_ROOT_OFFEST
                     logging.debug('number of tfidf_indices: %i' % len(tfidf_indices))
-                    # find duplicates
-                    #u, indices_inverse, counts = np.unique(tfidf_root_indices, return_inverse=True, return_counts=True)
-                    #c = counts[indices_inverse]
-                    #indices = np.argwhere(c == 0)
-                    #u[indices]
-
-                    model_tree = model_fold.DummyTreeModel(
-                        embeddings_dim=embedding_dim, tree_count=tuple_size, keep_prob=1.0, sparse=True,
-                        root_fc_sizes=[int(s) for s in ('0' + model_config.root_fc_sizes).split(',')], )
-
-                # if config.model_type == 'simtuple':
-                #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-                #                                                        optimizer=optimizer,
-                #                                                        learning_rate=config.learning_rate,
-                #                                                        sim_measure=sim_measure,
-                #                                                        clipping_threshold=config.clipping)
-                if model_config.model_type == 'tuple':
-                    optimizer = getattr(tf.train, model_config.optimizer)
-                    dummy_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size,
-                                                                 sparse=False, tree_count=1, keep_prob=1.0,
-                                                                 root_fc_sizes=0)
-                    model_tuple = model_fold.TreeTupleModel_with_candidates(
-                        tree_model=dummy_tree_model, fc_sizes=[int(s) for s in ('0' + model_config.fc_sizes).split(',')],
-                        optimizer=optimizer, learning_rate=model_config.learning_rate,
-                        clipping_threshold=model_config.clipping,
-                    )
-
-
-                #elif model_config.model_type == 'reroot':
-                #    model = model_fold.SequenceTreeRerootModel(tree_model=model_tree,
-                #                                               fc_sizes=[int(s) for s in
-                #                                                         ('0' + config.fc_sizes).split(',')],
-                #                                               optimizer=optimizer,
-                #                                               learning_rate=config.learning_rate,
-                #                                               clipping_threshold=config.clipping,
-                #                                               candidate_count=config.neg_samples + 1)
-                else:
-                    raise NotImplementedError('model_type=%s not implemented' % model_config.model_type)
 
                 # TODO: still ok?
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
