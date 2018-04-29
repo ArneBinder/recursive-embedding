@@ -93,7 +93,7 @@ tf.flags.DEFINE_boolean('debug',
 FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
-STAT_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t33', 'f1_t50', 'f1_t66', 'acc_t33', 'acc_t50', 'acc_t66']
+STAT_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
 #STAT_KEY_MAIN_DISCRETE = 'roc_micro'
 STAT_KEYS_REGRESSION = ['pearson_r', 'mse']
 #STAT_KEY_MAIN_REGRESSION = 'pearson_r'
@@ -151,7 +151,7 @@ def emit_values(supervisor, session, step, values, writer=None, csv_writer=None)
 
 def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, model_type, print_out=True, emit=True,
                   test_writer=None, test_result_writer=None):
-
+    logger.debug('collect stats ...')
     if test_writer is None:
         suffix = 'train'
         writer = None
@@ -181,33 +181,52 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
         #    logger.warning('discarded %i (of %i) values for evalution (roc)'
         #                   % (len(values_gold) - len(filtered), len(values_gold)))
         #roc = metrics.roc_auc_score(values_gold[filtered].flatten(), values[filtered].flatten())
-        roc_micro = metrics.roc_auc_score(values_gold, values, average='micro')
+        emit_dict['roc_micro'] = metrics.roc_auc_score(values_gold, values, average='micro')
         #roc_samples = metrics.roc_auc_score(values_gold, values, average='samples')
 
         values_discrete_t50 = (values + 0.50).astype(int)
         values_discrete_t33 = (values + 0.66).astype(int)
         values_discrete_t66 = (values + 0.33).astype(int)
-        f1_t50 = metrics.f1_score(values_gold, values_discrete_t50, average='micro')
-        f1_t33 = metrics.f1_score(values_gold, values_discrete_t33, average='micro')
-        f1_t66 = metrics.f1_score(values_gold, values_discrete_t66, average='micro')
+        values_discrete_t10 = (values + 0.90).astype(int)
+        values_discrete_t90 = (values + 0.10).astype(int)
 
-        acc_t50 = metrics.accuracy_score(values_gold, values_discrete_t50, normalize=True)
-        acc_t33 = metrics.accuracy_score(values_gold, values_discrete_t33, normalize=True)
-        acc_t66 = metrics.accuracy_score(values_gold, values_discrete_t66, normalize=True)
+        emit_dict['f1_t50'] = metrics.f1_score(values_gold, values_discrete_t50, average='micro')
+        emit_dict['f1_t33'] = metrics.f1_score(values_gold, values_discrete_t33, average='micro')
+        emit_dict['f1_t66'] = metrics.f1_score(values_gold, values_discrete_t66, average='micro')
+        emit_dict['f1_t10'] = metrics.f1_score(values_gold, values_discrete_t10, average='micro')
+        emit_dict['f1_t90'] = metrics.f1_score(values_gold, values_discrete_t90, average='micro')
 
-        ranking_loss_inv = 1.0 - metrics.label_ranking_loss(values_gold, values)
+        emit_dict['acc_t50'] = metrics.accuracy_score(values_gold, values_discrete_t50, normalize=True)
+        emit_dict['acc_t33'] = metrics.accuracy_score(values_gold, values_discrete_t33, normalize=True)
+        emit_dict['acc_t66'] = metrics.accuracy_score(values_gold, values_discrete_t66, normalize=True)
+        emit_dict['acc_t10'] = metrics.accuracy_score(values_gold, values_discrete_t10, normalize=True)
+        emit_dict['acc_t90'] = metrics.accuracy_score(values_gold, values_discrete_t90, normalize=True)
 
-        emit_dict.update({
-            'roc_micro': roc_micro,
-            #'roc_samples': roc_samples,
-            'ranking_loss_inv': ranking_loss_inv,
-            'f1_t50': f1_t50,
-            'f1_t33': f1_t33,
-            'f1_t66': f1_t66,
-            'acc_t50': acc_t50,
-            'acc_t33': acc_t33,
-            'acc_t66': acc_t66,
-        })
+        emit_dict['precision_t50'] = metrics.precision_score(values_gold, values_discrete_t50, average='micro')
+        emit_dict['precision_t33'] = metrics.precision_score(values_gold, values_discrete_t33, average='micro')
+        emit_dict['precision_t66'] = metrics.precision_score(values_gold, values_discrete_t66, average='micro')
+        emit_dict['precision_t10'] = metrics.precision_score(values_gold, values_discrete_t10, average='micro')
+        emit_dict['precision_t90'] = metrics.precision_score(values_gold, values_discrete_t90, average='micro')
+
+        emit_dict['recall_t50'] = metrics.recall_score(values_gold, values_discrete_t50, average='micro')
+        emit_dict['recall_t33'] = metrics.recall_score(values_gold, values_discrete_t33, average='micro')
+        emit_dict['recall_t66'] = metrics.recall_score(values_gold, values_discrete_t66, average='micro')
+        emit_dict['recall_t10'] = metrics.recall_score(values_gold, values_discrete_t10, average='micro')
+        emit_dict['recall_t90'] = metrics.recall_score(values_gold, values_discrete_t90, average='micro')
+
+        emit_dict['ranking_loss_inv'] = 1.0 - metrics.label_ranking_loss(values_gold, values)
+
+        #emit_dict.update({
+        #    'roc_micro': roc_micro,
+        #    #'roc_samples': roc_samples,
+        #    'ranking_loss_inv': ranking_loss_inv,
+        #    'f1_t50': f1_t50,
+        #    'f1_t33': f1_t33,
+        #    'f1_t66': f1_t66,
+        #    'acc_t50': acc_t50,
+        #    'acc_t33': acc_t33,
+        #    'acc_t66': acc_t66,
+        #})
         stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k]) for k in STAT_KEYS_DISCRETE])
         info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     else:
@@ -250,8 +269,7 @@ def batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_ta
 
 
 def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess, tree_model,
-                       highest_sims_model, dataset_trees, tree_model_batch_size#=None, dataset_trees_embedded=None
-                       ):
+                       highest_sims_model, dataset_trees, tree_model_batch_size):
     _tree_embeddings = []
     feed_dict = {}
     if isinstance(tree_model, model_fold.DummyTreeModel):
@@ -268,15 +286,17 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
             current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
             _tree_embeddings.append(current_tree_embeddings)
     dataset_trees_embedded = np.concatenate(_tree_embeddings)
-    logger.debug('%i embeddings calculated' % len(dataset_trees_embedded))
+    logger.debug('calculated %i embeddings ' % len(dataset_trees_embedded))
+
+    s = dataset_trees_embedded.shape[0]
+    # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
+    normed = pp.normalize(dataset_trees_embedded, norm='l2')
+    logger.debug('normalized %i embeddings' % s)
 
     current_device = get_ith_best_device(1)
     with tf.device(current_device):
         logger.debug('calc nearest on device: %s' % str(current_device))
-        # calculate cosine sim for all combinations by tree-index ([0..tree_count-1])
-        s = dataset_trees_embedded.shape[0]
         neg_sample_indices = np.zeros(shape=(s, number_of_samples), dtype=np.int32)
-        normed = pp.normalize(dataset_trees_embedded, norm='l2')
 
         # initialize normed embeddings
         sess.run(highest_sims_model.normed_embeddings_init,
