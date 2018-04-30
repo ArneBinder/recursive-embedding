@@ -429,7 +429,8 @@ def indices_dbpedianif(index_files, forest, **unused):
     root_ids_seealsos_iterator = link_root_ids_iterator(indices=indices_seealso_root, forest=forest,
                                                         link_type=TYPE_REF_SEEALSO)
 
-    root_ids_seealsos_list = []
+    #root_ids_seealsos_list = []
+    indices_sealso_contexts_lists = []
     root_ids_list = []
     indices_context_root_list = []
 
@@ -449,27 +450,34 @@ def indices_dbpedianif(index_files, forest, **unused):
             if not skip:
                 root_id_str = forest.lexicon_roots.get_s(root_ids[i], data_as_hashes=forest.data_as_hashes)
                 if root_id_str[:len(root_id_prefix_exclude)] != root_id_prefix_exclude:
-                    root_ids_seealsos_list.append(curren_root_ids_seealsos)
-                    root_ids_list.append(root_ids[i])
+                    #root_ids_seealsos_list.append(curren_root_ids_seealsos)
+                    indices_sealso_contexts_lists.append(forest.roots[curren_root_ids_seealsos] + CONTEXT_ROOT_OFFEST)
+                    #root_ids_list.append(root_ids[i])
                     indices_context_root_list.append(indices_context_root[i])
 
-    root_ids_set = set(root_ids_list)
-    added_root_ids = []
+    #root_ids_set = set(root_ids_list)
+    indices_context_set = set(indices_context_root_list)
+    #added_root_ids = []
     added_indices_context_root = []
 
-    for ls in root_ids_seealsos_list:
-        for root_id_seealso in ls:
-            if root_id_seealso not in root_ids_set and root_id_seealso not in added_root_ids:
-                added_root_ids.append(root_id_seealso)
-                idx_seealso_context = forest.roots[root_id_seealso] + CONTEXT_ROOT_OFFEST
+    #for ls in root_ids_seealsos_list:
+    for ls in indices_sealso_contexts_lists:
+        #for root_id_seealso in ls:
+        for idx_seealso_context in ls:
+            #if root_id_seealso not in root_ids_set and root_id_seealso not in added_root_ids:
+            if idx_seealso_context not in indices_context_set and idx_seealso_context not in added_indices_context_root:
+                #added_root_ids.append(root_id_seealso)
+                #idx_seealso_context = forest.roots[root_id_seealso] + CONTEXT_ROOT_OFFEST
                 added_indices_context_root.append(idx_seealso_context)
 
-    root_ids_list.extend(added_root_ids)
+    #root_ids_list.extend(added_root_ids)
     indices_context_root_list.extend(added_indices_context_root)
-    root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
+    #root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
+    indices_sealso_contexts_lists.extend([[]] * len(added_indices_context_root))
     logger.debug('selected %i root_ids (filtered; source + target trees)' % len(root_ids_list))
 
-    return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
+    #return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
+    return np.array(indices_context_root_list), indices_sealso_contexts_lists
 
 
 def indices_dbpedianif_dummy(forest, **unused):
@@ -484,12 +492,14 @@ def indices_dbpedianif_dummy(forest, **unused):
     indices_context_root = forest.roots + CONTEXT_ROOT_OFFEST
     logger.debug('found %i root_ids' % len(root_ids))
     #return np.array(root_ids), np.array(indices_context_root), None
-    return root_ids, indices_context_root, None
+    #return root_ids, indices_context_root, None
+    return indices_context_root, None
 
 
 def indices_as_ids(index_files, **unused):
     indices = np.fromiter(index_iterator(index_files), dtype=np.int32)
-    return indices, indices, None
+    #return indices, indices, None
+    return indices, None
 
 
 # DEPRECATED

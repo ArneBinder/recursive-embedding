@@ -36,7 +36,7 @@ from mytools import numpy_load
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
     TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, M_INDICES, M_TEST, \
-    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_DATA, M_IDS, M_TREE_ITER, M_IDS_TARGET, M_BATCH_ITER, M_NEG_SAMPLES, \
+    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_DATA, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
     M_MODEL_NEAREST, FN_TREE_INDICES
 from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
@@ -239,47 +239,47 @@ def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, mode
     return emit_dict
 
 
-def id_iter(dataset_indices, dataset_ids, dataset_target_ids):
-    for idx in dataset_indices:
-        for target_id in dataset_target_ids[idx]:
-            yield (idx, dataset_ids[idx], target_id)
+def batch_iter_naive(number_of_samples, forest_indices, forest_indices_targets, idx_forest_to_idx_trees, sampler=None):
+
+    if sampler is None:
+        def sampler(idx_target):
+            # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target and +1 to hold
+            # the origin/reference (idx)
+            sample_indices = np.random.random_integers(len(forest_indices) - 1, size=number_of_samples + 1 + 1)
+            # replace sampled correct target with 0 (0 is located outside the sampled values, so statistics remain correct)
+            # (e.g. do not sample the correct target)
+            sample_indices[sample_indices == idx_forest_to_idx_trees[idx_target]] = 0
+            return sample_indices
+
+    indices = np.arange(len(forest_indices))
+    np.random.shuffle(indices)
+    for i in indices:
+        idx = forest_indices[i]
+        for idx_target in forest_indices_targets[i]:
+            sample_indices = sampler(idx_target)
+            # set the first to the correct target
+            sample_indices[1] = idx_forest_to_idx_trees[idx_target]
+            # set the 0th to the origin/reference
+            sample_indices[0] = idx_forest_to_idx_trees[idx]
+
+            # convert candidates to ids
+            candidate_indices = forest_indices[sample_indices[1:]]
+            ix = np.isin(candidate_indices, forest_indices_targets[i])
+            probs = np.zeros(shape=len(candidate_indices), dtype=DT_PROBS)
+            probs[ix] = 1
+
+            yield sample_indices, probs
 
 
-def batch_iter_naive(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids):
-    id_to_idx = {_id: i for i, _id in enumerate(dataset_ids)}
-    for idx, _id, _target_id in id_iter(dataset_indices, dataset_ids, dataset_target_ids):
-        # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target and +1 to hold
-        # the origin/reference (idx)
-        samples = np.random.random_integers(len(dataset_indices) - 1, size=number_of_samples + 1 + 1)
-        # replace "self" with 0
-        samples[samples == idx] = 0
-        # set the first to the correct target
-        samples[1] = id_to_idx[_target_id]
-        # set the 0th to the origin/reference
-        samples[0] = idx
-
-        # convert candidates to ids
-        candidate_ids = dataset_ids[samples[1:]]
-        all_targets = dataset_target_ids[idx]
-        ix = np.isin(candidate_ids, all_targets)
-        probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
-        probs[ix] = 1
-
-        yield samples, probs
-
-
-def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess, tree_model,
-                       highest_sims_model, dataset_trees, tree_model_batch_size):
+def batch_iter_nearest(number_of_samples, forest_indices, forest_indices_targets, sess, tree_model,
+                       highest_sims_model, dataset_trees, tree_model_batch_size, idx_forest_to_idx_trees):
     _tree_embeddings = []
     feed_dict = {}
     if isinstance(tree_model, model_fold.DummyTreeModel):
-        #for batch in td.group_by_batches(dataset_trees, config.batch_size):
         for start in range(0, dataset_trees.shape[0], tree_model_batch_size):
             feed_dict[tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(dataset_trees[start:start+tree_model_batch_size])
             current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
             _tree_embeddings.append(current_tree_embeddings)
-
-    #if dataset_trees_embedded is None:
     else:
         for batch in td.group_by_batches(dataset_trees, tree_model_batch_size):
             feed_dict[tree_model.compiler.loom_input_tensor] = batch
@@ -315,56 +315,44 @@ def batch_iter_nearest(number_of_samples, dataset_indices, dataset_ids, dataset_
     #         feed_dict={highest_sims_model.normed_embeddings_placeholder: normed})
     logger.debug('created nearest indices')
 
-    id_to_idx = {_id: i for i, _id in enumerate(dataset_ids)}
-    for idx, _id, _target_id in id_iter(dataset_indices, dataset_ids, dataset_target_ids):
-        samples = np.zeros(shape=number_of_samples + 1 + 1, dtype=np.int32)
-        samples[1] = id_to_idx[_target_id]
-        target_nearest_indices = neg_sample_indices[id_to_idx[_target_id]]
-        samples[2:] = target_nearest_indices
-        samples[0] = idx
+    def sampler(idx_target):
+        sample_indices = np.zeros(shape=number_of_samples + 1 + 1, dtype=np.int32)
+        sample_indices[2:] = neg_sample_indices[idx_forest_to_idx_trees[idx_target]]
+        return sample_indices
 
-        # convert candidates to ids
-        candidate_ids = dataset_ids[samples[1:]]
-        all_targets = dataset_target_ids[idx]
-        ix = np.isin(candidate_ids, all_targets)
-        probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
-        probs[ix] = 1
-        yield samples, probs
+    for sample_indices, probs in batch_iter_naive(number_of_samples, forest_indices, forest_indices_targets,
+                                                  idx_forest_to_idx_trees, sampler=sampler):
+        yield sample_indices, probs
 
 
-def batch_iter_reroot(number_of_samples, dataset_indices):
-    for idx in dataset_indices:
+def batch_iter_reroot(forest_indices, number_of_samples):
+    for idx in forest_indices:
         probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
         probs[0] = 1
         return [idx], probs
 
 
-def batch_iter_all(dataset_indices, dataset_ids, dataset_target_ids, number_of_candidates):
-    for idx in dataset_indices:
-
-        # convert candidates to ids
-        candidate_ids = dataset_ids[dataset_indices]
-        all_targets = dataset_target_ids[idx]
-        ix = np.isin(candidate_ids, all_targets)
-        probs = np.zeros(shape=len(candidate_ids), dtype=DT_PROBS)
+def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
+    for i in range(len(forest_indices)):
+        ix = np.isin(forest_indices, forest_indices_targets[i])
+        probs = np.zeros(shape=len(ix), dtype=DT_PROBS)
         probs[ix] = 1
-        for start in range(0, len(candidate_ids), number_of_candidates):
-            current_indices = dataset_indices[start:start+number_of_candidates]
+        for start in range(0, len(probs), batch_size):
             # do not yield, if it is not full (end of the dataset)
-            if len(current_indices) < number_of_candidates:
+            if start+batch_size > len(probs):
                 continue
-            current_probs = probs[start:start+number_of_candidates]
-            yield np.concatenate(([idx], current_indices)), current_probs
+            sampled_indices = np.arange(start - 1, start + batch_size)
+            sampled_indices[0] = i
+            current_probs = probs[start:start + batch_size]
+            yield sampled_indices, current_probs
 
 
-def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=None, dataset_trees=None,
-             #dataset_trees_embedded=None,
+def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targets=None, dataset_trees=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
              highest_sims_model=None, number_of_samples=None, batch_iter=''):  # , discrete_model=False):
 
-    dataset_indices = np.arange(len(dataset_ids))
-
-    np.random.shuffle(dataset_indices)
+    #dataset_indices = np.arange(len(forest_indices))
+    #np.random.shuffle(dataset_indices)
 
     step = test_step
     feed_dict = {}
@@ -377,11 +365,13 @@ def do_epoch(supervisor, sess, model, epoch, dataset_ids, dataset_target_ids=Non
         feed_dict[model.tree_model.keep_prob] = 1.0
 
     tree_model_batch_size = 10
-    iter_args = {batch_iter_naive: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids],
-                 batch_iter_nearest: [number_of_samples, dataset_indices, dataset_ids, dataset_target_ids, sess,
-                                      model.tree_model, highest_sims_model, dataset_trees, tree_model_batch_size],
-                 batch_iter_all: [dataset_indices, dataset_ids, dataset_target_ids, number_of_samples + 1],
-                 batch_iter_reroot: [number_of_samples, dataset_indices]}
+    indices_forest_to_tree = {idx: i for i, idx in enumerate(forest_indices)}
+    iter_args = {batch_iter_naive: [number_of_samples, forest_indices, forest_indices_targets, indices_forest_to_tree],
+                 batch_iter_nearest: [number_of_samples, forest_indices, forest_indices_targets, sess,
+                                      model.tree_model, highest_sims_model, dataset_trees, tree_model_batch_size,
+                                      indices_forest_to_tree],
+                 batch_iter_all: [forest_indices, forest_indices_targets, number_of_samples + 1],
+                 batch_iter_reroot: [forest_indices, number_of_samples]}
 
     if batch_iter is not None and batch_iter.strip() != '':
         _iter = globals()[batch_iter]
@@ -623,24 +613,24 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
     return fnames_train, fnames_test
 
 
-def check_train_test_overlap(ids_train, ids_train_target, ids_test, ids_test_target):
+def check_train_test_overlap(forest_indices_train, forest_indices_train_target, forest_indices_test, forest_indices_test_target):
     logger.info('check for occurrences of test_target_id->test_id in train data...')
     del_count_all = 0
     count_all = 0
-    ids_train_rev = {id_train: i for i, id_train in enumerate(ids_train)}
-    for i, id_test in enumerate(ids_test):
+    indices_train_rev = {id_train: i for i, id_train in enumerate(forest_indices_train)}
+    for i, forest_idx_test in enumerate(forest_indices_test):
         del_count = 0
-        for j in range(len(ids_test_target[i])):
-            id_target_test = ids_test_target[i][j - del_count]
-            idx_train = ids_train_rev.get(id_target_test, None)
-            if idx_train is not None and id_target_test in ids_train_target[idx_train]:
-                del ids_test_target[i][j - del_count]
+        for j in range(len(forest_indices_test_target[i])):
+            forest_idx_target_test = forest_indices_test_target[i][j - del_count]
+            idx_train = indices_train_rev.get(forest_idx_target_test, None)
+            if idx_train is not None and forest_idx_target_test in forest_indices_train_target[idx_train]:
+                del forest_indices_test_target[i][j - del_count]
                 del_count += 1
             else:
                 count_all += 1
         del_count_all += del_count
     logger.info('deleted %i test targets. %i test targets remain.' % (del_count_all, count_all))
-    return ids_test_target
+    return forest_indices_test_target
 
 
 def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False):
@@ -845,17 +835,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     logger.info('calc indices from index files ...')
     for m in meta:
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
-        meta[m][M_IDS], meta[m][M_INDICES], meta[m][M_IDS_TARGET] = indices_getter(index_files=meta[m][M_FNAMES],
-                                                                                   forest=forest)
+        meta[m][M_INDICES], meta[m][M_INDICES_TARGETS] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
         # dump tree indices
         if not loaded_from_checkpoint:
             mytools.numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
 
     if M_TEST in meta and M_TRAIN in meta:
-        meta[M_TEST][M_IDS_TARGET] = check_train_test_overlap(ids_train=meta[M_TRAIN][M_IDS],
-                                                              ids_train_target=meta[M_TRAIN][M_IDS_TARGET],
-                                                              ids_test=meta[M_TEST][M_IDS],
-                                                              ids_test_target=meta[M_TEST][M_IDS_TARGET])
+        meta[M_TEST][M_INDICES_TARGETS] = check_train_test_overlap(forest_indices_train=meta[M_TRAIN][M_INDICES],
+                                                                   forest_indices_train_target=meta[M_TRAIN][M_INDICES_TARGETS],
+                                                                   forest_indices_test=meta[M_TEST][M_INDICES],
+                                                                   forest_indices_test_target=meta[M_TEST][M_INDICES_TARGETS])
 
     # set tree iterator
     for m in meta:
@@ -980,21 +969,22 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             if M_TEST in meta:
                 logger.info('create test data set ...')
+                step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(
+                    supervisor,
+                    sess=sess,
+                    model=meta[M_TEST][M_MODEL],
+                    dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
+                    forest_indices=meta[M_TEST][M_INDICES],
+                    forest_indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                    #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
+                    epoch=0,
+                    train=False,
+                    emit=False,
+                    number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                    #number_of_samples=None,
+                    highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
+                    batch_iter=meta[M_TEST][M_BATCH_ITER])
                 if M_TRAIN not in meta:
-                    step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(supervisor,
-                                                                                       sess=sess,
-                                                                                       model=meta[M_TEST][M_MODEL],
-                                                                                       dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
-                                                                                       dataset_ids=meta[M_TEST][M_IDS],
-                                                                                       dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
-                                                                                       #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
-                                                                                       epoch=0,
-                                                                                       train=False,
-                                                                                       emit=False,
-                                                                                       number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
-                                                                                       #number_of_samples=None,
-                                                                                       highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                                                                                       batch_iter=meta[M_TEST][M_BATCH_ITER])
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                     logger.removeHandler(fh_info)
@@ -1021,39 +1011,41 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 stat_queue = [{stat_key: TEST_MIN_INIT}]
             step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
             max_queue_length = 0
-            for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_IDS])), n=config.epochs, shuffle=True), 1):
+            for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
 
                 # train
                 if not config.early_stop_queue or len(stat_queue) > 0:
-                    step_train, loss_train, _, _, stats_train = do_epoch(supervisor, sess,
-                                                                         model=meta[M_TRAIN][M_MODEL],
-                                                                         dataset_trees=meta[M_TRAIN][M_TREES],# if M_TREES in meta[M_TRAIN] else None,
-                                                                         #dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
-                                                                         dataset_ids=meta[M_TRAIN][M_IDS],
-                                                                         dataset_target_ids=meta[M_TRAIN][M_IDS_TARGET],
-                                                                         epoch=epoch,
-                                                                         number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
-                                                                         highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
-                                                                         batch_iter=meta[M_TRAIN][M_BATCH_ITER])
+                    step_train, loss_train, _, _, stats_train = do_epoch(
+                        supervisor, sess,
+                        model=meta[M_TRAIN][M_MODEL],
+                        dataset_trees=meta[M_TRAIN][M_TREES],# if M_TREES in meta[M_TRAIN] else None,
+                        #dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
+                        forest_indices=meta[M_TRAIN][M_INDICES],
+                        forest_indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
+                        epoch=epoch,
+                        number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
+                        highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
+                        batch_iter=meta[M_TRAIN][M_BATCH_ITER])
 
                 if M_TEST in meta:
 
                     # test
-                    step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(supervisor, sess,
-                                                                                       model=meta[M_TEST][M_MODEL],
-                                                                                       dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
-                                                                                       #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
-                                                                                       dataset_ids=meta[M_TEST][M_IDS],
-                                                                                       dataset_target_ids=meta[M_TEST][M_IDS_TARGET],
-                                                                                       number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
-                                                                                       #number_of_samples=None,
-                                                                                       epoch=epoch,
-                                                                                       train=False,
-                                                                                       test_step=step_train,
-                                                                                       test_writer=test_writer,
-                                                                                       test_result_writer=test_result_writer,
-                                                                                       highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                                                                                       batch_iter=meta[M_TEST][M_BATCH_ITER])
+                    step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(
+                        supervisor, sess,
+                        model=meta[M_TEST][M_MODEL],
+                        dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
+                        # #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
+                        forest_indices=meta[M_TEST][M_INDICES],
+                        forest_indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                        number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                        #number_of_samples=None,
+                        epoch=epoch,
+                        train=False,
+                        test_step=step_train,
+                        test_writer=test_writer,
+                        test_result_writer=test_result_writer,
+                        highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
+                        batch_iter=meta[M_TEST][M_BATCH_ITER])
 
                     if loss_test < loss_test_best:
                         loss_test_best = loss_test

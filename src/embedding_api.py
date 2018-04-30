@@ -288,7 +288,7 @@ def get_or_calc_sequence_data(params):
 
         fn = '%s.%s' % (data_path, params.get('idx_file', None))
 
-        ids_unused, indices, ids_target_unused = indices_getter(index_files=[fn], forest=current_forest)
+        indices, indices_targets_unused = indices_getter(index_files=[fn], forest=current_forest)
         # set tree iterator
         tree_iter = data_iterators.tree_iterator(indices=indices, forest=current_forest, **tree_iterator_args)
 
