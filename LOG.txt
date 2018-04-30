@@ -35,6 +35,7 @@
 29-04-18
 ========
  * modularized execute_run and use relevant parts in embedding_api
+ * added metrics
 
 30-04-18
 ========

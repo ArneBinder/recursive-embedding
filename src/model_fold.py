@@ -680,7 +680,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         #self._data_transformed = data_transformed
         self._neg_samples = tree_count
 
-    # TODO: implement this!
+    # TODO: implement this: feed prepared samples (transformed dats ids) via placeholder
     def sample(self, head_ids):
         result = []
         for head_id in head_ids:
@@ -1138,33 +1138,18 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
         return MODEL_TYPE_DISCRETE
 
 
-class TreeTupleModel_with_candidates(BaseTrainModel):
+class TreeScoringModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, fc_sizes=1000, **kwargs):
-        #print('candidate_count: %s' % candidate_count)
-        #self._candidate_count = candidate_count
         self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
 
-        #self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, self._candidate_count])
         self._labels_gold = tf.placeholder(dtype=tf.float32)
-        #print('%s\tlabels_gold.shape' % self._labels_gold.shape)
 
-        tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, self._candidate_count + 1, tree_model.tree_output_size])
+        tree_embeddings = tf.reshape(tree_model.embeddings_all,
+                                     shape=[-1, self._candidate_count + 1, tree_model.tree_output_size])
         batch_size = tf.shape(tree_embeddings)[0]
-        #print('%s\ttree_embeddings.shape' % tree_embeddings.shape)
-
-        ref_tree_embedding = tree_embeddings[:, 0, :]
-        #print('%s\tref_tree_embedding.shape' % ref_tree_embedding.shape)
-        candidate_tree_embeddings = tree_embeddings[:, 1:, :]
-        #print('%s\tcandidate_tree_embeddings.shape' % candidate_tree_embeddings.shape)
-        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, self._candidate_count])
-        #print('%s\tref_tree_embedding_tiled.shape' % ref_tree_embedding_tiled.shape)
-        ref_tree_embedding_tiled_reshaped = tf.reshape(ref_tree_embedding_tiled,
-                                                       shape=[-1, self._candidate_count, tree_model.tree_output_size])
-        #print('%s\tref_tree_embedding_tiled_reshaped.shape' % ref_tree_embedding_tiled_reshaped.shape)
-        concat = tf.concat([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=-1)
-        #print('%s\t concat.shape' % concat.shape)
+        final_vecs = self._final_vecs(tree_embeddings, tree_model.tree_output_size)
 
         if not isinstance(fc_sizes, (list, tuple)):
             fc_sizes = [fc_sizes]
@@ -1172,22 +1157,19 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
         # add multiple fc layers
         for s in fc_sizes:
             if s > 0:
-                fc = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=s)
-                concat = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
+                fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
+                final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
-        # logits = tf.contrib.layers.fully_connected(inputs=concat, num_outputs=2, activation_fn=None)
-        logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=concat, num_outputs=1, activation_fn=None),
+        logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=1, activation_fn=None),
                             shape=[batch_size, self._candidate_count])
-        #cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
-        #cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=self._labels_gold))
         labels_gold_normed = self._labels_gold / tf.reduce_sum(self._labels_gold, axis=-1, keep_dims=True)
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
-        #softmax = tf.nn.softmax(logits)
-        #self._probs = softmax[:, :, 1]
         self._probs = tf.sigmoid(logits)
-        #self._probs = tf.nn.softmax(logits)
+
+    def _final_vecs(self, tree_embeddings, embedding_dim):
+        raise NotImplementedError('implement this method')
 
     @property
     def values_gold(self):
@@ -1204,6 +1186,23 @@ class TreeTupleModel_with_candidates(BaseTrainModel):
     @property
     def candidate_count(self):
         return self._candidate_count
+
+
+class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):
+    def _final_vecs(self, tree_embeddings, embedding_dim):
+
+        ref_tree_embedding = tree_embeddings[:, 0, :]
+        candidate_tree_embeddings = tree_embeddings[:, 1:, :]
+        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, self._candidate_count])
+        ref_tree_embedding_tiled_reshaped = tf.reshape(ref_tree_embedding_tiled,
+                                                       shape=[-1, self._candidate_count, embedding_dim])
+        concat = tf.concat([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=-1)
+        return concat
+
+
+class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
+    def _final_vecs(self, tree_embeddings, embedding_dim):
+        return tf.reshape(tree_embeddings, shape=[-1, self._candidate_count, embedding_dim])
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):

@@ -35,7 +35,7 @@ import mytools
 from mytools import numpy_load
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
-    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, M_INDICES, M_TEST, \
+    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_DATA, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
     M_MODEL_NEAREST, FN_TREE_INDICES
 from config import Config
@@ -329,7 +329,8 @@ def batch_iter_reroot(forest_indices, number_of_samples):
     for idx in forest_indices:
         probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
         probs[0] = 1
-        return [idx], probs
+        # TODO: do not yield dummy samples
+        yield ([idx], list(range(number_of_samples))), probs
 
 
 def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
@@ -392,7 +393,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targ
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for batch in td.group_by_batches(_batch_iter, config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
-        if not isinstance(model.tree_model, model_fold.DummyTreeModel):
+        #if not isinstance(model.tree_model, model_fold.DummyTreeModel):
+        if hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor'):
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
             feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
         else:
@@ -520,7 +522,7 @@ def init_model_type(config):
         tree_iterator = diters.data_tuple_iterator
 
         tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
-        discrete_model = False
+        #discrete_model = False
         load_parents = False
     elif config.model_type == 'tuple':
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -538,7 +540,7 @@ def init_model_type(config):
         indices_getter = diters.indices_dbpedianif
         # tuple_size = config.neg_samples + 1
         tuple_size = 1
-        discrete_model = True
+        #discrete_model = True
         load_parents = (tree_iterator_args['context'] > 0)
     # elif config.model_type == 'tuple_single':
     #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -564,13 +566,22 @@ def init_model_type(config):
         #    indices = None
         neg_samples = config.neg_samples
         tuple_size = neg_samples + 1
-        tree_iterator_args = {'neg_samples': neg_samples, 'max_depth': config.max_depth,
+        tree_iterator_args = {'neg_samples': neg_samples, 'max_depth': config.max_depth, 'concat_mode': CM_TREE,
                               'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
         # tree_iterator = diters.data_tuple_iterator_reroot
         tree_iterator = diters.tree_iterator
-        indices_getter = diters.indices_as_ids
+
+        def _get_indices(index_files):
+            # TODO: remove count
+            #indices = np.fromiter(diters.index_iterator(index_files), count=1000, dtype=np.int32)
+            # TODO: remove dummy indices
+            indices = np.arange(1000, dtype=np.int32)
+            return indices, None
+
+        #indices_getter = diters.indices_as_ids
+        indices_getter = _get_indices
         # del meta[M_TEST]
-        discrete_model = True
+        #discrete_model = True
         load_parents = True
     # elif config.model_type == 'tfidf':
     #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -733,12 +744,12 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
                                                           )
 
     elif config.model_type == 'reroot':
-        model = model_fold.SequenceTreeRerootModel(tree_model=inception_tree_model,
-                                                   fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
-                                                   optimizer=optimizer,
-                                                   learning_rate=config.learning_rate,
-                                                   clipping_threshold=config.clipping,
-                                                   candidate_count=config.neg_samples + 1)
+        model = model_fold.TreeSingleModel_with_candidates(tree_model=inception_tree_model,
+                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
+                                                           optimizer=optimizer,
+                                                           learning_rate=config.learning_rate,
+                                                           clipping_threshold=config.clipping,
+                                                           )
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
