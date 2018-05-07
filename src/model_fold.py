@@ -727,7 +727,7 @@ class TreeEmbedding_FLAT(TreeEmbedding_reduce):
 
     @property
     def output_size(self):
-        raise NotImplementedError("Please Implement this method")
+        raise NotImplementedError("Please implement this method")
 
 
 class TreeEmbedding_FLAT2levels(TreeEmbedding_FLAT):
@@ -759,6 +759,52 @@ class TreeEmbedding_FLAT2levels(TreeEmbedding_FLAT):
     @property
     def head_size(self):
         return self.leaf_fc_size or (self.dimension_embeddings * 2)
+
+
+class TreeEmbedding_FLATconcat(TreeEmbedding):
+    """
+        FLAT TreeEmbedding models take all first level children of the root as input and reduce them.
+    """
+    def __init__(self, name, sequence_length, padding_id, **kwargs):
+        super(TreeEmbedding_FLATconcat, self).__init__(name='FLATconcat_' + name, **kwargs)
+        self._sequence_length = sequence_length
+        self._padding_element = {KEY_HEAD: padding_id, KEY_CHILDREN: []}
+
+    def __call__(self):
+
+        def adjust_length(l):
+            if len(l) >= self.sequence_length:
+                new_l = l[:self.sequence_length]
+            else:
+                # pad in the front
+                new_l = [self.padding_element] * (self.sequence_length - len(l)) + l
+            #assert len(new_l) == self.sequence_length, 'wrong sequence length: %i, expected: %i' \
+            #                                           % (len(new_l), self.sequence_length)
+            return new_l
+
+        model = self.children() >> td.InputTransform(adjust_length) >> td.Map(self.head()) \
+                >> SequenceToTuple(self.head().output_type, self.sequence_length) >> td.Concat()
+        if model.output_type is None:
+            model.set_output_type(tdt.TensorType(shape=(self.head_size * self.sequence_length,), dtype='float32'))
+        return model
+
+    def reduce_concatenated(self, concatenated_embeddings):
+        raise NotImplementedError('Implement this')
+
+    # This is not the actual output size, but the output is adapted to this
+    # in SequenceTreeModel.__init__ via TreeEmbedding_FLAT_CONCAT.reduce_concatenated
+    @property
+    def output_size(self):
+        raise NotImplementedError('Implement this')
+
+    @property
+    def sequence_length(self):
+        return self._sequence_length
+
+
+    @property
+    def padding_element(self):
+        return self._padding_element
 
 
 #######################################
@@ -866,6 +912,49 @@ class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU(TreeEmbedding_reduceSUM, Tre
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU, self).__init__(name=name, **kwargs)
 
+
+class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
+    def __init__(self, **kwargs):
+        TreeEmbedding_FLATconcat.__init__(self, name='GRU', **kwargs)
+
+    def reduce_concatenated(self, concatenated_embeddings):
+        embeddings_sequence = tf.reshape(concatenated_embeddings,
+                                         shape=[-1, self.sequence_length, self.head_size])
+        batch_size = tf.shape(embeddings_sequence)[0]
+        cell = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+        inputs = tf.unstack(embeddings_sequence, axis=1)
+        outputs, state = tf.nn.static_rnn(
+            cell, inputs, initial_state=cell.zero_state(batch_size, dtype=embeddings_sequence.dtype))
+        return state
+
+    # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
+    @property
+    def output_size(self):
+        return self.state_size
+
+
+class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
+    def __init__(self, **kwargs):
+        TreeEmbedding_FLATconcat.__init__(self, name='BIGRU', **kwargs)
+
+    def reduce_concatenated(self, concatenated_embeddings):
+        embeddings_sequence = tf.reshape(concatenated_embeddings,
+                                         shape=[-1, self.sequence_length, self.head_size])
+        cell_fw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+        cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+        inputs = tf.unstack(embeddings_sequence, axis=1)
+
+        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(cell_fw, cell_bw, inputs,
+                                                                     dtype=concatenated_embeddings.dtype)
+        states_concat = tf.concat((state_fw, state_bw), axis=-1)
+        # result = tf.contrib.layers.fully_connected(inputs=states_concat, num_outputs=self.output_size)
+        return states_concat
+
+    # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
+    @property
+    def output_size(self):
+        return self.state_size * 2
+
 ########################################################################################################################
 
 
@@ -951,10 +1040,10 @@ class TreeModel(object):
 
 
 class SequenceTreeModel(TreeModel):
-    def __init__(self, tree_count, tree_embedder, keep_prob_default, **kwargs):
+    def __init__(self, tree_count, tree_embedder, keep_prob_default, state_size, **kwargs):
         keep_prob_placeholder = tf.placeholder_with_default(keep_prob_default, shape=())
 
-        self._tree_embed = tree_embedder(keep_prob_placeholder=keep_prob_placeholder, **kwargs)
+        self._tree_embed = tree_embedder(keep_prob_placeholder=keep_prob_placeholder, state_size=state_size, **kwargs)
 
         embed_tree = self._tree_embed()
         # do not map tree embedding model to input, if it produces a sequence itself
@@ -966,6 +1055,9 @@ class SequenceTreeModel(TreeModel):
         # fold model output
         self._compiler = td.Compiler.create(model)
         self._tree_embeddings_all, = self._compiler.output_tensors
+
+        if isinstance(self._tree_embed, TreeEmbedding_FLATconcat):
+            self._tree_embeddings_all = self.embedder.reduce_concatenated(self._tree_embeddings_all)
 
         super(SequenceTreeModel, self).__init__(
             embeddings_plain=tf.reshape(self._tree_embeddings_all, shape=[-1, self.embedder.output_size]),

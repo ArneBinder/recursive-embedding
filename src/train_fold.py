@@ -35,7 +35,7 @@ import mytools
 from mytools import numpy_load
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
-    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
+    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, UNIQUE_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_DATA, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
     M_MODEL_NEAREST, FN_TREE_INDICES
 from config import Config
@@ -653,6 +653,12 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
 
     if not config.tree_embedder == 'tfidf':
         tree_embedder = getattr(model_fold, config.tree_embedder)
+        kwargs = {}
+        if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat):
+            # TODO: this value should depend on max_size_plain, see data_iterators.tree_iterator
+            kwargs['sequence_length'] = 1000
+            kwargs['padding_id'] = lexicon.get_d(vocab_manual[UNIQUE_EMBEDDING], data_as_hashes=False)
+
         model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
                                                   lex_size_var=lexicon.len_var,
                                                   tree_embedder=tree_embedder,
@@ -667,6 +673,7 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
                                                   # data_transfomed=data_transformed
                                                   # tree_count=1,
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
+                                                  **kwargs
                                                   )
         for m in tree_iterators:
             logger.info('create %s data set (tree-embeddings) ...' % m)
@@ -761,8 +768,8 @@ def create_models_nearest(prepared_embeddings, model_tree):
     # set up highest_sims_models
     current_device = get_ith_best_device(1)
     with tf.device(current_device):
-        logger.debug('create nearest model on device: %s' % str(current_device))
         for m in prepared_embeddings.keys():
+            logger.debug('create nearest %s model on device: %s' % (m, str(current_device)))
             if isinstance(model_tree, model_fold.DummyTreeModel):
                 s = prepared_embeddings[m].shape[0]
             else:
