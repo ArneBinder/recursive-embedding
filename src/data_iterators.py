@@ -431,7 +431,7 @@ def indices_dbpedianif(index_files, forest, **unused):
 
     #root_ids_seealsos_list = []
     indices_sealso_contexts_lists = []
-    root_ids_list = []
+    #root_ids_list = []
     indices_context_root_list = []
 
     root_id_prefix_exclude = 'http://dbpedia.org/resource/List_of_'
@@ -474,7 +474,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     indices_context_root_list.extend(added_indices_context_root)
     #root_ids_seealsos_list.extend([[]] * len(added_indices_context_root))
     indices_sealso_contexts_lists.extend([[]] * len(added_indices_context_root))
-    logger.debug('selected %i root_ids (filtered; source + target trees)' % len(root_ids_list))
+    logger.debug('selected %i root_ids (filtered; source + target trees)' % len(indices_context_root_list))
 
     #return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
     return np.array(indices_context_root_list), indices_sealso_contexts_lists
