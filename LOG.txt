@@ -41,3 +41,12 @@
 ========
  * removed ids from indices iterators and translated ids_target to indices_targets e.g. use only indices pointing into
    forest data
+
+04-05-18
+========
+ * started expose
+
+07-05-18
+========
+ * implemented non-fold (still using token embedding mechanics) embedding RNN models (GRU, BIGRU)
+ * batch_size analysis (2 index files, batch_iter_naive)
