@@ -928,8 +928,12 @@ class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
         embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, self.sequence_length, self.head_size])
         #batch_size = tf.shape(embeddings_sequence)[0]
         cell = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+        cell_dropout = tf.nn.rnn_cell.DropoutWrapper(
+            cell, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
+            variational_recurrent=True, dtype=embeddings_sequence.dtype, input_size=embeddings_sequence.shape[-1])
         inputs = tf.unstack(embeddings_sequence, axis=1)
-        outputs, state = tf.nn.static_rnn(cell, inputs, sequence_length=length, dtype=concatenated_embeddings.dtype)
+        outputs, state = tf.nn.static_rnn(cell_dropout, inputs, sequence_length=length,
+                                          dtype=concatenated_embeddings.dtype)
         return state
 
     # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
@@ -947,12 +951,16 @@ class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
         length = concatenated_embeddings_with_length[:, -1]
         embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, self.sequence_length, self.head_size])
         cell_fw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+        cell_fw_dropout = tf.nn.rnn_cell.DropoutWrapper(
+            cell_fw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
+            variational_recurrent=True, dtype=embeddings_sequence.dtype, input_size=embeddings_sequence.shape[-1])
         cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+        cell_bw_dropout = tf.nn.rnn_cell.DropoutWrapper(
+            cell_bw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
+            variational_recurrent=True, dtype=embeddings_sequence.dtype, input_size=embeddings_sequence.shape[-1])
         inputs = tf.unstack(embeddings_sequence, axis=1)
-
-        # TODO: use length
-        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(cell_fw, cell_bw, inputs, sequence_length=length,
-                                                                     dtype=concatenated_embeddings.dtype)
+        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(
+            cell_fw_dropout, cell_bw_dropout, inputs, sequence_length=length, dtype=concatenated_embeddings.dtype)
         states_concat = tf.concat((state_fw, state_bw), axis=-1)
         # result = tf.contrib.layers.fully_connected(inputs=states_concat, num_outputs=self.output_size)
         return states_concat
