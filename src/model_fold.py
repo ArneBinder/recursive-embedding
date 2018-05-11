@@ -777,18 +777,18 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
                 new_l = l[:self.sequence_length]
             else:
                 # pad in the front
-                new_l = [self.padding_element] * (self.sequence_length - len(l)) + l
+                new_l = l + [self.padding_element] * (self.sequence_length - len(l))
             #assert len(new_l) == self.sequence_length, 'wrong sequence length: %i, expected: %i' \
             #                                           % (len(new_l), self.sequence_length)
-            return new_l
+            return new_l, float(len(l))
 
-        model = self.children() >> td.InputTransform(adjust_length) >> td.Map(self.head()) \
-                >> SequenceToTuple(self.head().output_type, self.sequence_length) >> td.Concat()
+        model = self.children() >> td.InputTransform(adjust_length) >> td.AllOf(td.GetItem(0) >> td.Map(self.head()) \
+                >> SequenceToTuple(self.head().output_type, self.sequence_length) >> td.Concat(), td.GetItem(1) >> td.Scalar(dtype='float32')) >> td.Concat()
         if model.output_type is None:
             model.set_output_type(tdt.TensorType(shape=(self.head_size * self.sequence_length,), dtype='float32'))
         return model
 
-    def reduce_concatenated(self, concatenated_embeddings):
+    def reduce_concatenated(self, concatenated_embeddings_with_length):
         raise NotImplementedError('Implement this')
 
     # This is not the actual output size, but the output is adapted to this
@@ -917,14 +917,14 @@ class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
     def __init__(self, **kwargs):
         TreeEmbedding_FLATconcat.__init__(self, name='GRU', **kwargs)
 
-    def reduce_concatenated(self, concatenated_embeddings):
-        embeddings_sequence = tf.reshape(concatenated_embeddings,
-                                         shape=[-1, self.sequence_length, self.head_size])
-        batch_size = tf.shape(embeddings_sequence)[0]
+    def reduce_concatenated(self, concatenated_embeddings_with_length):
+        concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
+        length = concatenated_embeddings_with_length[:, -1]
+        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, self.sequence_length, self.head_size])
+        #batch_size = tf.shape(embeddings_sequence)[0]
         cell = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
         inputs = tf.unstack(embeddings_sequence, axis=1)
-        outputs, state = tf.nn.static_rnn(
-            cell, inputs, initial_state=cell.zero_state(batch_size, dtype=embeddings_sequence.dtype))
+        outputs, state = tf.nn.static_rnn(cell, inputs, sequence_length=length, dtype=concatenated_embeddings.dtype)
         return state
 
     # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
@@ -937,14 +937,15 @@ class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
     def __init__(self, **kwargs):
         TreeEmbedding_FLATconcat.__init__(self, name='BIGRU', **kwargs)
 
-    def reduce_concatenated(self, concatenated_embeddings):
-        embeddings_sequence = tf.reshape(concatenated_embeddings,
-                                         shape=[-1, self.sequence_length, self.head_size])
+    def reduce_concatenated(self, concatenated_embeddings_with_length):
+        concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
+        length = concatenated_embeddings_with_length[:, -1]
+        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, self.sequence_length, self.head_size])
         cell_fw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
         cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
         inputs = tf.unstack(embeddings_sequence, axis=1)
 
-        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(cell_fw, cell_bw, inputs,
+        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(cell_fw, cell_bw, inputs, #sequence_length=length,
                                                                      dtype=concatenated_embeddings.dtype)
         states_concat = tf.concat((state_fw, state_bw), axis=-1)
         # result = tf.contrib.layers.fully_connected(inputs=states_concat, num_outputs=self.output_size)
