@@ -403,7 +403,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targ
             trees_batched = dataset_trees[tree_indices_batched_np.flatten()]
             feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(trees_batched)
             #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.todense()
-        feed_dict[model.candidate_count] = len(probs_batched[0])
+        feed_dict[model.tree_count] = len(probs_batched[0]) + 1
         feed_dict[model.values_gold] = probs_batched
         _result_all.append(sess.run(execute_vars, feed_dict))
 

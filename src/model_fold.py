@@ -1249,12 +1249,12 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, fc_sizes=1000, **kwargs):
-        self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
+        self._tree_count = tf.placeholder(shape=(), dtype=tf.int32)
 
         self._labels_gold = tf.placeholder(dtype=tf.float32)
 
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
-                                     shape=[-1, self._candidate_count + 1, tree_model.tree_output_size])
+                                     shape=[-1, self.tree_count, tree_model.tree_output_size])
         batch_size = tf.shape(tree_embeddings)[0]
         final_vecs = self._final_vecs(tree_embeddings, tree_model.tree_output_size)
 
@@ -1268,7 +1268,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
         logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=1, activation_fn=None),
-                            shape=[batch_size, self._candidate_count])
+                            shape=[batch_size, self.tree_count - 1])
         labels_gold_normed = self._labels_gold / tf.reduce_sum(self._labels_gold, axis=-1, keep_dims=True)
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
@@ -1291,8 +1291,8 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         return MODEL_TYPE_DISCRETE
 
     @property
-    def candidate_count(self):
-        return self._candidate_count
+    def tree_count(self):
+        return self._tree_count
 
 
 class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):
@@ -1300,16 +1300,16 @@ class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):
 
         ref_tree_embedding = tree_embeddings[:, 0, :]
         candidate_tree_embeddings = tree_embeddings[:, 1:, :]
-        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, self._candidate_count])
+        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, self.tree_count - 1])
         ref_tree_embedding_tiled_reshaped = tf.reshape(ref_tree_embedding_tiled,
-                                                       shape=[-1, self._candidate_count, embedding_dim])
+                                                       shape=[-1, self.tree_count - 1, embedding_dim])
         concat = tf.concat([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=-1)
         return concat
 
 
 class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
     def _final_vecs(self, tree_embeddings, embedding_dim):
-        return tf.reshape(tree_embeddings, shape=[-1, self._candidate_count, embedding_dim])
+        return tf.reshape(tree_embeddings, shape=[-1, self.tree_count, embedding_dim])
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
