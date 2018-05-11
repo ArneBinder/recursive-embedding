@@ -149,9 +149,9 @@ def emit_values(supervisor, session, step, values, writer=None, csv_writer=None)
         csv_writer.writerow({k: values[k] for k in values if k in csv_writer.fieldnames})
 
 
-def collect_stats(supervisor, sess, epoch, step, loss, values, values_gold, model_type, print_out=True, emit=True,
-                  test_writer=None, test_result_writer=None):
-    logger.debug('collect stats ...')
+def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, model_type, print_out=True, emit=True,
+                    test_writer=None, test_result_writer=None):
+    logger.debug('collect metrics ...')
     if test_writer is None:
         suffix = 'train'
         writer = None
@@ -325,12 +325,24 @@ def batch_iter_nearest(number_of_samples, forest_indices, forest_indices_targets
         yield sample_indices, probs
 
 
+#def batch_iter_reroot(forest_indices, number_of_samples, data_transformed):
+#    for idx in forest_indices:
+#        samples = np.random.choice(data_transformed, size=number_of_samples+1)
+#        samples[0] = data_transformed[idx]
+#
+#        #samples = forest.lexicon.transform_indices(samples, root_id_pos=forest.root_id_pos)
+#
+#        probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
+#        probs[samples == samples[0]] = 1
+#
+#        yield [idx], probs, samples
+
+
 def batch_iter_reroot(forest_indices, number_of_samples):
-    for idx in forest_indices:
+    for idx in np.arange(len(forest_indices)):
         probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
         probs[0] = 1
-        # TODO: do not yield dummy samples
-        yield ([idx], list(range(number_of_samples))), probs
+        yield [idx], probs
 
 
 def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
@@ -345,12 +357,13 @@ def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
             sampled_indices = np.arange(start - 1, start + batch_size)
             sampled_indices[0] = i
             current_probs = probs[start:start + batch_size]
-            yield sampled_indices, current_probs
+            yield sampled_indices, current_probs, None
 
 
 def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targets=None, dataset_trees=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=None, batch_iter=''):  # , discrete_model=False):
+             highest_sims_model=None, number_of_samples=None, batch_iter='',
+             dataset_iterator=None):
 
     #dataset_indices = np.arange(len(forest_indices))
     #np.random.shuffle(dataset_indices)
@@ -390,6 +403,13 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targ
     _batch_iter = _iter(*iter_args[_iter])
     _result_all = []
 
+    # TODO: do this in parallel with train execution
+    if dataset_iterator is not None:
+        logger.debug('re-generate trees with new samples...')
+        with model.tree_model.compiler.multiprocessing_pool():
+            dataset_trees = list(model.tree_model.compiler.build_loom_inputs(map(lambda x: [x], dataset_iterator()), ordered=True))
+        logger.debug('re-generated %i trees' % len(dataset_trees))
+
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for batch in td.group_by_batches(_batch_iter, config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
@@ -403,7 +423,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targ
             trees_batched = dataset_trees[tree_indices_batched_np.flatten()]
             feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(trees_batched)
             #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.todense()
-        feed_dict[model.tree_count] = len(probs_batched[0]) + 1
+        #feed_dict[model.candidate_count] = len(probs_batched[0])
         feed_dict[model.values_gold] = probs_batched
         _result_all.append(sess.run(execute_vars, feed_dict))
 
@@ -426,10 +446,10 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targ
     loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
     loss_all /= sum(sizes)
 
-    stats_dict = collect_stats(supervisor, sess, epoch, step, loss_all, values_all_, values_all_gold_,
-                               model_type=model.model_type, emit=emit,
-                               test_writer=test_writer, test_result_writer=test_result_writer)
-    return step, loss_all, values_all_, values_all_gold_, stats_dict
+    metrics_dict = collect_metrics(supervisor, sess, epoch, step, loss_all, values_all_, values_all_gold_,
+                                   model_type=model.model_type, emit=emit,
+                                   test_writer=test_writer, test_result_writer=test_result_writer)
+    return step, loss_all, values_all_, values_all_gold_, metrics_dict
 
 
 def checkpoint_path(logdir, step):
@@ -571,11 +591,14 @@ def init_model_type(config):
         # tree_iterator = diters.data_tuple_iterator_reroot
         tree_iterator = diters.tree_iterator
 
-        def _get_indices(index_files):
+        def _get_indices(index_files, forest, **unused):
             # TODO: remove count
             #indices = np.fromiter(diters.index_iterator(index_files), count=1000, dtype=np.int32)
             # TODO: remove dummy indices
-            indices = np.arange(1000, dtype=np.int32)
+            #indices = np.arange(1000, dtype=np.int32)
+            number_of_indices = config.cut_indices or 1000
+            logger.info('use %i fixed indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
+            indices = np.random.randint(len(forest), size=number_of_indices)
             return indices, None
 
         #indices_getter = diters.indices_as_ids
@@ -644,9 +667,71 @@ def check_train_test_overlap(forest_indices_train, forest_indices_train_target, 
     return forest_indices_test_target
 
 
+def prepare_embeddings_tree(tree_iterators, compiler):
+    prepared_embeddings = {}
+    for m in tree_iterators:
+        logger.info('create %s data set (tree-embeddings) ...' % m)
+        with compiler.multiprocessing_pool():
+            prepared_embeddings[m] = list(
+                compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]()), ordered=True))
+            logger.info('%s dataset: use %i different trees' % (m, len(prepared_embeddings[m])))
+
+    return prepared_embeddings
+
+
+def prepare_embeddings_tfidf(tree_iterators, logdir):
+    prepared_embeddings = {}
+
+    # check, if tfidf data exists
+    tfidf_exist = []
+    for i, m in enumerate([M_TRAIN, M_TEST]):
+        fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
+        if os.path.exists(fn_tfidf_data):
+            tfidf_exist.append(m)
+    # if tfidf data exists, load tfidf_data and indices
+    if len(tfidf_exist) > 0:
+        embedding_dim = -1
+        prepared_embeddings = {}
+        tree_indices = {}
+        indices_nbr = 0
+        for m in tfidf_exist:
+            fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
+            fn_tree_indices = os.path.join(logdir, '%s.%s.npy' % (FN_TREE_INDICES, m))
+            if os.path.exists(fn_tfidf_data):
+                assert os.path.exists(fn_tree_indices), \
+                    'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tree_indices)
+                prepared_embeddings[m] = scipy.sparse.load_npz(fn_tfidf_data)
+                tree_indices[m] = numpy_load(fn_tree_indices)
+                logging.info('%s dataset: use %i different tree embeddings' % (m, prepared_embeddings[m].shape[0]))
+                current_embedding_dim = prepared_embeddings[m].shape[1]
+                assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
+                    current_embedding_dim, embedding_dim)
+                embedding_dim = current_embedding_dim
+                indices_nbr += len(tree_indices[m])
+        assert embedding_dim != -1, 'no data sets created'
+        logging.debug('number of tfidf_indices: %i with dimension: %i' % (indices_nbr, embedding_dim))
+    else:
+        logger.info('create %s data sets (tf-idf) ...' % ', '.join(tree_iterators.keys()))
+        assert logdir is not None, 'no logdir provided to dump tfidf embeddings'
+        _tree_embeddings_tfidf = diters.embeddings_tfidf([tree_iterators[m]() for m in tree_iterators.keys()])
+        embedding_dim = -1
+        for i, m in enumerate(tree_iterators.keys()):
+            prepared_embeddings[m] = _tree_embeddings_tfidf[i]
+            scipy.sparse.save_npz(file=os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m),
+                                  matrix=prepared_embeddings[m])
+            logger.info('%s dataset: use %i different trees' % (m, prepared_embeddings[m].shape[0]))
+            current_embedding_dim = prepared_embeddings[m].shape[1]
+            assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
+                'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
+            embedding_dim = current_embedding_dim
+        assert embedding_dim != -1, 'no data sets created'
+
+    return prepared_embeddings, embedding_dim
+
+
 def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False):
 
-    prepared_embeddings = {}
+    #prepared_embeddings = {}
     optimizer = config.optimizer
     if optimizer is not None:
         optimizer = getattr(tf.train, optimizer)
@@ -659,6 +744,8 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
             kwargs['sequence_length'] = 100
             _padding_idx = lexicon.get_d(vocab_manual[UNIQUE_EMBEDDING], data_as_hashes=False)
             kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
+        if issubclass(tree_embedder, model_fold.TreeEmbedding_HTUBatchedHead):
+            kwargs['neg_samples'] = tuple_size - 1
 
         model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
                                                   lex_size_var=lexicon.len_var,
@@ -676,55 +763,12 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                   **kwargs
                                                   )
-        for m in tree_iterators:
-            logger.info('create %s data set (tree-embeddings) ...' % m)
-            with model_tree.compiler.multiprocessing_pool():
-                prepared_embeddings[m] = list(
-                    model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]), ordered=True))
-                logger.info('%s dataset: use %i different trees' % (m, len(prepared_embeddings[m])))
+        #if config.model_type != 'reroot':
+        prepared_embeddings = prepare_embeddings_tree(tree_iterators=tree_iterators, compiler=model_tree.compiler)
+        #else:
+        #    prepared_embeddings = None
     else:
-        # check, if tfidf data exists
-        tfidf_exist = []
-        for i, m in enumerate([M_TRAIN, M_TEST]):
-            fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
-            if os.path.exists(fn_tfidf_data):
-                tfidf_exist.append(m)
-        # if tfidf data exists, load tfidf_data and indices
-        if len(tfidf_exist) > 0:
-            embedding_dim = -1
-            prepared_embeddings = {}
-            tree_indices = {}
-            indices_nbr = 0
-            for m in tfidf_exist:
-                fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
-                fn_tree_indices = os.path.join(logdir, '%s.%s.npy' % (FN_TREE_INDICES, m))
-                if os.path.exists(fn_tfidf_data):
-                    assert os.path.exists(fn_tree_indices), \
-                        'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tree_indices)
-                    prepared_embeddings[m] = scipy.sparse.load_npz(fn_tfidf_data)
-                    tree_indices[m] = numpy_load(fn_tree_indices)
-                    logging.info('%s dataset: use %i different tree embeddings' % (m, prepared_embeddings[m].shape[0]))
-                    current_embedding_dim = prepared_embeddings[m].shape[1]
-                    assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
-                        current_embedding_dim, embedding_dim)
-                    embedding_dim = current_embedding_dim
-                    indices_nbr += len(tree_indices[m])
-            assert embedding_dim != -1, 'no data sets created'
-            logging.debug('number of tfidf_indices: %i with dimension: %i' % (indices_nbr, embedding_dim))
-        else:
-            logger.info('create %s data sets (tf-idf) ...' % ', '.join(tree_iterators.keys()))
-            assert logdir is not None, 'no logdir provided to dump tfidf embeddings'
-            _tree_embeddings_tfidf = diters.embeddings_tfidf([tree_iterators[m] for m in tree_iterators.keys()])
-            embedding_dim = -1
-            for i, m in enumerate(tree_iterators.keys()):
-                prepared_embeddings[m] = _tree_embeddings_tfidf[i]
-                scipy.sparse.save_npz(file=os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m), matrix=prepared_embeddings[m])
-                logger.info('%s dataset: use %i different trees' % (m, prepared_embeddings[m].shape[0]))
-                current_embedding_dim = prepared_embeddings[m].shape[1]
-                assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
-                    'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
-                embedding_dim = current_embedding_dim
-            assert embedding_dim != -1, 'no data sets created'
+        prepared_embeddings, embedding_dim = prepare_embeddings_tfidf(tree_iterators=tree_iterators, logdir=logdir)
 
         model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
                                                keep_prob=config.keep_prob, sparse=True,
@@ -844,11 +888,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         lexicon_roots = None
     forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
     # TODO: use this?
-    if config.model_type == 'reroot':
-        logger.info('transform data ...')
-        data_transformed = [forest.lexicon.transform_idx(forest.data[idx], root_id_pos=forest.root_id_pos) for idx in range(len(forest))]
-    else:
-        data_transformed = None
+    #if config.model_type == 'reroot':
+    #    logger.info('transform data ...')
+    #    data_transformed = [forest.lexicon.transform_idx(forest.data[idx], root_id_pos=forest.root_id_pos) for idx in range(len(forest))]
+    #else:
+    #    data_transformed = None
 
     # calc indices (ids, indices, other_indices) from index files
     logger.info('calc indices from index files ...')
@@ -859,17 +903,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         if not loaded_from_checkpoint:
             mytools.numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
 
-    if M_TEST in meta and M_TRAIN in meta:
+    if M_TEST in meta and M_TRAIN in meta \
+            and meta[M_TRAIN][M_INDICES_TARGETS] is not None and meta[M_TEST][M_INDICES_TARGETS] is not None:
         meta[M_TEST][M_INDICES_TARGETS] = check_train_test_overlap(forest_indices_train=meta[M_TRAIN][M_INDICES],
                                                                    forest_indices_train_target=meta[M_TRAIN][M_INDICES_TARGETS],
                                                                    forest_indices_test=meta[M_TEST][M_INDICES],
                                                                    forest_indices_test_target=meta[M_TEST][M_INDICES_TARGETS])
-
-    # set tree iterator
-    for m in meta:
-        meta[m][M_TREE_ITER] = tree_iterator(indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
-
-    # MODEL DEFINITION #################################################################################################
 
     # set batch iterators and numbers of negative samples
     if M_TEST in meta:
@@ -881,10 +920,18 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             meta[M_TEST][M_NEG_SAMPLES] = config.neg_samples
         else:
             meta[M_TEST][M_NEG_SAMPLES] = int(config.neg_samples_test)
-
     if M_TRAIN in meta:
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
         meta[M_TRAIN][M_NEG_SAMPLES] = config.neg_samples
+
+    # set tree iterator
+    for m in meta:
+        meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
+        if config.model_type == 'reroot':
+            meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, trees=list(meta[m][M_TREE_ITER]()),
+                                           neg_samples=meta[m][M_NEG_SAMPLES], forest=forest, transform=True)
+
+    # MODEL DEFINITION #################################################################################################
 
     current_device = get_ith_best_device(0)
     logger.info('create tensorflow graph on device: %s ...' % str(current_device))
@@ -909,7 +956,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 meta[m][M_MODEL] = model
                 if m in models_nearest:
                     meta[m][M_MODEL_NEAREST] = models_nearest[m]
-                meta[m][M_TREES] = prepared_embeddings[m]
+                if prepared_embeddings is not None:
+                    meta[m][M_TREES] = prepared_embeddings[m]
+                else:
+                    meta[m][M_TREES] = None
                 meta[m][M_INDICES] = tree_indices[m]
 
 
@@ -1044,7 +1094,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         epoch=epoch,
                         number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
                         highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
-                        batch_iter=meta[M_TRAIN][M_BATCH_ITER])
+                        batch_iter=meta[M_TRAIN][M_BATCH_ITER],
+                        dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == 'reroot' else None
+                    )
 
                 if M_TEST in meta:
 

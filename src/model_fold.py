@@ -9,7 +9,7 @@ from tensorflow_fold.blocks import blocks as tdb
 import numpy as np
 import math
 
-from constants import KEY_HEAD, KEY_CHILDREN
+from constants import KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
@@ -671,24 +671,24 @@ class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
 class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
-    def __init__(self, name, tree_count, #data_transformed,
+    def __init__(self, name, #tree_count, #data_transformed,
                  **kwargs):
         #assert root_fc_sizes == 0, 'no root_fc allowed for HTUBatchedHead'
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, #root_fc_size=root_fc_sizes,
                                                            **kwargs)
         #self._batch_size = tree_count
         #self._data_transformed = data_transformed
-        self._neg_samples = tree_count
+        #self._neg_samples = tree_count
 
     # TODO: implement this: feed prepared samples (transformed dats ids) via placeholder
-    def sample(self, head_ids):
-        result = []
-        for head_id in head_ids:
-            #sampled_indices = np.random.random_integers(len(self._forest), size=self._neg_samples)
-            #sampled_data = [self._forest.lexicon.transform_idx(self._forest.data[idx], root_id_pos=self._forest.root_id_pos) for idx in sampled_indices]
+    #def sample(self, head_ids):
+    #    result = []
+    #    for head_id in head_ids:
+    #        #sampled_indices = np.random.random_integers(len(self._forest), size=self._neg_samples)
+    #        #sampled_data = [self._forest.lexicon.transform_idx(self._forest.data[idx], root_id_pos=self._forest.root_id_pos) for idx in sampled_indices]#
 
-            result.append([head_id] + sampled_data)
-        return result
+    #        result.append([head_id] + sampled_data)
+    #    return result
 
     # TODO: test this! (requires simple trees and samples additional heads)
     def __call__(self):
@@ -701,15 +701,15 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1)
         #print('reduced_children: %s' % str(reduced_children.output_type))
         #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
-        heads_embedded = td.GetItem(KEY_HEAD) >> td.Function(self.sample) >> td.Map(self.embed() >> self.leaf_fc)
+        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc)
         #print('heads_embedded: %s' % str(heads_embedded.output_type))
         batched = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
         #print('batched: %s' % str(batched.output_type))
         return batched
 
-    @property
-    def neg_samples(self):
-        return self._neg_samples
+    #@property
+    #def neg_samples(self):
+    #    return self._neg_samples
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
@@ -1063,7 +1063,9 @@ class SequenceTreeModel(TreeModel):
         embed_tree = self._tree_embed()
         # do not map tree embedding model to input, if it produces a sequence itself
         if isinstance(embed_tree.output_type, tdt.SequenceType):
-            model = embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, tree_count) >> td.Concat()
+            # TODO: move td.GetItem(0) into BatchedHead model
+            # input contains only one tree (with candidate heads)
+            model = td.GetItem(0) >> embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, tree_count) >> td.Concat()
         else:
             model = td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, tree_count) >> td.Concat()
 
@@ -1249,9 +1251,10 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, fc_sizes=1000, **kwargs):
-        self._tree_count = tf.placeholder(shape=(), dtype=tf.int32)
+        #self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
 
         self._labels_gold = tf.placeholder(dtype=tf.float32)
+        self._candidate_count = tf.shape(self._labels_gold)[-1]
 
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
                                      shape=[-1, self.tree_count, tree_model.tree_output_size])
@@ -1268,7 +1271,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
         logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=1, activation_fn=None),
-                            shape=[batch_size, self.tree_count - 1])
+                            shape=[batch_size, self.candidate_count])
         labels_gold_normed = self._labels_gold / tf.reduce_sum(self._labels_gold, axis=-1, keep_dims=True)
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
@@ -1291,8 +1294,12 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         return MODEL_TYPE_DISCRETE
 
     @property
+    def candidate_count(self):
+        return self._candidate_count
+
+    @property
     def tree_count(self):
-        return self._tree_count
+        raise NotImplementedError('Implement this method')
 
 
 class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):
@@ -1300,16 +1307,24 @@ class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):
 
         ref_tree_embedding = tree_embeddings[:, 0, :]
         candidate_tree_embeddings = tree_embeddings[:, 1:, :]
-        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, self.tree_count - 1])
+        ref_tree_embedding_tiled = tf.tile(ref_tree_embedding, multiples=[1, self.candidate_count])
         ref_tree_embedding_tiled_reshaped = tf.reshape(ref_tree_embedding_tiled,
-                                                       shape=[-1, self.tree_count - 1, embedding_dim])
+                                                       shape=[-1, self.candidate_count, embedding_dim])
         concat = tf.concat([ref_tree_embedding_tiled_reshaped, candidate_tree_embeddings], axis=-1)
         return concat
+
+    @property
+    def tree_count(self):
+        return self.candidate_count + 1
 
 
 class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
     def _final_vecs(self, tree_embeddings, embedding_dim):
-        return tf.reshape(tree_embeddings, shape=[-1, self.tree_count, embedding_dim])
+        return tf.reshape(tree_embeddings, shape=[-1, self.candidate_count, embedding_dim])
+
+    @property
+    def tree_count(self):
+        return self.candidate_count
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):

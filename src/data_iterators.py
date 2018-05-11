@@ -7,9 +7,9 @@ import resource
 from sklearn.feature_extraction.text import TfidfTransformer
 from scipy.sparse import csr_matrix
 
-from constants import TYPE_REF, KEY_HEAD, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, \
-    vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, \
-    LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, CM_SEQUENCE
+from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, \
+    TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, \
+    TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, CM_SEQUENCE
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -368,6 +368,16 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
     logger.info('created %i trees' % n)
+
+
+def reroot_wrapper(trees, neg_samples, forest, transform=True):
+    for tree in trees:
+        samples = np.random.choice(forest.data, size=neg_samples + 1)
+        if transform:
+            samples = forest.lexicon.transform_indices(samples, root_id_pos=forest.root_id_pos)
+        samples[0] = tree[KEY_HEAD]
+        tree[KEY_CANDIDATES] = samples
+        yield tree
 
 
 def embeddings_tfidf(aggregated_trees):
