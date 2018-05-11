@@ -962,7 +962,7 @@ def main(data_source):
 
                 assert model_config.model_type == 'tuple', 'only model_type=tuple implemented'
                 model_tree, model_tuple, prepared_embeddings, tree_indices = create_models(
-                    config=model_config, lexicon=lexicon, tuple_size=1, tree_iterators={}, tree_indices=None,
+                    config=model_config, lexicon=lexicon, tree_count=1, tree_iterators={}, tree_indices=None,
                     logdir=data_source, use_inception_tree_model=True)
 
                 if model_config.tree_embedder == 'tfidf':

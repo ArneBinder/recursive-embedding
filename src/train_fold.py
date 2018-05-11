@@ -541,7 +541,7 @@ def init_model_type(config):
                               'max_depth': config.max_depth, 'context': config.context, 'transform': True}
         tree_iterator = diters.data_tuple_iterator
 
-        tuple_size = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
+        tree_count = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
         #discrete_model = False
         load_parents = False
     elif config.model_type == 'tuple':
@@ -559,7 +559,7 @@ def init_model_type(config):
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_dbpedianif
         # tuple_size = config.neg_samples + 1
-        tuple_size = 1
+        tree_count = 1
         #discrete_model = True
         load_parents = (tree_iterator_args['context'] > 0)
     # elif config.model_type == 'tuple_single':
@@ -584,8 +584,14 @@ def init_model_type(config):
         #    meta[M_TRAIN][M_FNAMES] = []
         # else:
         #    indices = None
+        config.batch_iter = batch_iter_reroot.__name__
+        logger.debug('set batch_iter to %s' % config.batch_iter)
+        config.batch_iter_test = config.batch_iter
+        logger.debug('set batch_iter_test to %s' % config.batch_iter_test)
         neg_samples = config.neg_samples
-        tuple_size = neg_samples + 1
+        config.neg_samples_test = config.neg_samples
+        logger.debug('set neg_samples_test to %i (neg_samples)' % config.neg_samples_test)
+        tree_count = neg_samples + 1
         tree_iterator_args = {'neg_samples': neg_samples, 'max_depth': config.max_depth, 'concat_mode': CM_TREE,
                               'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
         # tree_iterator = diters.data_tuple_iterator_reroot
@@ -618,7 +624,7 @@ def init_model_type(config):
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-    return tree_iterator, tree_iterator_args, indices_getter, load_parents, tuple_size
+    return tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count
 
 
 def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
@@ -729,7 +735,7 @@ def prepare_embeddings_tfidf(tree_iterators, logdir):
     return prepared_embeddings, embedding_dim
 
 
-def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False):
+def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False):
 
     #prepared_embeddings = {}
     optimizer = config.optimizer
@@ -744,8 +750,6 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
             kwargs['sequence_length'] = 100
             _padding_idx = lexicon.get_d(vocab_manual[UNIQUE_EMBEDDING], data_as_hashes=False)
             kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
-        if issubclass(tree_embedder, model_fold.TreeEmbedding_HTUBatchedHead):
-            kwargs['neg_samples'] = tuple_size - 1
 
         model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
                                                   lex_size_var=lexicon.len_var,
@@ -757,7 +761,7 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
                                                   root_fc_sizes=[int(s) for s in
                                                                  ('0' + config.root_fc_sizes).split(',')],
                                                   keep_prob_default=config.keep_prob,
-                                                  tree_count=tuple_size,
+                                                  tree_count=tree_count,
                                                   # data_transfomed=data_transformed
                                                   # tree_count=1,
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
@@ -770,14 +774,14 @@ def create_models(config, lexicon, tuple_size, tree_iterators, tree_indices, log
     else:
         prepared_embeddings, embedding_dim = prepare_embeddings_tfidf(tree_iterators=tree_iterators, logdir=logdir)
 
-        model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tuple_size,
+        model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tree_count,
                                                keep_prob=config.keep_prob, sparse=True,
                                                root_fc_sizes=[int(s) for s in
                                                               ('0' + config.root_fc_sizes).split(',')], )
 
     if use_inception_tree_model:
         inception_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size, sparse=False,
-                                                     tree_count=tuple_size, keep_prob=config.keep_prob, root_fc_sizes=0)
+                                                         tree_count=tree_count, keep_prob=config.keep_prob, root_fc_sizes=0)
     else:
         inception_tree_model = model_tree
 
@@ -877,7 +881,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         meta[M_TRAIN] = {M_FNAMES: fnames_train}
     meta[M_TEST] = {M_FNAMES: fnames_test}
 
-    tree_iterator, tree_iterator_args, indices_getter, load_parents, tuple_size = init_model_type(config)
+    tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count = init_model_type(config)
 
     # load forest data
     lexicon_root_fn = '%s.root.id' % config.train_data_path
@@ -942,7 +946,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
             model_tree, model, prepared_embeddings, tree_indices = create_models(
-                config=config, lexicon=lexicon,  tuple_size=tuple_size, logdir=logdir,
+                config=config, lexicon=lexicon,  tree_count=tree_count, logdir=logdir,
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
                 tree_indices={m: meta[m][M_INDICES] for m in meta})
 
