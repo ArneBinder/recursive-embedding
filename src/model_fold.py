@@ -771,19 +771,26 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
         self._padding_element = {KEY_HEAD: padding_id, KEY_CHILDREN: []}
 
     def __call__(self):
+        """
+        Creates the model. The model pads the list of token ids (direct children) to sequence_length, embeds them and
+        returns the concatenation of these and the amount of real token ids.
+        :return: concatenation of all direct child embeddings (padded to sequence_length) and the real amount of ids
+        """
 
         def adjust_length(l):
             if len(l) >= self.sequence_length:
                 new_l = l[:self.sequence_length]
             else:
-                # pad in the front
                 new_l = l + [self.padding_element] * (self.sequence_length - len(l))
-            #assert len(new_l) == self.sequence_length, 'wrong sequence length: %i, expected: %i' \
-            #                                           % (len(new_l), self.sequence_length)
-            return new_l, float(len(l))
+            # return adjusted list and the length of valid entries
+            return new_l, float(min(len(l), self.sequence_length))
 
-        model = self.children() >> td.InputTransform(adjust_length) >> td.AllOf(td.GetItem(0) >> td.Map(self.head()) \
-                >> SequenceToTuple(self.head().output_type, self.sequence_length) >> td.Concat(), td.GetItem(1) >> td.Scalar(dtype='float32')) >> td.Concat()
+        model = self.children() >> td.InputTransform(adjust_length) >> td.AllOf(
+            td.GetItem(0) >> td.Map(self.head()) >> SequenceToTuple(self.head().output_type, self.sequence_length)
+            >> td.Concat(),
+            td.GetItem(1) >> td.Scalar(dtype='float32')
+        ) >> td.Concat()
+
         if model.output_type is None:
             model.set_output_type(tdt.TensorType(shape=(self.head_size * self.sequence_length,), dtype='float32'))
         return model
@@ -945,7 +952,8 @@ class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
         cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
         inputs = tf.unstack(embeddings_sequence, axis=1)
 
-        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(cell_fw, cell_bw, inputs, #sequence_length=length,
+        # TODO: use length
+        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(cell_fw, cell_bw, inputs, sequence_length=length,
                                                                      dtype=concatenated_embeddings.dtype)
         states_concat = tf.concat((state_fw, state_bw), axis=-1)
         # result = tf.contrib.layers.fully_connected(inputs=states_concat, num_outputs=self.output_size)
