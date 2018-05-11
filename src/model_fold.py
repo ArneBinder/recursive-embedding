@@ -764,6 +764,9 @@ class TreeEmbedding_FLAT2levels(TreeEmbedding_FLAT):
 class TreeEmbedding_FLATconcat(TreeEmbedding):
     """
         FLAT TreeEmbedding models take all first level children of the root as input and reduce them.
+        The FLATconcat model pads the list of token ids (direct children) to sequence_length, embeds them and
+        returns the concatenation of the embeddings and the amount of real token ids
+        i.e. the result shape is (batch_size, sequence_length * embedding_size + 1).
     """
     def __init__(self, name, sequence_length, padding_id, **kwargs):
         super(TreeEmbedding_FLATconcat, self).__init__(name='FLATconcat_' + name, **kwargs)
@@ -771,11 +774,6 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
         self._padding_element = {KEY_HEAD: padding_id, KEY_CHILDREN: []}
 
     def __call__(self):
-        """
-        Creates the model. The model pads the list of token ids (direct children) to sequence_length, embeds them and
-        returns the concatenation of these and the amount of real token ids.
-        :return: concatenation of all direct child embeddings (padded to sequence_length) and the real amount of ids
-        """
 
         def adjust_length(l):
             if len(l) >= self.sequence_length:
