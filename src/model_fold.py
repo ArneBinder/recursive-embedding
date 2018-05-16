@@ -395,6 +395,15 @@ class TreeEmbedding_reduce(TreeEmbedding):
         """
         raise NotImplementedError
 
+    @property
+    def reduce_output_size_mapping(self):
+        """
+        Returns a function mapping from input size of reduce to its output size. It is required for HTUrev models.
+        Defaults to identity.
+        :return: the mapping function
+        """
+        return lambda x: x
+
 
 # TODO: does not work like this! TreeEmbedding_map.map requires: (input, state_in) -> state_out
 #class TreeEmbedding_mapIDENTITY(TreeEmbedding_map):
@@ -505,6 +514,9 @@ class TreeEmbedding_reduceSUM(TreeEmbedding_reduce):
 
     @property
     def reduce(self):
+        #_reduced = td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Sum())
+        #_reduced.set_output_type(tdt.TupleType(td.GetItem(0).output_type, td.GetItem(1).output_type))
+        #return _reduced
         return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Sum())
 
 
@@ -621,8 +633,10 @@ class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
     @property
     def output_size(self):
         # depends on self.new_state
-        ot = self.reduce.output_type
-        return ot[1].shape[-1]
+        _map_ot = self.map.output_type
+        _map_os = _map_ot.shape[-1]
+        _reduced_os = self.reduce_output_size_mapping(_map_os)
+        return _reduced_os
 
 
 class TreeEmbedding_HTUdep(TreeEmbedding_reduce, TreeEmbedding_map):
