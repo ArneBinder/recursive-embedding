@@ -25,18 +25,27 @@
 \acfp{VSM} for textual data lead to success in many \ac{NLP} tasks. Recently, prediction based word embedding models like word2vec %\autocite{mikolov_efficient_2013}
 gained attention. These models build upon Distributional Semantics, i.e. a word is defined by its contexts, and scale up to billions of training tokens % \autocite{mikolov_distributed_2013}
 resulting in robust embeddings for individual words. 
-\acfp{CDSM} intend to create vector representations for sequences of tokens by composing word embeddings in a meaningful manner. However, it is up to debate which composition functions perform well for semantic tasks. \acp{RNN} produce appropriate results for short to medium length textual input on several semantic tasks \todo{CITATIONS}, but still suffer to handle long range dependencies and do not scale very well with text size\todo{CITATIONS}. 
-\acp{RecNN} generalize \acp{RNN} by allowing arbitrary trees instead of sequences as input structure. in this means, the mean ...
+\acfp{CDSM} intend to create vector representations for sequences of tokens by composing word embeddings in a meaningful manner. However, it is up to debate which composition functions perform well for semantic tasks. \acp{RNN} produce appropriate results for short to medium length textual input on several semantic tasks\todo{CITATIONS} as they are capable of contextualized token processing\todo{CITATION}, but still suffer to handle long range dependencies and do not scale very well with text size\todo{CITATIONS}. Then again, averaging composition models like fastText \autocite{joulin_bag_2017} demonstrate that avoiding any explicit structure may perform quite well at least for short texts like sentences. These flat models are very beneficial in means of training time and memory consumption, therefore enabling for huge amounts of training data. 
 
-In this work, we study the impact of structural complexity on semantic aware composition of linguistic tokens. Especially, we investigate if 
+\acp{RecNN} generalize \acp{RNN} by allowing arbitrary trees instead of sequences as input structure. The consequences of this generalization are twofold: The distances of tokens that are potentially related may decrease with regard to the computation graph. This may lead to better contextualization and, consequently, more precise interpretations of individual tokens. On the other hand, \acp{RecNN} introduce another degree of structural complexity and require predefined input structures. 
 
- generalizing  
+In this work, we study the impact of structural complexity on semantic aware composition of linguistic tokens. Especially, we investigate if it is possible to combine the best of both worlds, the speed and size of flat models and the context awareness of sequence models, by using tree structured token composition. We analyze the performance of tree structured, or \acp{RecNN}, models and compare it with structure less, or flat, models and sequence, or \acp{RNN}, models with respect to input length.
 
-models: tfidf, gru, sum, tree (gru + sum)
-further inventions: following links (just for model==tree)
+To achieve these goals, we implement the following composition models: 1) a flat summation model, 2) a \ac{GRU} sequence model, and 3) a tree structured \ac{RecNN} model. For the later, we keep the model as simple as possible and de-construct the tree composition unit into a mapping function and reduction function that lend from the other two models for comparability: We use a \ac{GRU} step for mapping and apply summation to reduce an arbitrary number of embeddings to a single one. By doing so, feeding structure to the tree model that equals the edge cases (i.e. the degenerated trees: sequence or depth one tree) the model strongly resembles one of the comparison models. Furthermore, the separation in map and reduce functions allows to experiment if reduction should precede the mapping or the other way around. The former would reduce computational costs as one \ac{GRU} step is applied only once per tree unit application. The later should allow more precise contextualization, but results in as many \ac{GRU} step executions as for the sequence model. Recently, the attention mechanism\todo{SOURCE} has lead to success in neural \ac{NLP} \todo{CITATION}. We will test, if the tree model will benefit from using attention as reduction function. Moreover, we try to exploit one main feature of web content: Trees are natively expandable by other tries that are \textit{linked} to any token. Following links while constructing the tree structures may lead to useful subtrees for tokens that do not exist in the dictionary. Finally, we create \ac{TF-IDF} embeddings as baseline.   
+
+TODO: evaluation
+
+%three composition model types with respect to input size: 1) structure less or flat models, 2) sequence or \acp{RNN} models, and 3) tree structured or \acp{RecNN} models.
+
+
+
+%tree structured composition models can outperform sequence models and summation models in terms of accuracy or training time. 
+
+%models: tfidf, gru, sum, tree (reduce->map; gru + sum)
+%further inventions: just for model==tree: following links, revert (map->reduce), attention (for reduce)
  
 
-order aware processing to token embedding composition at sentence level by implementing (1) an averaging model and (2) a \ac{LSTM} based approach. Furthermore, we analyze the relation of order aware composition to syntactical information. We evaluate our models at the SICK relatedness prediction task.% \autocite{marelli_sick_2014}.
+%order aware processing to token embedding composition at sentence level by implementing (1) an averaging model and (2) a \ac{LSTM} based approach. Furthermore, we analyze the relation of order aware composition to syntactical information. We evaluate our models at the SICK relatedness prediction task.% \autocite{marelli_sick_2014}.
 
-Our results underpin the thesis, that order aware processing is useful for semantic aware composition and subsumes syntactical information in most cases. However, there are instances of linguistic constructions in which syntactical information seems to be superior to order aware processing, namely in the presence of passive.
+%Our results underpin the thesis, that order aware processing is useful for semantic aware composition and subsumes syntactical information in most cases. However, there are instances of linguistic constructions in which syntactical information seems to be superior to order aware processing, namely in the presence of passive.
 
