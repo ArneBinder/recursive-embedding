@@ -426,6 +426,7 @@ class Forest(object):
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
 
+        :param link_types: TODO
         :param idx: root of the subtree
         :param max_depth: stop if this depth is exceeded
         :param context depth of context tree (walk up parents) to add to all nodes
