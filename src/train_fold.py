@@ -93,9 +93,11 @@ tf.flags.DEFINE_boolean('debug',
 FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
-STAT_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
+METRIC_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
+METRIC_DISCRETE = 'f1_t50'
 #STAT_KEY_MAIN_DISCRETE = 'roc_micro'
-STAT_KEYS_REGRESSION = ['pearson_r', 'mse']
+METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
+METRIC_REGRESSION = 'pearson_r'
 #STAT_KEY_MAIN_REGRESSION = 'pearson_r'
 
 logger = logging.getLogger('')
@@ -227,7 +229,7 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
         #    'acc_t33': acc_t33,
         #    'acc_t66': acc_t66,
         #})
-        stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k]) for k in STAT_KEYS_DISCRETE])
+        stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k]) for k in METRIC_KEYS_DISCRETE])
         info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     else:
         raise ValueError('unknown model type: %s. Use %s or %s.' % (model_type, MODEL_TYPE_DISCRETE,
@@ -1067,9 +1069,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             stat_queue = []
             if M_TEST in meta:
                 if meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_DISCRETE:
-                    stat_key = STAT_KEYS_DISCRETE[0]
+                    stat_key = METRIC_DISCRETE
                 elif meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_REGRESSION:
-                    stat_key = STAT_KEYS_REGRESSION[0]
+                    stat_key = METRIC_REGRESSION
                 else:
                     raise ValueError('stat_key not defined for model_type=%s' % meta[M_TEST][M_MODEL].model_type)
                 # NOTE: this depends on stat_key (pearson/mse/roc/...)
@@ -1167,12 +1169,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
 
 def set_stat_values(d, stats, prefix=''):
-    if STAT_KEYS_REGRESSION[0] in stats:
-        _stat_keys = STAT_KEYS_REGRESSION
-    elif STAT_KEYS_DISCRETE[0] in stats:
-        _stat_keys = STAT_KEYS_DISCRETE
+    if METRIC_REGRESSION in stats:
+        _stat_keys = METRIC_KEYS_REGRESSION
+    elif METRIC_DISCRETE in stats:
+        _stat_keys = METRIC_KEYS_DISCRETE
     else:
-        raise ValueError('stats has to contain either %s or %s' % (STAT_KEYS_REGRESSION[0], STAT_KEYS_DISCRETE[0]))
+        raise ValueError('stats has to contain either %s or %s' % (METRIC_REGRESSION, METRIC_DISCRETE))
     for k in _stat_keys:
         d[prefix + k] = stats[k]
     return _stat_keys
@@ -1190,7 +1192,7 @@ if __name__ == '__main__':
         with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
             #fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + ['score_pearson', 'score_mse']
             # TODO: adapt for model_type==MODEL_TYPE_DISCRETE
-            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + [stats_prefix + k for k in STAT_KEYS_REGRESSION]
+            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + [stats_prefix + k for k in METRIC_KEYS_REGRESSION]
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
             score_writer.writeheader()
             for i, logdir in enumerate(logdirs, 1):
@@ -1238,8 +1240,8 @@ if __name__ == '__main__':
             stats_prefix_dev = 'dev_best_'
             stats_prefix_test = 'test_'
             # TODO: adapt for model_type==MODEL_TYPE_DISCRETE
-            fieldnames_expected = grid_parameters.keys() + [stats_prefix_dev + k for k in STAT_KEYS_REGRESSION] \
-                                  + [stats_prefix_test + k for k in STAT_KEYS_REGRESSION] + ['run_description']
+            fieldnames_expected = grid_parameters.keys() + [stats_prefix_dev + k for k in METRIC_KEYS_REGRESSION] \
+                                  + [stats_prefix_test + k for k in METRIC_KEYS_REGRESSION] + ['run_description']
             assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
             fieldnames = fieldnames_loaded or fieldnames_expected
             with open(scores_fn, file_mode) as csvfile:
