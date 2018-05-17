@@ -377,6 +377,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targ
         execute_vars['step'] = model.global_step
     else:
         feed_dict[model.tree_model.keep_prob] = 1.0
+        assert test_writer is not None, 'training is disabled, but test_writer is not set'
+        assert test_result_writer is not None, 'training is disabled, but test_result_writer is not set'
 
     tree_model_batch_size = 10
     indices_forest_to_tree = {idx: i for i, idx in enumerate(forest_indices)}
@@ -1029,19 +1031,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # TRAINING #################################################################################################
 
-            #forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents)
-
-            # TODO:
-            # add code for TF-IDF model here:
-            #     1) train_iterator/dev_iterator/test_iterator output to lists (of (n-)tuples)
-            #     2) lists to -> tf-idf doc representations
-            #     3) regression on train
-            #     4) eval on dev/test
-
-            #with model_tree.compiler.multiprocessing_pool():
-
+            # do initial test epoch
             if M_TEST in meta:
-                logger.info('create test data set ...')
                 step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(
                     supervisor,
                     sess=sess,
@@ -1052,7 +1043,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                     epoch=0,
                     train=False,
-                    emit=False,
+                    emit=True,
+                    test_writer=test_writer,
+                    test_result_writer=test_result_writer,
                     number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
                     #number_of_samples=None,
                     highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
