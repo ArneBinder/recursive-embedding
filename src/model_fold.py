@@ -490,10 +490,16 @@ class TreeEmbedding_reduceLSTM(TreeEmbedding_reduce):
         _reduce = td.Pipe(td.RNN(self._rnn_cell), td.GetItem(1), td.GetItem(0))
         return td.AllOf(td.GetItem(0), td.GetItem(1) >> _reduce)
 
+    # TODO: replace by reduce_output_size??
+    #@property
+    #def output_size(self):
+    #    #return self.root_fc_size or self.state_size
+    #    return self.state_size
+
+    # TODO: test this! eventually has to be: 2 * self.state_size
     @property
-    def output_size(self):
-        #return self.root_fc_size or self.state_size
-        return self.state_size
+    def reduce_output_size_mapping(self):
+        return lambda _: self.state_size
 
 
 class TreeEmbedding_mapFC(TreeEmbedding_map):
@@ -558,6 +564,10 @@ class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
         #return td.AllOf(td.GetItem(0) >> self._fc_map, td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
         return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
 
+    @property
+    def reduce_output_size_mapping(self):
+        return lambda _: self.state_size
+
 
 class TreeEmbedding_reduceATTsplit(TreeEmbedding_reduce):
     """Calculates an embedding over a (recursive) SequenceNode."""
@@ -618,6 +628,31 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
         # depends on self.new_state
         ot = self.map.output_type
         return ot.shape[-1]
+
+
+class TreeEmbedding_HTU_mapIDENTITY(TreeEmbedding_reduce):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTU_mapIDENTITY, self).__init__(name='HTU_' + name, **kwargs)
+
+    def new_state(self, head, children):
+        return td.AllOf(head, children) >> self.reduce >> td.GetItem(1)
+
+    def __call__(self):
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=tdt.TensorType(shape=[self.output_size]))
+        children = self.children() >> td.Map(embed_tree())
+        state = self.new_state(self.head(), children)
+        embed_tree.resolve_to(state)
+        return state
+
+    @property
+    def output_size(self):
+        # depends on self.new_state
+        #ot = self.map.output_type
+        #return ot.shape[-1]
+        os = self.reduce_output_size_mapping(self.head_size)
+        return os
 
 
 class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
@@ -859,6 +894,11 @@ class TreeEmbedding_HTUdep_mapGRU(TreeEmbedding_HTUdep, TreeEmbedding_mapGRU):
 class TreeEmbedding_HTU_reduceATT_mapGRU(TreeEmbedding_reduceATT, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceATT_mapGRU, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTU_reduceATT_mapIDENTITY(TreeEmbedding_reduceATT, TreeEmbedding_HTU_mapIDENTITY):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceATT_mapIDENTITY, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceATTsplit_mapGRU(TreeEmbedding_reduceATTsplit, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
