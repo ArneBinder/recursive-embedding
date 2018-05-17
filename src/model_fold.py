@@ -555,6 +555,7 @@ class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
         super(TreeEmbedding_reduceATT, self).__init__(name='ATT_' + name, **kwargs)
         #self._fc_map = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
         self._fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
+        self._att = AttentionReduce()
 
     @property
     def reduce(self):
@@ -562,7 +563,7 @@ class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
         #_fc_rnn = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
         #_fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
         #return td.AllOf(td.GetItem(0) >> self._fc_map, td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
-        return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
+        return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> self._att)
 
     @property
     def reduce_output_size_mapping(self):
