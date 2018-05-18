@@ -515,11 +515,21 @@ class TreeEmbedding_mapFC(TreeEmbedding_map):
 class TreeEmbedding_mapAVG(TreeEmbedding_map):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_mapAVG, self).__init__(name='mapAVG_' + name, **kwargs)
-        #self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
 
     @property
     def map(self):
         _mapped = td.Mean()
+        _mapped.set_output_type(tdt.TensorType(shape=[self.head_size], dtype='float32'))
+        return _mapped
+
+
+class TreeEmbedding_mapSUM(TreeEmbedding_map):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_mapSUM, self).__init__(name='mapSUM_' + name, **kwargs)
+
+    @property
+    def map(self):
+        _mapped = td.Sum()
         _mapped.set_output_type(tdt.TensorType(shape=[self.head_size], dtype='float32'))
         return _mapped
 
@@ -911,6 +921,10 @@ class TreeEmbedding_HTU_reduceATT_mapGRU(TreeEmbedding_reduceATT, TreeEmbedding_
 class TreeEmbedding_HTU_reduceATT_mapAVG(TreeEmbedding_reduceATT, TreeEmbedding_mapAVG, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceATT_mapAVG, self).__init__(name=name, **kwargs)
+
+class TreeEmbedding_HTU_reduceATT_mapSUM(TreeEmbedding_reduceATT, TreeEmbedding_mapSUM, TreeEmbedding_HTU):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceATT_mapSUM, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceATTsplit_mapGRU(TreeEmbedding_reduceATTsplit, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
