@@ -636,12 +636,12 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
         super(TreeEmbedding_HTU, self).__init__(name='HTU_' + name, **kwargs)
 
     def new_state(self, head, children):
-        return td.AllOf(head, children) >> self.reduce >> self.map
+        return td.AllOf(head(), children) >> self.reduce >> self.map
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
         children = self.children() >> td.Map(embed_tree())
-        state = self.new_state(self.head(), children)
+        state = self.new_state(self.head, children)
         embed_tree.resolve_to(state)
         return state
 
@@ -659,12 +659,17 @@ class TreeEmbedding_HTU_mapIDENTITY(TreeEmbedding_reduce):
         super(TreeEmbedding_HTU_mapIDENTITY, self).__init__(name='HTU_' + name, **kwargs)
 
     def new_state(self, head, children):
-        return td.AllOf(head, children) >> self.reduce >> td.GetItem(1)
+        _ns = td.OneOf(key_fn=td.InputTransform(lambda x: KEY_CHILDREN in x and len(x[KEY_CHILDREN]) > 0),
+                       case_blocks={
+                           True: td.AllOf(head(), children) >> self.reduce >> td.GetItem(1),
+                           False: head()
+                       })
+        return _ns
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=tdt.TensorType(shape=[self.output_size]))
         children = self.children() >> td.Map(embed_tree())
-        state = self.new_state(self.head(), children)
+        state = self.new_state(self.head, children)
         embed_tree.resolve_to(state)
         return state
 
@@ -684,8 +689,8 @@ class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
         super(TreeEmbedding_HTUrev, self).__init__(name='rev_' + name, **kwargs)
 
     def new_state(self, head, children):
-        children_mapped = td.AllOf(head >> td.Broadcast(), children) >> td.Zip() >> td.Map(self.map)
-        return td.AllOf(self.head(), children_mapped) >> self.reduce >> td.GetItem(1)
+        children_mapped = td.AllOf(head() >> td.Broadcast(), children) >> td.Zip() >> td.Map(self.map)
+        return td.AllOf(head(), children_mapped) >> self.reduce >> td.GetItem(1)
 
     @property
     def output_size(self):
@@ -922,9 +927,15 @@ class TreeEmbedding_HTU_reduceATT_mapAVG(TreeEmbedding_reduceATT, TreeEmbedding_
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceATT_mapAVG, self).__init__(name=name, **kwargs)
 
+
 class TreeEmbedding_HTU_reduceATT_mapSUM(TreeEmbedding_reduceATT, TreeEmbedding_mapSUM, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceATT_mapSUM, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTU_reduceATT_mapIDENTITY(TreeEmbedding_reduceATT, TreeEmbedding_HTU_mapIDENTITY):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceATT_mapIDENTITY, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceATTsplit_mapGRU(TreeEmbedding_reduceATTsplit, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
