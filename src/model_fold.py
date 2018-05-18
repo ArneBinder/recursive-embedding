@@ -933,9 +933,9 @@ class TreeEmbedding_HTU_reduceATT_mapSUM(TreeEmbedding_reduceATT, TreeEmbedding_
         super(TreeEmbedding_HTU_reduceATT_mapSUM, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_HTU_reduceATT_mapIDENTITY(TreeEmbedding_reduceATT, TreeEmbedding_HTU_mapIDENTITY):
+class TE_HTU_reduceATT_mapIDENTITY(TreeEmbedding_reduceATT, TreeEmbedding_HTU_mapIDENTITY):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_HTU_reduceATT_mapIDENTITY, self).__init__(name=name, **kwargs)
+        super(TE_HTU_reduceATT_mapIDENTITY, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceATTsplit_mapGRU(TreeEmbedding_reduceATTsplit, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
