@@ -512,6 +512,18 @@ class TreeEmbedding_mapFC(TreeEmbedding_map):
         return td.Concat() >> self._fc
 
 
+class TreeEmbedding_mapAVG(TreeEmbedding_map):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_mapAVG, self).__init__(name='mapAVG_' + name, **kwargs)
+        #self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
+
+    @property
+    def map(self):
+        _mapped = td.Mean()
+        _mapped.set_output_type(tdt.TensorType(shape=[self.head_size], dtype='float32'))
+        return _mapped
+
+
 class TreeEmbedding_reduceSUM(TreeEmbedding_reduce):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
@@ -553,21 +565,20 @@ class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_reduceATT, self).__init__(name='ATT_' + name, **kwargs)
-        #self._fc_map = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
-        self._fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
+        #self._fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
+        self._fc_att = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
         self._att = AttentionReduce()
+        #self._bias = tf.get_variable("attention_bias", [self.head_size])
 
     @property
     def reduce(self):
         # head_in, children_sequence --> head_out, children_reduced
-        #_fc_rnn = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_rnn')
-        #_fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
         #return td.AllOf(td.GetItem(0) >> self._fc_map, td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
         return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> self._att)
 
-    @property
-    def reduce_output_size_mapping(self):
-        return lambda _: self.state_size
+    #@property
+    #def reduce_output_size_mapping(self):
+    #    return lambda _: self.state_size
 
 
 class TreeEmbedding_reduceATTsplit(TreeEmbedding_reduce):
@@ -897,9 +908,9 @@ class TreeEmbedding_HTU_reduceATT_mapGRU(TreeEmbedding_reduceATT, TreeEmbedding_
         super(TreeEmbedding_HTU_reduceATT_mapGRU, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_HTU_reduceATT_mapIDENTITY(TreeEmbedding_reduceATT, TreeEmbedding_HTU_mapIDENTITY):
+class TreeEmbedding_HTU_reduceATT_mapAVG(TreeEmbedding_reduceATT, TreeEmbedding_mapAVG, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_HTU_reduceATT_mapIDENTITY, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_HTU_reduceATT_mapAVG, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceATTsplit_mapGRU(TreeEmbedding_reduceATTsplit, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
