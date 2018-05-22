@@ -185,7 +185,8 @@ def AttentionReduce(name=None):  # pylint: disable=invalid-name
     """
     c = td.Composition(name=name)
     with c.scope():
-        att_scalars = td.Map(td.Function(lambda x, y: tf.reduce_sum(x * y, axis=1))).reads(td.Zip().reads(c.input[0], td.Broadcast().reads(c.input[1])))
+        bias = tf.Variable(np.ones(shape=(), dtype='float32'))
+        att_scalars = td.Map(td.Function(lambda x, y: tf.reduce_sum(x * y, axis=1) + bias)).reads(td.Zip().reads(c.input[0], td.Broadcast().reads(c.input[1])))
         att_weights = Softmax().reads(att_scalars)
         wheighted = td.Map(td.Function(tdb._tf_batch_scalar_mul)).reads(td.Zip().reads(att_weights, c.input[0]))
         res = td.Sum().reads(wheighted)
@@ -575,8 +576,12 @@ class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_reduceATT, self).__init__(name='ATT_' + name, **kwargs)
+        # TODO: use correct FC size (can be state_size OR head_size)
         #self._fc_att = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
-        self._fc_att = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_att')
+
+        # initialize with zeros to start with naive averaging (bias in AttentionReduce is set to 1.0)
+        self._fc_att = td.FC(self.head_size, initializer=tf.zeros_initializer(), activation=tf.nn.tanh,
+                             input_keep_prob=self.keep_prob, name='fc_att')
         self._att = AttentionReduce()
         #self._bias = tf.get_variable("attention_bias", [self.head_size])
 
@@ -619,8 +624,11 @@ class TreeEmbedding_reduceATTsingle(TreeEmbedding_reduce):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_reduceATTsingle, self).__init__(name='ATT_single_' + name, **kwargs)
-        self._att_weights = tf.Variable(tf.truncated_normal([self.head_size], stddev=1.0 / math.sqrt(float(self.head_size))),
-                                        name='att_weights')
+        #self._att_weights = tf.Variable(tf.truncated_normal([self.head_size], stddev=1.0 / math.sqrt(float(self.head_size))),
+        #                                name='att_weights')
+
+        # initialize with zeros to start with naive averaging (bias in AttentionReduce is set to 1.0)
+        self._att_weights = tf.Variable(np.zeros(shape=[self.head_size], dtype='float32'))
         self._att = AttentionReduce()
 
     @property
