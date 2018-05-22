@@ -619,7 +619,7 @@ class TreeEmbedding_reduceATTsingle(TreeEmbedding_reduce):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_reduceATTsingle, self).__init__(name='ATT_single_' + name, **kwargs)
-        self._att_weights = tf.Variable(tf.truncated_normal([self.state_size], stddev=1.0 / math.sqrt(float(self.state_size))),
+        self._att_weights = tf.Variable(tf.truncated_normal([self.head_size], stddev=1.0 / math.sqrt(float(self.head_size))),
                                         name='att_weights')
         self._att = AttentionReduce()
 
@@ -936,6 +936,11 @@ class TreeEmbedding_HTU_reduceATT_mapSUM(TreeEmbedding_reduceATT, TreeEmbedding_
 class TE_HTU_reduceATT_mapIDENTITY(TreeEmbedding_reduceATT, TreeEmbedding_HTU_mapIDENTITY):
     def __init__(self, name='', **kwargs):
         super(TE_HTU_reduceATT_mapIDENTITY, self).__init__(name=name, **kwargs)
+
+
+class TE_HTU_reduceATTSINGLE_mapIDENTITY(TreeEmbedding_reduceATTsingle, TreeEmbedding_HTU_mapIDENTITY):
+    def __init__(self, name='', **kwargs):
+        super(TE_HTU_reduceATTSINGLE_mapIDENTITY, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceATTsplit_mapGRU(TreeEmbedding_reduceATTsplit, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
