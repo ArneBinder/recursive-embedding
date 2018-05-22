@@ -7,7 +7,7 @@
 \usepackage{graphicx}                           % Packages to allow inclusion of graphics
 \usepackage{svg}
 \graphicspath{{./images/}{./images/background/}}
-\usepackage[colorinlistoftodos, disable, textsize=tiny]{todonotes}  
+\usepackage[colorinlistoftodos, textsize=tiny]{todonotes}  
 %\usepackage[colorinlistoftodos, textsize=tiny]{todonotes}   % todo notes
                           % For creating hyperlinks in cross references
 %\usepackage[authoryear]{natbib}                 % literature reference style
@@ -74,7 +74,11 @@
 \voffset=-2cm
 \hoffset=-3cm
 \textheight24cm
-\textwidth15.5cm
+%\textwidth15.5cm
+% just for todos:
+\textwidth14cm
+\setlength{\marginparwidth}{4cm} % make todonotes appear wider
+
 \topmargin1cm
 \oddsidemargin3cm
 \evensidemargin3cm
@@ -127,7 +131,7 @@
 %\input{titlepage}
 
 %\pagenumbering{roman}   % define page number in roman style
-\setcounter{page}{0}    % start page numbering
+\setcounter{page}{1}    % start page numbering
 
 % -----------------------------
 % --- frontmatter: Abstract ---
