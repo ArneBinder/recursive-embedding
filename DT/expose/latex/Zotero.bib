@@ -7408,4 +7408,53 @@ Page Version ID: 655236450}
   author = {Bosc, Tom and Cabrio, Elena and Villata, Serena}
 }
 
+@article{lewis_rcv1_,
+  langid = {english},
+  title = {{{RCV1}}: {{A New Benchmark Collection}} for {{Text Categorization Research}}},
+  abstract = {Reuters Corpus Volume I (RCV1) is an archive of over 800,000 manually categorized newswire stories recently made available by Reuters, Ltd. for research purposes. Use of this data for research on text categorization requires a detailed understanding of the real world constraints under which the data was produced. Drawing on interviews with Reuters personnel and access to Reuters documentation, we describe the coding policy and quality control procedures used in producing the RCV1 data, the intended semantics of the hierarchical category taxonomies, and the corrections necessary to remove errorful data. We refer to the original data as RCV1-v1, and the corrected data as RCV1-v2. We benchmark several widely used supervised learning methods on RCV1-v2, illustrating the collection’s properties, suggesting new directions for research, and providing baseline results for future studies. We make available detailed, per-category experimental results, as well as corrected versions of the category assignments and taxonomy structures, via online appendices.},
+  pages = {37},
+  keywords = {reuters},
+  author = {Lewis, David D and Yang, Yiming and Rose, Tony G and Li, Fan}
+}
+
+@article{huang_recommending_2011,
+  langid = {english},
+  title = {Recommending {{MeSH}} Terms for Annotating Biomedical Articles},
+  volume = {18},
+  issn = {1067-5027, 1527-974X},
+  url = {https://academic.oup.com/jamia/article-lookup/doi/10.1136/amiajnl-2010-000055},
+  doi = {10.1136/amiajnl-2010-000055},
+  abstract = {Background Due to the high cost of manual curation of key aspects from the scientiﬁc literature, automated methods for assisting this process are greatly desired. Here, we report a novel approach to facilitate MeSH indexing, a challenging task of assigning MeSH terms to MEDLINE citations for their archiving and retrieval.
+Methods Unlike previous methods for automatic MeSH term assignment, we reformulate the indexing task as a ranking problem such that relevant MeSH headings are ranked higher than those irrelevant ones. Speciﬁcally, for each document we retrieve 20 neighbor documents, obtain a list of MeSH main headings from neighbors, and rank the MeSH main headings using ListNetea learningto-rank algorithm. We trained our algorithm on 200 documents and tested on a previously used benchmark set of 200 documents and a larger dataset of 1000 documents.
+Results Tested on the benchmark dataset, our method achieved a precision of 0.390, recall of 0.712, and mean average precision (MAP) of 0.626. In comparison to the state of the art, we observe statistically signiﬁcant improvements as large as 39\% in MAP (p-value $<$0.001). Similar signiﬁcant improvements were also obtained on the larger document set.
+Conclusion Experimental results show that our approach makes the most accurate MeSH predictions to date, which suggests its great potential in making a practical impact on MeSH indexing. Furthermore, as discussed the proposed learning framework is robust and can be adapted to many other similar tasks beyond MeSH indexing in the biomedical domain. All data sets are available at: http://www.ncbi.nlm.nih.gov/ CBBresearch/Lu/indexing.},
+  number = {5},
+  journaltitle = {Journal of the American Medical Informatics Association},
+  urldate = {2018-05-23},
+  date = {2011-09},
+  pages = {660-667},
+  author = {Huang, Minlie and Névéol, Aurélie and Lu, Zhiyong},
+  file = {/home/arne/.zotero/zotero/m3xsompx.default/zotero/storage/ILGEQ8KP/Huang et al. - 2011 - Recommending MeSH terms for annotating biomedical .pdf}
+}
+
+@article{mao_mesh_2017,
+  langid = {english},
+  title = {{{MeSH Now}}: Automatic {{MeSH}} Indexing at {{PubMed}} Scale via Learning to Rank},
+  volume = {8},
+  issn = {2041-1480},
+  url = {http://jbiomedsem.biomedcentral.com/articles/10.1186/s13326-017-0123-3},
+  doi = {10.1186/s13326-017-0123-3},
+  shorttitle = {{{MeSH Now}}},
+  abstract = {Background: MeSH indexing is the task of assigning relevant MeSH terms based on a manual reading of scholarly publications by human indexers. The task is highly important for improving literature retrieval and many other scientific investigations in biomedical research. Unfortunately, given its manual nature, the process of MeSH indexing is both time-consuming (new articles are not immediately indexed until 2 or 3 months later) and costly (approximately ten dollars per article). In response, automatic indexing by computers has been previously proposed and attempted but remains challenging. In order to advance the state of the art in automatic MeSH indexing, a community-wide shared task called BioASQ was recently organized.
+Methods: We propose MeSH Now, an integrated approach that first uses multiple strategies to generate a combined list of candidate MeSH terms for a target article. Through a novel learning-to-rank framework, MeSH Now then ranks the list of candidate terms based on their relevance to the target article. Finally, MeSH Now selects the highest-ranked MeSH terms via a post-processing module.
+Results: We assessed MeSH Now on two separate benchmarking datasets using traditional precision, recall and F1score metrics. In both evaluations, MeSH Now consistently achieved over 0.60 in F-score, ranging from 0.610 to 0. 612. Furthermore, additional experiments show that MeSH Now can be optimized by parallel computing in order to process MEDLINE documents on a large scale.
+Conclusions: We conclude that MeSH Now is a robust approach with state-of-the-art performance for automatic MeSH indexing and that MeSH Now is capable of processing PubMed scale documents within a reasonable time frame. Availability: http://www.ncbi.nlm.nih.gov/CBBresearch/Lu/Demo/MeSHNow/.},
+  number = {1},
+  journaltitle = {Journal of Biomedical Semantics},
+  urldate = {2018-05-23},
+  date = {2017-12},
+  author = {Mao, Yuqing and Lu, Zhiyong},
+  file = {/home/arne/.zotero/zotero/m3xsompx.default/zotero/storage/BE55WRYX/Mao und Lu - 2017 - MeSH Now automatic MeSH indexing at PubMed scale .pdf}
+}
+
 
