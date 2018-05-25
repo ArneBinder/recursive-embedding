@@ -461,10 +461,12 @@ def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=
             feed_dict = {model_tree.embeddings_placeholder: convert_sparse_matrix_to_sparse_tensor(selected_tfidf_data)}
             _embeddings.append(sess.run(model_tree.embeddings_all, feed_dict))
     else:
-        tree_iterator = diter.tree_iterator(indices=new_indices, forest=forest, concat_mode=concat_mode,
-                                            max_depth=max_depth)
+        def tree_iterator():
+            for tree in diter.tree_iterator(indices=new_indices, forest=forest, concat_mode=concat_mode,
+                                            max_depth=max_depth):
+                yield [tree]
         with model_tree.compiler.multiprocessing_pool():
-            trees_compiled_iter = model_tree.compiler.build_loom_inputs(map(lambda x: [x], tree_iterator), ordered=True)
+            trees_compiled_iter = model_tree.compiler.build_loom_inputs(tree_iterator(), ordered=True)
             for start in range(0, len(new_indices), batch_size):
                 current_size = min(batch_size, len(new_indices) - start)
                 current_trees = [trees_compiled_iter.next() for _ in range(current_size)]
