@@ -503,6 +503,7 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, model_tree,
     for start in range(0, len(root_ids)-1, batch_size):
         current_embeddings = np.concatenate(([embedding_src], scoring_embeddings[start+1:start+batch_size+1, :]))
         feed_dict = {model_tuple.tree_model.embeddings_placeholder: current_embeddings,
+                     model_tuple.values_gold: np.zeros(shape=current_embeddings.shape[0]-1)
                      #model_tuple.candidate_count: len(current_embeddings) - 1
                      }
         _scores.append(sess.run(model_tuple.values_predicted, feed_dict).flatten())
