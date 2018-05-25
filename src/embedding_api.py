@@ -799,10 +799,26 @@ def get_tuple_scores():
         params = get_params(request)
         init_forest(data_path)
 
-        root_id = params['root_id']
+        root_id_str = params.get('root_id_string', None)
+        if root_id_str is not None:
+            try:
+                root_id = forest.lexicon_roots.get_d(root_id_str, data_as_hashes=False)
+            except KeyError:
+                raise InvalidUsage("root_id_string not found: %s" % root_id_str)
+        else:
+            root_id = params['root_id']
         all_root_ids = current_root_ids()
-        root_ids_target_nbr = params.get('root_ids_target_nbr', len(all_root_ids))
-        root_ids_target = params.get('root_ids_target', all_root_ids[np.arange(root_ids_target_nbr)])
+        root_ids_target_strings = params.get('root_ids_target_string', None)
+        if root_ids_target_strings is not None:
+            root_ids_target = []
+            for root_id_target_string in root_ids_target_strings:
+                try:
+                    root_ids_target.append(forest.lexicon_roots.get_d(root_id_target_string, data_as_hashes=False))
+                except KeyError:
+                    raise InvalidUsage("root_id_target_string not found: %s" % root_id_target_string)
+        else:
+            root_ids_target_nbr = params.get('root_ids_target_nbr', len(all_root_ids))
+            root_ids_target = params.get('root_ids_target', all_root_ids[np.arange(root_ids_target_nbr)])
         concat_mode = params.get('concat_mode', 'tree')
         max_depth = params.get('max_depth', 10)
         top = params.get('top', len(root_ids_target))
