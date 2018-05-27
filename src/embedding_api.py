@@ -1022,7 +1022,8 @@ def main(data_source):
                     lexicon.dump(FLAGS.save_final_model_path)
                 # clear vecs to clean up memory
                 lexicon.init_vecs()
-
+    else:
+        data_path = data_source
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
