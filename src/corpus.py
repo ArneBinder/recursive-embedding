@@ -11,7 +11,6 @@ def process_records(reader, parser, batch_size=1000, n_threads=4):
     :return: forest object in hash version
     """
     lexicon = Lexicon()
-
     forest = lexicon.read_data(reader=reader, sentence_processor=preprocessing.process_sentence1,
                                parser=parser, batch_size=batch_size, concat_mode='sequence',
                                inner_concat_mode='tree', expand_dict=True, as_tuples=True,
