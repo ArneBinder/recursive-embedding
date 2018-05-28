@@ -28,8 +28,8 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py PARSE_BATCHES
                                   --in-path /root/corpora_in/${BIOASQ_SUBDIR}
                                   --out-path /root/corpora_out/BIOASQ
-                                  --num-threads-parse ${NUM_THREADS_PARSE}
-                                  --batch-size-parse ${BATCH_SIZE_PARSE}
+                                  --n-threads ${NUM_THREADS_PARSE}
+                                  --parser-batch-size ${BATCH_SIZE_PARSE}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
