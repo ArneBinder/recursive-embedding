@@ -11,7 +11,7 @@ services:
     command: >
       /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py PREPARE_BATCHES
                                   --in-path /root/corpora_in/${BIOASQ_SUBDIR}
-                                  --mapping_file /root/recursive-embedding/Structured-Abstracts-Labels.txt
+                                  --mapping-file /root/recursive-embedding/Structured-Abstracts-Labels.txt
                                   --n-threads ${NUM_THREADS_PREPARE}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
