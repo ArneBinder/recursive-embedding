@@ -18,6 +18,7 @@ from lexicon import Lexicon
 from corpus import FE_UNIQUE_HASHES, FE_COUNTS
 from mytools import numpy_dump, numpy_exists
 import corpus
+from corpus import DIR_BATCHES
 from sequence_trees import Forest
 
 logger = logging.getLogger('corpus_bioasq')
@@ -325,6 +326,10 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
 
+    out_path = os.path.join(out_path, DIR_BATCHES)
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+
     logger.debug('use in_path=%s, out_path=%s, n_threads=%i, parser_batch_size=%i' %
                  (in_path, out_path, n_threads, parser_batch_size))
     logger.info('init parser ...')
@@ -333,8 +338,8 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
     for in_file in os.listdir(in_path):
         logger.info('parse file: %s' % os.path.basename(in_file))
         out_base_name = os.path.join(out_path, os.path.basename(in_file))
-        process_records(records=read_file(os.path.join(in_path, in_file)), out_base_name=out_base_name, parser=parser, n_threads=n_threads,
-                        batch_size=parser_batch_size)
+        process_records(records=read_file(os.path.join(in_path, in_file)), out_base_name=out_base_name, parser=parser,
+                        n_threads=n_threads, batch_size=parser_batch_size)
 
 
 @plac.annotations(
