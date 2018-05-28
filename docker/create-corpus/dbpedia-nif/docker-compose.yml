@@ -59,6 +59,7 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py MERGE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF/${BATCH_SIZE}
                                   --min-count ${MIN_COUNT}
+                                  --use-see-also-counts
     #cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}

@@ -27,15 +27,12 @@ mkdir BIOASQ_DIRECTORY/split && cd BIOASQ_DIRECTORY/split
 split -l 10000 ../allMeSH_2018.json
 ```
 
-As we rely on structured abstracts, we uniform the paragraph labels with mappings provided by https://structuredabstracts.nlm.nih.gov/downloads.shtml. You can download the latest or use the one provided in this repo.
-We use a small script from this repo to do the replacing (ATTENTION: that needs some time):
-```bash
-cd recursive-embedding/docker/create-corpus/bioasq
-./uniform_labels Structured-Abstracts-Labels-102615.txt BIOASQ_DIRECTORY/split 10
-```
-The `10` says to process 10 files in parallel.
+Rename [`docker/create-corpus/bioasq/.env.dev`](.env.dev) (or copy) to `.env` and configure its parameters, especially set `HOST_CORPORA_IN` and `BIOASQ_SUBDIR` where your BioASQ data is located (The concatenated path `HOST_CORPORA_IN/BIOASQ_SUBDIR` has to point to the directory containing the split files) and set `HOST_CORPORA_OUT` to the directory you want to output the corpus files (ATTENTION: expected corpus size: ~32 GB (batches) + X GB (final)).
 
-Rename [`docker/create-corpus/bioasq/.env.dev`](.env.dev) (or copy) to `.env` and configure its parameters, especially set `HOST_CORPORA_OUT` to the directory you want to output the corpus files (ATTENTION: expected corpus size: ~32 GB (batches) + X GB (final)).
+To prepare the data (uniform abstract labels with mappings from https://structuredabstracts.nlm.nih.gov/downloads.shtml), execute from repository root:
+```bash
+cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-prepare
+```
 
 To start the (batched) parsing, execute from repository root:
 

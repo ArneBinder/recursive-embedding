@@ -1,6 +1,22 @@
 version: '2.3'
 services:
-  corpus-dbpedia-nif-prepare:
+  corpus-bioasq-prepare:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/bioasq/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py PREPARE_BATCHES
+                                  --in-path /root/corpora_in/${BIOASQ_SUBDIR}
+                                  --mapping_file /root/recursive-embedding/Structured-Abstracts-Labels.txt
+                                  --n-threads ${NUM_THREADS_PREPARE}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-bioasq-parse:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/bioasq/Dockerfile
@@ -17,7 +33,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-dbpedia-nif-merge:
+  corpus-bioasq-merge:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/bioasq/Dockerfile

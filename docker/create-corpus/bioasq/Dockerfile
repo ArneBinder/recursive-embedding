@@ -33,6 +33,8 @@ ARG TMP=/tmp/bioasq
 COPY "$OWN_LOCATION"/requirements.txt "$PROJECT_ROOT"/requirements.txt
 RUN pip install --no-cache-dir -r "$PROJECT_ROOT"/requirements.txt
 
+COPY docker/create-corpus/bioasq/Structured-Abstracts-Labels-102615.txt "$PROJECT_ROOT"/Structured-Abstracts-Labels.txt
+
 #COPY src "$PROJECT_ROOT"/src
 WORKDIR "$PROJECT_ROOT"/src
 
