@@ -1,14 +1,20 @@
 # coding=utf-8
 import json
 import logging
+import numpy as np
 import os
 from functools import partial
 
 import plac
 import spacy
 
-import corpus
 from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH
+import preprocessing
+from lexicon import Lexicon
+from corpus import FE_UNIQUE_HASHES, FE_COUNTS
+from mytools import numpy_dump, numpy_exists
+import corpus
+from sequence_trees import Forest
 
 logger = logging.getLogger('corpus_bioasq')
 logger.setLevel(logging.DEBUG)
@@ -17,6 +23,12 @@ logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
+KEY_MAPPING = {'journal': u"http://id.nlm.nih.gov/pubmed/journal",
+               'meshMajor': u"http://id.nlm.nih.gov/mesh",
+               'year': u"http://id.nlm.nih.gov/pubmed/year",
+               'abstractText': TYPE_SECTION+u'/abstract',
+               'pmid': u'http://id.nlm.nih.gov/pubmed/pmid',
+               'title': TYPE_TITLE}
 
 
 DUMMY_RECORD = {"journal": u"PLoS pathogens",
@@ -37,7 +49,6 @@ DUMMY_RECORD_CONVERTED = {u"http://id.nlm.nih.gov/pubmed/journal": u"PLoS pathog
                             TYPE_SECTION+u'/abstract': u"BACKGROUND: In a c-VEP BCI setting, test subjects can have highly varying performances when different pseudorandom sequences are applied as stimulus, and ideally, multiple codes should be supported. On the other hand, repeating the experiment with many different pseudorandom sequences is a laborious process.OBJECTIVE: This study aimed to suggest an efficient method for choosing the optimal stimulus sequence based on a fast test and simple measures to increase the performance and minimize the time consumption for research trials.METHODS: A total of 21 healthy subjects were included in an online wheelchair control task and completed the same task using stimuli based on the m-code, the gold-code, and the Barker-code. Correct\/incorrect identification and time consumption were obtained for each identification. Subject-specific templates were characterized and used in a forward-step first-order model to predict the chance of completion and accuracy score.RESULTS: No specific pseudorandom sequence showed superior accuracy on the group basis. When isolating the individual performances with the highest accuracy, time consumption per identification was not significantly increased. The Accuracy Score aids in predicting what pseudorandom sequence will lead to the best performance using only the templates. The Accuracy Score was higher when the template resembled a delta function the most and when repeated templates were consistent. For completion prediction, only the shape of the template was a significant predictor.CONCLUSIONS: The simple and fast method presented in this study as the Accuracy Score, allows c-VEP based BCI systems to support multiple pseudorandom sequences without increase in trial length. This allows for more personalized BCI systems with better performance to be tested without increased costs.",
                             u'http://id.nlm.nih.gov/pubmed/pmid': u'http://id.nlm.nih.gov/pubmed/pmid/29112952',
                             TYPE_TITLE: u"Natural killer cell-intrinsic type I IFN signaling controls Klebsiella pneumoniae growth during lung infection."}
-
 
 
 def multisplit(text, sep, sep_postfix=u': ', unlabeled=None):
@@ -132,84 +143,122 @@ def reader(records, keys_text, root_string, keys_meta=(), key_id=None, root_text
 
 
 def read_file(in_file):
-    #for file in os.listdir(in_path):
     with open(in_file) as f:
         for line in f:
             if line.startswith('{') and line.endswith(',\n'):
                 encoded = json.loads(line[:-2])
-                converted = convert_record(encoded)
-                yield converted
+                yield encoded
             else:
                 logger.warning('skip line: %s' % line)
 
 
-def convert_record(record, mapping={'journal': u"http://id.nlm.nih.gov/pubmed/journal",
-                                                             'meshMajor': u"http://id.nlm.nih.gov/mesh",
-                                                             'year': u"http://id.nlm.nih.gov/pubmed/year",
-                                                             'abstractText': TYPE_SECTION+u'/abstract',
-                                                             'pmid': u'http://id.nlm.nih.gov/pubmed/pmid',
-                                                             'title': TYPE_TITLE
-                                                             }):
-    result = {}
-    for m in mapping:
-        result[mapping[m]] = record[m]
-    return result
+def convert_record(record, mapping=KEY_MAPPING):
+    return {mapping[m]: record[m] for m in mapping}
 
 
 @plac.annotations(
-    out_path=('corpora out path', 'option', 'o', str),
+    records=('dicts containing BioASQ data obtained from json', 'option', 'r', str),
+    out_base_name=('corpora output base file name', 'option', 'o', str),
 )
-def process_dummy(out_path):
-    logger.debug('init spacy ...')
-    nlp = spacy.load('en')
+def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=1000, n_threads=4):
+    if not Lexicon.exist(out_base_name, types_only=True) \
+            or not Forest.exist(out_base_name) \
+            or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
+            or not numpy_exists('%s.%s' % (out_base_name, FE_COUNTS)):
+        _reader = partial(reader,
+                          records=(convert_record(r) for r in records),
+                          key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
+                          keys_text=[TYPE_TITLE, TYPE_SECTION + u'/abstract'],
+                          keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year",
+                                     u"http://id.nlm.nih.gov/mesh"],
+                          paragraph_labels=[u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS'],
+                          root_string=u'http://id.nlm.nih.gov/pubmed/resource')
+        logger.debug('parse abstracts ...')
+        # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
 
-    record_converted = convert_record(DUMMY_RECORD)
-    _reader = partial(reader, records=[record_converted], key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
-                      keys_text=[TYPE_TITLE, TYPE_SECTION+u'/abstract'],
-                      keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year",
-                                 u"http://id.nlm.nih.gov/mesh"],
-                      paragraph_labels=[u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS'],
-                      root_string=u'http://id.nlm.nih.gov/pubmed/resource')
-    logger.debug('parse abstracts ...')
-    forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
-    lexicon.dump(filename=out_path, strings_only=True)
-    forest.dump(filename=out_path)
+        lexicon = Lexicon()
+        forest = lexicon.read_data(reader=_reader, sentence_processor=preprocessing.process_sentence1,
+                                   parser=parser, batch_size=batch_size, concat_mode='sequence',
+                                   inner_concat_mode='tree', expand_dict=True, as_tuples=True,
+                                   return_hashes=True, n_threads=n_threads)
+
+        forest.set_children_with_parents()
+        roots = forest.roots
+        # ids are at one position after roots
+        root_ids = forest.data[roots + 1]
+        forest.set_root_ids(root_ids=root_ids)
+
+        #out_path = os.path.join(out_path, os.path.basename(in_file))
+        lexicon.dump(filename=out_base_name, strings_only=True)
+        forest.dump(filename=out_base_name)
+
+        unique, counts = np.unique(forest.data, return_counts=True)
+        # unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
+        # counts.dump('%s.%s' % (filename, FE_COUNTS))
+        numpy_dump('%s.%s' % (out_base_name, FE_UNIQUE_HASHES), unique)
+        numpy_dump('%s.%s' % (out_base_name, FE_COUNTS), counts)
+    else:
+        logger.debug('%s was already processed' % out_base_name)
 
 
 @plac.annotations(
-    out_path=('corpora out path', 'option', 'o', str),
+    out_base_name=('corpora output base file name', 'option', 'o', str)
+)
+def parse_dummy(out_base_name):
+    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name)
+
+
+@plac.annotations(
     in_file=('corpora input file', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
 )
-def process_single(in_file, out_path, nlp=spacy.load('en')):
-
-    _reader = partial(reader, records=read_file(in_file), key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
-                      keys_text=[TYPE_TITLE, TYPE_SECTION+u'/abstract'],
-                      keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year",
-                                 u"http://id.nlm.nih.gov/mesh"],
-                      paragraph_labels=[u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS'],
-                      root_string=u'http://id.nlm.nih.gov/pubmed/resource')
-    logger.debug('parse abstracts ...')
-    forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
-
-    forest.set_children_with_parents()
-    roots = forest.roots
-    # ids are at one position after roots
-    root_ids = forest.data[roots + 1]
-    forest.set_root_ids(root_ids=root_ids)
-
-    out_path = os.path.join(out_path, os.path.basename(in_file))
-    lexicon.dump(filename=out_path, strings_only=True)
-    forest.dump(filename=out_path)
+def parse_single(in_file, out_path):
+    logger.info('init parser ...')
+    parser = spacy.load('en')
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+    out_base_name = os.path.join(out_path, os.path.basename(in_file))
+    process_records(records=read_file(in_file), out_base_name=out_base_name, parser=parser)
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PROCESS_DUMMY', 'PROCESS_SINGLE']),
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+    n_threads=('number of threads for parsing', 'option', 't', int),
+    parser_batch_size=('parser batch size', 'option', 'b', int),
+)
+def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-parse.log'))
+    logger_fh.setLevel(logging.DEBUG)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger.debug('use in_path=%s, out_path=%s, n_threads=%i, parser_batch_size=%i' %
+                 (in_path, out_path, n_threads, parser_batch_size))
+    logger.info('init parser ...')
+    parser = spacy.load('en')
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+    for in_file in os.listdir(in_path):
+        logger.info('parse file: %s' % os.path.basename(in_file))
+        out_base_name = os.path.join(out_path, os.path.basename(in_file))
+        process_records(records=read_file(os.path.join(in_path, in_file)), out_base_name=out_base_name, parser=parser, n_threads=n_threads,
+                        batch_size=parser_batch_size)
+
+
+@plac.annotations(
+    mode=('processing mode', 'positional', None, str, ['PARSE_DUMMY', 'PARSE_SINGLE', 'PARSE_BATCHES',
+                                                       'MERGE_BATCHES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
-    if mode == 'PROCESS_DUMMY':
-        plac.call(process_dummy, args)
-    elif mode == 'PROCESS_SINGLE':
-        plac.call(process_single, args)
+    if mode == 'PARSE_DUMMY':
+        plac.call(parse_dummy, args)
+    elif mode == 'PARSE_SINGLE':
+        plac.call(parse_single, args)
+    elif mode == 'PARSE_BATCHES':
+        plac.call(parse_batches, args)
+    elif mode == 'MERGE_BATCHES':
+        plac.call(corpus.merge_batches, args)
     else:
         raise ValueError('unknown mode. use one of PROCESS_DUMMY or PROCESS_SINGLE.')
 

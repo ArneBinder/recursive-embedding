@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# This script uniforms all abstract labels for structured PubMed abstracts 
+# e.g. via NLM Category Mappings File (see https://structuredabstracts.nlm.nih.gov/).
+# ATTENTION: Works inplace!
+# It reverses the mapping file as it is expected as sorted (and therefore substrings occur before 
+# superstrings what causes wrong repalcements) 
+# 
+# usage: 
+# ./uniform_labels LABEL_MAPPING_FILE ABSTRACTS_FILE_OR_DIR [NUMBER_OF_THREADS]
+# 	LABEL_MAPPING_FILE has to consist of lines starting with: SPECIFIC_LABEL|MAJOR_LABEL|
+# 		e.g. TRIAL DESIGN|METHODS|N|20100629
+#		provided from https://structuredabstracts.nlm.nih.gov/downloads.shtml
+#	ABSTRACTS_FILE_OR_DIR has to contain PubMed abstracts in plain text (eventually embedded in json, etc.)
+#   NUMBER_OF_THREADS maximal number of files that are processed in parallel, defaults to 4
+
+
+echo "use label mapping file: $1"
+
+
+#mappings="$(cat $1)"
+#IFS='\n' read -r -a mappings <<< "$(cat $1)"
+#echo "$mappings"
+readarray -t mappings < "$1"
+#echo "${mappings[0]}#${mappings[1]}#${mappings[2]}#${mappings[3]}"
+max_threads=4
+if [ -n "$3" ]; then
+	max_threads="$3"
+fi
+
+#while IFS='' read -r line || [[ -n "$line" ]]; do
+#for line in "${mappings[@]}"; do
+uniform () {
+	echo "process file: $1"
+	# reverse the array
+	for (( idx=${#mappings[@]}-1 ; idx>=0 ; idx-- )) ; do
+		line="${mappings[idx]}"
+		#echo "$line"
+		IFS='|' read -r -a array <<< "$line"
+		pattern="s|${array[0]}:|${array[1]}:|g"
+		#echo "$pattern"
+		sed -i -e "$pattern" "$1"
+		#echo "${array[0]}#${array[1]}#${array[2]}#${array[3]}"
+		#break;
+	done;
+
+	# To catch labels not followed by ":" (adds teh missing ":")
+	# reverse the array
+	for (( idx=${#mappings[@]}-1 ; idx>=0 ; idx-- )) ; do
+		line="${mappings[idx]}"
+		#echo "$line"
+		IFS='|' read -r -a array <<< "$line"
+		pattern="s|${array[0]} |${array[1]}: |g"
+		#echo "$pattern"
+		sed -i -e "$pattern" "$1"
+		#echo "${array[0]}#${array[1]}#${array[2]}#${array[3]}"
+		#break;
+	done;
+}
+
+
+#uniform "$2"
+
+if [[ -d $2 ]]; then
+    echo "$2 is a directory"
+    echo "use $max_threads threads"
+    i=0
+	for entry in "$2"/*; do
+	  	uniform "$entry" &
+	  	pids[${i}]=$!
+	  	echo "start $!"
+	  	i=$((i+1))
+	  	if (( i >= max_threads )); then
+	  		echo "wait for threads..."
+    		for pid in ${pids[*]}; do
+			    wait $pid
+			    echo "$pid finished" 
+			done
+			i=0
+		fi
+	done
+
+	# wait for remaining pids
+	for pid in ${pids[*]}; do
+		echo "wait for remaining threads..."
+	    wait $pid
+	    echo "$pid finished" 
+	done
+elif [[ -f $2 ]]; then
+    echo "$2 is a file"
+else
+    echo "$2 is not valid"
+    exit 1
+fi
