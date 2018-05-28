@@ -163,7 +163,7 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                 for i, text in enumerate(texts):
                     if text == u'':
                         continue
-                    record_data.append((text, {'root_type': TYPE_PARAGRAPH+u'/'+labels[i], 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
+                    record_data.append((text, {'root_type': TYPE_PARAGRAPH+u'/'+labels[i].replace(' ', '_'), 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
                     prepend = None
                 #matches, rest = multisplit(record[k_text], paragraph_labels)
                 #for i, text in enumerate(rest):
