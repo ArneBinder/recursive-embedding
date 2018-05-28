@@ -1,9 +1,13 @@
 # coding=utf-8
 import json
 import logging
+import re
+import shutil
+
 import numpy as np
 import os
 from functools import partial
+from multiprocessing import Pool
 
 import plac
 import spacy
@@ -29,6 +33,9 @@ KEY_MAPPING = {'journal': u"http://id.nlm.nih.gov/pubmed/journal",
                'abstractText': TYPE_SECTION+u'/abstract',
                'pmid': u'http://id.nlm.nih.gov/pubmed/pmid',
                'title': TYPE_TITLE}
+
+PARAGRAPH_LABELS_UNIFORM = [u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS']
+PARAGRAPH_LABEL_UNLABELED = u'UNLABELED'
 
 
 DUMMY_RECORD = {"journal": u"PLoS pathogens",
@@ -72,20 +79,22 @@ def multisplit(text, sep, sep_postfix=u': ', unlabeled=None):
     return matches, rest
 
 
-def reader(records, keys_text, root_string, keys_meta=(), key_id=None, root_text_string=TYPE_ANCHOR,
-           paragraph_labels=(), uniform_paragraphs=False):
+def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), key_id=None,
+           root_text_string=TYPE_ANCHOR, allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM):
     """
 
     :param records: dicts containing the textual data and optional meta data
     :param keys_text:
+    :param keys_text_structured:
     :param root_string:
     :param keys_meta:
     :param key_id:
     :param root_text_string:
-    :param paragraph_labels:
-    :param uniform_paragraphs:
+    :param allowed_paragraph_labels:
     :return:
     """
+    count_finished = 0
+    count_discarded = 0
     for record in records:
         try:
             prepend_data_strings = [root_string]
@@ -121,25 +130,66 @@ def reader(records, keys_text, root_string, keys_meta=(), key_id=None, root_text
             #    print record
 
             prepend = (prepend_data_strings, prepend_parents)
+
+            record_data = []
+
             for k_text in keys_text:
                 # debug
                 if record[k_text] is None:
                     logger.warning('contains None text (@k_text=%s): %s' % (k_text, str(record)))
+                    continue
+                record_data.append((record[k_text], {'root_type': k_text, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
+                prepend = None
+
+            for k_text in keys_text_structured:
+                # debug
+                if record[k_text] is None:
+                    logger.warning('contains None text (@k_text=%s): %s' % (k_text, str(record)))
+                    continue
                 # debug end
-                matches, rest = multisplit(record[k_text], paragraph_labels)
-                for i, text in enumerate(rest):
+                matches = re.split('(^|\.)([A-Z][A-Z ]{3,}[A-Z]): ', record[k_text])
+                # if no label candidate was found or content before first label is available add UNLABELED label
+                if len(matches) < 2 or matches[0] + matches[1] != u'':
+                    matches = [PARAGRAPH_LABEL_UNLABELED] + matches + ['']
+                else:
+                    # otherwise strip empty contents
+                    matches = matches[2:] + ['']
+                assert len(matches) % 3 == 0, 'wrong amount of matches (has to be a multiple of 3): %s' % str(matches)
+
+                labels, texts = zip(*[(matches[i], matches[i+1]+matches[i+2]) for i in range(0, len(matches), 3)])
+                if allowed_paragraph_labels is not None and any(l not in allowed_paragraph_labels for l in labels):
+                    raise Warning('one of the labels is not in allowed_paragraph_labels')
+
+                for i, text in enumerate(texts):
                     if text == u'':
                         continue
-                    if matches[i] is not None:
-                        root_type = TYPE_PARAGRAPH
-                        if not uniform_paragraphs:
-                            root_type += u'/' + matches[i]
-                    else:
-                        root_type = k_text
-                    yield (text, {'root_type': root_type, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset})
+                    record_data.append((text, {'root_type': TYPE_PARAGRAPH+u'/'+labels[i], 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
                     prepend = None
+                #matches, rest = multisplit(record[k_text], paragraph_labels)
+                #for i, text in enumerate(rest):
+                #    if text == u'':
+                #        continue
+                #    if matches[i] is not None:
+                #        root_type = TYPE_PARAGRAPH
+                #        if not uniform_paragraphs:
+                #            root_type += u'/' + matches[i]
+                #    else:
+                #        root_type = k_text
+                #    yield (text, {'root_type': root_type, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset})
+                #    prepend = None
+
+            # has to be done in the end because the whole record should be discarded at once if an exception is raised
+            for d in record_data:
+                yield d
+            count_finished += 1
+        except Warning:
+            count_discarded += 1
+            pass
         except Exception as e:
+            count_discarded += 1
             logger.warning('failed to process record (%s): %s' % (e.message, str(record)))
+
+    logger.debug('discarded %i of %i records' % (count_discarded, count_finished + count_discarded))
 
 
 def read_file(in_file):
@@ -168,10 +218,11 @@ def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=
         _reader = partial(reader,
                           records=(convert_record(r) for r in records),
                           key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
-                          keys_text=[TYPE_TITLE, TYPE_SECTION + u'/abstract'],
+                          keys_text=[TYPE_TITLE],
+                          keys_text_structured=[TYPE_SECTION + u'/abstract'],
                           keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year",
                                      u"http://id.nlm.nih.gov/mesh"],
-                          paragraph_labels=[u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS'],
+                          allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM,
                           root_string=u'http://id.nlm.nih.gov/pubmed/resource')
         logger.debug('parse abstracts ...')
         # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
@@ -221,6 +272,50 @@ def parse_single(in_file, out_path):
     process_records(records=read_file(in_file), out_base_name=out_base_name, parser=parser)
 
 
+def prepare_file(fn, in_path, out_path, mappings):
+    logger.debug('process %s...' % fn)
+    out_fn = os.path.join(out_path, os.path.basename(fn))
+    if os.path.exists(out_fn):
+        logger.debug('%s was already processed' % os.path.basename(fn))
+        return
+    with open(os.path.join(in_path, fn), 'r') as f:
+        data = f.read()
+    for m in mappings:
+        data = data.replace('.' + m[0] + ':', '.' + m[1] + ':')
+        data = data.replace('"' + m[0] + ':', '"' + m[1] + ':')
+
+    with open(out_fn, 'w') as f:
+        f.write(data)
+
+
+@plac.annotations(
+    in_path=('corpora input folder', 'option', 'i', str),
+    mapping_file=('path to the file containing abstract label mappings '
+                  '(see https://structuredabstracts.nlm.nih.gov/downloads.shtml)', 'option', 'm', str),
+    n_threads=('number of threads for replacement operations', 'option', 't', int),
+)
+def prepare_batches(in_path, mapping_file, n_threads=4):
+    # move all files to backup
+    bk_path = in_path+'_bk'
+    if not os.path.exists(bk_path):
+        logger.info('create backup folder: %s' % bk_path)
+        shutil.move(in_path, bk_path)
+        os.mkdir(in_path)
+
+    out_path = in_path
+    in_path = bk_path
+    file_names = os.listdir(in_path)
+
+    # get mappings
+    with open(mapping_file, 'r') as f:
+        content = f.readlines()
+    # reverse to replace long mappings first
+    mappings = [tuple(x.split('|')[:2]) for x in reversed(content)]
+
+    p = Pool(n_threads)
+    p.map(partial(prepare_file, in_path=in_path, out_path=out_path, mappings=mappings), file_names)
+
+
 @plac.annotations(
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
@@ -228,6 +323,9 @@ def parse_single(in_file, out_path):
     parser_batch_size=('parser batch size', 'option', 'b', int),
 )
 def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
+    if not os.path.exists(out_path):
+        os.mkdir(out_path)
+
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-parse.log'))
     logger_fh.setLevel(logging.DEBUG)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
@@ -237,8 +335,7 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
                  (in_path, out_path, n_threads, parser_batch_size))
     logger.info('init parser ...')
     parser = spacy.load('en')
-    if not os.path.exists(out_path):
-        os.mkdir(out_path)
+
     for in_file in os.listdir(in_path):
         logger.info('parse file: %s' % os.path.basename(in_file))
         out_base_name = os.path.join(out_path, os.path.basename(in_file))
@@ -247,12 +344,14 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE_DUMMY', 'PARSE_SINGLE', 'PARSE_BATCHES',
+    mode=('processing mode', 'positional', None, str, ['PARSE_DUMMY', 'PREPARE_BATCHES', 'PARSE_SINGLE', 'PARSE_BATCHES',
                                                        'MERGE_BATCHES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
         plac.call(parse_dummy, args)
+    elif mode == 'PREPARE_BATCHES':
+        plac.call(prepare_batches, args)
     elif mode == 'PARSE_SINGLE':
         plac.call(parse_single, args)
     elif mode == 'PARSE_BATCHES':

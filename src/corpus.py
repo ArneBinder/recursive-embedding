@@ -294,12 +294,13 @@ def collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_coun
 @plac.annotations(
     out_path=('corpora out path', 'option', 'o', str),
     min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
+    use_see_also_counts=('use SeeAlso counts to help determining length of textual data', 'flag', 'u'),
     # shows the coverage for min_count=100:
     # 1 - (len(data) - sum(counts_sorted[-len(np.where(counts_sorted >= 100)[0]):])) / float(len(data))
     # 0.951
     # min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
-def merge_batches(out_path, min_count=1, use_see_also_counts=True):  # , min_count_root_id=-1):
+def merge_batches(out_path, min_count=1, use_see_also_counts=False):  # , min_count_root_id=-1):
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-merge.log'))
     logger_fh.setLevel(logging.DEBUG)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
