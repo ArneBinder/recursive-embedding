@@ -80,7 +80,7 @@ def reader(records, keys_text, root_string, keys_meta=(), key_id=None, root_text
             prepend_data_strings = [root_string]
             prepend_parents = [0]
             if key_id is not None:
-                prepend_data_strings.append(record[key_id])
+                prepend_data_strings.append(key_id + '/' + record[key_id])
                 prepend_parents.append(-1)
 
             prepend_data_strings.append(root_text_string)
@@ -99,7 +99,7 @@ def reader(records, keys_text, root_string, keys_meta=(), key_id=None, root_text
                     if v_meta is None:
                         continue
                     v_meta = [v_meta]
-                prepend_data_strings.extend(v_meta)
+                prepend_data_strings.extend([k_meta + '/' + v for v in v_meta])
                 prepend_parents.extend([-i - 1 for i in range(len(v_meta))])
 
             prepend_data_strings.append(TYPE_SECTION)
@@ -190,7 +190,14 @@ def process_single(in_file, out_path, nlp=spacy.load('en')):
                       root_string=u'http://id.nlm.nih.gov/pubmed/resource')
     logger.debug('parse abstracts ...')
     forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
-    out_path += os.path.basename(in_file)
+
+    forest.set_children_with_parents()
+    roots = forest.roots
+    # ids are at one position after roots
+    root_ids = forest.data[roots + 1]
+    forest.set_root_ids(root_ids=root_ids)
+
+    out_path = os.path.join(out_path, os.path.basename(in_file))
     lexicon.dump(filename=out_path, strings_only=True)
     forest.dump(filename=out_path)
 
