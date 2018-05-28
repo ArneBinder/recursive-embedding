@@ -76,56 +76,59 @@ def reader(records, keys_text, root_string, keys_meta=(), key_id=None, root_text
     :return:
     """
     for record in records:
-        prepend_data_strings = [root_string]
-        prepend_parents = [0]
-        if key_id is not None:
-            prepend_data_strings.append(record[key_id])
-            prepend_parents.append(-1)
+        try:
+            prepend_data_strings = [root_string]
+            prepend_parents = [0]
+            if key_id is not None:
+                prepend_data_strings.append(record[key_id])
+                prepend_parents.append(-1)
 
-        prepend_data_strings.append(root_text_string)
-        prepend_parents.append(-len(prepend_parents))
-        text_root_offset = len(prepend_parents) - 1
-
-        for k_meta in keys_meta:
-            # add key
-            prepend_data_strings.append(k_meta)
+            prepend_data_strings.append(root_text_string)
             prepend_parents.append(-len(prepend_parents))
-            # add value(s)
-            # ATTENTION: assumed to be string(s)!
-            v_meta = record[k_meta]
-            if not isinstance(v_meta, list):
-                # skip None values
-                if v_meta is None:
-                    continue
-                v_meta = [v_meta]
-            prepend_data_strings.extend(v_meta)
-            prepend_parents.extend([-i - 1 for i in range(len(v_meta))])
+            text_root_offset = len(prepend_parents) - 1
 
-        prepend_data_strings.append(TYPE_SECTION)
-        prepend_parents.append(text_root_offset - len(prepend_parents))
-        text_root_offset = len(prepend_parents) - 1
+            for k_meta in keys_meta:
+                # add key
+                prepend_data_strings.append(k_meta)
+                prepend_parents.append(-len(prepend_parents))
+                # add value(s)
+                # ATTENTION: assumed to be string(s)!
+                v_meta = record[k_meta]
+                if not isinstance(v_meta, list):
+                    # skip None values
+                    if v_meta is None:
+                        continue
+                    v_meta = [v_meta]
+                prepend_data_strings.extend(v_meta)
+                prepend_parents.extend([-i - 1 for i in range(len(v_meta))])
 
-        #if None in prepend_data_strings:
-        #    print record
+            prepend_data_strings.append(TYPE_SECTION)
+            prepend_parents.append(text_root_offset - len(prepend_parents))
+            text_root_offset = len(prepend_parents) - 1
 
-        prepend = (prepend_data_strings, prepend_parents)
-        for k_text in keys_text:
-            # debug
-            if record[k_text] is None:
-                logger.warning('contains None text (@k_text=%s): %s' % (k_text, str(record)))
-            # debug end
-            matches, rest = multisplit(record[k_text], paragraph_labels)
-            for i, text in enumerate(rest):
-                if text == u'':
-                    continue
-                if matches[i] is not None:
-                    root_type = TYPE_PARAGRAPH
-                    if not uniform_paragraphs:
-                        root_type += u'/' + matches[i]
-                else:
-                    root_type = k_text
-                yield (text, {'root_type': root_type, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset})
-                prepend = None
+            #if None in prepend_data_strings:
+            #    print record
+
+            prepend = (prepend_data_strings, prepend_parents)
+            for k_text in keys_text:
+                # debug
+                if record[k_text] is None:
+                    logger.warning('contains None text (@k_text=%s): %s' % (k_text, str(record)))
+                # debug end
+                matches, rest = multisplit(record[k_text], paragraph_labels)
+                for i, text in enumerate(rest):
+                    if text == u'':
+                        continue
+                    if matches[i] is not None:
+                        root_type = TYPE_PARAGRAPH
+                        if not uniform_paragraphs:
+                            root_type += u'/' + matches[i]
+                    else:
+                        root_type = k_text
+                    yield (text, {'root_type': root_type, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset})
+                    prepend = None
+        except Exception as e:
+            logger.warning('failed to process record (%s): %s' % (e.message, str(record)))
 
 
 def read_file(in_file):
@@ -163,7 +166,8 @@ def process_dummy(out_path):
     record_converted = convert_record(DUMMY_RECORD)
     _reader = partial(reader, records=[record_converted], key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
                       keys_text=[TYPE_TITLE, TYPE_SECTION+u'/abstract'],
-                      keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year", u"http://id.nlm.nih.gov/mesh"],
+                      keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year",
+                                 u"http://id.nlm.nih.gov/mesh"],
                       paragraph_labels=[u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS'],
                       root_string=u'http://id.nlm.nih.gov/pubmed/resource')
     logger.debug('parse abstracts ...')
@@ -180,11 +184,10 @@ def process_single(in_file, out_path, nlp=spacy.load('en')):
 
     _reader = partial(reader, records=read_file(in_file), key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
                       keys_text=[TYPE_TITLE, TYPE_SECTION+u'/abstract'],
-                      keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year", u"http://id.nlm.nih.gov/mesh"],
+                      keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year",
+                                 u"http://id.nlm.nih.gov/mesh"],
                       paragraph_labels=[u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS'],
                       root_string=u'http://id.nlm.nih.gov/pubmed/resource')
-    #logger.debug('init spacy ...')
-    #nlp = spacy.load('en')
     logger.debug('parse abstracts ...')
     forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
     out_path += os.path.basename(in_file)
