@@ -136,7 +136,10 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
             for k_text in keys_text:
                 # debug
                 if record[k_text] is None:
-                    logger.warning('contains None text (@k_text=%s): %s' % (k_text, str(record)))
+                    if key_id is not None:
+                        logger.debug('entry with %s=%s contains None text (@k_text=%s)' % (key_id, record[key_id], k_text))
+                    else:
+                        logger.debug('entry contains None text (@k_text=%s): %s' % (k_text, str(record)))
                     continue
                 record_data.append((record[k_text], {'root_type': k_text, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
                 prepend = None
@@ -144,7 +147,10 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
             for k_text in keys_text_structured:
                 # debug
                 if record[k_text] is None:
-                    logger.warning('contains None text (@k_text=%s): %s' % (k_text, str(record)))
+                    if key_id is not None:
+                        logger.debug('entry with %s=%s contains None text (@k_text=%s)' % (key_id, record[key_id], k_text))
+                    else:
+                        logger.debug('entry contains None text (@k_text=%s): %s' % (k_text, str(record)))
                     continue
                 # debug end
                 matches = re.split('(^|\.)([A-Z][A-Z ]{3,}[A-Z]): ', record[k_text])
@@ -165,18 +171,6 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                         continue
                     record_data.append((text, {'root_type': TYPE_PARAGRAPH+u'/'+labels[i].replace(' ', '_'), 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
                     prepend = None
-                #matches, rest = multisplit(record[k_text], paragraph_labels)
-                #for i, text in enumerate(rest):
-                #    if text == u'':
-                #        continue
-                #    if matches[i] is not None:
-                #        root_type = TYPE_PARAGRAPH
-                #        if not uniform_paragraphs:
-                #            root_type += u'/' + matches[i]
-                #    else:
-                #        root_type = k_text
-                #    yield (text, {'root_type': root_type, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset})
-                #    prepend = None
 
             # has to be done in the end because the whole record should be discarded at once if an exception is raised
             for d in record_data:
