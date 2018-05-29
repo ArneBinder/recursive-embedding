@@ -266,8 +266,19 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
 
     lexicon = forest.lexicon
     costs = {}
-    data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
-    data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
+    link_types = []
+
+    # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
+    if TYPE_REF in lexicon.strings:
+        data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
+        link_types.append(data_ref)
+        if link_cost_ref is not None:
+            costs[data_ref] = link_cost_ref
+    if TYPE_REF_SEEALSO in lexicon.strings:
+        data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
+        costs[data_ref_seealso] = link_cost_ref_seealso
+        link_types.append(data_ref_seealso)
+
     data_nif_context = lexicon.get_d(TYPE_ANCHOR, data_as_hashes=forest.data_as_hashes)
     data_nif_context_transformed = data_nif_context
     data_unknown_transformed = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
@@ -282,9 +293,6 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     remove_types_naive = [lexicon.get_d(s, data_as_hashes=forest.data_as_hashes) for s in
                           remove_types_naive_str]
 
-    if link_cost_ref is not None:
-        costs[data_ref] = link_cost_ref
-    costs[data_ref_seealso] = link_cost_ref_seealso
     n = 0
 
     logger.debug('create trees with concat_mode=%s' % concat_mode)
@@ -293,10 +301,10 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         for idx in indices:
             if reroot:
                 tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, transform=transform,
-                                                           costs=costs, link_types=[data_ref, data_ref_seealso])
+                                                           costs=costs, link_types=link_types)
             else:
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
-                                                    costs=costs, link_types=[data_ref, data_ref_seealso])
+                                                    costs=costs, link_types=link_types)
             yield tree_context
             n += 1
     elif concat_mode == CM_AGGREGATE:
@@ -316,7 +324,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 idx_end = forest.roots[root_idx+1]
 
             data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
-                                                             link_types=[data_ref, data_ref_seealso],
+                                                             link_types=link_types,
                                                              remove_types=remove_types_naive, transform=transform)
             if len(data_span_cleaned) > max_size_plain:
                 logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.' % (len(data_span_cleaned), max_size_plain))
@@ -488,6 +496,12 @@ def indices_dbpedianif(index_files, forest, **unused):
 
     #return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
     return np.array(indices_context_root_list), indices_sealso_contexts_lists
+
+
+def indices_bioasq(index_files, forest, **unused):
+    # TODO: implement
+    # should return a numpy array containing indices to context roots and a list of target id lists. or something like this
+    raise NotImplementedError('implement for bioasq multiclass')
 
 
 def indices_dbpedianif_dummy(forest, **unused):

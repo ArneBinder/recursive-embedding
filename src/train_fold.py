@@ -362,6 +362,11 @@ def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
             yield sampled_indices, current_probs, None
 
 
+def batch_iter_multiclass(forest_indices, forest_indices_targets, batch_size):
+    # TODO: implement this
+    raise NotImplementedError('implement for bioasq multiclass')
+
+
 def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targets=None, dataset_trees=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
              highest_sims_model=None, number_of_samples=None, batch_iter='',
@@ -625,6 +630,19 @@ def init_model_type(config):
     #    tuple_size = 1
     #    discrete_model = True
     #    load_parents = False
+    elif config.model_type == 'multiclass':
+        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+                              'concat_mode': config.concat_mode, 'link_cost_ref': -1}
+        if config.tree_embedder == 'tfidf':
+            tree_iterator_args['concat_mode'] = CM_AGGREGATE
+            tree_iterator_args['context'] = 0
+        tree_iterator = diters.tree_iterator
+        indices_getter = diters.indices_bioasq
+        tree_count = 1
+        load_parents = (tree_iterator_args['context'] > 0)
+
+        config.batch_iter = batch_iter_multiclass.__name__
+        config.batch_iter_test = batch_iter_multiclass.__name__
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
