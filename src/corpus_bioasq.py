@@ -12,7 +12,7 @@ from multiprocessing import Pool
 import plac
 import spacy
 
-from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH
+from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR
 import preprocessing
 from lexicon import Lexicon
 from corpus import FE_UNIQUE_HASHES, FE_COUNTS
@@ -28,11 +28,16 @@ logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
-KEY_MAPPING = {'journal': u"http://id.nlm.nih.gov/pubmed/journal",
-               'meshMajor': u"http://id.nlm.nih.gov/mesh",
-               'year': u"http://id.nlm.nih.gov/pubmed/year",
-               'abstractText': TYPE_SECTION+u'/abstract',
-               'pmid': u'http://id.nlm.nih.gov/pubmed/pmid',
+TYPE_MESH = u"http://id.nlm.nih.gov/mesh"
+TYPE_YEAR = u"http://id.nlm.nih.gov/pubmed/year"
+TYPE_JOURNAL = u"http://id.nlm.nih.gov/pubmed/journal"
+TYPE_PMID = u'http://id.nlm.nih.gov/pubmed/pmid'
+
+KEY_MAPPING = {'journal': TYPE_JOURNAL,
+               'meshMajor': TYPE_MESH,
+               'year': TYPE_YEAR,
+               'abstractText': TYPE_SECTION + SEPARATOR + u'abstract',
+               'pmid': TYPE_PMID,
                'title': TYPE_TITLE}
 
 PARAGRAPH_LABELS_UNIFORM = [u'BACKGROUND', u'CONCLUSIONS', u'METHODS', u'OBJECTIVE', u'RESULTS']
@@ -102,7 +107,7 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
             prepend_data_strings = [root_string]
             prepend_parents = [0]
             if key_id is not None:
-                prepend_data_strings.append(key_id + '/' + record[key_id])
+                prepend_data_strings.append(key_id + SEPARATOR + record[key_id])
                 prepend_parents.append(-1)
 
             prepend_data_strings.append(root_text_string)
@@ -124,7 +129,7 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                         continue
                     v_meta = [v_meta]
                 # replace spaces by underscores
-                prepend_data_strings.extend([k_meta + '/' + v.replace(' ', '_') for v in v_meta])
+                prepend_data_strings.extend([k_meta + SEPARATOR + v.replace(' ', '_') for v in v_meta])
                 prepend_parents.extend([-i - 1 for i in range(len(v_meta))])
 
             prepend_data_strings.append(TYPE_SECTION)
@@ -178,7 +183,7 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                 for i, text in enumerate(texts):
                     if text == u'':
                         continue
-                    record_data.append((text, {'root_type': TYPE_PARAGRAPH+u'/'+labels[i], 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
+                    record_data.append((text, {'root_type': TYPE_PARAGRAPH + SEPARATOR + labels[i], 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
                     prepend = None
 
             # has to be done in the end because the whole record should be discarded at once if an exception is raised
@@ -220,15 +225,13 @@ def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=
             or not numpy_exists('%s.%s' % (out_base_name, FE_COUNTS)):
         _reader = partial(reader,
                           records=(convert_record(r) for r in records),
-                          key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
+                          key_id=TYPE_PMID,
                           keys_text=[TYPE_TITLE],
-                          keys_text_structured=[TYPE_SECTION + u'/abstract'],
+                          keys_text_structured=[TYPE_SECTION + SEPARATOR + u'abstract'],
                           # ATTENTION: mesh has to be the first meta data because MESH_ROOT_OFFSET has to be fixed, but
                           # journal and year are not mandatory
-                          keys_meta=[u"http://id.nlm.nih.gov/mesh",
-                                     u"http://id.nlm.nih.gov/pubmed/journal",
-                                     u"http://id.nlm.nih.gov/pubmed/year"],
-                          keys_mandatory=[u"http://id.nlm.nih.gov/mesh", TYPE_SECTION + u'/abstract'],
+                          keys_meta=[TYPE_MESH, TYPE_JOURNAL, TYPE_YEAR],
+                          keys_mandatory=[TYPE_MESH, TYPE_SECTION + SEPARATOR + u'abstract'],
                           allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM,
                           root_string=u'http://id.nlm.nih.gov/pubmed/resource')
         logger.debug('parse abstracts ...')
@@ -368,7 +371,9 @@ def main(mode, *args):
     elif mode == 'PARSE_BATCHES':
         plac.call(parse_batches, args)
     elif mode == 'MERGE_BATCHES':
-        plac.call(corpus.merge_batches, args)
+        forest_merged, out_path_merged = plac.call(corpus.merge_batches, args)
+        mesh_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_MESH)
+        numpy_dump(filename='%s.%s' % (out_path_merged, corpus.FE_CLASS_IDS), ndarray=mesh_ids)
     else:
         raise ValueError('unknown mode. use one of PROCESS_DUMMY or PROCESS_SINGLE.')
 
