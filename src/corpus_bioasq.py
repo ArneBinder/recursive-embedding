@@ -120,7 +120,8 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                     if v_meta is None:
                         continue
                     v_meta = [v_meta]
-                prepend_data_strings.extend([k_meta + '/' + v for v in v_meta])
+                # replace spaces by underscores
+                prepend_data_strings.extend([k_meta + '/' + v.replace(' ', '_') for v in v_meta])
                 prepend_parents.extend([-i - 1 for i in range(len(v_meta))])
 
             prepend_data_strings.append(TYPE_SECTION)
@@ -170,7 +171,7 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                 for i, text in enumerate(texts):
                     if text == u'':
                         continue
-                    record_data.append((text, {'root_type': TYPE_PARAGRAPH+u'/'+labels[i].replace(' ', '_'), 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
+                    record_data.append((text, {'root_type': TYPE_PARAGRAPH+u'/'+labels[i], 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
                     prepend = None
 
             # has to be done in the end because the whole record should be discarded at once if an exception is raised
