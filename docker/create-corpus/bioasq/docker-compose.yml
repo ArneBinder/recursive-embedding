@@ -27,7 +27,7 @@ services:
     command: >
       /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py PARSE_BATCHES
                                   --in-path /root/corpora_in/${BIOASQ_SUBDIR}
-                                  --out-path /root/corpora_out/BIOASQ
+                                  --out-path /root/corpora_out/BIOASQ/${BIOASQ_SUBDIR}
                                   --n-threads ${NUM_THREADS_PARSE}
                                   --parser-batch-size ${BATCH_SIZE_PARSE}
     cpuset: ${CPU_SET}
@@ -42,7 +42,7 @@ services:
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
       /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py MERGE_BATCHES
-                                  --out-path /root/corpora_out/BIOASQ
+                                  --out-path /root/corpora_out/BIOASQ/${BIOASQ_SUBDIR}
                                   --min-count ${MIN_COUNT}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
