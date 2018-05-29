@@ -270,6 +270,9 @@ class Forest(object):
     def set_lexicon(self, lexicon):
         self._lexicon = lexicon
 
+    def set_lexicon_roots(self, lexicon_roots):
+        self._lexicon_roots = lexicon_roots
+
     def set_root_ids(self, root_ids):
         assert len(root_ids) == len(self.roots), 'wrong amount of root ids=%i (amount of roots=%i)' \
                                                  % (len(root_ids), len(self.roots))
