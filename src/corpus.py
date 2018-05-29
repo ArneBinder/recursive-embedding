@@ -23,6 +23,7 @@ FE_UNIQUE_COUNTS_FILTERED = 'count.hash.filtered'
 FE_UNIQUE_COUNTS_DISCARDED = 'count.hash.discarded'
 FE_ROOT_SEEALSO_COUNT = 'root.seealso.count'
 FE_ROOT_CONTEXT_SIZE = 'root.context.size'
+FE_CLASS_IDS = 'classes.id'
 
 DIR_BATCHES = 'batches'
 DIR_BATCHES_CONVERTED = 'batches_converted'
@@ -169,7 +170,7 @@ def merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merge
         assert Lexicon.exist(filename=fn_lexicon_root_ids, types_only=True), \
             'found lexicon (%s), but misses lexicon_root_ids (%s).' % (out_path_merged, fn_lexicon_root_ids)
         # Note: Load with vecs to skip _lexicon_add_vecs, eventually.
-        return Lexicon(filename=out_path_merged)
+        return Lexicon(filename=out_path_merged, load_vecs=False), Lexicon(filename=fn_lexicon_root_ids, load_vecs=False)
     t_start = datetime.now()
     uniques_filtered_set = set(uniques_filtered)
     lexicon = Lexicon()
@@ -193,7 +194,7 @@ def merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merge
     lexicon_root_ids.dump(filename=fn_lexicon_root_ids, strings_only=True)
 
     logger.info('finished. %s' % str(datetime.now() - t_start))
-    return lexicon
+    return lexicon, lexicon_root_ids
 
 
 def filter_and_convert_data_batches(lexicon, id_offset_mapping, f_names, out_dir_batches, out_dir_batches_converted):
@@ -306,12 +307,6 @@ def merge_batches(out_path, min_count=1, use_see_also_counts=False):  # , min_co
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
 
-    # logger_lexicon = logging.getLogger('lexicon')
-    # logger_lexicon_fh = logging.FileHandler(os.path.join(out_path, 'corpus-dbpedia-nif-merge.log'))
-    # logger_lexicon_fh.setLevel(logging.INFO)
-    # logger_lexicon_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
-    # logger_lexicon.addHandler(logger_lexicon_fh)
-
     # logger.info('min_count=%i min_count_root_id=%i out_path=%s' % (min_count, min_count_root_id, out_path))
     logger.info('min_count=%i out_path=%s' % (min_count, out_path))
 
@@ -328,7 +323,7 @@ def merge_batches(out_path, min_count=1, use_see_also_counts=False):  # , min_co
 
     uniques_filtered, root_ids = filter_uniques(f_paths, min_count, out_path_merged)
 
-    lexicon = merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merged)
+    lexicon, lexicon_root_ids = merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merged)
 
     id_offset_mapping = {o: i for i, o in enumerate(root_ids)}
 
@@ -337,6 +332,8 @@ def merge_batches(out_path, min_count=1, use_see_also_counts=False):  # , min_co
     lexicon = lexicon_add_vecs(lexicon, out_path_merged)
 
     forest_merged = merge_converted_batches(f_names, out_dir_batches_converted, out_path_merged)
+    forest_merged.set_lexicon(lexicon)
+    forest_merged.set_lexicon_roots(lexicon_root_ids)
 
     if use_see_also_counts:
         root_seealso_counts = collect_root_seealso_counts(forest_merged, out_path_merged)
@@ -344,3 +341,5 @@ def merge_batches(out_path, min_count=1, use_see_also_counts=False):  # , min_co
         root_seealso_counts = None
 
     root_context_sizes = collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_counts)
+
+    return forest_merged, out_path_merged
