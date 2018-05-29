@@ -499,7 +499,9 @@ def indices_dbpedianif(index_files, forest, **unused):
     return np.array(indices_context_root_list), indices_sealso_contexts_lists
 
 
-def indices_bioasq(index_files, forest, **unused):
+def indices_bioasq(index_files, forest, classes_ids, **unused):
+
+    classes_mapping = {cd: i for i, cd in enumerate(classes_ids)}
 
     # get root indices from files
     indices = index_iterator(index_files)
@@ -509,17 +511,14 @@ def indices_bioasq(index_files, forest, **unused):
                                                      offsets=(CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET))
     # unzip (produces lists)
     root_ids, indices_context_root, indices_mesh_root = zip(*indices_mapped)
-    #root_ids_seealsos_iterator = link_root_ids_iterator(indices=indices_seealso_root, forest=forest,
-    #                                                    link_type=TYPE_REF_SEEALSO)
+
     mesh_ids = []
     for i, mesh_root_idx in enumerate(indices_mesh_root):
         mesh_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
-        current_mesh_ids = forest.data[mesh_indices]
+        current_mesh_ids = [classes_mapping[m_id] for m_id in forest.data[mesh_indices]]
         mesh_ids.append(current_mesh_ids)
 
-    # TODO: implement
-    # should return a numpy array containing indices to context roots and a list of target id lists. or something like this
-    raise NotImplementedError('implement for bioasq multiclass')
+    return np.array(indices_context_root), mesh_ids
 
 
 def indices_dbpedianif_dummy(forest, **unused):
