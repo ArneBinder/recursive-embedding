@@ -374,7 +374,7 @@ class Lexicon(object):
         """
         self._frozen = False
         self._mapping = None
-        self._types = None
+        self._hashes = None
         #self._ids_fixed = set()
         #self._ids_fixed = None
         self._ids_var = None
@@ -423,10 +423,10 @@ class Lexicon(object):
 
     # deprecated
     def write_types(self, filename):
-        logger.debug('write types (len=%i) to: %s.%s ...' % (len(self.types), filename, FE_TYPES))
+        logger.debug('write types (len=%i) to: %s.%s ...' % (len(self.hashes), filename, FE_TYPES))
         with open('%s.%s' % (filename, FE_TYPES), 'wb') as f:
             writer = csv.writer(f, delimiter='\t', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-            for t in self.types:
+            for t in self.hashes:
                 writer.writerow([t.encode("utf-8")])
 
     def dump(self, filename, strings_only=False):
@@ -782,7 +782,7 @@ class Lexicon(object):
 
     def clear_cached_values(self):
         assert not self.frozen, 'can not modify frozen lexicon'
-        self._types = None
+        self._hashes = None
         self._mapping = None
 
     def freeze(self):
@@ -799,7 +799,7 @@ class Lexicon(object):
                 return vocab_manual[UNKNOWN_EMBEDDING]
         else:
             if d < len(self):
-                return self.strings[self.types[d]]
+                return self.strings[self.hashes[d]]
             else:
                 return vocab_manual[UNKNOWN_EMBEDDING]
 
@@ -831,7 +831,7 @@ class Lexicon(object):
             idx = abs(item)
             if idx >= len(self):
                 return constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-            return self.strings[self.types[abs(item)]]
+            return self.strings[self.hashes[abs(item)]]
 
     def __len__(self):
         return len(self.strings)
@@ -888,15 +888,15 @@ class Lexicon(object):
         return self._ids_var
 
     @property
-    def types(self):
+    def hashes(self):
         # maps positions to hashes
         #return self._types
-        if self._types is None:
+        if self._hashes is None:
             logger.debug('lexicon: create types from strings (%i)' % len(self.strings))
-            self._types = np.zeros(shape=(len(self.strings),), dtype=DTYPE_HASH)
+            self._hashes = np.zeros(shape=(len(self.strings),), dtype=DTYPE_HASH)
             for i, s in enumerate(self.strings):
-                self._types[i] = self.strings[s]
-        return self._types
+                self._hashes[i] = self.strings[s]
+        return self._hashes
 
     @property
     def strings(self):
