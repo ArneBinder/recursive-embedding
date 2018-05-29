@@ -42,6 +42,7 @@ from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
 import data_iterators as diters
+from corpus import FE_CLASS_IDS
 
 # non-saveable flags
 tf.flags.DEFINE_string('logdir',
@@ -99,6 +100,10 @@ METRIC_DISCRETE = 'f1_t50'
 METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
 METRIC_REGRESSION = 'pearson_r'
 #STAT_KEY_MAIN_REGRESSION = 'pearson_r'
+
+MT_MULTICLASS = 'multiclass'
+MT_REROOT = 'reroot'
+MT_TREETUPLE = 'tuple'
 
 logger = logging.getLogger('')
 logger.setLevel(logging.DEBUG)
@@ -362,12 +367,12 @@ def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
             yield sampled_indices, current_probs, None
 
 
-def batch_iter_multiclass(forest_indices, forest_indices_targets, batch_size):
+def batch_iter_multiclass(forest_indices, indices_targets):
     # TODO: implement this
     raise NotImplementedError('implement for bioasq multiclass')
 
 
-def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targets=None, dataset_trees=None,
+def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None, dataset_trees=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
              highest_sims_model=None, number_of_samples=None, batch_iter='',
              dataset_iterator=None):
@@ -389,12 +394,13 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, forest_indices_targ
 
     tree_model_batch_size = 10
     indices_forest_to_tree = {idx: i for i, idx in enumerate(forest_indices)}
-    iter_args = {batch_iter_naive: [number_of_samples, forest_indices, forest_indices_targets, indices_forest_to_tree],
-                 batch_iter_nearest: [number_of_samples, forest_indices, forest_indices_targets, sess,
+    iter_args = {batch_iter_naive: [number_of_samples, forest_indices, indices_targets, indices_forest_to_tree],
+                 batch_iter_nearest: [number_of_samples, forest_indices, indices_targets, sess,
                                       model.tree_model, highest_sims_model, dataset_trees, tree_model_batch_size,
                                       indices_forest_to_tree],
-                 batch_iter_all: [forest_indices, forest_indices_targets, number_of_samples + 1],
-                 batch_iter_reroot: [forest_indices, number_of_samples]}
+                 batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
+                 batch_iter_reroot: [forest_indices, number_of_samples],
+                 batch_iter_multiclass: [forest_indices, indices_targets]}
 
     if batch_iter is not None and batch_iter.strip() != '':
         _iter = globals()[batch_iter]
@@ -553,7 +559,7 @@ def init_model_type(config):
         tree_count = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
         #discrete_model = False
         load_parents = False
-    elif config.model_type == 'tuple':
+    elif config.model_type == MT_TREETUPLE:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
@@ -586,7 +592,7 @@ def init_model_type(config):
     #
     #    discrete_model = True
     #    load_parents = (config.context is not None and config.context > 0)
-    elif config.model_type == 'reroot':
+    elif config.model_type == MT_REROOT:
         # if config.cut_indices is not None:
         #    indices = np.arange(config.cut_indices)
         #    # avoid looking for train index files
@@ -630,14 +636,16 @@ def init_model_type(config):
     #    tuple_size = 1
     #    discrete_model = True
     #    load_parents = False
-    elif config.model_type == 'multiclass':
+    elif config.model_type == MT_MULTICLASS:
+        classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
+
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
         if config.tree_embedder == 'tfidf':
             tree_iterator_args['concat_mode'] = CM_AGGREGATE
             tree_iterator_args['context'] = 0
         tree_iterator = diters.tree_iterator
-        indices_getter = diters.indices_bioasq
+        indices_getter = partial(diters.indices_bioasq, classes_ids=classes_ids)
         tree_count = 1
         load_parents = (tree_iterator_args['context'] > 0)
 
@@ -789,7 +797,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                   **kwargs
                                                   )
-        #if config.model_type != 'reroot':
+        #if config.model_type != MT_REROOT:
         prepared_embeddings = prepare_embeddings_tree(tree_iterators=tree_iterators, compiler=model_tree.compiler)
         #else:
         #    prepared_embeddings = None
@@ -813,7 +821,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
     #                                                        learning_rate=config.learning_rate,
     #                                                        sim_measure=sim_measure,
     #                                                        clipping_threshold=config.clipping)
-    if config.model_type == 'tuple':
+    if config.model_type == MT_TREETUPLE:
         model = model_fold.TreeTupleModel_with_candidates(tree_model=inception_tree_model,
                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                           optimizer=optimizer,
@@ -821,13 +829,15 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
                                                           clipping_threshold=config.clipping,
                                                           )
 
-    elif config.model_type == 'reroot':
+    elif config.model_type == MT_REROOT:
         model = model_fold.TreeSingleModel_with_candidates(tree_model=inception_tree_model,
                                                            fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                            optimizer=optimizer,
                                                            learning_rate=config.learning_rate,
                                                            clipping_threshold=config.clipping,
                                                            )
+    elif config.model_type == MT_MULTICLASS:
+        raise NotImplementedError('TODO: implement')
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -914,7 +924,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         lexicon_roots = None
     forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
     # TODO: use this?
-    #if config.model_type == 'reroot':
+    #if config.model_type == MT_REROOT:
     #    logger.info('transform data ...')
     #    data_transformed = [forest.lexicon.transform_idx(forest.data[idx], root_id_pos=forest.root_id_pos) for idx in range(len(forest))]
     #else:
@@ -953,7 +963,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     # set tree iterator
     for m in meta:
         meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
-        if config.model_type == 'reroot':
+        if config.model_type == MT_REROOT:
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, trees=list(meta[m][M_TREE_ITER]()),
                                            neg_samples=meta[m][M_NEG_SAMPLES], forest=forest, transform=True)
 
@@ -1059,7 +1069,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     model=meta[M_TEST][M_MODEL],
                     dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
                     forest_indices=meta[M_TEST][M_INDICES],
-                    forest_indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                    indices_targets=meta[M_TEST][M_INDICES_TARGETS],
                     #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                     epoch=0,
                     train=False,
@@ -1107,12 +1117,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         dataset_trees=meta[M_TRAIN][M_TREES],# if M_TREES in meta[M_TRAIN] else None,
                         #dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
                         forest_indices=meta[M_TRAIN][M_INDICES],
-                        forest_indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
+                        indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
                         epoch=epoch,
                         number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
                         highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
                         batch_iter=meta[M_TRAIN][M_BATCH_ITER],
-                        dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == 'reroot' else None
+                        dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == MT_REROOT else None
                     )
 
                 if M_TEST in meta:
@@ -1124,7 +1134,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
                         # #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                         forest_indices=meta[M_TEST][M_INDICES],
-                        forest_indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                        indices_targets=meta[M_TEST][M_INDICES_TARGETS],
                         number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
                         #number_of_samples=None,
                         epoch=epoch,
