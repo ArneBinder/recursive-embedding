@@ -80,7 +80,7 @@ def multisplit(text, sep, sep_postfix=u': ', unlabeled=None):
     return matches, rest
 
 
-def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), key_id=None,
+def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), keys_mandatory=(), key_id=None,
            root_text_string=TYPE_ANCHOR, allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM):
     """
 
@@ -89,6 +89,7 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
     :param keys_text_structured:
     :param root_string:
     :param keys_meta:
+    :param keys_mandatory:
     :param key_id:
     :param root_text_string:
     :param allowed_paragraph_labels:
@@ -118,6 +119,8 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                 if not isinstance(v_meta, list):
                     # skip None values
                     if v_meta is None:
+                        if k_meta in keys_mandatory:
+                            raise Warning('value for mandatory key=%s is None' % k_meta)
                         continue
                     v_meta = [v_meta]
                 # replace spaces by underscores
@@ -142,6 +145,8 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                         logger.debug('entry with %s=%s contains None text (@k_text=%s)' % (key_id, record[key_id], k_text))
                     else:
                         logger.debug('entry contains None text (@k_text=%s): %s' % (k_text, str(record)))
+                    if k_text in keys_mandatory:
+                        raise Warning('value for mandatory key=%s is None' % k_text)
                     continue
                 record_data.append((record[k_text], {'root_type': k_text, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
                 prepend = None
@@ -153,6 +158,8 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                         logger.debug('entry with %s=%s contains None text (@k_text=%s)' % (key_id, record[key_id], k_text))
                     else:
                         logger.debug('entry contains None text (@k_text=%s): %s' % (k_text, str(record)))
+                    if k_text in keys_mandatory:
+                        raise Warning('value for mandatory key=%s is None' % k_text)
                     continue
                 # debug end
                 matches = re.split('(^|\.)([A-Z][A-Z ]{3,}[A-Z]): ', record[k_text])
@@ -216,8 +223,12 @@ def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=
                           key_id=u'http://id.nlm.nih.gov/pubmed/pmid',
                           keys_text=[TYPE_TITLE],
                           keys_text_structured=[TYPE_SECTION + u'/abstract'],
-                          keys_meta=[u"http://id.nlm.nih.gov/pubmed/journal", u"http://id.nlm.nih.gov/pubmed/year",
-                                     u"http://id.nlm.nih.gov/mesh"],
+                          # ATTENTION: mesh has to be the first meta data because MESH_ROOT_OFFSET has to be fixed, but
+                          # journal and year are not mandatory
+                          keys_meta=[u"http://id.nlm.nih.gov/mesh",
+                                     u"http://id.nlm.nih.gov/pubmed/journal",
+                                     u"http://id.nlm.nih.gov/pubmed/year"],
+                          keys_mandatory=[u"http://id.nlm.nih.gov/mesh", TYPE_SECTION + u'/abstract'],
                           allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM,
                           root_string=u'http://id.nlm.nih.gov/pubmed/resource')
         logger.debug('parse abstracts ...')

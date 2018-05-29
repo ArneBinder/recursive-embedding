@@ -18,6 +18,7 @@ RECURSION_LIMIT_ADD = 100
 
 CONTEXT_ROOT_OFFEST = 2
 SEEALSO_ROOT_OFFSET = 3
+MESH_ROOT_OFFSET = 3
 
 logger = logging.getLogger('data_iterators')
 logger.setLevel(logging.DEBUG)
@@ -499,6 +500,23 @@ def indices_dbpedianif(index_files, forest, **unused):
 
 
 def indices_bioasq(index_files, forest, **unused):
+
+    # get root indices from files
+    indices = index_iterator(index_files)
+
+    # map to context and mesh indices
+    indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
+                                                     offsets=(CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET))
+    # unzip (produces lists)
+    root_ids, indices_context_root, indices_mesh_root = zip(*indices_mapped)
+    #root_ids_seealsos_iterator = link_root_ids_iterator(indices=indices_seealso_root, forest=forest,
+    #                                                    link_type=TYPE_REF_SEEALSO)
+    mesh_ids = []
+    for i, mesh_root_idx in enumerate(indices_mesh_root):
+        mesh_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
+        current_mesh_ids = forest.data[mesh_indices]
+        mesh_ids.append(current_mesh_ids)
+
     # TODO: implement
     # should return a numpy array containing indices to context roots and a list of target id lists. or something like this
     raise NotImplementedError('implement for bioasq multiclass')
