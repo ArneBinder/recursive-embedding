@@ -520,10 +520,15 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
     mesh_ids = []
     for i, mesh_root_idx in enumerate(indices_mesh_root):
         mesh_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
-        current_mesh_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[mesh_indices]]
-        # convert lits of indices
-        mesh_csr = indices_to_sparse(current_mesh_ids_mapped, len(classes_ids))
-        mesh_ids.append(mesh_csr)
+        try:
+            current_mesh_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[mesh_indices]]
+            # convert lits of indices
+            mesh_csr = indices_to_sparse(current_mesh_ids_mapped, len(classes_ids))
+            mesh_ids.append(mesh_csr)
+        except KeyError as e:
+            print(mesh_root_idx)
+            print(mesh_indices.tolist())
+            raise e
 
     return np.array(indices_context_root), mesh_ids
 
