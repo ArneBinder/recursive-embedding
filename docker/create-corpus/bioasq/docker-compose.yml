@@ -46,3 +46,17 @@ services:
                                   --min-count ${MIN_COUNT}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
+
+  corpus-bioasq-indices:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/bioasq/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/BIOASQ/${BIOASQ_SUBDIR}/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}

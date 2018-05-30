@@ -12,14 +12,13 @@ from multiprocessing import Pool
 import plac
 import spacy
 
-from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR
+from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, DTYPE_IDX
 import preprocessing
 from lexicon import Lexicon
 from corpus import FE_UNIQUE_HASHES, FE_COUNTS
-from mytools import numpy_dump, numpy_exists
-import corpus
-from corpus import DIR_BATCHES
-from sequence_trees import Forest
+from mytools import numpy_dump, numpy_exists, numpy_load
+from corpus import DIR_BATCHES, FE_CLASS_IDS, merge_batches
+from sequence_trees import Forest, FE_ROOT_POS
 
 logger = logging.getLogger('corpus_bioasq')
 logger.setLevel(logging.DEBUG)
@@ -358,6 +357,27 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
 
 
 @plac.annotations(
+    merged_forest_path=('path to merged forest', 'option', 'o', str),
+    split_count=('count of produced index files', 'option', 'c', int)
+)
+def create_index_files(merged_forest_path, split_count=2):
+    logger_fh = logging.FileHandler(os.path.join(merged_forest_path, '../..', 'corpus-indices.log'))
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger.info('split_count=%i out_path=%s' % (split_count, merged_forest_path))
+
+    root_pos = numpy_load('%s.%s' % (merged_forest_path, FE_ROOT_POS), assert_exists=True)
+
+    logger.info('total number of indices: %i' % len(root_pos))
+    indices = np.arange(len(root_pos), dtype=DTYPE_IDX)
+    np.random.shuffle(indices)
+    for i, split in enumerate(np.array_split(indices, split_count)):
+        numpy_dump('%s.idx.%i' % (merged_forest_path, i), split)
+
+
+@plac.annotations(
     mode=('processing mode', 'positional', None, str, ['PARSE_DUMMY', 'PREPARE_BATCHES', 'PARSE_SINGLE', 'PARSE_BATCHES',
                                                        'MERGE_BATCHES']),
     args='the parameters for the underlying processing method')
@@ -371,9 +391,9 @@ def main(mode, *args):
     elif mode == 'PARSE_BATCHES':
         plac.call(parse_batches, args)
     elif mode == 'MERGE_BATCHES':
-        forest_merged, out_path_merged = plac.call(corpus.merge_batches, args)
+        forest_merged, out_path_merged = plac.call(merge_batches, args)
         mesh_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_MESH)
-        numpy_dump(filename='%s.%s' % (out_path_merged, corpus.FE_CLASS_IDS), ndarray=mesh_ids)
+        numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=mesh_ids)
     else:
         raise ValueError('unknown mode. use one of PROCESS_DUMMY or PROCESS_SINGLE.')
 

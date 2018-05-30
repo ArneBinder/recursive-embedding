@@ -858,11 +858,11 @@ def create_index_files(merged_forest_path, split_count=2, seealso_min=1, seealso
                                                                               merged_forest_path))
 
     #seealso_counts = np.load('%s.root.seealso.count' % merged_forest_path)
-    seealso_counts = numpy_load('%s.root.seealso.count' % merged_forest_path, assert_exists=True)
+    seealso_counts = numpy_load('%s.%s' % (merged_forest_path, FE_ROOT_SEEALSO_COUNT), assert_exists=True)
     # roots = np.load('%s.root.pos' % p)
     indices_filtered = np.arange(len(seealso_counts), dtype=DTYPE_IDX)[(seealso_counts >= seealso_min)
                                                                        & (seealso_counts <= seealso_max)]
-    logger.info('count of filtered indices: %i' % len(indices_filtered))
+    logger.info('number of filtered indices: %i' % len(indices_filtered))
 
     np.random.shuffle(indices_filtered)
     for i, split in enumerate(np.array_split(indices_filtered, split_count)):
