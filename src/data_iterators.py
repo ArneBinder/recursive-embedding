@@ -528,6 +528,7 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
         except KeyError as e:
             print(mesh_root_idx)
             print(mesh_indices.tolist())
+            print(forest.data[mesh_indices].tolist())
             raise e
 
     return np.array(indices_context_root), mesh_ids
