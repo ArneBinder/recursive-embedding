@@ -508,6 +508,8 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
 
     classes_mapping = {cd: i for i, cd in enumerate(classes_ids)}
 
+    unknown_id = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+
     # get root indices from files
     indices = index_iterator(index_files)
 
@@ -521,7 +523,7 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
     for i, mesh_root_idx in enumerate(indices_mesh_root):
         mesh_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
         try:
-            current_mesh_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[mesh_indices]]
+            current_mesh_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[mesh_indices] if m_id != unknown_id]
             # convert lits of indices
             mesh_csr = indices_to_sparse(current_mesh_ids_mapped, len(classes_ids))
             mesh_ids.append(mesh_csr)
