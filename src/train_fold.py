@@ -24,11 +24,13 @@ from sklearn import metrics
 from sklearn import preprocessing as pp
 #from spacy.strings import StringStore
 from tensorflow.python.client import device_lib
+from scipy.sparse import csr_matrix, vstack
 
 #import lexicon as lex
 from lexicon import Lexicon
 import model_fold
-from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_sparse_matrix_to_sparse_tensor
+from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_sparse_matrix_to_sparse_tensor, \
+    convert_sparse_tensor_to_sparse_matrix
 
 # model flags (saved in flags.json)
 import mytools
@@ -367,9 +369,11 @@ def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
             yield sampled_indices, current_probs, None
 
 
-def batch_iter_multiclass(forest_indices, indices_targets):
-    # TODO: implement this
-    raise NotImplementedError('implement for bioasq multiclass')
+def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tree):
+    indices = np.arange(len(forest_indices))
+    np.random.shuffle(indices)
+    for i in indices:
+        yield [indices_forest_to_tree[forest_indices[i]]], indices_targets[i]
 
 
 def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None, dataset_trees=None,
@@ -400,7 +404,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
                                       indices_forest_to_tree],
                  batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
                  batch_iter_reroot: [forest_indices, number_of_samples],
-                 batch_iter_multiclass: [forest_indices, indices_targets]}
+                 batch_iter_multiclass: [forest_indices, indices_targets, indices_forest_to_tree]}
 
     if batch_iter is not None and batch_iter.strip() != '':
         _iter = globals()[batch_iter]
@@ -428,17 +432,18 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for batch in td.group_by_batches(_batch_iter, config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
-        #if not isinstance(model.tree_model, model_fold.DummyTreeModel):
         if hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor'):
             trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
             feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
         else:
             tree_indices_batched_np = np.array(tree_indices_batched)
-            #batch_shape = tree_indices_batched_np.shape
             trees_batched = dataset_trees[tree_indices_batched_np.flatten()]
             feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(trees_batched)
-            #feed_dict[model.tree_model.embeddings_placeholder] = tree_embeddings_batched_flat.todense()
-        #feed_dict[model.candidate_count] = len(probs_batched[0])
+
+        # if values_gold expects a sparse tensor, convert probs_batched
+        if isinstance(model.values_gold, tf.SparseTensor):
+            probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(probs_batched))
+
         feed_dict[model.values_gold] = probs_batched
         _result_all.append(sess.run(execute_vars, feed_dict))
 
@@ -455,7 +460,10 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
 
     sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
     values_all_ = np.concatenate(result_all['values'])
-    values_all_gold_ = np.concatenate(result_all['values_gold'])
+    if isinstance(model.values_gold, tf.SparseTensor):
+        values_all_gold_ = vstack((convert_sparse_tensor_to_sparse_matrix(sm) for sm in result_all['values_gold'])).toarray()
+    else:
+        values_all_gold_ = np.concatenate(result_all['values_gold'])
 
     # sum batch losses weighted by individual batch size (can vary at last batch)
     loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
@@ -837,7 +845,14 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
                                                            clipping_threshold=config.clipping,
                                                            )
     elif config.model_type == MT_MULTICLASS:
-        raise NotImplementedError('TODO: implement')
+        classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
+        model = model_fold.TreeMultiClassModel(tree_model=inception_tree_model,
+                                               fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
+                                               optimizer=optimizer,
+                                               learning_rate=config.learning_rate,
+                                               clipping_threshold=config.clipping,
+                                               num_classes=len(classes_ids)
+                                               )
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -939,12 +954,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         if not loaded_from_checkpoint:
             mytools.numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
 
-    if M_TEST in meta and M_TRAIN in meta \
-            and meta[M_TRAIN][M_INDICES_TARGETS] is not None and meta[M_TEST][M_INDICES_TARGETS] is not None:
-        meta[M_TEST][M_INDICES_TARGETS] = check_train_test_overlap(forest_indices_train=meta[M_TRAIN][M_INDICES],
-                                                                   forest_indices_train_target=meta[M_TRAIN][M_INDICES_TARGETS],
-                                                                   forest_indices_test=meta[M_TEST][M_INDICES],
-                                                                   forest_indices_test_target=meta[M_TEST][M_INDICES_TARGETS])
+    if config.model_type == MT_TREETUPLE:
+        if M_TEST in meta and M_TRAIN in meta \
+                and meta[M_TRAIN][M_INDICES_TARGETS] is not None and meta[M_TEST][M_INDICES_TARGETS] is not None:
+            meta[M_TEST][M_INDICES_TARGETS] = check_train_test_overlap(forest_indices_train=meta[M_TRAIN][M_INDICES],
+                                                                       forest_indices_train_target=meta[M_TRAIN][M_INDICES_TARGETS],
+                                                                       forest_indices_test=meta[M_TEST][M_INDICES],
+                                                                       forest_indices_test_target=meta[M_TEST][M_INDICES_TARGETS])
 
     # set batch iterators and numbers of negative samples
     if M_TEST in meta:

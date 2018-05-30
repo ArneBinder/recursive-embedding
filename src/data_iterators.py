@@ -499,6 +499,11 @@ def indices_dbpedianif(index_files, forest, **unused):
     return np.array(indices_context_root_list), indices_sealso_contexts_lists
 
 
+def indices_to_sparse(indices, length, dtype=np.float32):
+    return csr_matrix((np.ones(len(indices), dtype=dtype), (np.zeros(len(indices), dtype=dtype), indices)),
+                      shape=(1, length))
+
+
 def indices_bioasq(index_files, forest, classes_ids, **unused):
 
     classes_mapping = {cd: i for i, cd in enumerate(classes_ids)}
@@ -515,8 +520,10 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
     mesh_ids = []
     for i, mesh_root_idx in enumerate(indices_mesh_root):
         mesh_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
-        current_mesh_ids = [classes_mapping[m_id] for m_id in forest.data[mesh_indices]]
-        mesh_ids.append(current_mesh_ids)
+        current_mesh_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[mesh_indices]]
+        # convert lits of indices
+        mesh_csr = indices_to_sparse(current_mesh_ids_mapped, len(classes_ids))
+        mesh_ids.append(mesh_csr)
 
     return np.array(indices_context_root), mesh_ids
 

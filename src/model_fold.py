@@ -8,6 +8,7 @@ from tensorflow_fold.blocks import result_types as tdt
 from tensorflow_fold.blocks import blocks as tdb
 import numpy as np
 import math
+from scipy.sparse import csr_matrix
 
 from constants import KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES
 
@@ -41,6 +42,11 @@ def convert_sparse_matrix_to_sparse_tensor(X):
     coo = X.tocoo()
     indices = np.mat([coo.row, coo.col]).transpose()
     return tf.SparseTensorValue(indices, coo.data, coo.shape)
+
+
+def convert_sparse_tensor_to_sparse_matrix(X):
+    indices = X.indices.T
+    return csr_matrix((X.values, (indices[0], indices[1])), shape=X.dense_shape)
 
 
 def SeqToTuple(T, N):
@@ -1429,6 +1435,60 @@ class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
     @property
     def tree_count(self):
         return self.candidate_count
+
+
+class TreeMultiClassModel(BaseTrainModel):
+    def __init__(self, tree_model, num_classes, fc_sizes=1000, **kwargs):
+
+        self._labels_gold = tf.sparse_placeholder(dtype=tf.float32)
+        #self._candidate_count = tf.shape(self._labels_gold)[-1]
+
+        tree_embeddings = tf.reshape(tree_model.embeddings_all,
+                                     shape=[-1, tree_model.tree_output_size])
+        #batch_size = tf.shape(tree_embeddings)[0]
+        #final_vecs = self._final_vecs(tree_embeddings, tree_model.tree_output_size)
+        final_vecs = tree_embeddings
+
+        if not isinstance(fc_sizes, (list, tuple)):
+            fc_sizes = [fc_sizes]
+
+        # add multiple fc layers
+        for s in fc_sizes:
+            if s > 0:
+                fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
+                final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
+
+        # TODO: implement correct multi label classification loss
+        logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None)
+        labels_gold_dense = tf.sparse_tensor_to_dense(self._labels_gold)
+        labels_gold_normed = labels_gold_dense / tf.reduce_sum(labels_gold_dense, axis=-1, keep_dims=True)
+        cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
+
+        self._probs = tf.sigmoid(logits)
+
+    def _final_vecs(self, tree_embeddings, embedding_dim):
+        raise NotImplementedError('implement this method')
+
+    @property
+    def values_gold(self):
+        return self._labels_gold
+
+    @property
+    def values_predicted(self):
+        return self._probs
+
+    @property
+    def model_type(self):
+        return MODEL_TYPE_DISCRETE
+
+    #@property
+    #def candidate_count(self):
+    #    return self._candidate_count
+
+    #@property
+    #def tree_count(self):
+    #    raise NotImplementedError('Implement this method')
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
