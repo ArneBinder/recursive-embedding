@@ -1386,6 +1386,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
+        # TODO: use softmax??
         self._probs = tf.sigmoid(logits)
 
     def _final_vecs(self, tree_embeddings, embedding_dim):
@@ -1458,11 +1459,9 @@ class TreeMultiClassModel(BaseTrainModel):
                 fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
-        # TODO: implement correct multi label classification loss
         logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None)
         labels_gold_dense = tf.sparse_tensor_to_dense(self._labels_gold)
-        labels_gold_normed = labels_gold_dense / tf.reduce_sum(labels_gold_dense, axis=-1, keep_dims=True)
-        cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
+        cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         self._probs = tf.sigmoid(logits)
