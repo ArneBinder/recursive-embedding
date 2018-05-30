@@ -379,7 +379,7 @@ def create_index_files(merged_forest_path, split_count=2):
 
 @plac.annotations(
     mode=('processing mode', 'positional', None, str, ['PARSE_DUMMY', 'PREPARE_BATCHES', 'PARSE_SINGLE', 'PARSE_BATCHES',
-                                                       'MERGE_BATCHES']),
+                                                       'MERGE_BATCHES', 'CREATE_INDICES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -394,6 +394,8 @@ def main(mode, *args):
         forest_merged, out_path_merged = plac.call(merge_batches, args)
         mesh_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_MESH)
         numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=mesh_ids)
+    elif mode == 'CREATE_INDICES':
+        plac.call(create_index_files, args)
     else:
         raise ValueError('unknown mode. use one of PROCESS_DUMMY or PROCESS_SINGLE.')
 
