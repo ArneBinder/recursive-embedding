@@ -4,7 +4,8 @@
 	\huge{Expos\'e} 
 	\vspace{0.5cm}
 	 
-	\large{\bf{The impact of structural complexity on Compositional Distributional Semantics Models 
+	\large{\bf{%The impact of structural complexity on Compositional Distributional Semantics Models 
+	Training recursive compositional models with hierarchical linguistic information
 	%semantic aware composition of word embeddings 
 	%with regard to document size
 			}} 
@@ -25,6 +26,7 @@
 \vspace{0.5cm}
 \normalsize
 
+\if false
 \acfp{VSM} for textual data \autocite{salton_vector_1975} led to success in many \ac{NLP} tasks %\todo{UL: Zu generisch. Vergangenheit? (led)? Are the basis of many success stories ...?} 
 such as information retrieval \autocite{dierk_smart_1971,deerwester_indexing_1990}, document classification and clustering \todo{AB: CITATION}, synonym detection \autocite{rapp_word_2003}, analogy question answering \autocite{turney_similarity_2006} and are capable of modeling experimental results in cognitive science \autocite{landauer_solution_1997,mcdonald_testing_2001}.
 %general purpose word embeddings \autocite{lund_producing_1996}. 
@@ -32,9 +34,10 @@ Recently, prediction based word embedding models like word2vec \autocite{mikolov
 The underlying training methods build upon Distributional Semantics, i.e. a word is defined by its contexts, and scale up to %\todo{UL: Wie scaled ein Modell? Ein Algorithmus skaliert. Bezug unklar} 
 corpora of billions of training tokens \autocite{mikolov_distributed_2013} resulting in robust embeddings for individual words. 
 \acfp{CDSM} are \acp{VSM} that intend to create vector space representations for sequences of tokens by composing word embeddings in a meaningful manner. 
+\fi
 
-\acp{CDSM} based on \acp{RNN} produce appropriate results for short to medium length textual input on several semantic tasks like image caption generation %\todo{UL: Was ist ein semantic task? Lieber konkret die Tasks benennen} 
-\autocite{vinyals_show_2014}, machine translation \autocite{wu_googles_2016} %or speech recognition \autocite{xiong_microsoft_2017} 
+\paragraph{Motivation.}\acfp{CDSM} are \acp{VSM} that produce vector space representations for sequences of tokens by composing word embeddings in a meaningful manner. \acp{CDSM} based on \acp{RNN} produce promising results for short to medium length textual input on several semantic tasks like image caption generation %\todo{UL: Was ist ein semantic task? Lieber konkret die Tasks benennen} 
+\autocite{vinyals_show_2014} or machine translation \autocite{wu_googles_2016} \todo{AB: check examples} %or speech recognition \autocite{xiong_microsoft_2017} 
 since they are capable of contextualized token processing, but still fail to handle long range dependencies as they suffer from vanishing gradients. %and do not scale \todo{UL: Wieder - was skaliert?} very well with text size\todo{AB: CITATION}. 
 Furthermore, they are computational expensive\todo{AB: CITATION}. On the other hand, averaging composition models such as fastText \autocite{joulin_bag_2017} demonstrate that avoiding any explicit structure like word order information %\todo{UL: Structure wo - im Modell?} 
 may also perform quite well at least for short texts. These flat models are very advantageous in means of training time and memory consumption, therefore enabling for huge amounts of training data, but fail to capture more complex semantic interactions like negation  \todo{AB: CITATION}, especially for larger documents. However, it is up to debate which composition functions perform well for multi-sentence documents while remaining as precise as for short input.%well for semantic tasks
