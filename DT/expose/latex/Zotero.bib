@@ -4503,8 +4503,7 @@ Page Version ID: 655236450}
   urldate = {2017-06-22},
   date = {2016-03-18},
   keywords = {Computer Science - Computation and Language},
-  author = {Bowman, Samuel R. and Gauthier, Jon and Rastogi, Abhinav and Gupta, Raghav and Manning, Christopher D. and Potts, Christopher},
-  file = {/home/arne/.zotero/zotero/m3xsompx.default/zotero/storage/RPAZE2TJ/Bowman et al_2016_A Fast Unified Model for Parsing and Sentence Understanding.pdf;/home/arne/.zotero/zotero/m3xsompx.default/zotero/storage/TNAZXMH6/1603.html}
+  author = {Bowman, Samuel R. and Gauthier, Jon and Rastogi, Abhinav and Gupta, Raghav and Manning, Christopher D. and Potts, Christopher}
 }
 
 @thesis{fyshe_corpora_2015,
@@ -6625,6 +6624,7 @@ Page Version ID: 655236450}
   booktitle = {Proceedings of the 2014 {{Conference}} on {{Empirical Methods}} in {{Natural Language Processing}}, {{EMNLP}} 2014, {{October}} 25-29, 2014, {{Doha}}, {{Qatar}}, {{A}} Meeting of {{SIGDAT}}, a {{Special Interest Group}} of the {{ACL}}},
   date = {2014},
   pages = {1724-1734},
+  keywords = {RNN,encoder-decoder},
   author = {Cho, Kyunghyun and van Merrienboer, Bart and Gülçehre, ¸Caglar and Bahdanau, Dzmitry and Bougares, Fethi and Schwenk, Holger and Bengio, Yoshua},
   options = {useprefix=true},
   crossref = {DBLP:conf/emnlp/2014},
@@ -6652,7 +6652,7 @@ Page Version ID: 655236450}
   abstract = {Neural machine translation is a recently proposed approach to machine translation. Unlike the traditional statistical machine translation, the neural machine translation aims at building a single neural network that can be jointly tuned to maximize the translation performance. The models proposed recently for neural machine translation often belong to a family of encoder-decoders and consists of an encoder that encodes a source sentence into a fixed-length vector from which a decoder generates a translation. In this paper, we conjecture that the use of a fixed-length vector is a bottleneck in improving the performance of this basic encoder-decoder architecture, and propose to extend this by allowing a model to automatically (soft-)search for parts of a source sentence that are relevant to predicting a target word, without having to form these parts as a hard segment explicitly. With this new approach, we achieve a translation performance comparable to the existing state-of-the-art phrase-based system on the task of English-to-French translation. Furthermore, qualitative analysis reveals that the (soft-)alignments found by the model agree well with our intuition.},
   urldate = {2018-01-28},
   date = {2014-09-01},
-  keywords = {Computer Science - Neural and Evolutionary Computing,Computer Science - Learning,Statistics - Machine Learning,Computer Science - Computation and Language,Neural Networks - Attention},
+  keywords = {Computer Science - Neural and Evolutionary Computing,Computer Science - Learning,Statistics - Machine Learning,Computer Science - Computation and Language,Neural Networks - Attention,Machine Translation,Neural Networks - RNN},
   author = {Bahdanau, Dzmitry and Cho, Kyunghyun and Bengio, Yoshua}
 }
 
@@ -7372,7 +7372,7 @@ Page Version ID: 655236450}
   abstract = {There are at least two kinds of similarity. Relational similarity is correspondence between relations, in contrast with attributional similarity, which is correspondence between attributes. When two words have a high degree of attributional similarity, we call them synonyms. When two pairs of words have a high degree of relational similarity, we say that their relations are analogous. For example, the word pair mason:stone is analogous to the pair carpenter:wood. This paper introduces Latent Relational Analysis (LRA), a method for measuring relational similarity. LRA has potential applications in many areas, including information extraction, word sense disambiguation, and information retrieval. Recently the Vector Space Model (VSM) of information retrieval has been adapted to measuring relational similarity, achieving a score of 47\% on a collection of 374 college-level multiple-choice word analogy questions. In the VSM approach, the relation between a pair of words is characterized by a vector of frequencies of predefined patterns in a large corpus. LRA extends the VSM approach in three ways: (1) the patterns are derived automatically from the corpus, (2) the Singular Value Decomposition (SVD) is used to smooth the frequency data, and (3) automatically generated synonyms are used to explore variations of the word pairs. LRA achieves 56\% on the 374 analogy questions, statistically equivalent to the average human score of 57\%. On the related problem of classifying semantic relations, LRA achieves similar gains over the VSM.},
   urldate = {2018-05-22},
   date = {2006-08-25},
-  keywords = {Computer Science - Computation and Language,Computer Science - Information Retrieval,Computer Science - Learning,H.3.1,I.2.6,I.2.7},
+  keywords = {Computer Science - Learning,Computer Science - Computation and Language,Computer Science - Information Retrieval,I.2.7,I.2.6,H.3.1},
   author = {Turney, Peter D.}
 }
 
@@ -7501,6 +7501,97 @@ Conclusions: We conclude that MeSH Now is a robust approach with state-of-the-ar
   eprinttype = {pmid},
   eprint = {23984425},
   pmcid = {PMC3745940}
+}
+
+@article{fried_improving_2017,
+  archivePrefix = {arXiv},
+  eprinttype = {arxiv},
+  eprint = {1707.03058},
+  primaryClass = {cs},
+  title = {Improving {{Neural Parsing}} by {{Disentangling Model Combination}} and {{Reranking Effects}}},
+  url = {http://arxiv.org/abs/1707.03058},
+  abstract = {Recent work has proposed several generative neural models for constituency parsing that achieve state-of-the-art results. Since direct search in these generative models is difficult, they have primarily been used to rescore candidate outputs from base parsers in which decoding is more straightforward. We first present an algorithm for direct search in these generative models. We then demonstrate that the rescoring results are at least partly due to implicit model combination rather than reranking effects. Finally, we show that explicit model combination can improve performance even further, resulting in new state-of-the-art numbers on the PTB of 94.25 F1 when training only on gold data and 94.66 F1 when using external data.},
+  urldate = {2018-06-02},
+  date = {2017-07-10},
+  keywords = {Computer Science - Computation and Language},
+  author = {Fried, Daniel and Stern, Mitchell and Klein, Dan}
+}
+
+@article{linzen_assessing_2016,
+  archivePrefix = {arXiv},
+  eprinttype = {arxiv},
+  eprint = {1611.01368},
+  primaryClass = {cs},
+  title = {Assessing the {{Ability}} of {{LSTMs}} to {{Learn Syntax}}-{{Sensitive Dependencies}}},
+  url = {http://arxiv.org/abs/1611.01368},
+  abstract = {The success of long short-term memory (LSTM) neural networks in language processing is typically attributed to their ability to capture long-distance statistical regularities. Linguistic regularities are often sensitive to syntactic structure; can such dependencies be captured by LSTMs, which do not have explicit structural representations? We begin addressing this question using number agreement in English subject-verb dependencies. We probe the architecture's grammatical competence both using training objectives with an explicit grammatical target (number prediction, grammaticality judgments) and using language models. In the strongly supervised settings, the LSTM achieved very high overall accuracy (less than 1\% errors), but errors increased when sequential and structural information conflicted. The frequency of such errors rose sharply in the language-modeling setting. We conclude that LSTMs can capture a non-trivial amount of grammatical structure given targeted supervision, but stronger architectures may be required to further reduce errors; furthermore, the language modeling signal is insufficient for capturing syntax-sensitive dependencies, and should be supplemented with more direct supervision if such dependencies need to be captured.},
+  urldate = {2018-06-02},
+  date = {2016-11-04},
+  keywords = {Computer Science - Computation and Language},
+  author = {Linzen, Tal and Dupoux, Emmanuel and Goldberg, Yoav}
+}
+
+@article{sundermeyer_lstm_2012,
+  langid = {english},
+  title = {{{LSTM Neural Networks}} for {{Language Modeling}}},
+  abstract = {Neural networks have become increasingly popular for the task of language modeling. Whereas feed-forward networks only exploit a ﬁxed context length to predict the next word of a sequence, conceptually, standard recurrent neural networks can take into account all of the predecessor words. On the other hand, it is well known that recurrent networks are difﬁcult to train and therefore are unlikely to show the full potential of recurrent models.},
+  date = {2012},
+  pages = {4},
+  author = {Sundermeyer, Martin and Schluter, Ralf and Ney, Hermann}
+}
+
+@article{dyer_recurrent_2016,
+  archivePrefix = {arXiv},
+  eprinttype = {arxiv},
+  eprint = {1602.07776},
+  primaryClass = {cs},
+  title = {Recurrent {{Neural Network Grammars}}},
+  url = {http://arxiv.org/abs/1602.07776},
+  abstract = {We introduce recurrent neural network grammars, probabilistic models of sentences with explicit phrase structure. We explain efficient inference procedures that allow application to both parsing and language modeling. Experiments show that they provide better parsing in English than any single previously published supervised generative model and better language modeling than state-of-the-art sequential RNNs in English and Chinese.},
+  urldate = {2018-06-02},
+  date = {2016-02-24},
+  keywords = {Computer Science - Computation and Language,Computer Science - Neural and Evolutionary Computing},
+  author = {Dyer, Chris and Kuncoro, Adhiguna and Ballesteros, Miguel and Smith, Noah A.}
+}
+
+@article{dyer_transition-based_2015,
+  archivePrefix = {arXiv},
+  eprinttype = {arxiv},
+  eprint = {1505.08075},
+  primaryClass = {cs},
+  title = {Transition-{{Based Dependency Parsing}} with {{Stack Long Short}}-{{Term Memory}}},
+  url = {http://arxiv.org/abs/1505.08075},
+  abstract = {We propose a technique for learning representations of parser states in transition-based dependency parsers. Our primary innovation is a new control structure for sequence-to-sequence neural networks---the stack LSTM. Like the conventional stack data structures used in transition-based parsing, elements can be pushed to or popped from the top of the stack in constant time, but, in addition, an LSTM maintains a continuous space embedding of the stack contents. This lets us formulate an efficient parsing model that captures three facets of a parser's state: (i) unbounded look-ahead into the buffer of incoming words, (ii) the complete history of actions taken by the parser, and (iii) the complete contents of the stack of partially built tree fragments, including their internal structures. Standard backpropagation techniques are used for training and yield state-of-the-art parsing performance.},
+  urldate = {2018-06-02},
+  date = {2015-05-29},
+  keywords = {Computer Science - Computation and Language,Computer Science - Learning,Computer Science - Neural and Evolutionary Computing},
+  author = {Dyer, Chris and Ballesteros, Miguel and Ling, Wang and Matthews, Austin and Smith, Noah A.},
+  file = {/home/arne/.zotero/zotero/m3xsompx.default/zotero/storage/I5INLP9X/1505.html}
+}
+
+@article{baltescu_pragmatic_2014,
+  archivePrefix = {arXiv},
+  eprinttype = {arxiv},
+  eprint = {1412.7119},
+  primaryClass = {cs},
+  title = {Pragmatic {{Neural Language Modelling}} in {{Machine Translation}}},
+  url = {http://arxiv.org/abs/1412.7119},
+  abstract = {This paper presents an in-depth investigation on integrating neural language models in translation systems. Scaling neural language models is a difficult task, but crucial for real-world applications. This paper evaluates the impact on end-to-end MT quality of both new and existing scaling techniques. We show when explicitly normalising neural models is necessary and what optimisation tricks one should use in such scenarios. We also focus on scalable training algorithms and investigate noise contrastive estimation and diagonal contexts as sources for further speed improvements. We explore the trade-offs between neural models and back-off n-gram models and find that neural models make strong candidates for natural language applications in memory constrained environments, yet still lag behind traditional models in raw translation quality. We conclude with a set of recommendations one should follow to build a scalable neural language model for MT.},
+  urldate = {2018-06-02},
+  date = {2014-12-22},
+  keywords = {Computer Science - Computation and Language},
+  author = {Baltescu, Paul and Blunsom, Phil},
+  file = {/home/arne/.zotero/zotero/m3xsompx.default/zotero/storage/Z8THR89E/1412.html}
+}
+
+@article{glorot_understanding_2010,
+  langid = {english},
+  title = {Understanding the Difﬁculty of Training Deep Feedforward Neural Networks},
+  url = {http://proceedings.mlr.press/v9/glorot10a/glorot10a.pdf},
+  abstract = {Whereas before 2006 it appears that deep multilayer neural networks were not successfully trained, since then several algorithms have been shown to successfully train them, with experimental results showing the superiority of deeper vs less deep architectures. All these experimental results were obtained with new initialization or training mechanisms. Our objective here is to understand better why standard gradient descent from random initialization is doing so poorly with deep neural networks, to better understand these recent relative successes and help design better algorithms in the future. We ﬁrst observe the inﬂuence of the non-linear activations functions. We ﬁnd that the logistic sigmoid activation is unsuited for deep networks with random initialization because of its mean value, which can drive especially the top hidden layer into saturation. Surprisingly, we ﬁnd that saturated units can move out of saturation by themselves, albeit slowly, and explaining the plateaus sometimes seen when training neural networks. We ﬁnd that a new non-linearity that saturates less can often be beneﬁcial. Finally, we study how activations and gradients vary across layers and during training, with the idea that training may be more difﬁcult when the singular values of the Jacobian associated with each layer are far from 1. Based on these considerations, we propose a new initialization scheme that brings substantially faster convergence.},
+  date = {2010},
+  pages = {8},
+  author = {Glorot, Xavier and Bengio, Yoshua}
 }
 
 
