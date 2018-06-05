@@ -1,0 +1,12 @@
+OPEN:
+ coding:
+ * improve GRU model
+ * show token coverage when creating corpora (merging), evtl. introduce a parameter `coverage` that can replace `min_count`
+
+DONE:
+ * attention_SINGLE + identity - DONE
+ * check number of structured abstracts in BioASQ dataset - DONE: ~3/10 ≈ 4.05 Mio abstracts
+ * peek into prediction results on wikipedia - (DONE: looks confusing)
+
+NOTES:
+ * possible Zweitbetreuer: Manfred Stede,

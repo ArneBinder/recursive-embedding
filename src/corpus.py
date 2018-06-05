@@ -117,11 +117,26 @@ def filter_uniques(f_paths, min_count, out_path_merged):
         #return np.load(fn_uniques_filtered)
         return numpy_load(fn_uniques_filtered, assert_exists=True)
 
-
     counts_merged = collect_counts_merged(f_paths)
     root_ids = collect_root_ids(f_paths, out_path_merged)
     root_ids_set = set(root_ids)
     assert len(root_ids_set) == len(root_ids), 'root_ids contains %i duplicates' % (len(root_ids) - len(root_ids_set))
+
+    # calculate coverage
+    assert min_count > 0, 'min_count has to be >0, but is %i' % min_count
+    unique, counts = zip(*((v, counts_merged[v]) for v in counts_merged.keys()))
+    unique = np.array(unique)
+    counts = np.array(counts)
+    unique_mapping = {u: i for i, u in enumerate(unique)}
+    root_ids_arg = np.array([unique_mapping[root_id] for root_id in root_ids])
+    non_root_ids_arg = np.delete(np.arange(len(unique)), root_ids_arg)
+    unique_no_roots = unique[non_root_ids_arg]
+    counts_no_roots = counts[non_root_ids_arg]
+    # TODO: test!
+    counts_sum = np.sum(counts_no_roots)
+    counts_filtered_sum = np.sum(np.where(counts_no_roots >= min_count))
+    coverage = float(counts_filtered_sum) / counts_sum
+    logger.info('data coverage (without roots) for min_count=%i: %.3f' % (min_count, coverage))
 
     logger.info('filter uniques by count ...')
     t_start = datetime.now()
