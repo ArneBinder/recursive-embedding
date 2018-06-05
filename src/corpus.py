@@ -98,7 +98,7 @@ def collect_root_ids(f_paths, out_path_merged):
     return root_ids
 
 
-def filter_uniques(f_paths, min_count, out_path_merged):
+def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
 
     fn_uniques_filtered = '%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_FILTERED)
     fn_uniques_discarded = '%s.%s' % (out_path_merged, FE_UNIQUE_HASHES_DISCARDED)
@@ -129,13 +129,25 @@ def filter_uniques(f_paths, min_count, out_path_merged):
     counts = np.array(counts)
     unique_mapping = {u: i for i, u in enumerate(unique)}
     root_ids_arg = np.array([unique_mapping[root_id] for root_id in root_ids])
-    non_root_ids_arg = np.delete(np.arange(len(unique)), root_ids_arg)
-    unique_no_roots = unique[non_root_ids_arg]
-    counts_no_roots = counts[non_root_ids_arg]
-    # TODO: test!
-    counts_sum = np.sum(counts_no_roots)
-    counts_filtered_sum = np.sum(np.where(counts_no_roots >= min_count))
-    coverage = float(counts_filtered_sum) / counts_sum
+    non_root_ids_indices = np.delete(np.arange(len(unique)), root_ids_arg)
+    #unique_no_roots = unique[non_root_ids_indices]
+    counts_no_roots = counts[non_root_ids_indices]
+    if coverage is not None and coverage > 0:
+        count_uniques, count_counts = np.unique(counts_no_roots, return_counts=True)
+        count_counts_sorted_indices = np.argsort(count_uniques)
+        count_uniques_sorted = count_uniques[count_counts_sorted_indices]
+        count_counts_sorted = count_counts[count_counts_sorted_indices]
+        counts_summed = np.cumsum((count_uniques_sorted * count_counts_sorted)[::-1])
+        counts_coverage = counts_summed / float(counts_summed[-1])
+        idx_rev = np.searchsorted(counts_coverage, coverage)
+        min_count = count_uniques_sorted[-idx_rev]
+        coverage = counts_coverage[idx_rev]
+    else:
+        assert min_count is not None and min_count > 0, 'coverage and min_count are None or invalid (less or equal zero)'
+        # TODO: test!
+        counts_sum = np.sum(counts_no_roots)
+        counts_filtered_sum = np.sum(counts_no_roots[np.where(counts_no_roots >= min_count)])
+        coverage = float(counts_filtered_sum) / counts_sum
     logger.info('data coverage (without roots) for min_count=%i: %.3f' % (min_count, coverage))
 
     logger.info('filter uniques by count ...')
@@ -169,6 +181,7 @@ def filter_uniques(f_paths, min_count, out_path_merged):
     numpy_dump(fn_uniques_discarded, uniques_discarded)
     numpy_dump(fn_counts_filtered, counts_filtered)
     numpy_dump(fn_counts_discarded, counts_discarded)
+    logger.info('%i entries remain in lexicon, %i were discarded.' % (i_filtered, i_discarded))
 
     logger.info('finished. %s' % str(datetime.now() - t_start))
     return uniques_filtered, root_ids
@@ -310,13 +323,15 @@ def collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_coun
 @plac.annotations(
     out_path=('corpora out path', 'option', 'o', str),
     min_count=('minimal count a token has to occur to stay in the lexicon', 'option', 'c', int),
+    coverage=('percentage of tokens that should remain in the data. Tokens that occur at least are set to UNKNOWN.',
+              'option', 'v', float),
     use_see_also_counts=('use SeeAlso counts to help determining length of textual data', 'flag', 'u'),
     # shows the coverage for min_count=100:
     # 1 - (len(data) - sum(counts_sorted[-len(np.where(counts_sorted >= 100)[0]):])) / float(len(data))
     # 0.951
     # min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
-def merge_batches(out_path, min_count=1, use_see_also_counts=False):  # , min_count_root_id=-1):
+def merge_batches(out_path, min_count=1, coverage=-1, use_see_also_counts=False):  # , min_count_root_id=-1):
     logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-merge.log'))
     logger_fh.setLevel(logging.DEBUG)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
@@ -336,7 +351,7 @@ def merge_batches(out_path, min_count=1, use_see_also_counts=False):  # , min_co
 
     f_names, f_paths = collect_file_names(out_dir_batches)
 
-    uniques_filtered, root_ids = filter_uniques(f_paths, min_count, out_path_merged)
+    uniques_filtered, root_ids = filter_uniques(f_paths, out_path_merged, min_count, coverage)
 
     lexicon, lexicon_root_ids = merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merged)
 
