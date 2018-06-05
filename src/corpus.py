@@ -123,7 +123,6 @@ def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
     assert len(root_ids_set) == len(root_ids), 'root_ids contains %i duplicates' % (len(root_ids) - len(root_ids_set))
 
     # calculate coverage
-    assert min_count > 0, 'min_count has to be >0, but is %i' % min_count
     unique, counts = zip(*((v, counts_merged[v]) for v in counts_merged.keys()))
     unique = np.array(unique)
     counts = np.array(counts)
@@ -144,7 +143,6 @@ def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
         coverage = counts_coverage[idx_rev]
     else:
         assert min_count is not None and min_count > 0, 'coverage and min_count are None or invalid (less or equal zero)'
-        # TODO: test!
         counts_sum = np.sum(counts_no_roots)
         counts_filtered_sum = np.sum(counts_no_roots[np.where(counts_no_roots >= min_count)])
         coverage = float(counts_filtered_sum) / counts_sum
