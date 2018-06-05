@@ -44,6 +44,7 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py MERGE_BATCHES
                                   --out-path /root/corpora_out/BIOASQ/${BIOASQ_SUBDIR}
                                   --min-count ${MIN_COUNT}
+                                  --coverage ${COVERAGE}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
