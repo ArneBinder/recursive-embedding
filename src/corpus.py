@@ -181,7 +181,7 @@ def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
     numpy_dump(fn_uniques_discarded, uniques_discarded)
     numpy_dump(fn_counts_filtered, counts_filtered)
     numpy_dump(fn_counts_discarded, counts_discarded)
-    logger.info('%i entries remain in lexicon, %i were discarded.' % (i_filtered, i_discarded))
+    logger.info('%i entries remain in lexicon, %i were discarded.' % (i_filtered, i_discarded - len(root_ids)))
 
     logger.info('finished. %s' % str(datetime.now() - t_start))
     return uniques_filtered, root_ids
