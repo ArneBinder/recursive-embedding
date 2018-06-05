@@ -311,7 +311,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     elif concat_mode == CM_AGGREGATE:
         # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
         # sequential and in order, especially root_ids occur in data only directly after link_types
-        sizes = []
+        #sizes = []
         for idx in indices:
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
@@ -329,21 +329,21 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                              remove_types=remove_types_naive, transform=transform)
             if len(data_span_cleaned) > max_size_plain:
                 logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.' % (len(data_span_cleaned), max_size_plain))
-            sizes.append([root_idx, len(data_span_cleaned)])
+            #sizes.append([root_idx, len(data_span_cleaned)])
             tree_context = {KEY_HEAD: data_nif_context_transformed,
                             KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned[:max_size_plain]]}
             yield tree_context
             n += 1
         # statistics
-        sizes_np = np.array(sizes)
-        sizes_fn = 'sizes_plain.npy'
-        if os.path.exists(sizes_fn):
-            sizes_np_loaded = np.load(sizes_fn)
-            sizes_np = np.concatenate((sizes_np_loaded, sizes_np))
-            logger.debug('append sizes to: %s' % sizes_fn)
-        else:
-            logger.debug('write sizes to: %s' % sizes_fn)
-        sizes_np.dump(sizes_fn)
+        #sizes_np = np.array(sizes)
+        #sizes_fn = 'sizes_plain.npy'
+        #if os.path.exists(sizes_fn):
+        #    sizes_np_loaded = np.load(sizes_fn)
+        #    sizes_np = np.concatenate((sizes_np_loaded, sizes_np))
+        #    logger.debug('append sizes to: %s' % sizes_fn)
+        #else:
+        #    logger.debug('write sizes to: %s' % sizes_fn)
+        #sizes_np.dump(sizes_fn)
 
     elif concat_mode == CM_SEQUENCE:
         logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
