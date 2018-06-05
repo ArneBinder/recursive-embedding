@@ -1223,7 +1223,7 @@ class DummyTreeModel(TreeModel):
 
 
 class BaseTrainModel(object):
-    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0):
+    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0, metrics={}):
 
         self._loss = loss
         self._tree_model = tree_model
@@ -1247,6 +1247,9 @@ class BaseTrainModel(object):
                                                              global_step=self._global_step)
         else:
             self._train_op = None
+
+        #self._metrics = {'auc': tf.metrics.auc(labels=self.gold_eval, predictions=self.predicted_eval)}
+        self._metrics = metrics
 
     def optimizer_vars(self):
         slot_names = self._optimizer.get_slot_names()
@@ -1272,6 +1275,14 @@ class BaseTrainModel(object):
     @property
     def tree_model(self):
         return self._tree_model
+
+    @property
+    def metrics(self):
+        return {k: self._metrics[k][0] for k in self._metrics.keys()}
+
+    @property
+    def update_metrics(self):
+        return {k: self._metrics[k][1] for k in self._metrics.keys()}
 
 
 class SimilaritySequenceTreeTupleModel(BaseTrainModel):
@@ -1336,13 +1347,13 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
         logits = tf.contrib.layers.fully_connected(inputs=fc, num_outputs=2, activation_fn=None)
         cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
 
+        softmax = tf.nn.softmax(logits)
+        self._probs = softmax[:, 1]
+
         #BaseTrainModel.__init__(self, tree_model=tree_model,
         #                       loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
         BaseTrainModel.__init__(self, tree_model=tree_model,
                                 loss=tf.reduce_mean(cross_entropy), **kwargs)
-
-        softmax = tf.nn.softmax(logits)
-        self._probs = softmax[:, 1]
 
     @property
     def values_gold(self):
@@ -1384,10 +1395,11 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                             shape=[batch_size, self.candidate_count])
         labels_gold_normed = self._labels_gold / tf.reduce_sum(self._labels_gold, axis=-1, keep_dims=True)
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         # TODO: use softmax??
         self._probs = tf.sigmoid(logits)
+
+        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
     def _final_vecs(self, tree_embeddings, embedding_dim):
         raise NotImplementedError('implement this method')
@@ -1442,12 +1454,8 @@ class TreeMultiClassModel(BaseTrainModel):
     def __init__(self, tree_model, num_classes, fc_sizes=1000, **kwargs):
 
         self._labels_gold = tf.sparse_placeholder(dtype=tf.float32)
-        #self._candidate_count = tf.shape(self._labels_gold)[-1]
-
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
                                      shape=[-1, tree_model.tree_output_size])
-        #batch_size = tf.shape(tree_embeddings)[0]
-        #final_vecs = self._final_vecs(tree_embeddings, tree_model.tree_output_size)
         final_vecs = tree_embeddings
 
         if not isinstance(fc_sizes, (list, tuple)):
@@ -1465,9 +1473,16 @@ class TreeMultiClassModel(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         self._probs = tf.sigmoid(logits)
-
-    def _final_vecs(self, tree_embeddings, embedding_dim):
-        raise NotImplementedError('implement this method')
+        m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
+        map_ts = lambda x: str(int(x*100))  # format thresholds
+        metrics = {'roc': tf.metrics.auc(labels=labels_gold_dense, predictions=self.values_predicted),
+                   'precision:' + ','.join(map(map_ts, m_ts)): tf.metrics.precision_at_thresholds(
+                       labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
+                   'recall:' + ','.join(map(map_ts, m_ts)): tf.metrics.recall_at_thresholds(
+                       labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
+                   }
+        BaseTrainModel.__init__(
+            self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), metrics=metrics, **kwargs)
 
     @property
     def values_gold(self):
@@ -1480,14 +1495,6 @@ class TreeMultiClassModel(BaseTrainModel):
     @property
     def model_type(self):
         return MODEL_TYPE_DISCRETE
-
-    #@property
-    #def candidate_count(self):
-    #    return self._candidate_count
-
-    #@property
-    #def tree_count(self):
-    #    raise NotImplementedError('Implement this method')
 
 
 class ScoredSequenceTreeTupleModel(BaseTrainModel):

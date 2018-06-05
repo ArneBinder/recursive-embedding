@@ -96,7 +96,8 @@ tf.flags.DEFINE_boolean('debug',
 FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
-METRIC_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
+#METRIC_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
+METRIC_KEYS_DISCRETE = ['roc', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
 METRIC_DISCRETE = 'f1_t50'
 #STAT_KEY_MAIN_DISCRETE = 'roc_micro'
 METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
@@ -158,7 +159,7 @@ def emit_values(supervisor, session, step, values, writer=None, csv_writer=None)
         csv_writer.writerow({k: values[k] for k in values if k in csv_writer.fieldnames})
 
 
-def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, model_type, print_out=True, emit=True,
+def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, model, print_out=True, emit=True,
                     test_writer=None, test_result_writer=None):
     logger.debug('collect metrics ...')
     if test_writer is None:
@@ -172,7 +173,7 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
 
     emit_dict = {'loss': loss}
     # if sim is not None and sim_gold is not None:
-    if model_type == MODEL_TYPE_REGRESSION:
+    if model.model_type == MODEL_TYPE_REGRESSION:
         p_r = pearsonr(values, values_gold)
         s_r = spearmanr(values, values_gold)
         mse = np.mean(np.square(values - values_gold))
@@ -184,46 +185,37 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
         info_string = 'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tavg=%f\tvar=%f\tgold_avg=%f\tgold_var=%f' \
                       % (epoch, step, suffix, loss, suffix, p_r[0], np.average(values), np.var(values),
                          np.average(values_gold), np.var(values_gold))
-    elif model_type == MODEL_TYPE_DISCRETE:
+    elif model.model_type == MODEL_TYPE_DISCRETE:
         #filtered = np.argwhere(values_gold[:, 0] == 1).flatten()
         #if len(filtered) < len(values_gold):
         #    logger.warning('discarded %i (of %i) values for evalution (roc)'
         #                   % (len(values_gold) - len(filtered), len(values_gold)))
         #roc = metrics.roc_auc_score(values_gold[filtered].flatten(), values[filtered].flatten())
-        emit_dict['roc_micro'] = metrics.roc_auc_score(values_gold, values, average='micro')
+        #emit_dict['roc_micro'] = metrics.roc_auc_score(values_gold, values, average='micro')
+        #emit_dict['roc_micro'] = sess.run(model.auc, {model.eval_gold_placeholder: values_gold, model.eval_predictions_placeholder: values})
         #roc_samples = metrics.roc_auc_score(values_gold, values, average='samples')
+        ms = sess.run(model.metrics)
+        for k in ms.keys():
+            spl = k.split(':')
+            if len(spl) > 1:
+                spl_t = spl[1].split(',')
+                for i, v in enumerate(ms[k]):
+                    emit_dict[spl[0] + '_t' + spl_t[i]] = v
+            else:
+                emit_dict[k] = ms[k]
 
-        values_discrete_t50 = (values + 0.50).astype(int)
-        values_discrete_t33 = (values + 0.66).astype(int)
-        values_discrete_t66 = (values + 0.33).astype(int)
-        values_discrete_t10 = (values + 0.90).astype(int)
-        values_discrete_t90 = (values + 0.10).astype(int)
+        for k in emit_dict.keys():
+            if k.startswith('precision'):
+                suffix = k[len('precision'):]
+                if 'recall'+suffix in emit_dict.keys():
+                    r = emit_dict['recall'+suffix]
+                    p = emit_dict[k]
+                    f1 = 2 * p * r / (p + r)
+                    emit_dict['f1' + suffix] = f1
 
-        emit_dict['f1_t50'] = metrics.f1_score(values_gold, values_discrete_t50, average='micro')
-        emit_dict['f1_t33'] = metrics.f1_score(values_gold, values_discrete_t33, average='micro')
-        emit_dict['f1_t66'] = metrics.f1_score(values_gold, values_discrete_t66, average='micro')
-        emit_dict['f1_t10'] = metrics.f1_score(values_gold, values_discrete_t10, average='micro')
-        emit_dict['f1_t90'] = metrics.f1_score(values_gold, values_discrete_t90, average='micro')
 
-        emit_dict['acc_t50'] = metrics.accuracy_score(values_gold, values_discrete_t50, normalize=True)
-        emit_dict['acc_t33'] = metrics.accuracy_score(values_gold, values_discrete_t33, normalize=True)
-        emit_dict['acc_t66'] = metrics.accuracy_score(values_gold, values_discrete_t66, normalize=True)
-        emit_dict['acc_t10'] = metrics.accuracy_score(values_gold, values_discrete_t10, normalize=True)
-        emit_dict['acc_t90'] = metrics.accuracy_score(values_gold, values_discrete_t90, normalize=True)
 
-        emit_dict['precision_t50'] = metrics.precision_score(values_gold, values_discrete_t50, average='micro')
-        emit_dict['precision_t33'] = metrics.precision_score(values_gold, values_discrete_t33, average='micro')
-        emit_dict['precision_t66'] = metrics.precision_score(values_gold, values_discrete_t66, average='micro')
-        emit_dict['precision_t10'] = metrics.precision_score(values_gold, values_discrete_t10, average='micro')
-        emit_dict['precision_t90'] = metrics.precision_score(values_gold, values_discrete_t90, average='micro')
-
-        emit_dict['recall_t50'] = metrics.recall_score(values_gold, values_discrete_t50, average='micro')
-        emit_dict['recall_t33'] = metrics.recall_score(values_gold, values_discrete_t33, average='micro')
-        emit_dict['recall_t66'] = metrics.recall_score(values_gold, values_discrete_t66, average='micro')
-        emit_dict['recall_t10'] = metrics.recall_score(values_gold, values_discrete_t10, average='micro')
-        emit_dict['recall_t90'] = metrics.recall_score(values_gold, values_discrete_t90, average='micro')
-
-        emit_dict['ranking_loss_inv'] = 1.0 - metrics.label_ranking_loss(values_gold, values)
+        #emit_dict['ranking_loss_inv'] = 1.0 - metrics.label_ranking_loss(values_gold, values)
 
         #emit_dict.update({
         #    'roc_micro': roc_micro,
@@ -239,7 +231,7 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
         stats_string = '\t'.join(['%s=%f' % (k, emit_dict.get(k, -1)) for k in METRIC_KEYS_DISCRETE])
         info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     else:
-        raise ValueError('unknown model type: %s. Use %s or %s.' % (model_type, MODEL_TYPE_DISCRETE,
+        raise ValueError('unknown model type: %s. Use %s or %s.' % (model.model_type, MODEL_TYPE_DISCRETE,
                                                                     MODEL_TYPE_REGRESSION))
     if emit:
         emit_values(supervisor, sess, step, emit_dict, writer=writer, csv_writer=csv_writer)
@@ -386,7 +378,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
 
     step = test_step
     feed_dict = {}
-    execute_vars = {'loss': model.loss, 'values_gold': model.values_gold, 'values': model.values_predicted}
+    execute_vars = {'loss': model.loss, 'values_gold': model.values_gold, 'values': model.values_predicted, 'update_metrics': model.update_metrics}
 
     if train:
         execute_vars['train_op'] = model.train_op
@@ -470,7 +462,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     loss_all /= sum(sizes)
 
     metrics_dict = collect_metrics(supervisor, sess, epoch, step, loss_all, values_all_, values_all_gold_,
-                                   model_type=model.model_type, emit=emit,
+                                   model=model, emit=emit,
                                    test_writer=test_writer, test_result_writer=test_result_writer)
     return step, loss_all, values_all_, values_all_gold_, metrics_dict
 
