@@ -194,14 +194,12 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
         #roc_samples = metrics.roc_auc_score(values_gold, values, average='samples')
 
         values_discrete_t50 = (values + 0.50).astype(int)
-        emit_dict['f1_t50'] = metrics.f1_score(values_gold, values_discrete_t50, average='micro')
-        """
         values_discrete_t33 = (values + 0.66).astype(int)
         values_discrete_t66 = (values + 0.33).astype(int)
         values_discrete_t10 = (values + 0.90).astype(int)
         values_discrete_t90 = (values + 0.10).astype(int)
 
-        
+        emit_dict['f1_t50'] = metrics.f1_score(values_gold, values_discrete_t50, average='micro')
         emit_dict['f1_t33'] = metrics.f1_score(values_gold, values_discrete_t33, average='micro')
         emit_dict['f1_t66'] = metrics.f1_score(values_gold, values_discrete_t66, average='micro')
         emit_dict['f1_t10'] = metrics.f1_score(values_gold, values_discrete_t10, average='micro')
@@ -226,7 +224,7 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
         emit_dict['recall_t90'] = metrics.recall_score(values_gold, values_discrete_t90, average='micro')
 
         emit_dict['ranking_loss_inv'] = 1.0 - metrics.label_ranking_loss(values_gold, values)
-"""
+
         #emit_dict.update({
         #    'roc_micro': roc_micro,
         #    #'roc_samples': roc_samples,
