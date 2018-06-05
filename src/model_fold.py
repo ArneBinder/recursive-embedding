@@ -1473,9 +1473,10 @@ class TreeMultiClassModel(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         self._probs = tf.sigmoid(logits)
-        m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
+        #m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
+        m_ts = [0.5]
         map_ts = lambda x: str(int(x*100))  # format thresholds
-        metrics = {'roc': tf.metrics.auc(labels=labels_gold_dense, predictions=self.values_predicted),
+        metrics = {#'roc': tf.metrics.auc(labels=labels_gold_dense, predictions=self.values_predicted),
                    'precision:' + ','.join(map(map_ts, m_ts)): tf.metrics.precision_at_thresholds(
                        labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
                    'recall:' + ','.join(map(map_ts, m_ts)): tf.metrics.recall_at_thresholds(
