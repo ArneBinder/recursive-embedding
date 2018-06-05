@@ -1079,23 +1079,24 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # do initial test epoch
             if M_TEST in meta:
-                step, loss_all, values_all, values_all_gold, stats_dict = do_epoch(
-                    supervisor,
-                    sess=sess,
-                    model=meta[M_TEST][M_MODEL],
-                    dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
-                    forest_indices=meta[M_TEST][M_INDICES],
-                    indices_targets=meta[M_TEST][M_INDICES_TARGETS],
-                    #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
-                    epoch=0,
-                    train=False,
-                    emit=True,
-                    test_writer=test_writer,
-                    test_result_writer=test_result_writer,
-                    number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
-                    #number_of_samples=None,
-                    highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                    batch_iter=meta[M_TEST][M_BATCH_ITER])
+                if not loaded_from_checkpoint or M_TRAIN not in meta:
+                    _, _, values_all, values_all_gold, stats_dict = do_epoch(
+                        supervisor,
+                        sess=sess,
+                        model=meta[M_TEST][M_MODEL],
+                        dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
+                        forest_indices=meta[M_TEST][M_INDICES],
+                        indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                        #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
+                        epoch=0,
+                        train=False,
+                        emit=True,
+                        test_writer=test_writer,
+                        test_result_writer=test_result_writer,
+                        number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                        #number_of_samples=None,
+                        highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
+                        batch_iter=meta[M_TEST][M_BATCH_ITER])
                 if M_TRAIN not in meta:
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
