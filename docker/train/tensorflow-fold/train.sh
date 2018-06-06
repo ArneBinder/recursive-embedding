@@ -17,6 +17,6 @@ else
 fi
 echo "log to: $LOG_FN"
 echo "project name: $PROJECT_NAME"
-echo "container_name: train_gpu$NVIDIA_VISIBLE_DEVICES"_"${PROJECT_NAME}"
+echo "container_name: train_gpu$NVIDIA_VISIBLE_DEVICES"_"$PROJECT_NAME"
 
 docker-compose -p "$PROJECT_NAME" up train-fold > "$LOG_FN"
