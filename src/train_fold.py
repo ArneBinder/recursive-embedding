@@ -174,17 +174,21 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
     emit_dict = {'loss': loss}
     # if sim is not None and sim_gold is not None:
     if model.model_type == MODEL_TYPE_REGRESSION:
-        p_r = pearsonr(values, values_gold)
-        s_r = spearmanr(values, values_gold)
-        mse = np.mean(np.square(values - values_gold))
-        emit_dict.update({
-            'pearson_r': p_r[0],
-            'spearman_r': s_r[0],
-            'mse': mse
-        })
-        info_string = 'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tavg=%f\tvar=%f\tgold_avg=%f\tgold_var=%f' \
-                      % (epoch, step, suffix, loss, suffix, p_r[0], np.average(values), np.var(values),
-                         np.average(values_gold), np.var(values_gold))
+        if values is not None and values_gold is not None:
+            p_r = pearsonr(values, values_gold)
+            s_r = spearmanr(values, values_gold)
+            mse = np.mean(np.square(values - values_gold))
+            emit_dict.update({
+                'pearson_r': p_r[0],
+                'spearman_r': s_r[0],
+                'mse': mse
+            })
+        #info_string = 'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tavg=%f\tvar=%f\tgold_avg=%f\tgold_var=%f' \
+        #              % (epoch, step, suffix, loss, suffix, p_r[0], np.average(values), np.var(values),
+        #                 np.average(values_gold), np.var(values_gold))
+
+        stats_string = '\t'.join(['%s=%f' % (k, emit_dict.get(k, -1)) for k in METRIC_KEYS_REGRESSION])
+        info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     elif model.model_type == MODEL_TYPE_DISCRETE:
         #filtered = np.argwhere(values_gold[:, 0] == 1).flatten()
         #if len(filtered) < len(values_gold):
@@ -371,14 +375,17 @@ def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tre
 def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None, dataset_trees=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
              highest_sims_model=None, number_of_samples=None, batch_iter='',
-             dataset_iterator=None):
+             dataset_iterator=None, return_values=True):
 
     #dataset_indices = np.arange(len(forest_indices))
     #np.random.shuffle(dataset_indices)
 
     step = test_step
     feed_dict = {}
-    execute_vars = {'loss': model.loss, 'values_gold': model.values_gold, 'values': model.values_predicted, 'update_metrics': model.update_metrics}
+    execute_vars = {'loss': model.loss, 'update_metrics': model.update_metrics}
+    if return_values:
+        execute_vars['values'] = model.values_predicted
+        execute_vars['values_gold'] = model.values_gold
 
     if train:
         execute_vars['train_op'] = model.train_op
@@ -450,16 +457,21 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     if train and len(_result_all) > 0:
         step = result_all['step'][-1]
 
-    sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
-    values_all_ = np.concatenate(result_all['values'])
-    if isinstance(model.values_gold, tf.SparseTensor):
-        values_all_gold_ = vstack((convert_sparse_tensor_to_sparse_matrix(sm) for sm in result_all['values_gold'])).toarray()
-    else:
-        values_all_gold_ = np.concatenate(result_all['values_gold'])
+    if return_values:
+        sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
+        values_all_ = np.concatenate(result_all['values'])
+        if isinstance(model.values_gold, tf.SparseTensor):
+            values_all_gold_ = vstack((convert_sparse_tensor_to_sparse_matrix(sm) for sm in result_all['values_gold'])).toarray()
+        else:
+            values_all_gold_ = np.concatenate(result_all['values_gold'])
 
-    # sum batch losses weighted by individual batch size (can vary at last batch)
-    loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
-    loss_all /= sum(sizes)
+        # sum batch losses weighted by individual batch size (can vary at last batch)
+        loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
+        loss_all /= sum(sizes)
+    else:
+        values_all_ = None
+        values_all_gold_ = None
+        loss_all = np.sum(result_all['loss'])
 
     metrics_dict = collect_metrics(supervisor, sess, epoch, step, loss_all, values_all_, values_all_gold_,
                                    model=model, emit=emit,
@@ -1090,8 +1102,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                         batch_iter=meta[M_TEST][M_BATCH_ITER])
                 if M_TRAIN not in meta:
-                    values_all.dump(os.path.join(logdir, 'sims.np'))
-                    values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
+                    if values_all is None or values_all_gold is None:
+                        logger.warning('Predicted and gold values are None. Passed return_values=False?')
+                    else:
+                        values_all.dump(os.path.join(logdir, 'sims.np'))
+                        values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                     logger.removeHandler(fh_info)
                     logger.removeHandler(fh_debug)
                     lexicon.dump(filename=os.path.join(logdir, 'model'))
@@ -1131,13 +1146,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
                         highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
                         batch_iter=meta[M_TRAIN][M_BATCH_ITER],
-                        dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == MT_REROOT else None
+                        dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == MT_REROOT else None,
+                        return_values=False
                     )
 
                 if M_TEST in meta:
 
                     # test
-                    step_test, loss_test, sim_all, sim_all_gold, stats_test = do_epoch(
+                    step_test, loss_test, _, _, stats_test = do_epoch(
                         supervisor, sess,
                         model=meta[M_TEST][M_MODEL],
                         dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
@@ -1152,7 +1168,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         test_writer=test_writer,
                         test_result_writer=test_result_writer,
                         highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                        batch_iter=meta[M_TEST][M_BATCH_ITER])
+                        batch_iter=meta[M_TEST][M_BATCH_ITER],
+                        return_values=False
+                    )
 
                     if loss_test < loss_test_best:
                         loss_test_best = loss_test
