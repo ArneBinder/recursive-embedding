@@ -379,7 +379,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
 
     #dataset_indices = np.arange(len(forest_indices))
     #np.random.shuffle(dataset_indices)
-
+    logger.debug('previous metrics: %s' % str(sess.run(model.metrics)))
     step = test_step
     feed_dict = {}
     execute_vars = {'loss': model.loss, 'update_metrics': model.update_metrics}
