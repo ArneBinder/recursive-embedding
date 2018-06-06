@@ -1223,7 +1223,8 @@ class DummyTreeModel(TreeModel):
 
 
 class BaseTrainModel(object):
-    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0, metrics={}):
+    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0, metrics={},
+                 metric_reset_op=()):
 
         self._loss = loss
         self._tree_model = tree_model
@@ -1250,6 +1251,7 @@ class BaseTrainModel(object):
 
         #self._metrics = {'auc': tf.metrics.auc(labels=self.gold_eval, predictions=self.predicted_eval)}
         self._metrics = metrics
+        self._reset_metrics = metric_reset_op
 
     def optimizer_vars(self):
         slot_names = self._optimizer.get_slot_names()
@@ -1283,6 +1285,10 @@ class BaseTrainModel(object):
     @property
     def update_metrics(self):
         return {k: self._metrics[k][1] for k in self._metrics.keys()}
+
+    @property
+    def reset_metrics(self):
+        return self._reset_metrics
 
 
 class SimilaritySequenceTreeTupleModel(BaseTrainModel):
@@ -1476,14 +1482,18 @@ class TreeMultiClassModel(BaseTrainModel):
         #m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
         m_ts = [0.5]
         map_ts = lambda x: str(int(x*100))  # format thresholds
-        metrics = {#'roc': tf.metrics.auc(labels=labels_gold_dense, predictions=self.values_predicted),
-                   'precision:' + ','.join(map(map_ts, m_ts)): tf.metrics.precision_at_thresholds(
-                       labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
-                   'recall:' + ','.join(map(map_ts, m_ts)): tf.metrics.recall_at_thresholds(
-                       labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
-                   }
+        with tf.variable_scope("reset_metrics_scope") as scope:
+            metrics = {#'roc': tf.metrics.auc(labels=labels_gold_dense, predictions=self.values_predicted),
+                       'precision:' + ','.join(map(map_ts, m_ts)): tf.metrics.precision_at_thresholds(
+                           labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
+                       'recall:' + ','.join(map(map_ts, m_ts)): tf.metrics.recall_at_thresholds(
+                           labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
+                       }
+            vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+            reset_op = tf.variables_initializer(vars)
         BaseTrainModel.__init__(
-            self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), metrics=metrics, **kwargs)
+            self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), metrics=metrics, metric_reset_op=reset_op,
+            **kwargs)
 
     @property
     def values_gold(self):
