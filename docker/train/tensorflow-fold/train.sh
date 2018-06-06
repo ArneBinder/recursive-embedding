@@ -8,6 +8,8 @@ else
 fi
 echo "use environment variables from: $ENV_FN"
 source "$ENV_FN"
+# copy to .env for docker-compose
+cp "$ENV_FN" .env
 
 ## use second argument as log output file name, if available
 if [ -n "$2" ]; then
@@ -16,7 +18,6 @@ else
     LOG_FN="$HOST_TRAIN/train$NVIDIA_VISIBLE_DEVICES"_"$PROJECT_NAME.log"
 fi
 echo "log to: $LOG_FN"
-echo "project name: $PROJECT_NAME"
 echo "container_name: train_gpu$NVIDIA_VISIBLE_DEVICES"_"$PROJECT_NAME"
 
-docker-compose -p "$PROJECT_NAME" up train-fold > "$LOG_FN"
+#docker-compose -p "$PROJECT_NAME" up train-fold > "$LOG_FN"
