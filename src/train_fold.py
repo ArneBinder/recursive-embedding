@@ -206,12 +206,12 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
 
         for k in emit_dict.keys():
             if k.startswith('precision'):
-                suffix = k[len('precision'):]
-                if 'recall'+suffix in emit_dict.keys():
-                    r = emit_dict['recall'+suffix]
+                suf = k[len('precision'):]
+                if 'recall'+suf in emit_dict.keys():
+                    r = emit_dict['recall'+suf]
                     p = emit_dict[k]
                     f1 = 2 * p * r / (p + r)
-                    emit_dict['f1' + suffix] = f1
+                    emit_dict['f1' + suf] = f1
 
 
 
