@@ -232,7 +232,7 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
         #    'acc_t33': acc_t33,
         #    'acc_t66': acc_t66,
         #})
-        stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k, -1]) for k in METRIC_KEYS_DISCRETE if k in emit_dict])
+        stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k]) for k in METRIC_KEYS_DISCRETE if k in emit_dict])
         info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     else:
         raise ValueError('unknown model type: %s. Use %s or %s.' % (model.model_type, MODEL_TYPE_DISCRETE,
