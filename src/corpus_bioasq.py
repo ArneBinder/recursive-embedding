@@ -393,6 +393,7 @@ def main(mode, *args):
     elif mode == 'MERGE_BATCHES':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
         mesh_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_MESH)
+        logger.info('number of mesh terms to predict: %i' % len(mesh_ids))
         numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=mesh_ids)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)

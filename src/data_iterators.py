@@ -515,7 +515,7 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
 
     # map to context and mesh indices
     indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
-                                                     offsets=(CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET))
+                                                     offsets=(CONTEXT_ROOT_OFFEST, MESH_ROOT_OFFSET))
     # unzip (produces lists)
     root_ids, indices_context_root, indices_mesh_root = zip(*indices_mapped)
 
@@ -524,7 +524,7 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
         mesh_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
         # exclude mesh ids that occurs less then min_count (these were mapped to UNKNOWN in merge_batches)
         current_mesh_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[mesh_indices] if m_id != unknown_id]
-        # convert lits of indices
+        # convert list of indices
         mesh_csr = indices_to_sparse(current_mesh_ids_mapped, len(classes_ids))
         mesh_ids.append(mesh_csr)
 
@@ -533,7 +533,7 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
 
 def indices_dbpedianif_dummy(forest, **unused):
 
-    CONTEXT_ROOT_OFFEST = 2
+    #CONTEXT_ROOT_OFFEST = 2
     #SEEALSO_ROOT_OFFSET = 3
     #indices_mapped = root_id_to_idx_offsets_iterator(indices=np.arange(len(forest.roots), dtype=DTYPE_IDX), mapping=forest.roots,
     #                                                 offsets=np.array([CONTEXT_ROOT_OFFEST]))

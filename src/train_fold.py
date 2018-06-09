@@ -651,6 +651,7 @@ def init_model_type(config):
     #    load_parents = False
     elif config.model_type == MT_MULTICLASS:
         classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
+        logger.info('number of classes to predict: %i' % len(classes_ids))
 
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
