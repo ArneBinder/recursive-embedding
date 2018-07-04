@@ -8,7 +8,7 @@ import logging
 import os
 
 from preprocessing import read_data, without_prefix, PREFIX_LEX
-from constants import vocab_manual, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, LOGGING_FORMAT, IDENTITY_EMBEDDING, \
+from constants import vocab_manual, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, DTYPE_VECS, LOGGING_FORMAT, IDENTITY_EMBEDDING, \
     UNKNOWN_EMBEDDING
 from sequence_trees import Forest
 from mytools import numpy_dump, numpy_load, numpy_exists
@@ -542,15 +542,10 @@ class Lexicon(object):
         assert other.has_vecs, 'other lexicon has no vecs'
         if mode == 'concat':
             dim_other = other.vecs.shape[1]
-            dim_self = self.vecs.shape[1] if self.has_vecs else 0
-            # add one to vec dimension to hold the flag "vec added"
-            vecs_temp = np.zeros(shape=[len(self), dim_self + dim_other + 1], dtype=self.vecs.dtype)
-            if self.has_vecs:
-                vecs_temp[:, :dim_self] = self.vecs
-            else:
-                logger.debug('base lexicon does not contain vecs')
+            # add one dimension to hold the flag "vec added"
+            vecs_new = np.zeros(shape=[len(self), dim_other + 1], dtype=self.vecs.dtype if self.has_vecs else DTYPE_VECS)
 
-            c = 0
+            ids_added = []
             for i, s in enumerate(self.strings):
                 if self_to_lowercase:
                     s = s.lower()
@@ -561,14 +556,19 @@ class Lexicon(object):
                 if s in other.strings:
                     other_hash = hash_string(s)
                     other_idx = other.mapping[other_hash]
-                    #other_idx = other.get_d(s, data_as_hashes=False)
                     other_vec = other.vecs[other_idx]
-                    vecs_temp[i, dim_self:-1] = other_vec
+                    vecs_new[i, :-1] = other_vec
                     # set flag "vec added"
-                    vecs_temp[i, -1] = 1.
-                    c += 1
-            self._vecs = vecs_temp
-            logger.debug('updated %i of %i vecs' % (c, len(self)))
+                    vecs_new[i, -1] = 1.
+                    ids_added.append(i)
+            if self.has_vecs:
+                self._vecs = np.concatenate((self._vecs, vecs_new), axis=1)
+            else:
+                logger.debug('base lexicon does not contain vecs')
+                self._vecs = vecs_new
+                self.freeze()
+            logger.debug('updated %i of %i vecs' % (len(ids_added), len(self)))
+            return ids_added
         else:
             raise ValueError('unknown mode=%s' % mode)
 
@@ -653,6 +653,15 @@ class Lexicon(object):
             self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1]) * vecs_variance + vecs_mean
         if len(indices) > 0:
             logger.info('set %i vecs to random' % len(indices))
+
+    def add_flag(self, *args, **kwargs):
+        assert self.vecs is not None, 'vecs is None, can not set to zero'
+        indices = self.get_indices(*args, **kwargs)
+        new_entries = np.zeros(self._vecs.shape[0], dtype=self._vecs.dtype)
+        new_entries[indices] = 1.0
+        self._vecs = np.concatenate((self._vecs, new_entries.reshape((self._vecs.shape[0], 1))), axis=1)
+        if len(indices) > 0:
+            logger.info('added flag=1.0 to %i vecs and set 0.0 for %i' % (len(indices), self._vecs.shape[0]-len(indices)))
 
     def set_man_vocab_vec(self, man_vocab_id, new_vec=None):
         if new_vec is None:
