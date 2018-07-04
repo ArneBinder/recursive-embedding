@@ -508,7 +508,8 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 #    logger.debug('dataset size: %i' % ds)
 #    return ds
 
-def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False, no_fixed_vecs=False):
+def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False,
+                no_fixed_vecs=False, additional_vecs_path=None):
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
     if logdir_continue:
         assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
@@ -534,6 +535,12 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
     else:
         assert train_data_path is not None, 'no checkpoint found and no train_data_path given'
         lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs))
+
+        if additional_vecs_path is not None and additional_vecs_path.strip() != '':
+            # ATTENTION: add_lex should contain only lower case entries, because self_to_lowercase=True
+            add_lex = Lexicon(filename=additional_vecs_path)
+            lexicon.add_vecs_from_other(add_lex, self_to_lowercase=True)
+
         #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
         if logdir_pretrained:
@@ -909,7 +916,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                             train_data_path=config.train_data_path,
                                                             logdir_pretrained=logdir_pretrained,
                                                             logdir_continue=logdir_continue,
-                                                            no_fixed_vecs=config.no_fixed_vecs)
+                                                            no_fixed_vecs=config.no_fixed_vecs,
+                                                            additional_vecs_path=config.additional_vecs)
     loaded_from_checkpoint = checkpoint_fn is not None
     if loaded_from_checkpoint:
         # create test result writer

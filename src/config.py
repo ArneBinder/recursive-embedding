@@ -22,6 +22,13 @@ default_config = {'train_data_path': ['DEFINE_string',
                                       #   '/media/arne/WIN/Users/Arne/ML/data/corpora/debate_cluster/process_sentence3/HASAN_CMsequence_ICMtree_NEGSAMPLES1',
                                       'TF Record file containing the training dataset of sequence tuples.',
                                       'data'],
+                  'additional_vecs': ['DEFINE_string',
+                                      '',
+                                       # '/mnt/DATA/ML/data/embeddings/biomed/converted/biolex_lowercase',
+                                      'Path to lexicon containing additional vecs, e.g. biomedical embeddings., that are '
+                                      'concatinated with default embeddings.',
+                                      None
+                                     ],
                   'batch_size': ['DEFINE_integer',
                                  100,
                                  'How many samples to read per batch.',
