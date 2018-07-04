@@ -1,7 +1,7 @@
 import csv
 
 import numpy as np
-from spacy.strings import StringStore
+from spacy.strings import StringStore, hash_string
 
 import constants
 import logging
@@ -538,6 +538,40 @@ class Lexicon(object):
         if self._vecs is not None:
             self.freeze()
 
+    def add_vecs_from_other(self, other, mode='concat', self_to_lowercase=True):
+        assert other.has_vecs, 'other lexicon has no vecs'
+        if mode == 'concat':
+            dim_other = other.vecs.shape[1]
+            dim_self = self.vecs.shape[1] if self.has_vecs else 0
+            # add one to vec dimension to hold the flag "vec added"
+            vecs_temp = np.zeros(shape=[len(self), dim_self + dim_other + 1], dtype=self.vecs.dtype)
+            if self.has_vecs:
+                vecs_temp[:, :dim_self] = self.vecs
+            else:
+                logger.debug('base lexicon does not contain vecs')
+
+            c = 0
+            for i, s in enumerate(self.strings):
+                if self_to_lowercase:
+                    s = s.lower()
+                # hack for SPACY BUG
+                if s == u'root':
+                    continue
+
+                if s in other.strings:
+                    other_hash = hash_string(s)
+                    other_idx = other.mapping[other_hash]
+                    #other_idx = other.get_d(s, data_as_hashes=False)
+                    other_vec = other.vecs[other_idx]
+                    vecs_temp[i, dim_self:-1] = other_vec
+                    # set flag "vec added"
+                    vecs_temp[i, -1] = 1.
+                    c += 1
+            self._vecs = vecs_temp
+            logger.debug('updated %i of %i vecs' % (c, len(self)))
+        else:
+            raise ValueError('unknown mode=%s' % mode)
+
     def sort_and_cut_and_fill_dict(self, data, keep_values, count_threshold=10):
         assert self.frozen is False, 'can not sort and cut frozen lexicon'
         new_values, removed, converter, new_counts = sort_and_cut_dict(seq_data=data, count_threshold=count_threshold,
@@ -806,7 +840,8 @@ class Lexicon(object):
     def get_d(self, s, data_as_hashes):
 
         if s in self.strings:
-            d = self.strings[s]
+            #d = self.strings[s]
+            d = hash_string(s)
         else:
             d = self.strings[vocab_manual[UNKNOWN_EMBEDDING]]
 
@@ -835,6 +870,9 @@ class Lexicon(object):
 
     def __len__(self):
         return len(self.strings)
+
+    def __contains__(self, item):
+        return item in self.strings
 
     @property
     def vec_size(self):
