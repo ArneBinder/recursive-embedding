@@ -684,7 +684,7 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
                 fn = os.path.join(out_path, '%s-%i' % (PREFIX_FN, batch_start))
                 if not Lexicon.exist(fn, types_only=True):
                     # q_query.put((batch_start, current_contexts))
-                    lexicon = Lexicon(string_list=current_contexts)
+                    lexicon = Lexicon(types=current_contexts)
                     lexicon.dump(filename=fn, strings_only=True)
 
                     current_batch_count += 1
@@ -699,7 +699,7 @@ def process_prepare(out_path='/root/corpora_out/DBPEDIANIF-test', batch_size=100
     fn = os.path.join(out_path, '%s-%i' % (PREFIX_FN, batch_start))
     if len(current_contexts) > 0 and not (Forest.exist(fn) and Lexicon.exist(fn, types_only=True)):
         #q_query.put((batch_start, current_contexts))
-        lexicon = Lexicon(string_list=current_contexts)
+        lexicon = Lexicon(types=current_contexts)
         lexicon.dump(filename=fn, strings_only=True)
 
     print('%s finished' % str(datetime.now() - t_start))

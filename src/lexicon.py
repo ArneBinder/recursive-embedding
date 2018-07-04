@@ -390,8 +390,8 @@ class Lexicon(object):
                 # set dummy vecs
                 self.init_vecs()
         elif types is not None:
-            types_dep = types
-            self._strings = StringStore(types_dep)
+            #types_dep = types
+            self._strings = StringStore(types)
             if vecs is not None:
                 self._vecs = vecs
                 self.init_ids_fixed()
@@ -399,12 +399,12 @@ class Lexicon(object):
                 # set dummy vecs
                 self.init_vecs()
         elif nlp_vocab is not None:
-            self._vecs, types_dep = get_dict_from_vocab(nlp_vocab)
+            self._vecs, types = get_dict_from_vocab(nlp_vocab)
             self.init_ids_fixed()
-            self._strings = StringStore(types_dep)
-        elif string_list is not None:
-            self._strings = StringStore(string_list)
-            self.init_vecs()
+            self._strings = StringStore(types)
+        #elif string_list is not None:
+        #    self._strings = StringStore(string_list)
+        #    self.init_vecs()
 
         # create empty lexicon
         if self._strings is None:
