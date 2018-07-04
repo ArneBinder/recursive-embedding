@@ -536,6 +536,12 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         assert train_data_path is not None, 'no checkpoint found and no train_data_path given'
         lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs))
 
+        # TODO: check this!
+        if not no_fixed_vecs:
+            lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
+            lexicon.add_flag(indices=lexicon.ids_fixed)
+
+        # TODO: check this!
         if additional_vecs_path is not None and additional_vecs_path.strip() != '':
             logger.info('add embedding vecs from: %s' % additional_vecs_path)
             # ATTENTION: add_lex should contain only lower case entries, because self_to_lowercase=True
