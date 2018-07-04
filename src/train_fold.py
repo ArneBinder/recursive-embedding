@@ -537,9 +537,13 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs))
 
         if additional_vecs_path is not None and additional_vecs_path.strip() != '':
+            logger.info('add embedding vecs from: %s' % additional_vecs_path)
             # ATTENTION: add_lex should contain only lower case entries, because self_to_lowercase=True
             add_lex = Lexicon(filename=additional_vecs_path)
-            lexicon.add_vecs_from_other(add_lex, self_to_lowercase=True)
+            ids_added = set(lexicon.add_vecs_from_other(add_lex, self_to_lowercase=True))
+            ids_added_not = [i for i in range(len(lexicon)) if i not in ids_added]
+            # remove ids_added_not from lexicon.ids_fixed
+            lexicon._ids_fixed = np.array([_id for _id in lexicon._ids_fixed if _id not in ids_added_not], dtype=lexicon.ids_fixed.dtype)
 
         #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
