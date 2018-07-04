@@ -361,7 +361,7 @@ FE_STRINGS = 'string'
 
 
 class Lexicon(object):
-    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, string_list=None,
+    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, #string_list=None,
                  load_vecs=True, load_ids_fixed=True):
         """
         Create a Lexicon from file, from types (and optionally from vecs), from spacy vocabulary or from spacy
