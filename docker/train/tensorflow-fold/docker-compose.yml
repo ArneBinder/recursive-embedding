@@ -45,6 +45,7 @@ services:
         --batch_iter=${BATCH_ITER}
         --batch_iter_test=${BATCH_ITER_TEST}
         --cut_indices=${CUT_INDICES}
+        --additional_vecs=${ADDITIONAL_VECS}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
