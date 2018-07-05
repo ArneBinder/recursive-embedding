@@ -734,7 +734,7 @@ def check_train_test_overlap(forest_indices_train, forest_indices_train_target, 
     return forest_indices_test_target
 
 
-def prepare_embeddings_tree(tree_iterators, compiler):
+def compile_trees(tree_iterators, compiler):
     prepared_embeddings = {}
     for m in tree_iterators:
         logger.info('create %s data set (tree-embeddings) ...' % m)
@@ -829,7 +829,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
                                                   **kwargs
                                                   )
         #if config.model_type != MT_REROOT:
-        prepared_embeddings = prepare_embeddings_tree(tree_iterators=tree_iterators, compiler=model_tree.compiler)
+        prepared_embeddings = compile_trees(tree_iterators=tree_iterators, compiler=model_tree.compiler)
         #else:
         #    prepared_embeddings = None
     else:
