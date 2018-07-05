@@ -1,12 +1,23 @@
 OPEN:
- coding:
- * improve GRU model
- * show token coverage when creating corpora (merging), evtl. introduce a parameter `coverage` that can replace `min_count`
+    coding:
+     * improve GRU model:
+        1) check for overfitting on small dataset (local)
+     * check multi-run setting (early stopping, ...)
+    writing:
+     * create structure / table of contents
+    orga:
+     * check "Halbkurse": what can be moved to "non-practical" (technical or theoretical)?
+     * enrol for diploma thesis
+
 
 DONE:
  * attention_SINGLE + identity - DONE
  * check number of structured abstracts in BioASQ dataset - DONE: ~3/10 ≈ 4.05 Mio abstracts
  * peek into prediction results on wikipedia - (DONE: looks confusing)
+ * show token coverage when creating corpora (merging),
+   evtl. introduce a parameter `coverage` that can replace `min_count`
+ * enable usage of additional embeddings, i.e. biomedical embeddings
+
 
 NOTES:
- * possible Zweitbetreuer: Manfred Stede,
+ * possible Zweitbetreuer: Manfred Stede (NO), Roland
