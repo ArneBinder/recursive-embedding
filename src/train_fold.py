@@ -741,7 +741,7 @@ def compile_trees(tree_iterators, compiler):
         with compiler.multiprocessing_pool():
             prepared_embeddings[m] = list(
                 compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]()), ordered=True))
-            logger.info('%s dataset: use %i different trees' % (m, len(prepared_embeddings[m])))
+            logger.info('%s dataset: compiled %i different trees' % (m, len(prepared_embeddings[m])))
 
     return prepared_embeddings
 
@@ -1154,7 +1154,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
 
                 # train
-                if not config.early_stop_queue or len(stat_queue) > 0:
+                if not config.early_stopping_window or len(stat_queue) > 0:
                     step_train, loss_train, _, _, stats_train = do_epoch(
                         supervisor, sess,
                         model=meta[M_TRAIN][M_MODEL],
@@ -1201,7 +1201,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                     prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
                     # stop, if current test pearson r is not bigger than previous values. The amount of regarded
-                    # previous values is set by config.early_stop_queue
+                    # previous values is set by config.early_stopping_window
                     if stat > prev_max:
                         stat_queue = []
                     else:
@@ -1218,7 +1218,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     logger.info(
                         '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
                         % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
-                    if 0 < config.early_stop_queue < len(stat_queue):
+                    if 0 < config.early_stopping_window < len(stat_queue):
                         logger.info('last test %s: %s, last rank: %i' % (stat_key, str(stat_queue), rank))
                         logger.removeHandler(fh_info)
                         logger.removeHandler(fh_debug)
@@ -1226,14 +1226,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
                     # do not save, if score was not the best
                     # if rank > len(stat_queue) * 0.05:
-                    if len(stat_queue) > 1 and config.early_stop_queue:
+                    if len(stat_queue) > 1 and config.early_stopping_window:
                         # auto restore if enabled
                         #if config.auto_restore:
                         #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
                         pass
                     else:
-                        # don't save after first epoch if config.early_stop_queue > 0
-                        if prev_max > TEST_MIN_INIT or not config.early_stop_queue:
+                        # don't save after first epoch if config.early_stopping_window > 0
+                        if prev_max > TEST_MIN_INIT or not config.early_stopping_window:
                             supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
                 else:
                     # save model after each step if not dev model is set (training a language model)
@@ -1258,17 +1258,17 @@ def set_stat_values(d, stats, prefix=''):
 if __name__ == '__main__':
     mytools.logging_init()
     logger.debug('test')
-    # tf.app.run()
+
+    # Handle multiple logdir_continue's
     # ATTENTION: discards any FLAGS (e.g. provided as argument) contained in default_config!
     if FLAGS.logdir_continue is not None and ',' in FLAGS.logdir_continue:
         logdirs = FLAGS.logdir_continue.split(',')
         logger.info('execute %i runs ...' % len(logdirs))
         stats_prefix = 'score_'
         with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
-            #fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + ['score_pearson', 'score_mse']
-            # TODO: adapt for model_type==MODEL_TYPE_DISCRETE
-            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() + [stats_prefix + k for k in METRIC_KEYS_REGRESSION]
-            score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
+            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() \
+                         + [stats_prefix + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION]
+            score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', extrasaction='ignore')
             score_writer.writeheader()
             for i, logdir in enumerate(logdirs, 1):
                 logger.info('START RUN %i of %i' % (i, len(logdirs)))
@@ -1282,6 +1282,8 @@ if __name__ == '__main__':
                 csvfile.flush()
     else:
         config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
+
+        # get default config (or load from logdir_continue/logdir_pretrained)
         config.init_flags()
         # pylint: disable=protected-access
         FLAGS._parse_flags()
@@ -1309,18 +1311,14 @@ if __name__ == '__main__':
                 run_descriptions_done = []
             logger.info('write scores to: %s' % scores_fn)
 
-            # mytools.make_parent_dir(scores_fn) #logdir has to contain grid_config_file
-            #fieldnames_expected = grid_parameters.keys() + ['pearson_dev_best', 'pearson_test', 'mse_dev_best',
-            #                                                'mse_test', 'run_description']
             stats_prefix_dev = 'dev_best_'
             stats_prefix_test = 'test_'
-            # TODO: adapt for model_type==MODEL_TYPE_DISCRETE
-            fieldnames_expected = grid_parameters.keys() + [stats_prefix_dev + k for k in METRIC_KEYS_REGRESSION] \
-                                  + [stats_prefix_test + k for k in METRIC_KEYS_REGRESSION] + ['run_description']
+            fieldnames_expected = grid_parameters.keys() + [stats_prefix_dev + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] \
+                                  + [stats_prefix_test + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] + ['run_description']
             assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
             fieldnames = fieldnames_loaded or fieldnames_expected
             with open(scores_fn, file_mode) as csvfile:
-                score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t')
+                score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', extrasaction='ignore')
                 if file_mode == 'w':
                     score_writer.writeheader()
                     csvfile.flush()
@@ -1335,8 +1333,9 @@ if __name__ == '__main__':
                         c.run_description = os.path.join(run_desc_backup, str(i))
                         logdir = os.path.join(FLAGS.logdir, c.run_description)
 
+                        # check, if the test file exists, before executing the run
                         train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
-                        if FLAGS.test_file is not None:
+                        if FLAGS.test_file is not None and FLAGS.test_file.trim() != '':
                             test_fname = os.path.join(train_data_dir, FLAGS.test_file)
                             assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
                         else:
@@ -1348,15 +1347,12 @@ if __name__ == '__main__':
                             c.run_description = run_desc_backup
                             continue
 
-                        #d['pearson_dev_best'], d['mse_dev_best'] = execute_run(c)
                         stats_dev = execute_run(c)
                         stat_keys = set_stat_values(d, stats_dev, prefix=stats_prefix_dev)
 
                         logger.info('best dev score (%s): %f' % (stat_keys[0], stats_dev[stat_keys[0]]))
                         if test_fname is not None:
-                            #d['pearson_test'], d['mse_test'] = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
                             stats_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
-                            #logger.info('test score (%s): %f' % (stat_key, stats_dev[stat_key]))
                             set_stat_values(d, stats_dev, prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (stat_keys[0], stats_dev[stat_keys[0]]))
                         else:

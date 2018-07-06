@@ -116,7 +116,7 @@ default_config = {'train_data_path': ['DEFINE_string',
                                 'AdadeltaOptimizer',
                                 'optimizer',
                                 'opt'],
-                  'early_stop_queue': ['DEFINE_integer',
+                  'early_stopping_window': ['DEFINE_integer',
                                        50,
                                        'If not 0, stop training when current test loss is smaller then last queued '
                                        'previous losses',
