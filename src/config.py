@@ -215,6 +215,11 @@ class Config(object):
     def as_dict(self):
         return {k: self.__getattr__(k) for k in self}
 
+    def __str__(self):
+        return json.dumps(self.as_dict(), sort_keys=True)
+
+    __repr__ = __str__
+
     def __setattr__(self, key, value):
         """Sets the 'value' attribute of the entry name."""
 

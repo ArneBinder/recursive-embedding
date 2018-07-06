@@ -2,6 +2,7 @@
 from __future__ import division
 from __future__ import print_function
 
+import copy
 import csv
 import fnmatch
 import json
@@ -692,10 +693,10 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
 
     fnames_train = None
     fnames_test = None
-    if FLAGS.train_files is not None and FLAGS.train_files != '':
+    if FLAGS.train_files is not None and FLAGS.train_files.strip() != '':
         logger.info('use train data index files: %s' % FLAGS.train_files)
         fnames_train = [os.path.join(parent_dir, fn) for fn in FLAGS.train_files.split(',')]
-    if test_files is not None and test_files != '':
+    if test_files is not None and test_files.strip() != '':
         fnames_test = [os.path.join(parent_dir, fn) for fn in FLAGS.test_files.split(',')]
     if not test_only:
         #if M_FNAMES not in meta[M_TRAIN]:
@@ -796,7 +797,7 @@ def prepare_embeddings_tfidf(tree_iterators, logdir):
     return prepared_embeddings, embedding_dim
 
 
-def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False):
+def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False, cache=None):
 
     #prepared_embeddings = {}
     optimizer = config.optimizer
@@ -829,11 +830,14 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
                                                   **kwargs
                                                   )
         #if config.model_type != MT_REROOT:
-        prepared_embeddings = compile_trees(tree_iterators=tree_iterators, compiler=model_tree.compiler)
+        prepared_embeddings = exec_cached(cache, compile_trees, discard_kwargs='all', add_kwargs={'type': 'tree'},
+                                          tree_iterators=tree_iterators, compiler=model_tree.compiler)
         #else:
         #    prepared_embeddings = None
     else:
-        prepared_embeddings, embedding_dim = prepare_embeddings_tfidf(tree_iterators=tree_iterators, logdir=logdir)
+        prepared_embeddings, embedding_dim = exec_cached(cache, prepare_embeddings_tfidf, discard_kwargs='all',
+                                                         add_kwargs={'type': 'tfidf'},
+                                                         tree_iterators=tree_iterators, logdir=logdir)
 
         model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tree_count,
                                                keep_prob=config.keep_prob, sparse=True,
@@ -902,7 +906,47 @@ def create_models_nearest(prepared_embeddings, model_tree):
     return models_nearest
 
 
+# unused
+def blank_kwargs(kwargs, discard_kwargs):
+    discard_kwargs_split = {dk.split('.')[0]: dk.split('.')[1:] for dk in discard_kwargs}
+    new_kwargs = {}
+    for k, v in kwargs.items():
+        if k in discard_kwargs_split:
+            dk_remaining = discard_kwargs_split[k]
+            if len(dk_remaining) > 0:
+                assert isinstance(v, dict) or isinstance(v, Config), \
+                    'value has to be dict like if subentry is selected via dotted notation (e.g. "config.logdir")'
+                # ATTENTION: deepcopy should work on v
+                new_kwargs[k] = copy.deepcopy(v)
+                p = new_kwargs[k]
+                for k_deep in dk_remaining[:-1]:
+                    p = p[k_deep]
+                del p[dk_remaining[-1]]
+
+        else:
+            new_kwargs[k] = v
+    return new_kwargs
+
+
+def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs):
+    key_kwargs = {}
+    if discard_kwargs != 'all':
+        key_kwargs.update(kwargs)
+    if add_kwargs is not None:
+        key_kwargs.update(add_kwargs)
+    key = json.dumps({'func': func.__name__, 'args': args, 'kwargs': {k: v for k, v in key_kwargs.items() if k not in discard_kwargs}}, sort_keys=True)
+    if cache is None:
+        cache = {}
+    if key not in cache:
+        cache[key] = func(*args, **kwargs)
+    else:
+        logger.debug('use cached value(s) for: %s' % key)
+    return cache[key]
+
+
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None, cache=None):
+    if cache is None:
+        cache = {}
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -922,7 +966,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     ## get lexicon
-    lexicon, checkpoint_fn, old_checkpoint_fn = get_lexicon(logdir=logdir,
+    lexicon, checkpoint_fn, old_checkpoint_fn = exec_cached(cache, get_lexicon, discard_kwargs=('logdir'),
+                                                            logdir=logdir,
                                                             train_data_path=config.train_data_path,
                                                             logdir_pretrained=logdir_pretrained,
                                                             logdir_continue=logdir_continue,
@@ -1020,7 +1065,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             model_tree, model, prepared_embeddings, tree_indices = create_models(
                 config=config, lexicon=lexicon,  tree_count=tree_count, logdir=logdir,
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
-                tree_indices={m: meta[m][M_INDICES] for m in meta})
+                tree_indices={m: meta[m][M_INDICES] for m in meta},
+                cache=cache,
+            )
 
             models_nearest = create_models_nearest(model_tree=model_tree,
                                                    prepared_embeddings={m: prepared_embeddings[m] for m in meta.keys()
@@ -1134,7 +1181,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
 
             # clear vecs in lexicon to clean up memory
-            lexicon.init_vecs()
+            if cache is None or cache == {}:
+                lexicon.init_vecs()
 
             logger.info('training the model')
             loss_test_best = 9999
@@ -1222,7 +1270,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
                         logger.removeHandler(fh_info)
                         logger.removeHandler(fh_debug)
-                        return stat_queue_sorted[0]
+                        return stat_queue_sorted[0], cache
 
                     # do not save, if score was not the best
                     # if rank > len(stat_queue) * 0.05:
@@ -1277,7 +1325,7 @@ if __name__ == '__main__':
                 logger.info('START RUN %i of %i' % (i, len(logdirs)))
                 config = Config(logdir_continue=logdir)
                 config_dict = config.as_dict()
-                stats = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
+                stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
                                     test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
 
                 add_metrics(config_dict, stats, prefix=stats_prefix)
@@ -1292,7 +1340,7 @@ if __name__ == '__main__':
         FLAGS._parse_flags()
         # pylint: enable=protected-access
         config.update_with_flags(FLAGS)
-        if FLAGS.grid_config_file is not None:
+        if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
 
             parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
             logger.info('load grid parameters from: %s' % parameters_fn)
@@ -1326,8 +1374,13 @@ if __name__ == '__main__':
                     score_writer.writeheader()
                     csvfile.flush()
 
-                for i in range(FLAGS.run_count):
-                    for c, d in config.explode(grid_parameters):
+                settings = list(config.explode(grid_parameters))
+                logger.info('execute %i different settings, repeat each %i times' % (len(settings), FLAGS.run_count))
+                for c, d in settings:
+                    assert c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'
+                    cache_dev = None
+                    cache_test = None
+                    for i in range(FLAGS.run_count):
                         c.set_run_description()
                         run_desc_backup = c.run_description
 
@@ -1338,7 +1391,7 @@ if __name__ == '__main__':
 
                         # check, if the test file exists, before executing the run
                         train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
-                        if FLAGS.test_file is not None and FLAGS.test_file.trim() != '':
+                        if FLAGS.test_file is not None and FLAGS.test_file.strip() != '':
                             test_fname = os.path.join(train_data_dir, FLAGS.test_file)
                             assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
                         else:
@@ -1351,13 +1404,13 @@ if __name__ == '__main__':
                             continue
 
                         # train
-                        metrics_dev = execute_run(c)
+                        metrics_dev, cache_dev = execute_run(c, cache=cache_dev)
                         main_metric = add_metrics(d, metrics_dev, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
                         # test
                         if test_fname is not None:
-                            metrics_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                            metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file, cache=cache_test)
                             main_metric = add_metrics(d, metrics_test, prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
                         d['run_description'] = c.run_description

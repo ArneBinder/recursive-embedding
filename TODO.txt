@@ -2,7 +2,7 @@ OPEN:
     coding:
      * improve GRU model:
         1) check for overfitting on small dataset (local)
-     * check multi-run setting (early stopping, ...)
+           DONE: it does, after some epochs (FLATGRU:~290;FLATconcat_GRU:~160;FLATconcat_BIGRU:~170; HTU:~60)
     writing:
      * create structure / table of contents
     orga:
@@ -17,6 +17,7 @@ DONE:
  * show token coverage when creating corpora (merging),
    evtl. introduce a parameter `coverage` that can replace `min_count`
  * enable usage of additional embeddings, i.e. biomedical embeddings
+ * check multi-run setting (early stopping, ...) DONE (implemented caching for lexicon and trees)
 
 
 NOTES:
