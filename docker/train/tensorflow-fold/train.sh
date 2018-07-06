@@ -10,6 +10,8 @@ echo "use environment variables from: $ENV_FN"
 source "$ENV_FN"
 # copy to .env for docker-compose
 cp "$ENV_FN" .env
+# copy used .env file into logdir
+cp "$ENV_FN" "$HOST_TRAIN/$TRAIN_LOGDIR/"
 
 ## use second argument as log output file name, if available
 if [ -n "$2" ]; then
