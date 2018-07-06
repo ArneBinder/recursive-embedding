@@ -538,12 +538,12 @@ class Lexicon(object):
         if self._vecs is not None:
             self.freeze()
 
-    def add_vecs_from_other(self, other, mode='concat', self_to_lowercase=True):
+    def add_vecs_from_other(self, other, mode='concat', self_to_lowercase=True, flag_added=True):
         assert other.has_vecs, 'other lexicon has no vecs'
         if mode == 'concat':
             dim_other = other.vecs.shape[1]
             # add one dimension to hold the flag "vec added"
-            vecs_new = np.zeros(shape=[len(self), dim_other + 1], dtype=self.vecs.dtype if self.has_vecs else DTYPE_VECS)
+            vecs_new = np.zeros(shape=[len(self), dim_other], dtype=self.vecs.dtype if self.has_vecs else DTYPE_VECS)
 
             ids_added = []
             for i, s in enumerate(self.strings):
@@ -557,9 +557,7 @@ class Lexicon(object):
                     other_hash = hash_string(s)
                     other_idx = other.mapping[other_hash]
                     other_vec = other.vecs[other_idx]
-                    vecs_new[i, :-1] = other_vec
-                    # set flag "vec added"
-                    vecs_new[i, -1] = 1.
+                    vecs_new[i] = other_vec
                     ids_added.append(i)
             if self.has_vecs:
                 self._vecs = np.concatenate((self._vecs, vecs_new), axis=1)
@@ -567,6 +565,9 @@ class Lexicon(object):
                 logger.debug('base lexicon does not contain vecs')
                 self._vecs = vecs_new
                 self.freeze()
+            if flag_added:
+                logger.debug('flag vecs that contain new data')
+                self.add_flag(indices=ids_added)
             logger.debug('updated %i of %i vecs' % (len(ids_added), len(self)))
             return ids_added
         else:
