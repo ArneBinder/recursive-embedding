@@ -902,7 +902,7 @@ def create_models_nearest(prepared_embeddings, model_tree):
     return models_nearest
 
 
-def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None):
+def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None, cache=None):
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -1219,7 +1219,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                         '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
                         % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
                     if 0 < config.early_stopping_window < len(stat_queue):
-                        logger.info('last test %s: %s, last rank: %i' % (stat_key, str(stat_queue), rank))
+                        logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
                         logger.removeHandler(fh_info)
                         logger.removeHandler(fh_debug)
                         return stat_queue_sorted[0]
@@ -1243,16 +1243,19 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.removeHandler(fh_debug)
 
 
-def set_stat_values(d, stats, prefix=''):
+def add_metrics(d, stats, prefix=''):
     if METRIC_REGRESSION in stats:
-        _stat_keys = METRIC_KEYS_REGRESSION
+        metric_keys = METRIC_KEYS_REGRESSION
+        metric_main = METRIC_REGRESSION
     elif METRIC_DISCRETE in stats:
-        _stat_keys = METRIC_KEYS_DISCRETE
+        metric_keys = METRIC_KEYS_DISCRETE
+        metric_main = METRIC_DISCRETE
     else:
         raise ValueError('stats has to contain either %s or %s' % (METRIC_REGRESSION, METRIC_DISCRETE))
-    for k in _stat_keys:
-        d[prefix + k] = stats[k]
-    return _stat_keys
+    for k in metric_keys:
+        if k in stats:
+            d[prefix + k] = stats[k]
+    return metric_main
 
 
 if __name__ == '__main__':
@@ -1277,7 +1280,7 @@ if __name__ == '__main__':
                 stats = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
                                     test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
 
-                set_stat_values(config_dict, stats, prefix=stats_prefix)
+                add_metrics(config_dict, stats, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
                 csvfile.flush()
     else:
@@ -1347,17 +1350,16 @@ if __name__ == '__main__':
                             c.run_description = run_desc_backup
                             continue
 
-                        stats_dev = execute_run(c)
-                        stat_keys = set_stat_values(d, stats_dev, prefix=stats_prefix_dev)
+                        # train
+                        metrics_dev = execute_run(c)
+                        main_metric = add_metrics(d, metrics_dev, prefix=stats_prefix_dev)
+                        logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
-                        logger.info('best dev score (%s): %f' % (stat_keys[0], stats_dev[stat_keys[0]]))
+                        # test
                         if test_fname is not None:
-                            stats_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
-                            set_stat_values(d, stats_dev, prefix=stats_prefix_test)
-                            logger.info('test score (%s): %f' % (stat_keys[0], stats_dev[stat_keys[0]]))
-                        else:
-                            for k in stat_keys:
-                                d[k] = -1.0
+                            metrics_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file)
+                            main_metric = add_metrics(d, metrics_test, prefix=stats_prefix_test)
+                            logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
                         d['run_description'] = c.run_description
 
                         c.run_description = run_desc_backup
