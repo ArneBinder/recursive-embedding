@@ -2,7 +2,7 @@ OPEN:
     coding:
      * improve GRU model:
         1) check for overfitting on small dataset (local)
-           DONE: it does, after some epochs (FLATGRU:~290;FLATconcat_GRU:~160;FLATconcat_BIGRU:~170; HTU:~60)
+           DONE: it does, after some epochs (FLATGRU:~290;FLATconcat_GRU:~160;FLATconcat_BIGRU:~170, but: HTU:~60)
     writing:
      * create structure / table of contents
     orga:
