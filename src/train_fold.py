@@ -929,14 +929,15 @@ def blank_kwargs(kwargs, discard_kwargs):
 
 
 def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs):
+    if cache is None:
+        logger.debug('do not use cache because it is None')
+        return func(*args, **kwargs)
     key_kwargs = {}
     if discard_kwargs != 'all':
         key_kwargs.update(kwargs)
     if add_kwargs is not None:
         key_kwargs.update(add_kwargs)
     key = json.dumps({'func': func.__name__, 'args': args, 'kwargs': {k: v for k, v in key_kwargs.items() if k not in discard_kwargs}}, sort_keys=True)
-    if cache is None:
-        cache = {}
     if key not in cache:
         cache[key] = func(*args, **kwargs)
     else:
@@ -945,8 +946,6 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None, cache=None):
-    if cache is None:
-        cache = {}
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -1333,7 +1332,7 @@ if __name__ == '__main__':
                 csvfile.flush()
     else:
         config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
-
+        USE_CACHE = False
         # get default config (or load from logdir_continue/logdir_pretrained)
         config.init_flags()
         # pylint: disable=protected-access
@@ -1378,8 +1377,8 @@ if __name__ == '__main__':
                 logger.info('execute %i different settings, repeat each %i times' % (len(settings), FLAGS.run_count))
                 for c, d in settings:
                     assert c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'
-                    cache_dev = None
-                    cache_test = None
+                    cache_dev = {}
+                    cache_test = {}
                     for i in range(FLAGS.run_count):
                         c.set_run_description()
                         run_desc_backup = c.run_description
@@ -1404,13 +1403,13 @@ if __name__ == '__main__':
                             continue
 
                         # train
-                        metrics_dev, cache_dev = execute_run(c, cache=cache_dev)
+                        metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None)
                         main_metric = add_metrics(d, metrics_dev, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
                         # test
                         if test_fname is not None:
-                            metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file, cache=cache_test)
+                            metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file, cache=cache_test if USE_CACHE else None)
                             main_metric = add_metrics(d, metrics_test, prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
                         d['run_description'] = c.run_description
