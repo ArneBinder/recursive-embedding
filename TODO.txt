@@ -3,6 +3,7 @@ OPEN:
      * improve GRU model:
         1) check for overfitting on small dataset (local)
            DONE: it does, after some epochs (FLATGRU:~290;FLATconcat_GRU:~160;FLATconcat_BIGRU:~170, but: HTU:~60)
+        2) GRID search
     writing:
      * create structure / table of contents
     orga:
@@ -18,6 +19,7 @@ DONE:
    evtl. introduce a parameter `coverage` that can replace `min_count`
  * enable usage of additional embeddings, i.e. biomedical embeddings
  * check multi-run setting (early stopping, ...) DONE (implemented caching for lexicon and trees)
+ * implemented caching to fasten repeated execution of the same setting
 
 
 NOTES:
