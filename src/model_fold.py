@@ -1480,7 +1480,8 @@ class TreeMultiClassModel(BaseTrainModel):
 
         self._probs = tf.sigmoid(logits)
         #m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
-        m_ts = [0.5]
+        #m_ts = [0.5]
+        m_ts = [0.33, 0.5, 0.66]
         map_ts = lambda x: str(int(x*100))  # format thresholds
         with tf.variable_scope("reset_metrics_scope") as scope:
             metrics = {#'roc': tf.metrics.auc(labels=labels_gold_dense, predictions=self.values_predicted),

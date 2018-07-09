@@ -209,6 +209,7 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
             else:
                 emit_dict[k] = ms[k]
 
+        # for all precision values, add F1 scores (assuming that recall values exist)
         for k in emit_dict.keys():
             if k.startswith('precision'):
                 suf = k[len('precision'):]
