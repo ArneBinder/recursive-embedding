@@ -1333,7 +1333,7 @@ if __name__ == '__main__':
                 csvfile.flush()
     else:
         config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
-        USE_CACHE = True
+        USE_CACHE = False
         # get default config (or load from logdir_continue/logdir_pretrained)
         config.init_flags()
         # pylint: disable=protected-access
