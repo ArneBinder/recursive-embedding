@@ -13,12 +13,21 @@ cp "$ENV_FN" .env
 # copy used .env file into logdir
 cp "$ENV_FN" "$HOST_TRAIN/$TRAIN_LOGDIR/"
 
-## use second argument as log output file name, if available
+## use second argument as gpu nbr (and adjust used cpus), if available
 if [ -n "$2" ]; then
-    LOG_FN="$2"
-else
-    LOG_FN="$HOST_TRAIN/train$NVIDIA_VISIBLE_DEVICES"_"$PROJECT_NAME.log"
-fi
+    NVIDIA_VISIBLE_DEVICES="$2"
+    echo "NVIDIA_VISIBLE_DEVICES: $NVIDIA_VISIBLE_DEVICES"
+    cpu_count=4
+    CPU_SET=$(($1 * $cpu_count))-$(($1 * $cpu_count + $cpu_count - 1))
+    echo "CPU_SET: $CPU_SET"
+
+## use second argument as log output file name, if available
+#if [ -n "$2" ]; then
+#    LOG_FN="$2"
+#else
+LOG_FN="$HOST_TRAIN/$PROJECT_NAME.log"
+#fi
+
 echo "log to: $LOG_FN"
 echo "container_name: train_gpu$NVIDIA_VISIBLE_DEVICES"_"$PROJECT_NAME"
 
