@@ -20,6 +20,7 @@ if [ -n "$2" ]; then
     cpu_count=4
     CPU_SET=$(($1 * $cpu_count))-$(($1 * $cpu_count + $cpu_count - 1))
     echo "CPU_SET: $CPU_SET"
+fi
 
 ## use second argument as log output file name, if available
 #if [ -n "$2" ]; then
