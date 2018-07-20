@@ -15,10 +15,10 @@ cp "$ENV_FN" "$HOST_TRAIN/$TRAIN_LOGDIR/"
 
 ## use second argument as gpu nbr (and adjust used cpus), if available
 if [ -n "$2" ]; then
-    NVIDIA_VISIBLE_DEVICES="$2"
+    export NVIDIA_VISIBLE_DEVICES="$2"
     echo "NVIDIA_VISIBLE_DEVICES: $NVIDIA_VISIBLE_DEVICES"
     cpu_count=4
-    CPU_SET=$(($2 * $cpu_count))-$(($2 * $cpu_count + $cpu_count - 1))
+    export CPU_SET=$(($2 * $cpu_count))-$(($2 * $cpu_count + $cpu_count - 1))
     echo "CPU_SET: $CPU_SET"
 fi
 
