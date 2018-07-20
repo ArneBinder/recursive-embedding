@@ -1343,9 +1343,22 @@ if __name__ == '__main__':
         if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
 
             parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
-            logger.info('load grid parameters from: %s' % parameters_fn)
-            with open(parameters_fn, 'r') as infile:
-                grid_parameters = json.load(infile)
+            f_ext = os.path.splitext(parameters_fn)[1]
+            if f_ext == '.json':
+                logger.info('load grid parameters from json: %s' % parameters_fn)
+                with open(parameters_fn, 'r') as infile:
+                    grid_parameters = json.load(infile)
+                parameters_keys, settings = config.explode(grid_parameters)
+            elif f_ext in ['.jl', '.jsonl']:
+                logger.info('load parameter settings from json lines: %s' % parameters_fn)
+                with open(parameters_fn, 'r') as infile:
+                    list_parameters = [json.loads(line) for line in infile.readlines() if line.strip() != "" and line.strip()[0] != '#']
+                assert len(list_parameters) > 0, 'parameters file does not contain any setting'
+                parameters_keys, settings = config.create_new_configs(list_parameters)
+            else:
+                raise ValueError('Unknown parameters file extension: %s. Use ".json" for json files (indicates grid '
+                                 'search) and ".jsonl" or ".jl" for json line files (indicates individual settings per '
+                                 'line)' % f_ext)
 
             scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
             fieldnames_loaded = None
@@ -1364,7 +1377,8 @@ if __name__ == '__main__':
 
             stats_prefix_dev = 'dev_best_'
             stats_prefix_test = 'test_'
-            fieldnames_expected = grid_parameters.keys() + [stats_prefix_dev + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] \
+
+            fieldnames_expected = sorted(list(parameters_keys)) + [stats_prefix_dev + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] \
                                   + [stats_prefix_test + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] + ['run_description']
             assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
             fieldnames = fieldnames_loaded or fieldnames_expected
@@ -1374,7 +1388,6 @@ if __name__ == '__main__':
                     score_writer.writeheader()
                     csvfile.flush()
 
-                settings = list(config.explode(grid_parameters))
                 logger.info('execute %i different settings, repeat each %i times' % (len(settings), FLAGS.run_count))
                 for c, d in settings:
                     assert c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'

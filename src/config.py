@@ -294,8 +294,32 @@ class Config(object):
         return newone
 
     def explode(self, value_dict):
+        res = []
         for d in mytools.dict_product(value_dict):
             temp = self.__deepcopy__()
             for k in d.keys():
                 temp.__setattr__(key=k, value=d[k])
-            yield temp, d
+            res.append((temp, d))
+        return value_dict.keys(), res
+
+    def create_new_configs(self, config_dicts_list):
+        """
+        Creates multiple new configs
+        Use this config as default and create for every config dict a new config
+        :param config_dicts_list: list of dicts to update teh default config with
+        :return: parameter_keys, list of tuples(config, selected_parameter_dict)
+        """
+        res = []
+        parameter_keys_ = []
+        for d in config_dicts_list:
+            parameter_keys_.extend(d.keys())
+        parameter_keys = set(parameter_keys_)
+        for d in config_dicts_list:
+            temp = self.__deepcopy__()
+            for k in parameter_keys:
+                if k in d.keys():
+                    temp.__setattr__(key=k, value=d[k])
+                else:
+                    d[k] = self.__getattr__(k)
+            res.append((temp, d))
+        return parameter_keys, res
