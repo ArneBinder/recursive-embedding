@@ -18,7 +18,7 @@ if [ -n "$2" ]; then
     NVIDIA_VISIBLE_DEVICES="$2"
     echo "NVIDIA_VISIBLE_DEVICES: $NVIDIA_VISIBLE_DEVICES"
     cpu_count=4
-    CPU_SET=$(($1 * $cpu_count))-$(($1 * $cpu_count + $cpu_count - 1))
+    CPU_SET=$(($2 * $cpu_count))-$(($2 * $cpu_count + $cpu_count - 1))
     echo "CPU_SET: $CPU_SET"
 fi
 
