@@ -46,9 +46,9 @@ This previous command creates batches of processed data. To merge the individual
 cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-merge
 ```
 
-TODO: implement this
 Finally, we create (filtered, splitted and shuffled) index files with:
 ```bash
 cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-indices
 ```
-The created files (extension: .idx.[id].npy) contain just the shuffled positions of the roots in the merged corpus. But they roots are filtered according to the number of MeSH terms in this article/tree (see parameters MESH_MIN_COUNT and MESH_MAX_COUNT in the .env file for the actual values).
+The created files (extension: .idx.[id].npy) contain just the shuffled positions of the roots in the merged corpus.
+<> (outdated: But they roots are filtered according to the number of MeSH terms in this article/tree (see parameters MESH_MIN_COUNT and MESH_MAX_COUNT in the .env file for the actual values).)
