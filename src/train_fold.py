@@ -946,6 +946,164 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
     return cache[key]
 
 
+def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
+                    test_result_writer, cache=None):
+    with supervisor.managed_session() as sess:
+        if lexicon.is_filled:
+            logger.info('init embeddings with external vectors...')
+            feed_dict = {}
+            model_vars = []
+            if not isinstance(model_tree, model_fold.DummyTreeModel):
+                if lexicon.len_fixed > 0:
+                    feed_dict[model_tree.embedder.lexicon_fix_placeholder] = lexicon.vecs_fixed
+                    model_vars.append(model_tree.embedder.lexicon_fix_init)
+                if lexicon.len_var > 0:
+                    feed_dict[model_tree.embedder.lexicon_var_placeholder] = lexicon.vecs_var
+                    model_vars.append(model_tree.embedder.lexicon_var_init)
+                sess.run(model_vars, feed_dict=feed_dict)
+
+        if init_only:
+            supervisor.saver.save(sess, checkpoint_path(logdir, 0))
+            return
+
+        # TRAINING #################################################################################################
+
+        # do initial test epoch
+        if M_TEST in meta:
+            if not loaded_from_checkpoint or M_TRAIN not in meta:
+                _, _, values_all, values_all_gold, stats_dict = do_epoch(
+                    supervisor,
+                    sess=sess,
+                    model=meta[M_TEST][M_MODEL],
+                    dataset_trees=meta[M_TEST][M_TREES],  # if M_TREES in meta[M_TEST] else None,
+                    forest_indices=meta[M_TEST][M_INDICES],
+                    indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                    # dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
+                    epoch=0,
+                    train=False,
+                    emit=True,
+                    test_writer=test_writer,
+                    test_result_writer=test_result_writer,
+                    number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                    # number_of_samples=None,
+                    highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
+                    batch_iter=meta[M_TEST][M_BATCH_ITER])
+            if M_TRAIN not in meta:
+                if values_all is None or values_all_gold is None:
+                    logger.warning('Predicted and gold values are None. Passed return_values=False?')
+                else:
+                    values_all.dump(os.path.join(logdir, 'sims.np'))
+                    values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
+                lexicon.dump(filename=os.path.join(logdir, 'model'))
+                return stats_dict
+
+        # clear vecs in lexicon to clean up memory
+        if cache is None or cache == {}:
+            lexicon.init_vecs()
+
+        logger.info('training the model')
+        loss_test_best = 9999
+        stat_queue = []
+        if M_TEST in meta:
+            if meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_DISCRETE:
+                stat_key = METRIC_DISCRETE
+            elif meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_REGRESSION:
+                stat_key = METRIC_REGRESSION
+            else:
+                raise ValueError('stat_key not defined for model_type=%s' % meta[M_TEST][M_MODEL].model_type)
+            # NOTE: this depends on stat_key (pearson/mse/roc/...)
+            TEST_MIN_INIT = -1
+            stat_queue = [{stat_key: TEST_MIN_INIT}]
+        step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
+        max_queue_length = 0
+        for epoch, shuffled in enumerate(
+                td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
+
+            # train
+            if not config.early_stopping_window or len(stat_queue) > 0:
+                step_train, loss_train, _, _, stats_train = do_epoch(
+                    supervisor, sess,
+                    model=meta[M_TRAIN][M_MODEL],
+                    dataset_trees=meta[M_TRAIN][M_TREES],  # if M_TREES in meta[M_TRAIN] else None,
+                    # dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
+                    forest_indices=meta[M_TRAIN][M_INDICES],
+                    indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
+                    epoch=epoch,
+                    number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
+                    highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
+                    batch_iter=meta[M_TRAIN][M_BATCH_ITER],
+                    dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == MT_REROOT else None,
+                    return_values=False
+                )
+
+            if M_TEST in meta:
+
+                # test
+                step_test, loss_test, _, _, stats_test = do_epoch(
+                    supervisor, sess,
+                    model=meta[M_TEST][M_MODEL],
+                    dataset_trees=meta[M_TEST][M_TREES],  # if M_TREES in meta[M_TEST] else None,
+                    # #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
+                    forest_indices=meta[M_TEST][M_INDICES],
+                    indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                    number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                    # number_of_samples=None,
+                    epoch=epoch,
+                    train=False,
+                    test_step=step_train,
+                    test_writer=test_writer,
+                    test_result_writer=test_result_writer,
+                    highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
+                    batch_iter=meta[M_TEST][M_BATCH_ITER],
+                    return_values=False
+                )
+
+                if loss_test < loss_test_best:
+                    loss_test_best = loss_test
+
+                # EARLY STOPPING ###############################################################################
+
+                stat = round(stats_test[stat_key], 6)
+
+                prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
+                # stop, if current test pearson r is not bigger than previous values. The amount of regarded
+                # previous values is set by config.early_stopping_window
+                if stat > prev_max:
+                    stat_queue = []
+                else:
+                    if len(stat_queue) >= max_queue_length:
+                        max_queue_length = len(stat_queue) + 1
+                stat_queue.append(stats_test)
+                stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
+                rank = stat_queue_sorted.index(stats_test)
+
+                # write out queue length
+                emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
+                            writer=test_writer)
+
+                logger.info(
+                    '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
+                    % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
+                if 0 < config.early_stopping_window < len(stat_queue):
+                    logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
+                    return stat_queue_sorted[0], cache
+
+                # do not save, if score was not the best
+                # if rank > len(stat_queue) * 0.05:
+                if len(stat_queue) > 1 and config.early_stopping_window:
+                    # auto restore if enabled
+                    # if config.auto_restore:
+                    #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
+                    pass
+                else:
+                    # don't save after first epoch if config.early_stopping_window > 0
+                    if prev_max > TEST_MIN_INIT or not config.early_stopping_window:
+                        supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+            else:
+                # save model after each step if not dev model is set (training a language model)
+                supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+
+
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None, cache=None):
     config.set_run_description()
 
@@ -1120,175 +1278,18 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 init_fn=load_pretrain if pre_train_saver is not None else None
             )
             #if dev_iterator is not None or test_iterator is not None:
-            if M_TEST in meta:
-                test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph)
+            test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph) if M_TEST in meta else None
             #sess = supervisor.PrepareSession(FLAGS.master)
             #sess = supervisor.PrepareSession('')
             # TODO: try
             #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
-            with supervisor.managed_session() as sess:
-                if lexicon.is_filled:
-                    logger.info('init embeddings with external vectors...')
-                    feed_dict = {}
-                    model_vars = []
-                    if not isinstance(model_tree, model_fold.DummyTreeModel):
-                        if lexicon.len_fixed > 0:
-                            feed_dict[model_tree.embedder.lexicon_fix_placeholder] = lexicon.vecs_fixed
-                            model_vars.append(model_tree.embedder.lexicon_fix_init)
-                        if lexicon.len_var > 0:
-                            feed_dict[model_tree.embedder.lexicon_var_placeholder] = lexicon.vecs_var
-                            model_vars.append(model_tree.embedder.lexicon_var_init)
-                        sess.run(model_vars, feed_dict=feed_dict)
 
-                if init_only:
-                    supervisor.saver.save(sess, checkpoint_path(logdir, 0))
-                    logger.removeHandler(fh_info)
-                    logger.removeHandler(fh_debug)
-                    return
-
-                # TRAINING #################################################################################################
-
-                # do initial test epoch
-                if M_TEST in meta:
-                    if not loaded_from_checkpoint or M_TRAIN not in meta:
-                        _, _, values_all, values_all_gold, stats_dict = do_epoch(
-                            supervisor,
-                            sess=sess,
-                            model=meta[M_TEST][M_MODEL],
-                            dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
-                            forest_indices=meta[M_TEST][M_INDICES],
-                            indices_targets=meta[M_TEST][M_INDICES_TARGETS],
-                            #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
-                            epoch=0,
-                            train=False,
-                            emit=True,
-                            test_writer=test_writer,
-                            test_result_writer=test_result_writer,
-                            number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
-                            #number_of_samples=None,
-                            highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                            batch_iter=meta[M_TEST][M_BATCH_ITER])
-                    if M_TRAIN not in meta:
-                        if values_all is None or values_all_gold is None:
-                            logger.warning('Predicted and gold values are None. Passed return_values=False?')
-                        else:
-                            values_all.dump(os.path.join(logdir, 'sims.np'))
-                            values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
-                        logger.removeHandler(fh_info)
-                        logger.removeHandler(fh_debug)
-                        lexicon.dump(filename=os.path.join(logdir, 'model'))
-                        return stats_dict
-
-
-                # clear vecs in lexicon to clean up memory
-                if cache is None or cache == {}:
-                    lexicon.init_vecs()
-
-                logger.info('training the model')
-                loss_test_best = 9999
-                stat_queue = []
-                if M_TEST in meta:
-                    if meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_DISCRETE:
-                        stat_key = METRIC_DISCRETE
-                    elif meta[M_TEST][M_MODEL].model_type == MODEL_TYPE_REGRESSION:
-                        stat_key = METRIC_REGRESSION
-                    else:
-                        raise ValueError('stat_key not defined for model_type=%s' % meta[M_TEST][M_MODEL].model_type)
-                    # NOTE: this depends on stat_key (pearson/mse/roc/...)
-                    TEST_MIN_INIT = -1
-                    stat_queue = [{stat_key: TEST_MIN_INIT}]
-                step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
-                max_queue_length = 0
-                for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
-
-                    # train
-                    if not config.early_stopping_window or len(stat_queue) > 0:
-                        step_train, loss_train, _, _, stats_train = do_epoch(
-                            supervisor, sess,
-                            model=meta[M_TRAIN][M_MODEL],
-                            dataset_trees=meta[M_TRAIN][M_TREES],# if M_TREES in meta[M_TRAIN] else None,
-                            #dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
-                            forest_indices=meta[M_TRAIN][M_INDICES],
-                            indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
-                            epoch=epoch,
-                            number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
-                            highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
-                            batch_iter=meta[M_TRAIN][M_BATCH_ITER],
-                            dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == MT_REROOT else None,
-                            return_values=False
-                        )
-
-                    if M_TEST in meta:
-
-                        # test
-                        step_test, loss_test, _, _, stats_test = do_epoch(
-                            supervisor, sess,
-                            model=meta[M_TEST][M_MODEL],
-                            dataset_trees=meta[M_TEST][M_TREES],# if M_TREES in meta[M_TEST] else None,
-                            # #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
-                            forest_indices=meta[M_TEST][M_INDICES],
-                            indices_targets=meta[M_TEST][M_INDICES_TARGETS],
-                            number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
-                            #number_of_samples=None,
-                            epoch=epoch,
-                            train=False,
-                            test_step=step_train,
-                            test_writer=test_writer,
-                            test_result_writer=test_result_writer,
-                            highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                            batch_iter=meta[M_TEST][M_BATCH_ITER],
-                            return_values=False
-                        )
-
-                        if loss_test < loss_test_best:
-                            loss_test_best = loss_test
-
-                        # EARLY STOPPING ###############################################################################
-
-                        stat = round(stats_test[stat_key], 6)
-
-                        prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
-                        # stop, if current test pearson r is not bigger than previous values. The amount of regarded
-                        # previous values is set by config.early_stopping_window
-                        if stat > prev_max:
-                            stat_queue = []
-                        else:
-                            if len(stat_queue) >= max_queue_length:
-                                max_queue_length = len(stat_queue) + 1
-                        stat_queue.append(stats_test)
-                        stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
-                        rank = stat_queue_sorted.index(stats_test)
-
-                        # write out queue length
-                        emit_values(supervisor, sess, step_test, values={'queue_length': len(stat_queue), 'rank': rank},
-                                    writer=test_writer)
-
-                        logger.info(
-                            '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
-                            % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
-                        if 0 < config.early_stopping_window < len(stat_queue):
-                            logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
-                            logger.removeHandler(fh_info)
-                            logger.removeHandler(fh_debug)
-                            return stat_queue_sorted[0], cache
-
-                        # do not save, if score was not the best
-                        # if rank > len(stat_queue) * 0.05:
-                        if len(stat_queue) > 1 and config.early_stopping_window:
-                            # auto restore if enabled
-                            #if config.auto_restore:
-                            #    supervisor.saver.restore(sess, tf.train.latest_checkpoint(logdir))
-                            pass
-                        else:
-                            # don't save after first epoch if config.early_stopping_window > 0
-                            if prev_max > TEST_MIN_INIT or not config.early_stopping_window:
-                                supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
-                    else:
-                        # save model after each step if not dev model is set (training a language model)
-                        supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
-
-                logger.removeHandler(fh_info)
-                logger.removeHandler(fh_debug)
+            res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
+                                  test_result_writer, cache)
+            logger.removeHandler(fh_info)
+            logger.removeHandler(fh_debug)
+            supervisor.stop()
+            return res
 
 
 def add_metrics(d, stats, prefix=''):
