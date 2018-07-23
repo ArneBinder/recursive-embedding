@@ -1,9 +1,26 @@
 # Create a rec-emb data model from BioASQ data
 
-TODO: add BioASQ data description
+The [BioASQ Task 6a](http://bioasq.org/participate/challenges) data contains 13,486,072 annotated articles
+ from [PubMed](https://www.ncbi.nlm.nih.gov/pubmed/), where annotated means that [MeSH](https://www.nlm.nih.gov/mesh/)
+ terms have been assigned to the articles by the human curators in PubMed.
+The dataset is served as a JSON string with the following format:
+```json
+{"articles": [{"abstractText":"text..", "journal":"journal..", "meshMajor":["mesh1",...,"meshN"],
+"pmid":"PMID", "title":"title..", "year":"YYYY"},..., {..}]}
+```
+The JSON string contains the following fields for each article:
+`pmid`: the unique identifier of each article,
+`title`: the title of the article,
+`abstractText`: the abstract of the article,
+`year`: the year the article was published,
+`journal`: the journal the article was published, and
+`meshMajor`: a list with the major MeSH headings of the article.
 
 This docker-compose service converts these PubMed records into a simple tree serialization optimized for hierarchical neural
 network training (see [main readme](../../../README.md)).
+
+*NOTE*: As *rec-emb* focuses on recursive structures, only
+[structured abstracts](https://www.nlm.nih.gov/bsd/policy/structured_abstracts.html)(~1/3 of total data) are considered.
 
 The workflow is as follows. TODO: describe workflow
 

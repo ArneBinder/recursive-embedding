@@ -41,15 +41,23 @@ The **rec-emb data model** includes the following:
  **children position**. The children array holds amounts of children for every data point followed by the child offsets. 
  The children position array indicates for every data point, where to look in the children array. 
 
-Currently, the project provides two data sources:
- * [SICK corpus](http://clic.cimec.unitn.it/marco/publications/marelli-etal-sick-lrec2014.pdf) data. The SICK corpus consists of sentence pairs extracted from image descriptions that are annotated 
- with a *relatedness score*. See [preprocessing of SICK corpus data](docker/create-corpus/sick/README.md) for a docker 
+Currently, the project provides three data sources:
+ * [SICK corpus](http://clic.cimec.unitn.it/marco/publications/marelli-etal-sick-lrec2014.pdf) data. The SICK corpus
+ consists of sentence pairs extracted from image descriptions that are annotated
+ with a *relatedness score*. See [preprocessing of SICK corpus data](docker/create-corpus/sick) for a docker
  image that assists to create a **rec-emb data model** for SICK.
- * [DBpedia-NIF 2016-10](http://wiki.dbpedia.org/downloads-2016-10) data. This corpus builds on [DBpedia](http://wiki.dbpedia.org/), but includes preprocessed [NIF](http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core/nif-core.html) data. It consists of (1) 
- cleaned full text of wikipedia articles, (2) structural information like segmentation into sections, paragraphs, etc., and (3) 
- annotations of links that point to other wikipedia articles. See 
- [preprocessing of DBpedia-NIF data](docker/create-corpus/dbpedia-nif/README.md) for a docker image that assists to 
+ * [DBpedia-NIF 2016-10](http://wiki.dbpedia.org/downloads-2016-10) data. This corpus builds on
+ [DBpedia](http://wiki.dbpedia.org/), but includes preprocessed
+ [NIF](http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core/nif-core.html) data. It consists of (1)
+ cleaned full text of wikipedia articles, (2) structural information like segmentation into sections, paragraphs, etc.,
+ and (3) annotations of links that point to other wikipedia articles. See
+ [preprocessing of DBpedia-NIF data](docker/create-corpus/dbpedia-nif) for a docker image that assists to
  create a **rec-emb data model** for DBpedia-NIF.
+ * [BioASQ Task 6a](http://bioasq.org/participate/challenges) data. This data contains 13,486,072 annotated articles
+ from [PubMed](https://www.ncbi.nlm.nih.gov/pubmed/), where annotated means that [MeSH](https://www.nlm.nih.gov/mesh/)
+ terms have been assigned to the articles by the human curators in PubMed. See
+ [preprocessing of BioASQ data](docker/create-corpus/bioasq) for a docker image that assists to  create a
+ **rec-emb data model** for BioASQ data.
 
 
 ## The rec-emb Embedding Model
