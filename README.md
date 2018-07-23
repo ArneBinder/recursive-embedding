@@ -24,10 +24,11 @@ The rec-emb data model
 
 
 **TL;DR**, the `docker` folder provides several starting points:
+ * [preprocessing of BioASQ data](docker/create-corpus/bioasq/README.md)
  * [preprocessing of DBpedia-NIF data](docker/create-corpus/dbpedia-nif/README.md)
  * [preprocessing of SICK corpus data](docker/create-corpus/sick/README.md)
  * [REST endpoint for corpus visualization](docker/tools/visualize/README.md)
- * [tensorflow_fold tf1.3 mkl](docker/tensorflow_fold/tensorflowfold_conda_tf1.3_mkl)
+ * [training](docker/train/tensorflowfold-fold/README.md)
 
 
 ## Preprocessing
