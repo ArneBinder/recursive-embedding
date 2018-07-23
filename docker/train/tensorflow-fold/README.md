@@ -1,12 +1,15 @@
 # Train a rec-emb model with rec-emb data
 
-Copy the `.env.dev` to `.env` and adapt its parameters fro your needs. Start training by executing:
+Copy the `docker/train/tensorflow-fold/.env.dev` to `docker/train/tensorflow-fold/.env` and adapt its parameters for
+your needs. Start training by executing:
 ```bash
 cd docker/train/tensorflow-fold && docker-compose up train-fold-cpu
 ```
 
 Or start via helper script `train.sh`:
 ```bash
+# set execution permission
+chmod +x docker/train/tensorflow-fold/train.sh
 cd docker/train/tensorflow-fold && train.sh <ENV_FILE> <NVIDIA_VISIBLE_DEVICES> <NBR_CPUS>
 ```
 `ENV_FILE` (default: `.env`): path to .env file (will be copied into log directory for later reference)
