@@ -756,16 +756,32 @@ class Forest(object):
         return result
 
     def has_children(self, idx):
-        c_pos = self._children_pos[idx]
+        try:
+            c_pos = self._children_pos[idx]
+        except TypeError:
+            # self._children_pos is None
+            self.set_children_with_parents()
+            c_pos = self._children_pos[idx]
         return self._children[c_pos] > 0
 
     def get_children(self, idx):
-        child_pos = self._children_pos[idx]
+        try:
+            child_pos = self._children_pos[idx]
+        except TypeError:
+            # self._children_pos is None
+            self.set_children_with_parents()
+            child_pos = self._children_pos[idx]
+
         c = self._children[child_pos]
         return self._children[child_pos+1:child_pos+1+c]
 
     def get_children_counts(self, indices):
-        children_pos = self._children_pos[indices]
+        try:
+            children_pos = self._children_pos[indices]
+        except TypeError:
+            # self._children_pos is None
+            self.set_children_with_parents()
+            children_pos = self._children_pos[indices]
         return self._children[children_pos]
 
     def set_parents_with_children(self):
