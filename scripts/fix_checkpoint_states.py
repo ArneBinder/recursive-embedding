@@ -8,18 +8,22 @@ import tensorflow as tf
 
 tf.flags.DEFINE_string('dir',
                        os.getcwd(),
-                       'Root directory for looking recursively downwards for checkpoint files. Defaults to the current working directory.')
-
+                       'Root directory for looking recursively downwards for checkpoint files. Defaults to the current '
+                       'working directory.')
+tf.flags.DEFINE_boolean('delete_previous_checkpoints',
+                        False,
+                        'Iff True, delete all checkpoints except the last.')
 FLAGS = tf.flags.FLAGS
 
 
 def get_all_checkpoint_states(root_dir):
+    print('check checkpoints in subdirectories of: %s\n' % root_dir)
     check_list = [[os.path.join(root, filename) for filename in filenames if filename == 'checkpoint'] for
                   root, directories, filenames in os.walk(root_dir)]
     return [fn_list[0] for fn_list in check_list if len(fn_list) > 0]
 
 
-def update_checkpoint_state(check_file):
+def update_checkpoint_state(check_file, delete_previous_checkpoints=False):
 
     check_dir = os.path.dirname(os.path.abspath(check_file))
     # Read the existing checkpoint file.
@@ -31,6 +35,16 @@ def update_checkpoint_state(check_file):
         return
     # sort by step
     file_list.sort(key=lambda x: int(x.split('-')[-1]))
+
+    if delete_previous_checkpoints:
+        print('WARNING: delete %i previous checkpoints for %s' % (len(file_list) - 1, check_dir))
+        for f_checkpoint in file_list[:-1]:
+            for f_ in os.listdir(check_dir):
+                f = os.path.join(check_dir, f_)
+                if f.startswith(f_checkpoint):
+                    os.remove(f)
+
+        file_list = [file_list[-1]]
 
     new_checkpoint_state = CheckpointState(model_checkpoint_path=file_list[-1], all_model_checkpoint_paths=file_list)
     if current_checkpoint_state == new_checkpoint_state:
@@ -48,4 +62,4 @@ def update_checkpoint_state(check_file):
 if __name__ == '__main__':
     all_checkpoints = get_all_checkpoint_states(FLAGS.dir)
     for ckpt in all_checkpoints:
-        update_checkpoint_state(ckpt)
+        update_checkpoint_state(ckpt, FLAGS.delete_previous_checkpoints)
