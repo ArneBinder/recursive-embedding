@@ -75,6 +75,7 @@ M_INDICES_TARGETS = 'indices_targets'
 M_BATCH_ITER = 'batch_iter'
 M_NEG_SAMPLES = 'neg_samples'
 M_MODEL_NEAREST = 'model_nearest'
+M_INDEX_FILE_SIZES = 'index_file_sizes'
 
 FN_TREE_INDICES = 'tree_indices'
 

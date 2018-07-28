@@ -273,6 +273,9 @@ class Config(object):
                 res.append(flag_name.lower() + flag_value.upper())
         return '_'.join(res)
 
+    def get_model_description(self):
+        return self.serialize(filter_flags=MODEL_PARAMETERS)
+
     def set_run_description(self):
         if 'run_description' not in self.__dict__['__values']:
             run_desc = self.serialize()

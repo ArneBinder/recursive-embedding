@@ -496,7 +496,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     logger.debug('selected %i root_ids (filtered; source + target trees)' % len(indices_context_root_list))
 
     #return np.array(root_ids_list), np.array(indices_context_root_list), root_ids_seealsos_list
-    return np.array(indices_context_root_list), indices_sealso_contexts_lists
+    return np.array(indices_context_root_list), indices_sealso_contexts_lists, [len(np.load(ind_f)) for ind_f in index_files]
 
 
 def indices_to_sparse(indices, length, dtype=np.float32):
@@ -528,7 +528,7 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
         mesh_csr = indices_to_sparse(current_mesh_ids_mapped, len(classes_ids))
         mesh_ids.append(mesh_csr)
 
-    return np.array(indices_context_root), mesh_ids
+    return np.array(indices_context_root), mesh_ids, [len(np.load(ind_f)) for ind_f in index_files]
 
 
 def indices_dbpedianif_dummy(forest, **unused):

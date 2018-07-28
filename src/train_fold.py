@@ -14,6 +14,7 @@ import re
 # import shutil
 import scipy
 from functools import reduce, partial
+import cPickle as pickle
 
 import numpy as np
 import six
@@ -40,7 +41,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
     TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, UNIQUE_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_DATA, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
-    M_MODEL_NEAREST, FN_TREE_INDICES
+    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES
 from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -652,7 +653,7 @@ def init_model_type(config):
             number_of_indices = config.cut_indices or 1000
             logger.info('use %i fixed indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
             indices = np.random.randint(len(forest), size=number_of_indices)
-            return indices, None
+            return indices, None, [len(indices)]
 
         #indices_getter = diters.indices_as_ids
         indices_getter = _get_indices
@@ -736,14 +737,60 @@ def check_train_test_overlap(forest_indices_train, forest_indices_train_target, 
     return forest_indices_test_target
 
 
-def compile_trees(tree_iterators, compiler, data_dir=None):
+def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=None, index_file_sizes=None):
+    # save compiled trees to file, if cache_dir is given
+    if cache_dir is not None:
+        assert index_file_names is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
+                                             'is defined), but no index file names given.'
+        assert index_file_sizes is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
+                                             'is defined), but no index file sizes given.'
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+
     prepared_embeddings = {}
     for m in tree_iterators:
         logger.info('create %s data set (tree-embeddings) ...' % m)
-        with compiler.multiprocessing_pool():
-            prepared_embeddings[m] = list(
-                compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]()), ordered=True))
-            logger.info('%s dataset: compiled %i different trees' % (m, len(prepared_embeddings[m])))
+        if cache_dir is None:
+            with compiler.multiprocessing_pool():
+                prepared_embeddings[m] = list(
+                    compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]()), ordered=True))
+        else:
+            prepared_embeddings[m] = []
+            cache_fn_names = [os.path.join(cache_dir, '%s.compiled' % os.path.splitext(os.path.basename(ind_fn))[0])
+                              for ind_fn in index_file_names[m]]
+            # if all trees for all index files are already compiled, the tree_iter do not have to be called
+            if all([os.path.exists(fn) for fn in cache_fn_names]):
+                for fn in cache_fn_names:
+                    logger.debug('load compiled trees from: %s' % fn)
+                    #prepared_embeddings[m].extend(np.load(fn).tolist())
+                    with open(fn, 'rb') as pf:
+                        current_trees = pickle.load(pf)
+                    prepared_embeddings[m].extend(current_trees)
+            # otherwise, already compiled trees have to be skipped (i.e. the iterator has to be called)
+            else:
+                tree_iter = tree_iterators[m]()
+                for i, ind_fn in enumerate(index_file_names[m]):
+                    nbr_indices = index_file_sizes[m][i]
+                    #base_fn = os.path.splitext(os.path.basename(ind_fn))[0]
+                    fn = cache_fn_names[i]
+                    if os.path.exists(fn):
+                        logger.debug('load compiled trees from: %s' % fn)
+                        with open(fn, 'rb') as pf:
+                            current_trees = pickle.load(pf)
+                        #current_trees = np.load(fn).tolist()
+                        for _ in range(nbr_indices):
+                            tree_iter.next()
+                    else:
+                        with compiler.multiprocessing_pool():
+                            current_trees = list(compiler.build_loom_inputs(([tree_iter.next()] for _ in range(nbr_indices)), ordered=True))
+                        logger.debug('dump compiled trees to: %s' % fn)
+                        with open(fn, 'wb') as pf:
+                            pickle.dump(current_trees, pf)
+
+                        #np.array(current_trees).dump(fn)
+                    prepared_embeddings[m].extend(current_trees)
+
+        logger.info('%s dataset: compiled %i different trees' % (m, len(prepared_embeddings[m])))
 
     return prepared_embeddings
 
@@ -799,7 +846,7 @@ def prepare_embeddings_tfidf(tree_iterators, logdir):
 
 
 def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, data_dir=None, logdir=None,
-                  use_inception_tree_model=False, cache=None):
+                  use_inception_tree_model=False, cache=None, index_file_names=None, index_file_sizes=None):
 
     #prepared_embeddings = {}
     optimizer = config.optimizer
@@ -836,7 +883,9 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, dat
                                                   )
         #if config.model_type != MT_REROOT:
         prepared_embeddings = exec_cached(cache, compile_trees, discard_kwargs='all', add_kwargs={'type': 'tree'},
-                                          tree_iterators=tree_iterators, compiler=model_tree.compiler, data_dir=data_dir)
+                                          tree_iterators=tree_iterators, compiler=model_tree.compiler,
+                                          cache_dir=os.path.join(data_dir, 'compiled', config.get_model_description()),
+                                          index_file_names=index_file_names, index_file_sizes=index_file_sizes)
         #else:
         #    prepared_embeddings = None
     else:
@@ -1180,7 +1229,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     logger.info('calc indices from index files ...')
     for m in meta:
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
-        meta[m][M_INDICES], meta[m][M_INDICES_TARGETS] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
+        meta[m][M_INDICES], meta[m][M_INDICES_TARGETS], meta[m][M_INDEX_FILE_SIZES] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
         # dump tree indices
         if not loaded_from_checkpoint:
             mytools.numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
@@ -1229,7 +1278,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
                 tree_indices={m: meta[m][M_INDICES] for m in meta},
                 cache=cache,
-                data_dir=parent_dir
+                data_dir=parent_dir,
+                index_file_names={m: meta[m][M_FNAMES] for m in meta},
+                index_file_sizes={m: meta[m][M_INDEX_FILE_SIZES] for m in meta}
             )
 
             models_nearest = create_models_nearest(model_tree=model_tree,
