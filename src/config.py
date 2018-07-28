@@ -184,6 +184,9 @@ default_config = {'train_data_path': ['DEFINE_string',
                   }
 
 ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']
+MODEL_PARAMETERS = ['additional_vecs', 'tree_embedder', 'leaf_fc_size', 'root_fc_sizes', 'fc_sizes', 'state_size',
+                    'optimizer', 'keep_prob', 'clipping', 'max_depth', 'context', 'link_cost_ref', 'model_type',
+                    'concat_mode', 'no_fixed_vecs']
 
 
 class Config(object):
@@ -244,34 +247,39 @@ class Config(object):
         with open(filename, 'w') as outfile:
             json.dump(self.__dict__['__values'], outfile, indent=2, sort_keys=True)
 
+    def serialize(self, filter_flags=None):
+        keys = [k for k in self.__dict__['__values'].keys() if filter_flags is None or k in filter_flags]
+        res = []
+        for flag in sorted(keys):
+            # get real flag value
+            # new_value = getattr(FLAGS, flag)
+            # default_config[flag][1] = new_value
+            # value = config[flag][1]
+            value = getattr(self, flag)
+            entry_values = self.__dict__['__values'][flag]
+
+            # collect run description
+            # if 'run_description' not in config:
+            # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
+            if len(entry_values) < 4 or entry_values[3]:
+                if len(entry_values) >= 4:
+                    flag_name = entry_values[3]
+                else:
+                    flag_name = flag
+                flag_name = flag_name.replace('_', '')
+                flag_value = str(value).replace('_', '').replace(',', '-')
+                # if flag_value is a path, take only the last two subfolders
+                flag_value = ''.join(flag_value.split(os.sep)[-2:])
+                res.append(flag_name.lower() + flag_value.upper())
+        return '_'.join(res)
+
     def set_run_description(self):
         if 'run_description' not in self.__dict__['__values']:
-            run_desc = []
-            for flag in sorted(self.__dict__['__values'].keys()):
-                # get real flag value
-                # new_value = getattr(FLAGS, flag)
-                # default_config[flag][1] = new_value
-                # value = config[flag][1]
-                value = getattr(self, flag)
-                entry_values = self.__dict__['__values'][flag]
-
-                # collect run description
-                # if 'run_description' not in config:
-                # if a short flag name is set, use it. if it is set to None, add this flag not to the run_descriptions
-                if len(entry_values) < 4 or entry_values[3]:
-                    if len(entry_values) >= 4:
-                        flag_name = entry_values[3]
-                    else:
-                        flag_name = flag
-                    flag_name = flag_name.replace('_', '')
-                    flag_value = str(value).replace('_', '').replace(',', '-')
-                    # if flag_value is a path, take only the last two subfolders
-                    flag_value = ''.join(flag_value.split(os.sep)[-2:])
-                    run_desc.append(flag_name.lower() + flag_value.upper())
-                self.__dict__['__values']['run_description'] = ['DEFINE_string',
-                                                                '_'.join(run_desc),
-                                                                'short string description of the current run',
-                                                                None]
+            run_desc = self.serialize()
+            self.__dict__['__values']['run_description'] = ['DEFINE_string',
+                                                            run_desc,
+                                                            'short string description of the current run',
+                                                            None]
             logging.debug('set run description: %s' % self.run_description)
             # if 'run_description' not in config:
             #    config['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
