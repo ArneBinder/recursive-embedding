@@ -736,7 +736,7 @@ def check_train_test_overlap(forest_indices_train, forest_indices_train_target, 
     return forest_indices_test_target
 
 
-def compile_trees(tree_iterators, compiler):
+def compile_trees(tree_iterators, compiler, data_dir=None):
     prepared_embeddings = {}
     for m in tree_iterators:
         logger.info('create %s data set (tree-embeddings) ...' % m)
@@ -798,7 +798,8 @@ def prepare_embeddings_tfidf(tree_iterators, logdir):
     return prepared_embeddings, embedding_dim
 
 
-def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, logdir=None, use_inception_tree_model=False, cache=None):
+def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, data_dir=None, logdir=None,
+                  use_inception_tree_model=False, cache=None):
 
     #prepared_embeddings = {}
     optimizer = config.optimizer
@@ -810,7 +811,10 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
         kwargs = {}
         if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat):
             # TODO: this value should depend on max_size_plain, see data_iterators.tree_iterator
-            kwargs['sequence_length'] = 100
+            #kwargs['sequence_length'] = model_fold.FLAT_MAX_SIZE
+            kwargs['sequence_length'] = 1000
+            for k in tree_iterators.keys():
+                tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
             _padding_idx = lexicon.get_d(vocab_manual[UNIQUE_EMBEDDING], data_as_hashes=False)
             kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
 
@@ -832,7 +836,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, log
                                                   )
         #if config.model_type != MT_REROOT:
         prepared_embeddings = exec_cached(cache, compile_trees, discard_kwargs='all', add_kwargs={'type': 'tree'},
-                                          tree_iterators=tree_iterators, compiler=model_tree.compiler)
+                                          tree_iterators=tree_iterators, compiler=model_tree.compiler, data_dir=data_dir)
         #else:
         #    prepared_embeddings = None
     else:
@@ -947,7 +951,7 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
 
 
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                    test_result_writer, cache=None):
+                    test_result_writer, logdir, cache=None):
     with supervisor.managed_session() as sess:
         if lexicon.is_filled:
             logger.info('init embeddings with external vectors...')
@@ -1225,6 +1229,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
                 tree_indices={m: meta[m][M_INDICES] for m in meta},
                 cache=cache,
+                data_dir=parent_dir
             )
 
             models_nearest = create_models_nearest(model_tree=model_tree,
@@ -1285,7 +1290,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
 
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                                  test_result_writer, cache)
+                                  test_result_writer, logdir, cache)
             logger.removeHandler(fh_info)
             logger.removeHandler(fh_debug)
             supervisor.stop()
