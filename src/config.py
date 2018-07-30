@@ -304,26 +304,35 @@ class Config(object):
         newone = type(self)(values=copy.deepcopy(self.__dict__['__values']))
         return newone
 
-    def explode(self, value_dict):
+    def explode(self, value_dict, previous_fieldnames=None):
+        previous_dict = {}
+        if previous_fieldnames is not None:
+            previous_dict = {fnl: self.__dict__['__values'][fnl][1] for fnl in previous_fieldnames if fnl in self.__dict__['__values'].keys()}
         res = []
         for d in mytools.dict_product(value_dict):
             temp = self.__deepcopy__()
             for k in d.keys():
                 temp.__setattr__(key=k, value=d[k])
+            d.update({k: previous_dict[k] for k in previous_dict.keys() if k not in d.keys()})
             res.append((temp, d))
-        return value_dict.keys(), res
+        return list(set(value_dict.keys() + previous_dict.keys())), res
 
-    def create_new_configs(self, config_dicts_list):
+    def create_new_configs(self, config_dicts_list, previous_fieldnames=None):
         """
         Creates multiple new configs
         Use this config as default and create for every config dict a new config
         :param config_dicts_list: list of dicts to update teh default config with
         :return: parameter_keys, list of tuples(config, selected_parameter_dict)
         """
+        previous_dict = {}
+        if previous_fieldnames is not None:
+            previous_dict = {fnl: self.__dict__['__values'][fnl][1] for fnl in previous_fieldnames if
+                             fnl in self.__dict__['__values'].keys()}
         res = []
         parameter_keys_ = []
         for d in config_dicts_list:
             parameter_keys_.extend(d.keys())
+        parameter_keys_.extend(previous_dict.keys())
         parameter_keys = set(parameter_keys_)
         for d in config_dicts_list:
             temp = self.__deepcopy__()
