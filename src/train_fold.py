@@ -859,7 +859,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, dat
         if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat):
             # TODO: this value should depend on max_size_plain, see data_iterators.tree_iterator
             #kwargs['sequence_length'] = model_fold.FLAT_MAX_SIZE
-            kwargs['sequence_length'] = 1000
+            kwargs['sequence_length'] = 500
             for k in tree_iterators.keys():
                 tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
             _padding_idx = lexicon.get_d(vocab_manual[UNIQUE_EMBEDDING], data_as_hashes=False)
