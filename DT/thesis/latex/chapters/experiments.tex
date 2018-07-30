@@ -1,7 +1,24 @@
 \section{Experiments and Evaluation}
 
+\subsection{Datasets}
 
+\subsubsection{BioASQ}
+train + evaluate; Pubmed-abstract -> Mesh terms; multiclass prediction; ca. 10k classes; use only structured abstracts -> ca. 4m docs
+\todo{AB: distribution of text lengths?}
 
+\subsubsection{DBpedia-NIF}
+pre-train (+ evaluate); two Wikipedia articles -> relatedness score; similarity prediction; ca. 5m docs
+\todo{AB: distribution of text lengths?}
+
+\subsection{Training and Hyperparameters}
+batched gradient descent; max entropy loss; adam optimizer; gradient clipping; dropout; \\
+train word embeddings for words not in initial (glove + biomedical) embeddings \\
+for relatedness prediction: negative sampling 
+
+\subsection{Results}
+total (no pre-training; min 170 occurrences per word type/MeSH tag!; F1-scores): \\
+tf-idf: 0.64  > RecNN: 0.63 > flat(sum): 0.60 > RNN: 0.50 \\
+different results for different text sizes? -> train \& evaluate on text-size-buckets
 
 \if false
 ===OLD SRP CONTENT===

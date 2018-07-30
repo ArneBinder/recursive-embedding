@@ -2,7 +2,25 @@
 
 \subsection{Model architecture}
 
+embed tokens -> compose -> calculate one (similarity prediction) / multiple (multiclass prediction) probabilities
 
+\subsubsection{Token Embeddings}
+Glove + biomedical; init not available types with zero (random?)
+
+\subsubsection{Composition function}
+gru+sum (tree structure from dependency parse); bigru; sum
+
+\subsubsection{Baseline model}
+TF-IDF + dense layer
+
+\subsubsection{Multiclass Prediction}
+dense + sigmoid
+
+\subsubsection{Similarity Prediction}
+dense + sigmoid; cosine (?)
+
+\subsection{Implementation}
+tensorflow-fold; spacy dependencies; 
 
 \if false
 ===OLD SRP CONTENT===
