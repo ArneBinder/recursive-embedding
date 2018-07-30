@@ -39,12 +39,13 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     'Batch iterator used in do_epoch. If not set, choose one in do_epoch.',
                                     'biter'
                                     ],
-                  'batch_iter_test': ['DEFINE_string',
-                                 '',
-                                 # '50,100,50',
-                                 'Test batch iterator used in do_epoch. If not set, use batch_iter.',
-                                 'bitert'
-                                 ],
+                  # DEPRECATED use only batch_iter
+                  #'batch_iter_test': ['DEFINE_string',
+                  #               '',
+                  #               # '50,100,50',
+                  #               'DEPRECATED Test batch iterator used in do_epoch. If not set, use batch_iter.',
+                  #               'bitert'
+                  #               ],
                   'epochs': ['DEFINE_integer',
                              1000000,
                              'The number of epochs.',
@@ -184,9 +185,8 @@ default_config = {'train_data_path': ['DEFINE_string',
                   }
 
 ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']
-MODEL_PARAMETERS = ['additional_vecs', 'tree_embedder', 'leaf_fc_size', 'root_fc_sizes', 'fc_sizes', 'state_size',
-                    'optimizer', 'keep_prob', 'clipping', 'max_depth', 'context', 'link_cost_ref', 'model_type',
-                    'concat_mode', 'no_fixed_vecs']
+MODEL_PARAMETERS = ['additional_vecs', 'tree_embedder', 'leaf_fc_size', 'root_fc_sizes', 'state_size', 'max_depth',
+                    'context', 'link_cost_ref', 'concat_mode', 'no_fixed_vecs', 'batch_iter']
 
 
 class Config(object):

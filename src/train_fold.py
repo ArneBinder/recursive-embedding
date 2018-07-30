@@ -634,8 +634,8 @@ def init_model_type(config):
         #    indices = None
         config.batch_iter = batch_iter_reroot.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
-        config.batch_iter_test = config.batch_iter
-        logger.debug('set batch_iter_test to %s' % config.batch_iter_test)
+        #config.batch_iter_test = config.batch_iter
+        #logger.debug('set batch_iter_test to %s' % config.batch_iter_test)
         neg_samples = config.neg_samples
         config.neg_samples_test = config.neg_samples
         logger.debug('set neg_samples_test to %i (neg_samples)' % config.neg_samples_test)
@@ -684,7 +684,7 @@ def init_model_type(config):
         load_parents = (tree_iterator_args['context'] > 0)
 
         config.batch_iter = batch_iter_multiclass.__name__
-        config.batch_iter_test = batch_iter_multiclass.__name__
+        #config.batch_iter_test = batch_iter_multiclass.__name__
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -1244,10 +1244,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     # set batch iterators and numbers of negative samples
     if M_TEST in meta:
-        if config.batch_iter_test is '':
-            meta[M_TEST][M_BATCH_ITER] = config.batch_iter
-        else:
-            meta[M_TEST][M_BATCH_ITER] = config.batch_iter_test
+        #if config.batch_iter_test is '':
+        meta[M_TEST][M_BATCH_ITER] = config.batch_iter
+        #else:
+        #    meta[M_TEST][M_BATCH_ITER] = config.batch_iter_test
         if config.neg_samples_test is '':
             meta[M_TEST][M_NEG_SAMPLES] = config.neg_samples
         else:
