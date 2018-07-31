@@ -620,12 +620,6 @@ def init_model_type(config):
     #    discrete_model = True
     #    load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == MT_REROOT:
-        # if config.cut_indices is not None:
-        #    indices = np.arange(config.cut_indices)
-        #    # avoid looking for train index files
-        #    meta[M_TRAIN][M_FNAMES] = []
-        # else:
-        #    indices = None
         config.batch_iter = batch_iter_reroot.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
         #config.batch_iter_test = config.batch_iter
@@ -641,22 +635,10 @@ def init_model_type(config):
         tree_iterator = diters.tree_iterator
 
         def _get_indices(index_files, forest, **unused):
-            # TODO: remove count
-            #indices = np.fromiter(diters.index_iterator(index_files), count=1000, dtype=np.int32)
-            # TODO: remove dummy indices
-            #indices = np.arange(1000, dtype=np.int32)
-            number_of_indices = config.cut_indices or 1000
-            #logger.info('use %i fixed indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
-
+            number_of_indices = config.nbr_trees or 1000
             logger.info('use %i indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
-
-            #indices = np.random.randint(len(forest), size=number_of_indices)
-            #return indices, None, [len(indices)]
-            #return range(number_of_indices), None, [len(indices)]
-            # return a dummy
             return range(number_of_indices), None, [number_of_indices]
 
-        #indices_getter = diters.indices_as_ids
         indices_getter = _get_indices
         # del meta[M_TEST]
         #discrete_model = True

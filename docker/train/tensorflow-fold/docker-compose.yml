@@ -44,7 +44,7 @@ services:
         --no_fixed_vecs=${NO_FIXED_VECS}
         --batch_iter=${BATCH_ITER}
         --batch_iter_test=${BATCH_ITER_TEST}
-        --cut_indices=${CUT_INDICES}
+        --nbr_trees=${NBR_TREES}
         --additional_vecs=${ADDITIONAL_VECS}
         --grid_config_file=${GRID_CONFIG_FILE}
         --run_count=${RUN_COUNT}
