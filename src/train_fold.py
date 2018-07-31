@@ -427,9 +427,11 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
 
     # TODO: do this in parallel with train execution
     if dataset_iterator is not None:
-        logger.debug('re-generate trees with new samples...')
-        with model.tree_model.compiler.multiprocessing_pool():
-            dataset_trees = list(model.tree_model.compiler.build_loom_inputs(map(lambda x: [x], dataset_iterator()), ordered=True))
+        dataset_trees = compile_trees(tree_iterators={M_TRAIN: dataset_iterator}, compiler=model.tree_model.compiler)[M_TRAIN]
+
+        #logger.debug('re-generate trees with new samples...')
+        #with model.tree_model.compiler.multiprocessing_pool():
+        #    dataset_trees = list(model.tree_model.compiler.build_loom_inputs(map(lambda x: [x], dataset_iterator()), ordered=True))
         logger.debug('re-generated %i trees' % len(dataset_trees))
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
@@ -640,7 +642,8 @@ def init_model_type(config):
         config.neg_samples_test = config.neg_samples
         logger.debug('set neg_samples_test to %i (neg_samples)' % config.neg_samples_test)
         tree_count = neg_samples + 1
-        tree_iterator_args = {'neg_samples': neg_samples, 'max_depth': config.max_depth, 'concat_mode': CM_TREE,
+        tree_iterator_args = {#'neg_samples': neg_samples,
+                              'max_depth': config.max_depth, 'concat_mode': CM_TREE,
                               'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
         # tree_iterator = diters.data_tuple_iterator_reroot
         tree_iterator = diters.tree_iterator
@@ -651,9 +654,15 @@ def init_model_type(config):
             # TODO: remove dummy indices
             #indices = np.arange(1000, dtype=np.int32)
             number_of_indices = config.cut_indices or 1000
-            logger.info('use %i fixed indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
-            indices = np.random.randint(len(forest), size=number_of_indices)
-            return indices, None, [len(indices)]
+            #logger.info('use %i fixed indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
+
+            logger.info('use %i indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
+
+            #indices = np.random.randint(len(forest), size=number_of_indices)
+            #return indices, None, [len(indices)]
+            #return range(number_of_indices), None, [len(indices)]
+            # return a dummy
+            return range(number_of_indices), None, [number_of_indices]
 
         #indices_getter = diters.indices_as_ids
         indices_getter = _get_indices
@@ -747,15 +756,15 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir)
 
-    prepared_embeddings = {}
+    compiled_trees = {}
     for m in tree_iterators:
         logger.info('create %s data set (tree-embeddings) ...' % m)
         if cache_dir is None:
             with compiler.multiprocessing_pool():
-                prepared_embeddings[m] = list(
+                compiled_trees[m] = list(
                     compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]()), ordered=True))
         else:
-            prepared_embeddings[m] = []
+            compiled_trees[m] = []
             cache_fn_names = [os.path.join(cache_dir, '%s.compiled' % os.path.splitext(os.path.basename(ind_fn))[0])
                               for ind_fn in index_file_names[m]]
             # if all trees for all index files are already compiled, the tree_iter do not have to be called
@@ -765,7 +774,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                     #prepared_embeddings[m].extend(np.load(fn).tolist())
                     with open(fn, 'rb') as pf:
                         current_trees = pickle.load(pf)
-                    prepared_embeddings[m].extend(current_trees)
+                    compiled_trees[m].extend(current_trees)
             # otherwise, already compiled trees have to be skipped (i.e. the iterator has to be called)
             else:
                 tree_iter = tree_iterators[m]()
@@ -788,11 +797,11 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                             pickle.dump(current_trees, pf)
 
                         #np.array(current_trees).dump(fn)
-                    prepared_embeddings[m].extend(current_trees)
+                    compiled_trees[m].extend(current_trees)
 
-        logger.info('%s dataset: compiled %i different trees' % (m, len(prepared_embeddings[m])))
+        logger.info('%s dataset: compiled %i different trees' % (m, len(compiled_trees[m])))
 
-    return prepared_embeddings
+    return compiled_trees
 
 
 def prepare_embeddings_tfidf(tree_iterators, logdir):
@@ -845,7 +854,7 @@ def prepare_embeddings_tfidf(tree_iterators, logdir):
     return prepared_embeddings, embedding_dim
 
 
-def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, data_dir=None, logdir=None,
+def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, logdir=None,
                   use_inception_tree_model=False, cache=None, index_file_names=None, index_file_sizes=None):
 
     #prepared_embeddings = {}
@@ -940,7 +949,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_indices, dat
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-    return model_tree, model, prepared_embeddings, tree_indices
+    return model_tree, model, prepared_embeddings
 
 
 def create_models_nearest(prepared_embeddings, model_tree):
@@ -1261,10 +1270,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     # set tree iterator
     for m in meta:
-        meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
         if config.model_type == MT_REROOT:
-            meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, trees=list(meta[m][M_TREE_ITER]()),
-                                           neg_samples=meta[m][M_NEG_SAMPLES], forest=forest, transform=True)
+            #iter = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
+            meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, tree_iter=tree_iterator, forest=forest,
+                                           neg_samples=meta[m][M_NEG_SAMPLES],
+                                           nbr_indices=len(meta[m][M_INDICES]), **tree_iterator_args)
+        else:
+            meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
+                                           **tree_iterator_args)
 
     # MODEL DEFINITION #################################################################################################
 
@@ -1276,10 +1289,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
             logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-            model_tree, model, prepared_embeddings, tree_indices = create_models(
+            model_tree, model, prepared_embeddings = create_models(
                 config=config, lexicon=lexicon,  tree_count=tree_count, logdir=logdir,
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
-                tree_indices={m: meta[m][M_INDICES] for m in meta},
+                #tree_indices={m: meta[m][M_INDICES] for m in meta},
                 cache=cache,
                 data_dir=parent_dir,
                 index_file_names={m: meta[m][M_FNAMES] for m in meta},
@@ -1300,7 +1313,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     meta[m][M_TREES] = prepared_embeddings[m]
                 else:
                     meta[m][M_TREES] = None
-                meta[m][M_INDICES] = tree_indices[m]
+                #meta[m][M_INDICES] = tree_indices[m]
 
 
             # PREPARE TRAINING #########################################################################################
