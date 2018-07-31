@@ -1476,7 +1476,7 @@ class TreeMultiClassModel(BaseTrainModel):
         logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None)
         labels_gold_dense = tf.sparse_tensor_to_dense(self._labels_gold)
         cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
+        #BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
 
         self._probs = tf.sigmoid(logits)
         #m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
