@@ -12,6 +12,8 @@ import os
 import re
 # import google3
 # import shutil
+from multiprocessing.pool import ThreadPool
+
 import scipy
 from functools import reduce, partial
 import cPickle as pickle
@@ -36,7 +38,7 @@ from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_spars
 
 # model flags (saved in flags.json)
 import mytools
-from mytools import numpy_load
+from mytools import numpy_load, ThreadWithReturnValue
 from sequence_trees import Forest
 from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
     TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, UNIQUE_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
@@ -377,8 +379,7 @@ def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tre
 
 def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None, dataset_trees=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=None, batch_iter='',
-             dataset_iterator=None, return_values=True):
+             highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True):
 
     #dataset_indices = np.arange(len(forest_indices))
     #np.random.shuffle(dataset_indices)
@@ -424,15 +425,6 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     logger.debug('use %s' % _iter.__name__)
     _batch_iter = _iter(*iter_args[_iter])
     _result_all = []
-
-    # TODO: do this in parallel with train execution
-    if dataset_iterator is not None:
-        dataset_trees = compile_trees(tree_iterators={M_TRAIN: dataset_iterator}, compiler=model.tree_model.compiler)[M_TRAIN]
-
-        #logger.debug('re-generate trees with new samples...')
-        #with model.tree_model.compiler.multiprocessing_pool():
-        #    dataset_trees = list(model.tree_model.compiler.build_loom_inputs(map(lambda x: [x], dataset_iterator()), ordered=True))
-        logger.debug('re-generated %i trees' % len(dataset_trees))
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for batch in td.group_by_batches(_batch_iter, config.batch_size):
@@ -1081,11 +1073,22 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             stat_queue = [{stat_key: TEST_MIN_INIT}]
         step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
         max_queue_length = 0
+        thread_compile = None
         for epoch, shuffled in enumerate(
                 td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
 
             # train
             if not config.early_stopping_window or len(stat_queue) > 0:
+                # re-create and compile trees for reroot model
+                if config.model_type == MT_REROOT:
+                    if thread_compile is not None:
+                        logger.debug('re-generated trees with new samples')
+                        meta[M_TRAIN][M_TREES] = thread_compile.result()[M_TRAIN]
+
+                    thread_compile = ThreadWithReturnValue(
+                        target=compile_trees, kwargs={"tree_iterators": {M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
+                                                      "compiler": meta[M_TRAIN][M_MODEL].tree_model.compiler})
+
                 step_train, loss_train, _, _, stats_train = do_epoch(
                     supervisor, sess,
                     model=meta[M_TRAIN][M_MODEL],
@@ -1097,7 +1100,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
                     highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
                     batch_iter=meta[M_TRAIN][M_BATCH_ITER],
-                    dataset_iterator=meta[M_TRAIN][M_TREE_ITER] if config.model_type == MT_REROOT else None,
                     return_values=False
                 )
 
