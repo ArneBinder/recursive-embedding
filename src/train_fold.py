@@ -1064,8 +1064,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 # re-create and compile trees for reroot model
                 if config.model_type == MT_REROOT:
                     if thread_compile is not None:
-                        logger.debug('re-generated trees with new samples')
                         meta[M_TRAIN][M_TREES] = thread_compile.result()[M_TRAIN]
+                        #test = thread_compile.result()[M_TRAIN]
+                        logger.debug('re-generated trees with new samples')
 
                     thread_compile = ThreadWithReturnValue(
                         target=compile_trees, kwargs={"tree_iterators": {M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
@@ -1202,7 +1203,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                      test_only=test_only)
     if not (test_only or init_only):
         meta[M_TRAIN] = {M_FNAMES: fnames_train}
-    meta[M_TEST] = {M_FNAMES: fnames_test}
+    if config.model_type != MT_REROOT:
+        meta[M_TEST] = {M_FNAMES: fnames_test}
 
     tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count = init_model_type(config)
 
