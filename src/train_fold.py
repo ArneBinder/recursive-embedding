@@ -1055,22 +1055,16 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             stat_queue = [{stat_key: TEST_MIN_INIT}]
         step_train = sess.run(meta[M_TRAIN][M_MODEL].global_step)
         max_queue_length = 0
-        thread_compile = None
         for epoch, shuffled in enumerate(
                 td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
 
             # train
             if not config.early_stopping_window or len(stat_queue) > 0:
                 # re-create and compile trees for reroot model
-                if config.model_type == MT_REROOT:
-                    if thread_compile is not None:
-                        meta[M_TRAIN][M_TREES] = thread_compile.result()[M_TRAIN]
-                        #test = thread_compile.result()[M_TRAIN]
-                        logger.debug('re-generated trees with new samples')
-
-                    thread_compile = ThreadWithReturnValue(
-                        target=compile_trees, kwargs={"tree_iterators": {M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
-                                                      "compiler": meta[M_TRAIN][M_MODEL].tree_model.compiler})
+                if M_TREES not in meta[M_TRAIN]:
+                    logger.debug('re-generate trees with new samples')
+                    meta[M_TRAIN][M_TREES] = compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
+                                                           compiler=meta[M_TRAIN][M_MODEL].tree_model.compiler)[M_TRAIN]
 
                 step_train, loss_train, _, _, stats_train = do_epoch(
                     supervisor, sess,
@@ -1085,6 +1079,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     batch_iter=meta[M_TRAIN][M_BATCH_ITER],
                     return_values=False
                 )
+
+                if config.model_type == MT_REROOT:
+                    del meta[M_TRAIN][M_TREES]
 
             if M_TEST in meta:
 
