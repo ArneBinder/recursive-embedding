@@ -1402,10 +1402,23 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         labels_gold_normed = self._labels_gold / tf.reduce_sum(self._labels_gold, axis=-1, keep_dims=True)
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
 
-        # TODO: use softmax??
         self._probs = tf.sigmoid(logits)
-
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
+        # m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
+        # m_ts = [0.5]
+        m_ts = [0.33, 0.5, 0.66]
+        map_ts = lambda x: str(int(x * 100))  # format thresholds
+        with tf.variable_scope("reset_metrics_scope") as scope:
+            metrics = {  # 'roc': tf.metrics.auc(labels=labels_gold_dense, predictions=self.values_predicted),
+                'precision:' + ','.join(map(map_ts, m_ts)): tf.metrics.precision_at_thresholds(
+                    labels=labels_gold_normed, predictions=self.values_predicted, thresholds=m_ts),
+                'recall:' + ','.join(map(map_ts, m_ts)): tf.metrics.recall_at_thresholds(
+                    labels=labels_gold_normed, predictions=self.values_predicted, thresholds=m_ts),
+            }
+            vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+            reset_op = tf.variables_initializer(vars)
+        BaseTrainModel.__init__(
+            self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), metrics=metrics, metric_reset_op=reset_op,
+            **kwargs)
 
     def _final_vecs(self, tree_embeddings, embedding_dim):
         raise NotImplementedError('implement this method')
