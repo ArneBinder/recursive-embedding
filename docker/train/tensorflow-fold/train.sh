@@ -36,4 +36,4 @@ LOG_FN="$HOST_TRAIN/$PROJECT_NAME"_gpu"$NVIDIA_VISIBLE_DEVICES.log"
 echo "log to: $LOG_FN"
 echo "container_name: train_gpu$NVIDIA_VISIBLE_DEVICES"_"$PROJECT_NAME"
 
-docker-compose -p "$PROJECT_NAME" up train-fold > "$LOG_FN"
+docker-compose -p "$PROJECT_NAME""_gpu$NVIDIA_VISIBLE_DEVICES" up train-fold > "$LOG_FN"
