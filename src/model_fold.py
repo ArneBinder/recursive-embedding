@@ -1401,8 +1401,8 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                             shape=[batch_size, self.candidate_count])
         labels_gold_normed = self._labels_gold / tf.reduce_sum(self._labels_gold, axis=-1, keep_dims=True)
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
+        self._probs = tf.nn.softmax(logits)
 
-        self._probs = tf.sigmoid(logits)
         # m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
         # m_ts = [0.5]
         m_ts = [0.33, 0.5, 0.66]
