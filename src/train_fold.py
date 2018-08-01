@@ -625,8 +625,8 @@ def init_model_type(config):
         #config.batch_iter_test = config.batch_iter
         #logger.debug('set batch_iter_test to %s' % config.batch_iter_test)
         neg_samples = config.neg_samples
-        config.neg_samples_test = config.neg_samples
-        logger.debug('set neg_samples_test to %i (neg_samples)' % config.neg_samples_test)
+        #config.neg_samples_test = config.neg_samples
+        #logger.debug('set neg_samples_test to %i (neg_samples)' % config.neg_samples_test)
         tree_count = neg_samples + 1
         tree_iterator_args = {#'neg_samples': neg_samples,
                               'max_depth': config.max_depth, 'concat_mode': CM_TREE,
@@ -1243,10 +1243,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         meta[M_TEST][M_BATCH_ITER] = config.batch_iter
         #else:
         #    meta[M_TEST][M_BATCH_ITER] = config.batch_iter_test
-        if config.neg_samples_test is '':
-            meta[M_TEST][M_NEG_SAMPLES] = config.neg_samples
-        else:
-            meta[M_TEST][M_NEG_SAMPLES] = int(config.neg_samples_test)
+        #if config.neg_samples_test is '':
+        meta[M_TEST][M_NEG_SAMPLES] = config.neg_samples
+        #else:
+        #    meta[M_TEST][M_NEG_SAMPLES] = int(config.neg_samples_test)
     if M_TRAIN in meta:
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
         meta[M_TRAIN][M_NEG_SAMPLES] = config.neg_samples

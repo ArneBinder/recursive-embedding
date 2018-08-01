@@ -1,6 +1,6 @@
 OPEN:
     coding:
-
+     * check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers

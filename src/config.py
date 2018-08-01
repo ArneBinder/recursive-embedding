@@ -169,11 +169,11 @@ default_config = {'train_data_path': ['DEFINE_string',
                                   'count of negative samples per tree',
                                   'ns'
                                   ],
-                  'neg_samples_test': ['DEFINE_string',
-                                  '',
-                                  'count of negative samples per tree',
-                                  'nst'
-                                  ],
+                  #'neg_samples_test': ['DEFINE_string',
+                  #                '',
+                  #                'count of negative samples per tree',
+                  #                'nst'
+                  #                ],
                   'nbr_trees': ['DEFINE_integer',
                                   1000,
                                   'number of trees for one epoch when training the REROOT model',
