@@ -382,7 +382,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
 def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, **kwargs):
     logger.debug('select %i new root indices (forest size: %i)' % (nbr_indices, len(forest)))
     indices = np.random.randint(len(forest), size=nbr_indices)
-    for tree in tree_iter(forest=forest, transform=transform, indices=indices, **kwargs):
+    for tree in tree_iter(forest=forest, transform=transform, indices=indices, reroot=True, **kwargs):
         samples = np.random.choice(forest.data, size=neg_samples + 1)
         if transform:
             samples = forest.lexicon.transform_indices(samples, root_id_pos=forest.root_id_pos)
