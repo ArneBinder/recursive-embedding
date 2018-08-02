@@ -1413,6 +1413,21 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                     labels=labels_gold_normed, predictions=self.values_predicted, thresholds=m_ts),
                 'recall:' + ','.join(map(map_ts, m_ts)): tf.metrics.recall_at_thresholds(
                     labels=labels_gold_normed, predictions=self.values_predicted, thresholds=m_ts),
+                #'precision@1': tf.metrics.sparse_precision_at_k(
+                #    labels=tf.argmax(self._labels_gold, axis=1),
+                #    predictions=self.values_predicted, k=1, class_id=0),
+                'recall@1': tf.metrics.recall_at_k(
+                    labels=tf.argmax(self._labels_gold, axis=1),
+                    predictions=self.values_predicted, k=1, class_id=0),
+                'recall@2': tf.metrics.recall_at_k(
+                    labels=tf.argmax(self._labels_gold, axis=1),
+                    predictions=self.values_predicted, k=2, class_id=0),
+                'recall@3': tf.metrics.recall_at_k(
+                    labels=tf.argmax(self._labels_gold, axis=1),
+                    predictions=self.values_predicted, k=3, class_id=0),
+                'recall@5': tf.metrics.recall_at_k(
+                    labels=tf.argmax(self._labels_gold, axis=1),
+                    predictions=self.values_predicted, k=5, class_id=0),
             }
             vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
             reset_op = tf.variables_initializer(vars)

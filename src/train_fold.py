@@ -101,7 +101,7 @@ FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
 #METRIC_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
-METRIC_KEYS_DISCRETE = ['roc', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
+METRIC_KEYS_DISCRETE = ['roc', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90', 'recall@1', 'recall@2', 'recall@3', 'recall@5']
 METRIC_DISCRETE = 'f1_t33'
 #STAT_KEY_MAIN_DISCRETE = 'roc_micro'
 METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
