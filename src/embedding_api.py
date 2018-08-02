@@ -355,9 +355,14 @@ def get_or_calc_sequence_data(params):
         if 'link_cost_ref_seealso' in params:
             costs[d_ref_seealso] = params['link_cost_ref_seealso']
         params['transformed_idx'] = True
-        tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
-                                                 transform=params['transformed_idx'],
-                                                 costs=costs, link_types=[d_ref, d_ref_seealso])
+        if params.get('reroot', False):
+            tree_dict = current_forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth,
+                                                            transform=params['transformed_idx'], costs=costs,
+                                                            link_types=[d_ref, d_ref_seealso])
+        else:
+            tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
+                                                     transform=params['transformed_idx'],
+                                                     costs=costs, link_types=[d_ref, d_ref_seealso])
         vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
                             data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
                             lexicon_roots=current_forest.lexicon_roots)
