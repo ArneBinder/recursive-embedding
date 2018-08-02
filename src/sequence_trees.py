@@ -482,11 +482,19 @@ class Forest(object):
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
+        # if current data is a link, start at parent NOT NECESSARY (will be transformed to IDENTITY entry)
+        #if self.parents[idx] != 0:
+        #    parent_idx = idx + self.parents[idx]
+        #    if self.data[parent_idx] in link_types:
+        #        idx = parent_idx
+
         result = self.get_tree_dict(idx, max_depth=max_depth, transform=transform)
-        cost = costs.get(self.data[idx], 1)
+        #cost = costs.get(self.data[idx], 1)
+        cost = 1
         if self.parents[idx] != 0 and max_depth > 0:
-            result[KEY_CHILDREN].append(self.get_tree_dict_parent(idx, max_depth-cost, transform=transform, costs=costs,
-                                                                  link_types=link_types))
+            parent_tree = self.get_tree_dict_parent(idx, max_depth-cost, transform=transform, costs=costs,
+                                                                  link_types=link_types)
+            result[KEY_CHILDREN].append(parent_tree)
         return result
 
     def get_tree_dict_parent(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
@@ -503,15 +511,17 @@ class Forest(object):
         current_dict_tree = result
         while max_depth > 0:
             current_d = self.data[current_id]
-            current_cost = costs.get(current_d, 1)
+            current_cost_down = costs.get(current_d, 1)
 
-            # add other children
-            for c in self.get_children(current_id):
-                c_id = current_id + c
-                if c_id != previous_id:
-                    current_dict_tree[KEY_CHILDREN].append(
-                        self.get_tree_dict(c_id, max_depth=max_depth - current_cost, transform=transform, costs=costs,
-                                           link_types=link_types))
+            # if link is not disabled (cost < 0) ...
+            if current_cost_down >= 0:
+                # ... add other children
+                for c in self.get_children(current_id):
+                    c_id = current_id + c
+                    if c_id != previous_id:
+                        current_dict_tree[KEY_CHILDREN].append(
+                            self.get_tree_dict(c_id, max_depth=max_depth - current_cost_down, transform=transform, costs=costs,
+                                               link_types=link_types))
             # go up
             if self.parents[current_id] != 0:
                 previous_id = current_id
@@ -522,7 +532,7 @@ class Forest(object):
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
                 current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child
-                max_depth -= current_cost
+                max_depth -= 1
             else:
                 break
         return result

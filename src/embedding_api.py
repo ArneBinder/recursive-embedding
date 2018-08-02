@@ -359,6 +359,12 @@ def get_or_calc_sequence_data(params):
             tree_dict = current_forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth,
                                                             transform=params['transformed_idx'], costs=costs,
                                                             link_types=[d_ref, d_ref_seealso])
+            # if we pointed to a link, return just the link type NOT NECESSARY (will be transformed to IDENTITY entry)
+            #if tree_dict is None:
+            #    assert current_forest.parents[idx] != 0, 'if tree_dict is None it should be a child of a link type, but it has no parent'
+            #    parent_d = current_forest.data[idx + current_forest.parents[idx]]
+            #    assert parent_d in link_types, 'parent is: %s, but should be a link type (%s)' % (str(parent_d), ', '.join(link_types))
+            #    tree_dict = {KEY_HEAD: current_forest.lexicon.transform_idx(parent_d), KEY_CHILDREN: []}
         else:
             tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
                                                      transform=params['transformed_idx'],
