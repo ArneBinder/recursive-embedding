@@ -384,6 +384,12 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, 
     indices = np.random.randint(len(forest), size=nbr_indices)
     for tree in tree_iter(forest=forest, transform=transform, indices=indices, reroot=True, **kwargs):
         samples = np.random.choice(forest.data, size=neg_samples + 1)
+        # replace samples that equal the head/root
+        rep = np.random.randint(len(forest.lexicon) - 1)
+        if rep == tree[KEY_HEAD]:
+            rep = len(forest.lexicon) - 1
+        samples[samples == tree[KEY_HEAD]] = rep
+
         if transform:
             samples = forest.lexicon.transform_indices(samples, root_id_pos=forest.root_id_pos)
         samples[0] = tree[KEY_HEAD]
