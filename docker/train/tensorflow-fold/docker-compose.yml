@@ -28,6 +28,7 @@ services:
         --learning_rate=${LEARNING_RATE}
         --optimizer=${OPTIMIZER}
         --early_stopping_window=${EARLY_STOPPING_WINDOW}
+        --early_stopping_metric=${EARLY_STOPPING_METRIC}
         --root_fc_sizes=${ROOT_FC_SIZES}
         --leaf_fc_size=${LEAF_FC_SIZE}
         --fc_sizes=${FC_SIZES}

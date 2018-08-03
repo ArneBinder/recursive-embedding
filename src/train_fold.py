@@ -83,6 +83,9 @@ tf.flags.DEFINE_boolean('init_only',
 tf.flags.DEFINE_string('grid_config_file',
                        None,
                        'read config parameter dict from this file and execute multiple runs')
+tf.flags.DEFINE_string('early_stopping_metric',
+                       '',
+                       'If set and early_stopping_window != 0, use this metric to estimate when to cancel training')
 tf.flags.DEFINE_integer('run_count',
                         1,
                         'repeat each run this often')
@@ -101,7 +104,7 @@ FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
 #METRIC_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
-METRIC_KEYS_DISCRETE = ['roc', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90', 'recall@1', 'recall@2', 'recall@3', 'recall@5']
+METRIC_KEYS_DISCRETE = ['f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90', 'recall@1', 'recall@2', 'recall@3', 'recall@5']
 METRIC_DISCRETE = 'f1_t33'
 #STAT_KEY_MAIN_DISCRETE = 'roc_micro'
 METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
@@ -1047,15 +1050,21 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
         logger.info('training the model')
         model_for_metric = M_TEST if M_TEST in meta else M_TRAIN
 
-        if meta[model_for_metric][M_MODEL].model_type == MODEL_TYPE_DISCRETE:
-            stat_key = METRIC_DISCRETE
-        elif meta[model_for_metric][M_MODEL].model_type == MODEL_TYPE_REGRESSION:
-            stat_key = METRIC_REGRESSION
+        if FLAGS.early_stopping_metric is not None and FLAGS.early_stopping_metric.strip() != '':
+            assert FLAGS.early_stopping_metric in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION, \
+                'early_stopping_metric=%s not in available metrics: %s' \
+                % (FLAGS.early_stopping_metric, ', '.join(METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION))
+            metric = FLAGS.early_stopping_metric.strip()
         else:
-            raise ValueError('stat_key not defined for model_type=%s' % meta[model_for_metric][M_MODEL].model_type)
-        # NOTE: this depends on stat_key (pearson/mse/roc/...)
+            if meta[model_for_metric][M_MODEL].model_type == MODEL_TYPE_DISCRETE:
+                metric = METRIC_DISCRETE
+            elif meta[model_for_metric][M_MODEL].model_type == MODEL_TYPE_REGRESSION:
+                metric = METRIC_REGRESSION
+            else:
+                raise ValueError('no metric defined for model_type=%s' % meta[model_for_metric][M_MODEL].model_type)
+        # NOTE: this depends on metric (pearson/mse/roc/...)
         METRIC_MIN_INIT = -1
-        stat_queue = [{stat_key: METRIC_MIN_INIT}]
+        stat_queue = [{metric: METRIC_MIN_INIT}]
         max_queue_length = 0
         for epoch, shuffled in enumerate(
                 td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
@@ -1111,9 +1120,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
             # EARLY STOPPING ###############################################################################
 
-            stat = round(stats_test[stat_key], 6)
+            stat = round(stats_test[metric], 6)
 
-            prev_max = max(stat_queue, key=lambda t: t[stat_key])[stat_key]
+            prev_max = max(stat_queue, key=lambda t: t[metric])[metric]
             # stop, if current metric is not bigger than previous values. The amount of regarded
             # previous values is set by config.early_stopping_window
             if stat > prev_max:
@@ -1122,7 +1131,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 if len(stat_queue) >= max_queue_length:
                     max_queue_length = len(stat_queue) + 1
             stat_queue.append(stats_test)
-            stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[stat_key])
+            stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[metric])
             rank = stat_queue_sorted.index(stats_test)
 
             # write out queue length
@@ -1130,7 +1139,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                         writer=test_writer if M_TEST in meta else None)
             logger.info(
                 '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
-                % (stat_key, len(stat_queue), rank, (stat - prev_max), max_queue_length))
+                % (metric, len(stat_queue), rank, (stat - prev_max), max_queue_length))
 
             if len(stat_queue) == 1 or not config.early_stopping_window:
                 supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
@@ -1343,15 +1352,25 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             return res
 
 
-def add_metrics(d, stats, prefix=''):
-    if METRIC_REGRESSION in stats:
-        metric_keys = METRIC_KEYS_REGRESSION
-        metric_main = METRIC_REGRESSION
-    elif METRIC_DISCRETE in stats:
-        metric_keys = METRIC_KEYS_DISCRETE
-        metric_main = METRIC_DISCRETE
+def add_metrics(d, stats, metric_main=None, prefix=''):
+    if metric_main is not None and metric_main.strip() != '':
+        assert metric_main in stats, 'manually defined metric_main=%s not found in stats keys: %s' % (metric_main, ', '.join(stats.keys()))
+        if metric_main in METRIC_KEYS_REGRESSION:
+            metric_keys = METRIC_KEYS_REGRESSION
+        elif metric_main in METRIC_KEYS_DISCRETE:
+            metric_keys = METRIC_DISCRETE
+        else:
+            raise ValueError('metric_main=%s has to be in either %s or %s'
+                             % (metric_main, ', '.join(METRIC_KEYS_REGRESSION), ', '.join(METRIC_DISCRETE)))
     else:
-        raise ValueError('stats has to contain either %s or %s' % (METRIC_REGRESSION, METRIC_DISCRETE))
+        if METRIC_REGRESSION in stats:
+            metric_keys = METRIC_KEYS_REGRESSION
+            metric_main = METRIC_REGRESSION
+        elif METRIC_DISCRETE in stats:
+            metric_keys = METRIC_KEYS_DISCRETE
+            metric_main = METRIC_DISCRETE
+        else:
+            raise ValueError('stats has to contain either %s or %s' % (METRIC_REGRESSION, METRIC_DISCRETE))
     for k in metric_keys:
         if k in stats:
             d[prefix + k] = stats[k]
@@ -1378,9 +1397,9 @@ if __name__ == '__main__':
                 config = Config(logdir_continue=logdir)
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
-                                    test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
+                                       test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
 
-                add_metrics(config_dict, stats, prefix=stats_prefix)
+                add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
                 csvfile.flush()
     else:
@@ -1473,13 +1492,13 @@ if __name__ == '__main__':
 
                         # train
                         metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None)
-                        main_metric = add_metrics(d, metrics_dev, prefix=stats_prefix_dev)
+                        main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
                         # test
                         if test_fname is not None:
                             metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file, cache=cache_test if USE_CACHE else None)
-                            main_metric = add_metrics(d, metrics_test, prefix=stats_prefix_test)
+                            main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
                         d['run_description'] = c.run_description
 
