@@ -379,21 +379,29 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     logger.info('created %i trees' % n)
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, **kwargs):
+def reroot_wrapper(tree_iter, neg_samples, uniques, counts, forest, nbr_indices, transform=True, **kwargs):
     logger.debug('select %i new root indices (forest size: %i)' % (nbr_indices, len(forest)))
     indices = np.random.randint(len(forest), size=nbr_indices)
     for tree in tree_iter(forest=forest, transform=transform, indices=indices, reroot=True, **kwargs):
-        samples = np.random.choice(forest.data, size=neg_samples + 1)
-        # replace samples that equal the head/root
-        rep = np.random.randint(len(forest.lexicon) - 1)
-        if rep == tree[KEY_HEAD]:
-            rep = len(forest.lexicon) - 1
-        samples[samples == tree[KEY_HEAD]] = rep
+        root_head_unique_idx = np.where(uniques == tree[KEY_HEAD])
+        assert len(root_head_unique_idx) == 1, 'found root=%i %i times in unique, but should occur exactly once' % (tree[KEY_HEAD], len(root_head_unique_idx))
+        # backup root prob
+        root_head_prob = counts[root_head_unique_idx[0]]
+        # replace root with last element
+        counts[root_head_unique_idx[0]] = counts[-1]
+        uniques[root_head_unique_idx[0]] = uniques[-1]
+        # sample (+1 for root placeholder)
+        probs = counts[:-1].astype(dtype=np.float32) / np.sum(counts[:-1])
+        samples = np.random.choice(uniques[:-1], size=neg_samples + 1, p=probs, replace=False)
+        # revert backed up unique and prob
+        uniques[root_head_unique_idx[0]] = tree[KEY_HEAD]
+        counts[root_head_unique_idx[0]] = root_head_prob
 
         if transform:
             samples = forest.lexicon.transform_indices(samples, root_id_pos=forest.root_id_pos)
         samples[0] = tree[KEY_HEAD]
         tree[KEY_CANDIDATES] = samples
+        tree[KEY_HEAD] = None
         yield tree
 
 

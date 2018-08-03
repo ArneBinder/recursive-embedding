@@ -1,6 +1,8 @@
 OPEN:
     coding:
      * check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
+     * early_stopping_metric as parameter
+     * re-add testing for language model (reroot)
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
@@ -24,7 +26,8 @@ DONE:
  * implemented caching to fasten repeated execution of the same setting
  * check for overfitting on small dataset (local)
    DONE: it does, after some epochs (FLATGRU:~290;FLATconcat_GRU:~160;FLATconcat_BIGRU:~170, but: HTU:~60)
+ * neg_sampling: sample from lexicon and calc probs from frequencies
 
 
 NOTES:
- * possible Zweitbetreuer: Manfred Stede (NO), Roland
+ * possible Zweitbetreuer: Manfred Stede (NO), Roland (OK)

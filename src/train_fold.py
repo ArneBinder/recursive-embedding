@@ -1243,9 +1243,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     # set tree iterator
     for m in meta:
         if config.model_type == MT_REROOT:
-            #iter = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest, **tree_iterator_args)
+            uniques, counts = np.unique(forest.data, return_counts=True)
+            # if root ids are present in data (used for links), add IDENTITY token x times. x is heuristically set to
+            # number of roots. The correct value, the number ouf outgoing links, is not trivial to get.
+            if lexicon_roots is not None:
+                d_identity = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+                uniques = np.concatenate((uniques, [d_identity]))
+                counts = np.concatenate((counts, [len(lexicon_roots)]))
+
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, tree_iter=tree_iterator, forest=forest,
-                                           neg_samples=meta[m][M_NEG_SAMPLES],
+                                           neg_samples=meta[m][M_NEG_SAMPLES], uniques=uniques, counts=counts,
                                            nbr_indices=len(meta[m][M_INDICES]), **tree_iterator_args)
         else:
             meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
