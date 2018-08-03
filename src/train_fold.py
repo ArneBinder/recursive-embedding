@@ -67,6 +67,9 @@ tf.flags.DEFINE_string('train_files',
 tf.flags.DEFINE_boolean('test_only',
                         False,
                         'Enable to execute evaluation only.')
+tf.flags.DEFINE_boolean('dont_test',
+                        False,
+                        'If enabled, do not evaluate on test data.')
 tf.flags.DEFINE_string('logdir_continue',
                        None,
                        'continue training with config from flags.json')
@@ -591,7 +594,6 @@ def init_model_type(config):
         tree_iterator = diters.data_tuple_iterator
 
         tree_count = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
-        #discrete_model = False
         load_parents = False
     elif config.model_type == MT_TREETUPLE:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -607,9 +609,7 @@ def init_model_type(config):
 
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_dbpedianif
-        # tuple_size = config.neg_samples + 1
         tree_count = 1
-        #discrete_model = True
         load_parents = (tree_iterator_args['context'] > 0)
     # elif config.model_type == 'tuple_single':
     #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -629,11 +629,7 @@ def init_model_type(config):
     elif config.model_type == MT_REROOT:
         config.batch_iter = batch_iter_reroot.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
-        #config.batch_iter_test = config.batch_iter
-        #logger.debug('set batch_iter_test to %s' % config.batch_iter_test)
         neg_samples = config.neg_samples
-        #config.neg_samples_test = config.neg_samples
-        #logger.debug('set neg_samples_test to %i (neg_samples)' % config.neg_samples_test)
         tree_count = neg_samples + 1
         tree_iterator_args = {#'neg_samples': neg_samples,
                               'max_depth': config.max_depth, 'concat_mode': CM_TREE,
@@ -642,13 +638,10 @@ def init_model_type(config):
         tree_iterator = diters.tree_iterator
 
         def _get_indices(index_files, forest, **unused):
-            number_of_indices = config.nbr_trees or 1000
-            logger.info('use %i indices per epoch (forest size: %i)' % (number_of_indices, len(forest)))
-            return range(number_of_indices), None, [number_of_indices]
+            # create a dummy. real index sampling happens in reroot_wrapper
+            return [], None, [0]
 
         indices_getter = _get_indices
-        # del meta[M_TEST]
-        #discrete_model = True
         load_parents = True
     # elif config.model_type == 'tfidf':
     #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -674,7 +667,6 @@ def init_model_type(config):
         load_parents = (tree_iterator_args['context'] > 0)
 
         config.batch_iter = batch_iter_multiclass.__name__
-        #config.batch_iter_test = batch_iter_multiclass.__name__
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
@@ -691,7 +683,6 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
     if test_files is not None and test_files.strip() != '':
         fnames_test = [os.path.join(parent_dir, fn) for fn in FLAGS.test_files.split(',')]
     if not test_only:
-        #if M_FNAMES not in meta[M_TRAIN]:
         if fnames_train is None:
             logger.info('collect train data from: ' + config.train_data_path + ' ...')
             regex = re.compile(r'%s\.idx\.\d+\.npy$' % ntpath.basename(config.train_data_path))
@@ -699,7 +690,6 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
             fnames_train = [os.path.join(parent_dir, fn) for fn in sorted(_train_fnames)]
         assert len(fnames_train) > 0, 'no matching train data files found for ' + config.train_data_path
         logger.info('found ' + str(len(fnames_train)) + ' train data files')
-        #if M_TEST in meta and M_FNAMES not in meta[M_TEST]:
         if fnames_test is None:
             fnames_test = [fnames_train[config.dev_file_index]]
             logger.info('use %s for testing' % str(fnames_test))
@@ -838,7 +828,6 @@ def prepare_embeddings_tfidf(tree_iterators, logdir):
 def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, logdir=None,
                   use_inception_tree_model=False, cache=None, index_file_names=None, index_file_sizes=None):
 
-    #prepared_embeddings = {}
     optimizer = config.optimizer
     if optimizer is not None:
         optimizer = getattr(tf.train, optimizer)
@@ -1024,7 +1013,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     dataset_trees=meta[M_TEST][M_TREES],  # if M_TREES in meta[M_TEST] else None,
                     forest_indices=meta[M_TEST][M_INDICES],
                     indices_targets=meta[M_TEST][M_INDICES_TARGETS],
-                    # dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                     epoch=0,
                     train=False,
                     emit=True,
@@ -1071,9 +1059,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
             # TRAIN
 
-            # re-create and compile trees for reroot model
+            # re-create and compile trees for reroot (language) model
             if M_TREES not in meta[M_TRAIN]:
-                logger.debug('(re-)generate trees with new samples')
+                logger.debug('generate trees for training with new samples')
                 meta[M_TRAIN][M_TREES] = compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
                                                        compiler=meta[M_TRAIN][M_MODEL].tree_model.compiler)[M_TRAIN]
 
@@ -1081,7 +1069,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 supervisor, sess,
                 model=meta[M_TRAIN][M_MODEL],
                 dataset_trees=meta[M_TRAIN][M_TREES],  # if M_TREES in meta[M_TRAIN] else None,
-                # dataset_trees_embedded=meta[M_TRAIN][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TRAIN] else None,
                 forest_indices=meta[M_TRAIN][M_INDICES],
                 indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
                 epoch=epoch,
@@ -1101,11 +1088,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     supervisor, sess,
                     model=meta[M_TEST][M_MODEL],
                     dataset_trees=meta[M_TEST][M_TREES],  # if M_TREES in meta[M_TEST] else None,
-                    # #dataset_trees_embedded=meta[M_TEST][M_TREE_EMBEDDINGS] if M_TREE_EMBEDDINGS in meta[M_TEST] else None,
                     forest_indices=meta[M_TEST][M_INDICES],
                     indices_targets=meta[M_TEST][M_INDICES_TARGETS],
                     number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
-                    # number_of_samples=None,
                     epoch=epoch,
                     train=False,
                     test_step=step_train,
@@ -1198,7 +1183,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                      test_only=test_only)
     if not (test_only or init_only):
         meta[M_TRAIN] = {M_FNAMES: fnames_train}
-    if config.model_type != MT_REROOT:
+    if not FLAGS.dont_test:
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
     tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count = init_model_type(config)
@@ -1237,14 +1222,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
     # set batch iterators and numbers of negative samples
     if M_TEST in meta:
-        #if config.batch_iter_test is '':
         meta[M_TEST][M_BATCH_ITER] = config.batch_iter
-        #else:
-        #    meta[M_TEST][M_BATCH_ITER] = config.batch_iter_test
-        #if config.neg_samples_test is '':
         meta[M_TEST][M_NEG_SAMPLES] = config.neg_samples
-        #else:
-        #    meta[M_TEST][M_NEG_SAMPLES] = int(config.neg_samples_test)
     if M_TRAIN in meta:
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
         meta[M_TRAIN][M_NEG_SAMPLES] = config.neg_samples
@@ -1260,9 +1239,15 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 uniques = np.concatenate((uniques, [d_identity]))
                 counts = np.concatenate((counts, [len(lexicon_roots)]))
 
+            nbr_indices = config.nbr_trees or 1000
+            if m == M_TEST and config.nbr_trees_test:
+                nbr_indices = config.nbr_trees_test
+            logger.info('%s: use %i indices per epoch (forest size: %i)' % (m, nbr_indices, len(forest)))
+            # overwrite dummy indices with correct number of dummy indices
+            meta[m][M_INDICES] = np.zeros(nbr_indices)
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, tree_iter=tree_iterator, forest=forest,
                                            neg_samples=meta[m][M_NEG_SAMPLES], uniques=uniques, counts=counts,
-                                           nbr_indices=len(meta[m][M_INDICES]), **tree_iterator_args)
+                                           nbr_indices=nbr_indices, **tree_iterator_args)
         else:
             meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
                                            **tree_iterator_args)
@@ -1273,14 +1258,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     logger.info('create tensorflow graph on device: %s ...' % str(current_device))
     with tf.device(current_device):
         with tf.Graph().as_default() as graph:
-            #with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
             logger.debug('trainable lexicon entries: %i' % lexicon.len_var)
             logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
             model_tree, model, prepared_embeddings = create_models(
                 config=config, lexicon=lexicon,  tree_count=tree_count, logdir=logdir,
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
-                #tree_indices={m: meta[m][M_INDICES] for m in meta},
                 cache=cache,
                 data_dir=parent_dir,
                 index_file_names={m: meta[m][M_FNAMES] for m in meta},
@@ -1301,7 +1284,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                     meta[m][M_TREES] = prepared_embeddings[m]
                 else:
                     meta[m][M_TREES] = None
-                #meta[m][M_INDICES] = tree_indices[m]
 
 
             # PREPARE TRAINING #########################################################################################

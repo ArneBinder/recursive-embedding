@@ -45,6 +45,7 @@ services:
         --batch_iter=${BATCH_ITER}
         --batch_iter_test=${BATCH_ITER_TEST}
         --nbr_trees=${NBR_TREES}
+        --nbr_trees_test=${NBR_TREES_TEST}
         --additional_vecs=${ADDITIONAL_VECS}
         --grid_config_file=${GRID_CONFIG_FILE}
         --run_count=${RUN_COUNT}
