@@ -755,9 +755,10 @@ class Lexicon(object):
         return data.astype(DTYPE_IDX)
         #return data_new
 
-    def read_data(self, return_hashes=False, *args, **kwargs):
-        data, parents = read_data(*args, strings=self.strings, **kwargs)
-        self.clear_cached_values()
+    def read_data(self, expand_dict=True, return_hashes=False, *args, **kwargs):
+        data, parents = read_data(*args, strings=self.strings, expand_dict=expand_dict, **kwargs)
+        if expand_dict:
+            self.clear_cached_values()
         if return_hashes:
             return Forest(data=data, parents=parents, lexicon=self, data_as_hashes=True)
         else:
