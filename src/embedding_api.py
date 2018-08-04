@@ -30,8 +30,8 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
-from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, M_TREES, \
-    M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES
+from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, \
+    KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT
 import data_iterators
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
@@ -87,7 +87,7 @@ FLAGS = tf.flags.FLAGS
 nlp = None
 sess = None
 model_tree = None
-model_tuple = None
+model_main = None
 lexicon = None
 forest = None
 data_path = None
@@ -96,6 +96,12 @@ tfidf_indices = None
 tfidf_root_ids = None
 embedding_indices = None
 embeddings = None
+
+logger = logging.getLogger('')
+logger.setLevel(logging.DEBUG)
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.DEBUG)
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 
 
 ##################################################
@@ -434,12 +440,20 @@ def get_or_calc_embeddings(params):
         if 'max_depth' in params:
             max_depth = int(params['max_depth'])
         # TODO: rework! (add link_types and costs)
-        batch = [[[Forest(forest=parsed_data, lexicon=lexicon).get_tree_dict(max_depth=max_depth, transform=True)], []]
-                 for parsed_data in data_sequences]
+        batch = []
+        for parsed_data in data_sequences:
+            tree = Forest(forest=parsed_data, lexicon=lexicon).get_tree_dict(max_depth=max_depth, transform=True)
+            # add correct root as candidate (if HTUBatchedHead model is used)
+            tree[KEY_CANDIDATES] = [tree[KEY_HEAD]]
+            batch.append([tree])
 
         if len(batch) > 0:
             fdict = model_tree.build_feed_dict(batch)
-            embeddings = sess.run(model_tree.embeddings_all, feed_dict=fdict)
+            embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict)
+
+            embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
+
+
             # if embedder.scoring_enabled:
             #    fdict_scoring = embedder.build_scoring_feed_dict(embeddings)
             #    params['scores'] = sess.run(embedder.scores, feed_dict=fdict_scoring)
@@ -450,6 +464,16 @@ def get_or_calc_embeddings(params):
         params['embeddings'] = embeddings
     else:
         raise ValueError('no embeddings or sequences found in request')
+
+
+def get_or_calc_scores(params):
+    if 'scores' in params:
+        params['scores'] = np.array(params['scores'])
+    else:
+        get_or_calc_embeddings(params)
+        if params['embeddings'].shape[0] > 0:
+            fdict = {model_main.tree_model.embeddings_all: params['embeddings'], model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
+            params['scores'] = sess.run(model_main.scores, feed_dict=fdict)
 
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
@@ -582,6 +606,23 @@ def embed():
         # if 'scores_gold' in params:
         #    params['scores_gold'].dump('api_request_scores_gold')
         # debug end
+
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage(e.message)
+    return response
+
+
+@app.route("/api/score", methods=['POST'])
+def score():
+    try:
+        start = time.time()
+        logging.info('Scores requested')
+        params = get_params(request)
+        get_or_calc_scores(params)
 
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         json_data = json.dumps(filter_result(make_serializable(params)))
@@ -838,7 +879,7 @@ def get_tuple_scores():
         top = params.get('top', len(root_ids_target))
         batch_size = params.get('batch_size', 100)
         _scores, seealso_root_ids = calc_tuple_scores(root_id=root_id, root_ids_target=root_ids_target, forest=forest,
-                                                      model_tree=model_tree, model_tuple=model_tuple,
+                                                      model_tree=model_tree, model_tuple=model_main,
                                                       concat_mode=concat_mode, max_depth=max_depth,
                                                       batch_size=batch_size)
         params['root_ids_seealso'] = seealso_root_ids
@@ -958,10 +999,10 @@ def init_forest(data_path):
 
 
 def main(data_source):
-    global sess, model_tree, model_tuple, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, embedding_indices, embeddings
+    global sess, model_tree, model_main, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, embedding_indices, embeddings
     sess = None
     model_tree = None
-    model_tuple = None
+    model_main = None
     lexicon = None
     forest = None
     data_path = None
@@ -991,17 +1032,20 @@ def main(data_source):
                 logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
                 logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-                assert model_config.model_type == 'tuple', 'only model_type=tuple implemented'
-                model_tree, model_tuple, prepared_embeddings, tree_indices = create_models(
-                    config=model_config, lexicon=lexicon, tree_count=1, tree_iterators={}, tree_indices=None,
+                #assert model_config.model_type == 'tuple', 'only model_type=tuple implemented'
+                #model_tree, model_tuple, prepared_embeddings, tree_indices = create_models(
+                model_config.keep_prob = 1.0
+                model_tree, model_main, prepared_embeddings = create_models(
+                    config=model_config, lexicon=lexicon, tree_count=1, tree_iterators={},
                     logdir=data_source, use_inception_tree_model=True)
 
                 if model_config.tree_embedder == 'tfidf':
-                    _indices, _tfidf = zip(*[(tree_indices[m], prepared_embeddings[m]) for m in tree_indices.keys()])
-                    tfidf_data = scipy.sparse.vstack(_tfidf)
-                    logging.info('total tfidf shape: %s' % str(tfidf_data.shape))
-                    tfidf_indices = np.concatenate(_indices)
-                    logging.debug('number of tfidf_indices: %i' % len(tfidf_indices))
+                    raise NotImplementedError('tfidf model not implemented for embedding_api')
+                    #_indices, _tfidf = zip(*[(tree_indices[m], prepared_embeddings[m]) for m in tree_indices.keys()])
+                    #tfidf_data = scipy.sparse.vstack(_tfidf)
+                    #logging.info('total tfidf shape: %s' % str(tfidf_data.shape))
+                    #tfidf_indices = np.concatenate(_indices)
+                    #logging.debug('number of tfidf_indices: %i' % len(tfidf_indices))
 
                 # TODO: still ok?
                 if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
@@ -1035,6 +1079,7 @@ def main(data_source):
                 lexicon.init_vecs()
     else:
         data_path = data_source
+
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
