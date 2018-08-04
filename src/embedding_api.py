@@ -215,7 +215,10 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
 
 
 def get_data_sequence_and_sequence_for_indices(indices, current_forest, params):
-    params['sequences'] = []
+
+    if not params.get('reroot', False):
+        params['sequences'] = []
+
     params['data_sequences'] = []
 
     max_depth = params.get('max_depth', 10)
@@ -259,9 +262,11 @@ def get_data_sequence_and_sequence_for_indices(indices, current_forest, params):
                             lexicon_roots=current_forest.lexicon_roots)
 
         params['data_sequences'].append([vis_forest.data, vis_forest.parents])
-        token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
-                                               transformed=params['transformed_idx'])
-        params['sequences'].append(token_list)
+
+        if not params.get('reroot', False):
+            token_list = vis_forest.get_text_plain(blacklist=params.get('prefix_blacklist', None),
+                                                   transformed=params['transformed_idx'])
+            params['sequences'].append(token_list)
 
 
 def get_or_calc_sequence_data(params):
