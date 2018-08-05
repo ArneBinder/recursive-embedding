@@ -282,9 +282,8 @@ def get_or_calc_sequence_data(params):
     if 'data_sequences' in params:
         d_list, p_list = zip(*params['data_sequences'])
         params['data_as_hashes'] = params.get('data_as_hashes', False)
-        root_ids = params.get('root_ids', None)
         current_forest = Forest(data=np.concatenate(d_list), parents=np.concatenate(p_list), lexicon=lexicon,
-                                data_as_hashes=params['data_as_hashes'], root_ids=root_ids)
+                                data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
     else:
         init_forest(data_path)
         current_forest = forest

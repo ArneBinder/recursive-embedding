@@ -665,37 +665,24 @@ class Forest(object):
             end = len(self)
         if scores is None:
             scores = np.ones(end-start, dtype=float)
-        assert self.lexicon is not None, 'lexicon is not set'
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
-        if len(self) > 0:
+        if token_list is None:
+            token_list = self.get_text_plain(self, start=start, end=end, transformed=transformed)
+        if len(token_list) > 0:
             nodes = []
-            for i, d in enumerate(self.data[start:end]):
-                reverted = False
-                if transformed:
-                    d, reverted = self.lexicon.transform_idx_back(d)
-                s = self.lexicon.get_s(d, self.data_as_hashes)
-                root_id = self.root_id_mapping.get(d, None)
-                if self.data_as_hashes:
-                    d = self.lexicon.mapping[self.lexicon.strings[s]]
+            for i, l in enumerate(token_list):
+                fixed = l.endswith('-FIX')
+                if fixed:
+                    l = l[:-len('-FIX')]
 
-                if token_list is not None:
-                    s = token_list[i]
-                else:
-                    if root_id is not None:
-                        if self.lexicon_roots is not None:
-                            root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
-                            s = root_s
-                        else:
-                            s = 'ROOT_ID:%s(%s)' % (root_id, s)
+                reverted = l.endswith('-REV')
+                if reverted:
+                    l = l[:-len('-REV')]
 
-                    if s == vocab_manual[UNKNOWN_EMBEDDING]:
-                        s = 'ID:%s(%s)' % (d, s)
-
-                l = "'%s'" % Forest.filter_and_shorten_label(s, do_filter=True)
                 if np.sum(scores) < end-start:
                     l += '\n%f' % scores[i]
-                if self.lexicon.is_fixed(d):
+                if fixed:
                     #color = "dodgerblue"
                     color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255 - int(255 * scores[i]), 255)
                 else:
@@ -703,7 +690,6 @@ class Forest(object):
                     # score 1 -> 0, 255, 0
                     # score 0 -> 255, 255, 255
                     color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255, 255 - int(255 * scores[i]))
-
 
                 if reverted:
                     nodes.append(pydot.Node(i, label=l, style="filled",
@@ -757,19 +743,23 @@ class Forest(object):
                     d, reverted = self.lexicon.transform_idx_back(d)
                 s = self.lexicon.get_s(d, self.data_as_hashes)
                 root_id = self.root_id_mapping.get(d, None)
+                if self.data_as_hashes:
+                    d = self.lexicon.mapping[self.lexicon.strings[s]]
                 if root_id is not None:
                     if self.lexicon_roots is not None:
                         root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
-                        s = root_s
+                        s = 'ID:%s' % root_s
                     else:
-                        s = 'ROOT_ID:%s(%s)' % (root_id, s)
-                if s == vocab_manual[UNKNOWN_EMBEDDING]:
-                    s = 'ID:%s(%s)' % (d, s)
+                        s = 'ID:%s(%s)' % (root_id, s)
+                #if s == vocab_manual[UNKNOWN_EMBEDDING]:
+                #    s = 'ID:%s(%s)' % (d, s)
 
-                l = Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
+                l = "'%s'" % Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
                     if reverted:
-                        l += '_REV'
+                        l += '-REV'
+                    if self.lexicon.is_fixed(d):
+                        l += '-FIX'
                     result.append(l)
         return result
 
