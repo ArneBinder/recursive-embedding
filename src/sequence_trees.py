@@ -23,9 +23,10 @@ MAX_DEPTH = 9999
 logger = logging.getLogger('sequence_trees')
 logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
-logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
+logger.propagate = False
 
 
 def _get_root(parents, idx):
@@ -680,16 +681,19 @@ class Forest(object):
                 if reverted:
                     l = l[:-len('-REV')]
 
+                # if scores are given ...
                 if np.sum(scores) < end-start:
                     l += '\n%f' % scores[i]
-                if fixed:
-                    #color = "dodgerblue"
-                    color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255 - int(255 * scores[i]), 255)
+                    # score 0 -> 255, 0, 0
+                    # score 1 -> 255, 255, 255
+                    color = '#{:02x}{:02x}{:02x}'.format(255, int(255 * scores[i]), int(255 * scores[i]))
                 else:
-                    #color = "limegreen"
-                    # score 1 -> 0, 255, 0
-                    # score 0 -> 255, 255, 255
-                    color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255, 255 - int(255 * scores[i]))
+                    if fixed:
+                        color = "dodgerblue"
+                        #color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255 - int(255 * scores[i]), 255)
+                    else:
+                        color = "limegreen"
+                        #color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255, 255 - int(255 * scores[i]))
 
                 if reverted:
                     nodes.append(pydot.Node(i, label=l, style="filled",

@@ -16,9 +16,10 @@ from mytools import numpy_dump, numpy_load, numpy_exists
 logger = logging.getLogger('lexicon')
 logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
-logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
+logger.propagate = False
 
 
 # DEPRECATED
