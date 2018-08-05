@@ -660,9 +660,11 @@ class Forest(object):
                       root_ids=new_root_ids,
                       root_pos=new_root_pos)
 
-    def visualize(self, filename, start=0, end=None, transformed=False, token_list=None):
+    def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None):
         if end is None:
             end = len(self)
+        if scores is None:
+            scores = np.ones(end-start, dtype=float)
         assert self.lexicon is not None, 'lexicon is not set'
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
@@ -690,19 +692,21 @@ class Forest(object):
                     if s == vocab_manual[UNKNOWN_EMBEDDING]:
                         s = 'ID:%s(%s)' % (d, s)
 
-                l = Forest.filter_and_shorten_label(s, do_filter=True)
-
+                l = "'%s'" % Forest.filter_and_shorten_label(s, do_filter=True)
+                if np.sum(scores) > 0:
+                    l += '\n%f' % scores[i]
                 if self.lexicon.is_fixed(d):
                     color = "dodgerblue"
                 else:
                     color = "limegreen"
+                    #color = '#{:02x}{:02x}{:02x}'.format(int(255 * (scores[i] / np.sum(scores))), 0, 0)
 
                 if reverted:
-                    nodes.append(pydot.Node(i, label="'" + l + "'", style="filled",
+                    nodes.append(pydot.Node(i, label=l, style="filled",
                                             fillcolor='%s;0.5:white;0.5' % color,
                                             gradientangle=135))
                 else:
-                    nodes.append(pydot.Node(i, label="'" + l + "'", style="filled", fillcolor=color))
+                    nodes.append(pydot.Node(i, label=l, style="filled", fillcolor=color))
 
             for node in nodes:
                 graph.add_node(node)
