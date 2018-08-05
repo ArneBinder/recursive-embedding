@@ -693,13 +693,17 @@ class Forest(object):
                         s = 'ID:%s(%s)' % (d, s)
 
                 l = "'%s'" % Forest.filter_and_shorten_label(s, do_filter=True)
-                if np.sum(scores) > 0:
+                if np.sum(scores) < end-start:
                     l += '\n%f' % scores[i]
                 if self.lexicon.is_fixed(d):
-                    color = "dodgerblue"
+                    #color = "dodgerblue"
+                    color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255 - int(255 * scores[i]), 255)
                 else:
-                    color = "limegreen"
-                    #color = '#{:02x}{:02x}{:02x}'.format(int(255 * (scores[i] / np.sum(scores))), 0, 0)
+                    #color = "limegreen"
+                    # score 1 -> 0, 255, 0
+                    # score 0 -> 255, 255, 255
+                    color = '#{:02x}{:02x}{:02x}'.format(255 - int(255 * scores[i]), 255, 255 - int(255 * scores[i]))
+
 
                 if reverted:
                     nodes.append(pydot.Node(i, label=l, style="filled",
