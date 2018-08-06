@@ -666,6 +666,8 @@ class Forest(object):
             end = len(self)
         if scores is None:
             scores = np.ones(end-start, dtype=float)
+        assert len(scores) == end - start, 'number of scores (%i) does not match sequence length (%i)' \
+                                           % (len(scores), end - start)
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
         if token_list is None:
