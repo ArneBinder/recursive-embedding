@@ -214,7 +214,7 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
         yield _forest.forest
 
 
-def get_forests_for_indices_from_forest(indices, current_forest, params):
+def get_forests_for_indices_from_forest(indices, current_forest, params, transform):
 
     max_depth = params.get('max_depth', 10)
     context = params.get('context', 0)
@@ -234,12 +234,12 @@ def get_forests_for_indices_from_forest(indices, current_forest, params):
 
     for idx in indices:
         if params.get('reroot', False):
-            tree_dict = current_forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth,
-                                                            transform=True, costs=costs,
+            tree_dict = current_forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, costs=costs,
+                                                            transform=transform,
                                                             link_types=[d_ref, d_ref_seealso])
         else:
             tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
-                                                     transform=True,
+                                                     transform=transform,
                                                      costs=costs, link_types=[d_ref, d_ref_seealso])
         forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
                         data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
@@ -370,8 +370,9 @@ def get_or_calc_sequence_data(params):
                            lexicon=lexicon, data_as_hashes=current_forest.data_as_hashes,
                            root_ids=current_forest.root_ids, lexicon_roots=current_forest.lexicon_roots)]
     elif 'idx' in params:
-        _forests = get_forests_for_indices_from_forest(indices=[params['idx']], current_forest=current_forest, params=params)
         params['transformed_idx'] = True
+        _forests = get_forests_for_indices_from_forest(indices=[params['idx']], current_forest=current_forest,
+                                                       params=params, transform=params['transformed_idx'])
     elif 'reroot_start' in params:
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
@@ -415,17 +416,19 @@ def get_or_calc_sequence_data(params):
     params['data_sequences'], params['sequences'] = zip(*[([f.data, f.parents], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params['transformed_idx'])) for f in _forests])
 
 
-def calc_embeddings(data_sequences_or_trees, max_depth=150):
+def calc_embeddings(data_sequences_or_trees, transformed, max_depth=20):
     assert model_tree is not None, 'No model loaded. To load a model, use endpoint: /api/load?path=path_to_model'
 
     # TODO: rework! (add link_types and costs)
     batch = []
-    for data_and_parents_or_tree in data_sequences_or_trees:
+    for i, data_and_parents_or_tree in enumerate(data_sequences_or_trees):
         if isinstance(data_and_parents_or_tree, Forest):
             tree = data_and_parents_or_tree
         else:
             tree = Forest(forest=data_and_parents_or_tree, lexicon=lexicon)
-        tree_dict = tree.get_tree_dict(max_depth=max_depth, transform=True)
+
+        #tree.visualize(filename='debug_%d.svg' % i, transformed=transformed)
+        tree_dict = tree.get_tree_dict(max_depth=max_depth, transform=not transformed)
         # add correct root as candidate (if HTUBatchedHead model is used)
         tree_dict[KEY_CANDIDATES] = [tree_dict[KEY_HEAD]]
         batch.append([tree_dict])
@@ -448,7 +451,8 @@ def get_or_calc_embeddings(params):
             get_or_calc_sequence_data(params)
 
         params['embeddings'] = calc_embeddings(data_sequences_or_trees=params['data_sequences'],
-                                               max_depth=int(params.get('max_depth', 150)))
+                                               max_depth=int(params.get('max_depth', 20)),
+                                               transformed=params['transformed_idx'])
 
 
 def get_or_calc_scores(params):
@@ -460,11 +464,14 @@ def get_or_calc_scores(params):
         params['scores'] = []
         reroot_bk = params.get('reroot', False)
         for data, parents in params['data_sequences']:
-            current_forest = Forest(data=data, parents=parents, lexicon=lexicon, data_as_hashes=params['data_as_hashes'])
+            current_forest = Forest(data=data, parents=parents, lexicon=lexicon,
+                                    data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
             params['reroot'] = True
             reroot_forests = get_forests_for_indices_from_forest(indices=range(len(current_forest)),
-                                                                 current_forest=current_forest, params=params)
-            current_embeddings = calc_embeddings(reroot_forests, max_depth=int(params.get('max_depth', 20)))
+                                                                 current_forest=current_forest, params=params,
+                                                                 transform=False)
+            current_embeddings = calc_embeddings(reroot_forests, max_depth=int(params.get('max_depth', 20)),
+                                                 transformed=True) #params['transformed_idx'])
             params['embeddings'].append(current_embeddings)
             fdict = {model_main.tree_model.embeddings_all: current_embeddings,
                      model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
@@ -634,7 +641,7 @@ def score():
                 forest_temp = Forest(forest=data_sequence, lexicon=lexicon,
                                      data_as_hashes=params.get('data_as_hashes', False),
                                      root_ids=root_ids)
-                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
+                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params['transformed_idx'],
                                       token_list=params['sequences'][i], scores=params['scores'][i])
             assert len(params['data_sequences']) > 0, 'empty data_sequences'
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))

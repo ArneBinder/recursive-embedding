@@ -669,7 +669,7 @@ class Forest(object):
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
         if token_list is None:
-            token_list = self.get_text_plain(self, start=start, end=end, transformed=transformed)
+            token_list = self.get_text_plain(start=start, end=end, transformed=transformed)
         if len(token_list) > 0:
             nodes = []
             for i, l in enumerate(token_list):
