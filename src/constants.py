@@ -57,7 +57,7 @@ TYPE_SECTION_SEEALSO = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/n
 TYPE_PARAGRAPH = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph'
 TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title'
 TYPE_SECTION = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section'
-TYPE_SENTENCE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence'
+TYPE_SENTENCE = vocab_manual[SENTENCE_EMBEDDING]
 
 M_INDICES = 'indices'
 M_TEST = 'test'

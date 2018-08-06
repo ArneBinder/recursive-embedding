@@ -6,7 +6,7 @@ import os
 import pydot
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
-    LOGGING_FORMAT, SEPARATOR, vocab_manual, UNKNOWN_EMBEDDING
+    LOGGING_FORMAT, SEPARATOR, vocab_manual, UNKNOWN_EMBEDDING, TYPE_REF, TYPE_REF_SEEALSO, IDENTITY_EMBEDDING
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -346,7 +346,9 @@ class Forest(object):
         leafs = [root]
         if self.has_children(root):
             for c in self.get_children(root):
-                leafs.extend(self.get_descendant_indices(c + root))
+                # do not follow links
+                if self.data[c + root] not in self.link_types:
+                    leafs.extend(self.get_descendant_indices(c + root))
         return leafs
 
     def trees(self, root_indices=None):
@@ -835,6 +837,20 @@ class Forest(object):
         self._children = _children[:pos]
         self._children_pos = _children_pos
 
+    #def resolve_and_clean_ids(self):
+    #    link_parent_positions = np.isin(self.data, self.link_types).nonzero()[0]
+    #    link_positions_list = []
+    #    for idx in link_parent_positions:
+    #        link_positions = self.get_children(idx, offset=idx)
+    #        link_ids = self.data[link_positions]
+    #        link_target_positions = [self.root_id_pos[link_id] for link_id in link_ids]
+    #        all_link_positions.append(link_positions)
+    #    all_link_positions = np.concatenate(link_positions_list)
+    #    identity_positions = np.array(self.root_id_pos.values(), dtype=DTYPE_IDX) + 1
+    #    d_identity = self.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=self.data_as_hashes)
+    #    self.data[identity_positions] = d_identity
+    #    self.data[link_parent_positions] = d_identity
+
     def __str__(self):
         return self._data.__str__()
 
@@ -926,3 +942,9 @@ class Forest(object):
             logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_ids))
             self._root_mapping = {pos: i for i, pos in enumerate(self.roots)}
         return self._root_mapping
+
+    @property
+    def link_types(self):
+        link_ref = self.lexicon.get_d(s=TYPE_REF, data_as_hashes=self.data_as_hashes)
+        link_ref_seealso = self.lexicon.get_d(s=TYPE_REF_SEEALSO, data_as_hashes=self.data_as_hashes)
+        return [link_ref, link_ref_seealso]
