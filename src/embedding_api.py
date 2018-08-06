@@ -416,7 +416,7 @@ def get_or_calc_sequence_data(params):
     params['data_sequences'], params['sequences'] = zip(*[([f.data, f.parents], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params['transformed_idx'])) for f in _forests])
 
 
-def calc_embeddings(data_sequences_or_trees, transformed, max_depth=20):
+def calc_embeddings(data_sequences_or_trees, transformed, root_ids=None, max_depth=20):
     assert model_tree is not None, 'No model loaded. To load a model, use endpoint: /api/load?path=path_to_model'
 
     # TODO: rework! (add link_types and costs)
@@ -425,7 +425,7 @@ def calc_embeddings(data_sequences_or_trees, transformed, max_depth=20):
         if isinstance(data_and_parents_or_tree, Forest):
             tree = data_and_parents_or_tree
         else:
-            tree = Forest(forest=data_and_parents_or_tree, lexicon=lexicon)
+            tree = Forest(forest=data_and_parents_or_tree, lexicon=lexicon, root_ids=root_ids)
 
         #tree.visualize(filename='debug_%d.svg' % i, transformed=transformed)
         tree_dict = tree.get_tree_dict(max_depth=max_depth, transform=not transformed)
@@ -471,6 +471,7 @@ def get_or_calc_scores(params):
                                                                  current_forest=current_forest, params=params,
                                                                  transform=False)
             current_embeddings = calc_embeddings(reroot_forests, max_depth=int(params.get('max_depth', 20)),
+                                                 root_ids=params.get('root_ids', None),
                                                  transformed=True) #params['transformed_idx'])
             params['embeddings'].append(current_embeddings)
             fdict = {model_main.tree_model.embeddings_all: current_embeddings,
@@ -618,7 +619,7 @@ def embed():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return response
 
 
@@ -664,7 +665,7 @@ def score():
     except Exception as e:
         if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
             lexicon = None
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     if params.get('clear_lexicon', 'false').lower() in ['true', '1']:
         lexicon = None
     return response
@@ -708,7 +709,7 @@ def sim():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
 
     return response
 
@@ -730,7 +731,7 @@ def cluster():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return response
 
 
@@ -750,7 +751,7 @@ def norm():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
 
     return response
 
@@ -769,7 +770,7 @@ def visualize():
     except Exception as e:
         if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
             lexicon = None
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     if params.get('clear_lexicon', 'false').lower() in ['true', '1']:
         lexicon = None
     return response
@@ -799,7 +800,7 @@ def show_rooted_tree_dict():
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return response
 
 
@@ -828,7 +829,7 @@ def show_enhanced_tree_dict():
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return response
 
 
@@ -855,7 +856,7 @@ def show_roots():
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return response
 
 
@@ -919,7 +920,7 @@ def get_tuple_scores():
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return response
 
 
@@ -933,7 +934,7 @@ def clear_cached_embeddings():
         embedding_indices = None
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return "clearing embeddings successful"
 
 
@@ -948,7 +949,7 @@ def load_data_source():
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage(e.message)
+        raise InvalidUsage('%s: %s' % (type(e), e.message))
     return "reload successful"
 
 
