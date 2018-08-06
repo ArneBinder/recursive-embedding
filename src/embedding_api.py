@@ -232,10 +232,11 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
 
     forests = []
 
+    transformed = params.get('reroot', False) or transform
     for idx in indices:
         if params.get('reroot', False):
             tree_dict = current_forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, costs=costs,
-                                                            transform=transform,
+                                                            #transform=True,
                                                             link_types=[d_ref, d_ref_seealso])
         else:
             tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
@@ -243,10 +244,10 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
                                                      costs=costs, link_types=[d_ref, d_ref_seealso])
         forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
                         data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
-                        lexicon_roots=current_forest.lexicon_roots)
+                        lexicon_roots=current_forest.lexicon_roots)#, transformed_indices=transformed)
         forests.append(forest)
 
-    return forests
+    return forests, transformed
 
 
 def get_or_calc_sequence_data(params):
@@ -284,14 +285,14 @@ def get_or_calc_sequence_data(params):
         params['data_as_hashes'] = params.get('data_as_hashes', False)
         current_forest = Forest(data=np.concatenate(d_list), parents=np.concatenate(p_list), lexicon=lexicon,
                                 data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
-        params['root_ids'] = current_forest.root_ids
     else:
         init_forest(data_path)
         current_forest = forest
         params['data_as_hashes'] = current_forest.data_as_hashes
+        params['root_ids'] = current_forest.root_ids
 
     _forests = []
-    params['transformed_idx'] = False
+    #params['transformed_idx'] = False
 
     # TODO: check setting of params['data_as_hashes'] and params['transformed_idx']
     if 'indices_getter' in params:
@@ -371,9 +372,9 @@ def get_or_calc_sequence_data(params):
                            lexicon=lexicon, data_as_hashes=current_forest.data_as_hashes,
                            root_ids=current_forest.root_ids, lexicon_roots=current_forest.lexicon_roots)]
     elif 'idx' in params:
-        params['transformed_idx'] = True
-        _forests = get_forests_for_indices_from_forest(indices=[params['idx']], current_forest=current_forest,
-                                                       params=params, transform=params['transformed_idx'])
+        _forests, transformed = get_forests_for_indices_from_forest(indices=[params['idx']], current_forest=current_forest,
+                                                                    params=params, transform=False)#, transform=params['transformed_idx'])
+        params['transformed_idx'] = transformed
     elif 'reroot_start' in params:
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
@@ -391,7 +392,7 @@ def get_or_calc_sequence_data(params):
                                                                        max_tries=10, max_depth=max_depth,
                                                                        link_cost_ref=params.get('link_cost_ref', None),
                                                                        link_cost_ref_seealso=params.get('link_cost_ref_seealso', -1),
-                                                                       transform=params['transformed_idx'])):
+                                                                       transform=True)):
             if i < tree_start:
                 continue
             if 0 <= tree_end <= i:
@@ -414,7 +415,7 @@ def get_or_calc_sequence_data(params):
     else:
         _forests = [current_forest]
 
-    params['data_sequences'], params['sequences'] = zip(*[([f.data, f.parents], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params['transformed_idx'])) for f in _forests])
+    params['data_sequences'], params['sequences'] = zip(*[([f.data, f.parents], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
 
 
 def calc_embeddings(data_sequences_or_trees, transformed, root_ids=None, max_depth=20):
@@ -463,17 +464,20 @@ def get_or_calc_scores(params):
         get_or_calc_sequence_data(params)
         params['embeddings'] = []
         params['scores'] = []
+        assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
+            'can not construct reroot trees of an already transformed tree'
         #reroot_bk = params.get('reroot', False)
         for data, parents in params['data_sequences']:
             current_forest = Forest(data=data, parents=parents, lexicon=lexicon,
                                     data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
             #params['reroot'] = True
-            reroot_forests = get_forests_for_indices_from_forest(indices=range(len(current_forest)),
-                                                                 current_forest=current_forest, params=params,
-                                                                 transform=False)
+            # transform, if not already done
+            reroot_forests, transformed = get_forests_for_indices_from_forest(
+                indices=range(len(current_forest)), current_forest=current_forest, params=params,
+                transform=not params.get('transformed_idx', False))
             current_embeddings = calc_embeddings(reroot_forests, max_depth=int(params.get('max_depth', 20)),
                                                  root_ids=params.get('root_ids', None),
-                                                 transformed=True) #params['transformed_idx'])
+                                                 transformed=transformed) #params['transformed_idx'])
             params['embeddings'].append(current_embeddings)
             fdict = {model_main.tree_model.embeddings_all: current_embeddings,
                      model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}

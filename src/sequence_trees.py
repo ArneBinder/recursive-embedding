@@ -449,14 +449,12 @@ class Forest(object):
             idx = self.roots[0]
         data_head = self.data[idx]
 
-        # TODO: DEBUG
-        #s = self.lexicon.get_s(data_head, data_as_hashes=self.data_as_hashes)
-        # DEBUG end
+        assert context == 0 or transform, 'context > 0, but transform is disabled.'
 
         cost = costs.get(data_head, 1)
 
         if transform:
-            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head, root_id_pos=self.root_id_pos), KEY_CHILDREN: []}
+            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head, root_ids=self.root_id_set), KEY_CHILDREN: []}
         else:
             seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
 
@@ -475,32 +473,32 @@ class Forest(object):
 
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
                                                                  max_depth=max_depth - cost,
-                                                                 context=context, transform=transform,
+                                                                 context=context, transform=transform or context > 0,
                                                                  costs=costs,
                                                                  link_types=link_types))
         if context > 0 and self.parents[idx] != 0:
             seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-cost,
-                                                                    transform=transform, costs=costs,
+                                                                    #transform=transform,
+                                                                    costs=costs,
                                                                     link_types=link_types))
         return seq_node
 
-    def get_tree_dict_rooted(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
+    def get_tree_dict_rooted(self, idx, max_depth=9999, costs={}, link_types=[]):
         # if current data is a link, start at parent NOT NECESSARY (will be transformed to IDENTITY entry)
         #if self.parents[idx] != 0:
         #    parent_idx = idx + self.parents[idx]
         #    if self.data[parent_idx] in link_types:
         #        idx = parent_idx
 
-        result = self.get_tree_dict(idx, max_depth=max_depth, transform=transform)
+        result = self.get_tree_dict(idx, max_depth=max_depth, transform=True)
         #cost = costs.get(self.data[idx], 1)
         cost = 1
         if self.parents[idx] != 0 and max_depth > 0:
-            parent_tree = self.get_tree_dict_parent(idx, max_depth-cost, transform=transform, costs=costs,
-                                                                  link_types=link_types)
+            parent_tree = self.get_tree_dict_parent(idx, max_depth-cost, costs=costs, link_types=link_types)
             result[KEY_CHILDREN].append(parent_tree)
         return result
 
-    def get_tree_dict_parent(self, idx, max_depth=9999, transform=False, costs={}, link_types=[]):
+    def get_tree_dict_parent(self, idx, max_depth=9999, costs={}, link_types=[]):
         assert self.lexicon is not None, 'lexicon is not set'
 
         if self.parents[idx] == 0:
@@ -509,7 +507,7 @@ class Forest(object):
         current_id = idx + self.parents[idx]
         #data_head = self.lexicon.reverse_idx(self.data[current_id])
         #if transform:
-        data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_id_pos=self.root_id_pos)
+        data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_ids=self.root_id_set)
         result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         current_dict_tree = result
         while max_depth > 0:
@@ -523,7 +521,7 @@ class Forest(object):
                     c_id = current_id + c
                     if c_id != previous_id:
                         current_dict_tree[KEY_CHILDREN].append(
-                            self.get_tree_dict(c_id, max_depth=max_depth - current_cost_down, transform=transform, costs=costs,
+                            self.get_tree_dict(c_id, max_depth=max_depth - current_cost_down, transform=True, costs=costs,
                                                link_types=link_types))
             # go up
             if self.parents[current_id] != 0:
@@ -531,7 +529,7 @@ class Forest(object):
                 current_id = current_id + self.parents[current_id]
                 #data_head = self.lexicon.reverse_idx(self.data[current_id])
                 #if transform:
-                data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_id_pos=self.root_id_pos)
+                data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_ids=self.root_id_set)
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
                 current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child
@@ -554,7 +552,7 @@ class Forest(object):
         mask = np.ones(data.shape, dtype=bool)
         mask[indices_remove_np] = False
         if transform:
-            return self.lexicon.transform_indices(indices=data[mask], root_id_pos=self.root_id_pos)
+            return self.lexicon.transform_indices(indices=data[mask], root_ids=self.root_id_set)
         else:
             return data[mask]
 
@@ -924,6 +922,18 @@ class Forest(object):
             else:
                 self._root_id_pos = {}
         return self._root_id_pos
+
+    @property
+    def root_id_set(self):
+        try:
+            return self._root_id_set
+        except AttributeError:
+            if self._root_ids is not None:
+                logger.debug('forest: create root_id_set from root_ids (%i)' % len(self._root_ids))
+                self._root_id_set = set(self.root_ids)
+            else:
+                self._root_id_set = set()
+            return self._root_id_set
 
     @property
     def root_id_mapping(self):

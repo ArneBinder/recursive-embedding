@@ -31,7 +31,8 @@ logger.propagate = False
 
 # TODO: move sampling to do_epoch
 def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indices=None, max_depth=100,
-                               link_cost_ref=None, link_cost_ref_seealso=-1, transform=True, **unused):
+                               link_cost_ref=None, link_cost_ref_seealso=-1, #transform=True,
+                               **unused):
     """
     Maps: index (index files) --> ((children, candidate_heads), probs)
     First candidate_head is the original head
@@ -95,11 +96,11 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
         if try_count == max_tries:
             logger.warning('not enough samples: %i, required: %i. skip idx=%i' % (len(candidate_data), neg_samples, idx))
             continue
-        tree = sequence_trees.get_tree_dict_rooted(idx=idx, max_depth=max_depth, transform=transform,
+        tree = sequence_trees.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
                                                    costs=costs, link_types=[data_ref, data_ref_seealso])
 
-        if transform:
-            candidate_data = [lexicon.transform_idx(idx=d, root_id_pos=sequence_trees.root_id_pos) for d in candidate_data]
+        #if transform:
+        candidate_data = [lexicon.transform_idx(idx=d, root_ids=sequence_trees.root_id_set) for d in candidate_data]
 
         children = tree[KEY_CHILDREN]
         if len(children) > 0:
@@ -244,7 +245,8 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
-                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000, **unused):
+                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000, root_ids_set = None,
+                  **unused):
     """
     create trees rooted at indices
     :param indices:
@@ -284,8 +286,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     data_nif_context_transformed = data_nif_context
     data_unknown_transformed = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     if transform:
-        data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context, root_id_pos=forest.root_id_pos)
-        data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed, root_id_pos=forest.root_id_pos)
+        data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context, root_ids=forest.root_id_set)
+        data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed, root_ids=forest.root_id_set)
     data_root = lexicon.get_d(TYPE_ROOT, data_as_hashes=forest.data_as_hashes)
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
@@ -301,7 +303,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     if concat_mode == CM_TREE:
         for idx in indices:
             if reroot:
-                tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, transform=transform,
+                tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
                                                            costs=costs, link_types=link_types)
             else:
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
@@ -382,7 +384,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
 def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, **kwargs):
     logger.debug('select %i new root indices (forest size: %i)' % (nbr_indices, len(forest)))
     indices = np.random.randint(len(forest), size=nbr_indices)
-    for tree in tree_iter(forest=forest, transform=transform, indices=indices, reroot=True, **kwargs):
+    for tree in tree_iter(forest=forest, indices=indices, reroot=True, **kwargs):
         samples = np.random.choice(forest.data, size=neg_samples + 1)
         # replace samples that equal the head/root
         rep = np.random.randint(len(forest.lexicon) - 1)
@@ -390,8 +392,8 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, 
             rep = len(forest.lexicon) - 1
         samples[samples == tree[KEY_HEAD]] = rep
 
-        if transform:
-            samples = forest.lexicon.transform_indices(samples, root_id_pos=forest.root_id_pos)
+        #if transform:
+        samples = forest.lexicon.transform_indices(samples, root_ids=forest.root_id_set)
         samples[0] = tree[KEY_HEAD]
         tree[KEY_CANDIDATES] = samples
         tree[KEY_HEAD] = None

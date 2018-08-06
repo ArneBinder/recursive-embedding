@@ -774,7 +774,7 @@ class Lexicon(object):
             self._strings.add(s)
         self.clear_cached_values()
 
-    def transform_idx(self, idx, revert=False, root_id_pos={}):
+    def transform_idx(self, idx, revert=False, root_ids=[]):
         """
         transform lexicon (vec) index to index for vecs_fix (negative) or vecs_var (positive) index
         :param idx: the index to transform
@@ -791,16 +791,17 @@ class Lexicon(object):
             if revert:
                 idx_trans += len(self)
             return idx_trans
-        idx_trans = root_id_pos.get(idx, None)
-        if idx_trans is not None:
+        #idx_trans = root_id_pos.get(idx, None)
+        #if idx_trans is not None:
+        if idx in root_ids:
             return self.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
 
         #raise ValueError('idx=%i not in ids_fixed, ids_var or root_id_pos' % idx)
         logger.warning('idx=%i not in ids_fixed, ids_var or root_id_pos. Set to UNKNOWN.' % idx)
         return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
 
-    def transform_indices(self, indices, revert=False, root_id_pos={}):
-        return [self.transform_idx(idx=idx, revert=revert, root_id_pos=root_id_pos) for idx in indices]
+    def transform_indices(self, indices, revert=False, root_ids=[]):
+        return [self.transform_idx(idx=idx, revert=revert, root_ids=root_ids) for idx in indices]
 
     def transform_idx_back(self, idx):
         """
