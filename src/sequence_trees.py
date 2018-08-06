@@ -931,10 +931,12 @@ class Forest(object):
             #assert self._root_ids is not None, 'root_ids not set'
             if self._root_ids is not None:
                 logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_ids))
-                assert len(self.roots) == len(self._root_ids), \
-                    'number of roots (%d) does not match number of root_ids (%d)' \
-                    % (len(self.roots), len(self._root_ids))
-                self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
+                if len(self.roots) != len(self._root_ids):
+                    logger.warning('number of roots (%d) does not match number of root_ids (%d). Set root_id_pos to {}.'
+                                   % (len(self.roots), len(self._root_ids)))
+                    self._root_id_pos = {}
+                else:
+                    self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
             else:
                 self._root_id_pos = {}
         return self._root_id_pos
