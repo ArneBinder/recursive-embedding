@@ -145,14 +145,18 @@ def form_data_to_dict(form_data):
 
 
 def make_serializable(d):
-    if type(d) == dict:
-        for k in d:
-            d[k] = make_serializable(d[k])
-    elif type(d) == list:
-        for i in range(len(d)):
-            d[i] = make_serializable(d[i])
-    elif type(d) == np.ndarray:
-        d = d.tolist()
+    try:
+        json.dumps(d)
+    except TypeError:
+        if type(d) == dict:
+            for k in d:
+                d[k] = make_serializable(d[k])
+        elif type(d) == list:
+            d = [make_serializable(d[i]) for i in range(len(d))]
+        elif type(d) == tuple:
+            d = tuple([make_serializable(d[i]) for i in range(len(d))])
+        elif type(d) == np.ndarray:
+            d = make_serializable(d.tolist())
 
     return d
 
@@ -649,7 +653,7 @@ def create_visualization_response(params):
         os.remove(TEMP_FN_SVG)
     elif mode == 'text':
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
+        json_data = json.dumps(make_serializable(filter_result(params)))
         response = Response(json_data, mimetype=return_type)
     else:
         raise ValueError('Unknown mode=%s. Use "image" (default) or "text".')
@@ -688,7 +692,7 @@ def distance():
                                     metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
         params['distances'] = result.tolist()
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
+        json_data = json.dumps(make_serializable(filter_result(params)))
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
@@ -710,7 +714,7 @@ def sim():
         #                            metric='cosine')  # spatial.distance.cosine(embeddings[0], embeddings[1])
         params['similarities'] = result.tolist()
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
+        json_data = json.dumps(make_serializable(filter_result(params)))
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
@@ -732,7 +736,7 @@ def cluster():
         params['meta_data'] = meta
         params['best_idx'] = best_idx
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
+        json_data = json.dumps(make_serializable(filter_result(params)))
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
@@ -752,7 +756,7 @@ def norm():
 
         params['norms'] = norms.tolist()
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
+        json_data = json.dumps(make_serializable(filter_result(params)))
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
@@ -799,7 +803,7 @@ def show_rooted_tree_dict():
             response = send_file(TEMP_FN_SVG)
         elif mode == 'text':
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-            json_data = json.dumps(filter_result(make_serializable(params)))
+            json_data = json.dumps(make_serializable(filter_result(params)))
             response = Response(json_data, mimetype=return_type)
         else:
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
@@ -828,7 +832,7 @@ def show_enhanced_tree_dict():
             response = send_file(TEMP_FN_SVG)
         elif mode == 'text':
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-            json_data = json.dumps(filter_result(make_serializable(params)))
+            json_data = json.dumps(make_serializable(filter_result(params)))
             response = Response(json_data, mimetype=return_type)
         else:
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
@@ -856,7 +860,7 @@ def show_roots():
         params['root_ids'] = root_ids.tolist()
         params['root_strings'] = root_strings
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
+        json_data = json.dumps(make_serializable(filter_result(params)))
         response = Response(json_data, mimetype=return_type)
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
@@ -920,7 +924,7 @@ def get_tuple_scores():
         params['merged'] = ["%10i: %.4f %s" % (params['root_ids_target'][i], params['tuple_scores'][i], params['root_ids_target_string'][i]) for i in range(len(indices_sorted))]
 
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
+        json_data = json.dumps(make_serializable(filter_result(params)))
         response = Response(json_data, mimetype=return_type)
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
@@ -954,7 +958,7 @@ def load_data_source():
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, str(e)))
     return "reload successful"
 
 
