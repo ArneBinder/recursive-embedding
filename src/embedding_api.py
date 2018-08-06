@@ -1044,6 +1044,7 @@ def main(data_source):
 
     # load model
     if checkpoint_fn:
+        import model_fold
         model_config = Config(logdir_continue=data_source)
         data_path = model_config.train_data_path
 
@@ -1067,16 +1068,20 @@ def main(data_source):
                     #tfidf_indices = np.concatenate(_indices)
                     #logging.debug('number of tfidf_indices: %i' % len(tfidf_indices))
 
-                # TODO: still ok?
-                if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
-                    vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
-                    vars_without_embed = [v for v in vars_all if v != model_tree.embedder.lexicon_var]
-                    if len(vars_without_embed) > 0:
-                        saver = tf.train.Saver(var_list=vars_without_embed)
-                    else:
-                        saver = None
+                #if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
+                lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+                                                 scope=model_fold.VAR_NAME_LEXICON_VAR) \
+                               + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
+                                                   scope=model_fold.VAR_NAME_LEXICON_FIX)
+
+                vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
+                vars_without_embed = [v for v in vars_all if v not in lexicon_vars]
+                if len(vars_without_embed) > 0:
+                    saver = tf.train.Saver(var_list=vars_without_embed)
                 else:
-                    saver = tf.train.Saver()
+                    saver = None
+                #else:
+                #    saver = tf.train.Saver()
 
                 sess = tf.Session()
                 # Restore variables from disk.
@@ -1084,11 +1089,11 @@ def main(data_source):
                     logging.info('restore model from: %s ...' % checkpoint_fn)
                     saver.restore(sess, checkpoint_fn)
 
-                if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
-                    logging.info('init embeddings with external vectors ...')
-                    sess.run([model_tree.embedder.lexicon_var_init, model_tree.embedder.lexicon_fix_init],
-                             feed_dict={model_tree.embedder.lexicon_var_placeholder: lexicon.vecs_var,
-                                        model_tree.embedder.lexicon_fix_placeholder: lexicon.vecs_fixed})
+                #if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
+                logging.info('init embeddings with external vectors ...')
+                sess.run([model_tree.embedder.lexicon_var_init, model_tree.embedder.lexicon_fix_init],
+                         feed_dict={model_tree.embedder.lexicon_var_placeholder: lexicon.vecs_var,
+                                    model_tree.embedder.lexicon_fix_placeholder: lexicon.vecs_fixed})
 
                 if FLAGS.save_final_model_path:
                     logging.info('save final model to: ' + FLAGS.save_final_model_path + ' ...')
