@@ -438,7 +438,7 @@ def calc_embeddings(data_sequences_or_trees, transformed, max_depth=20):
         embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict)
         embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
     else:
-        embeddings = np.zeros(shape=(0, model_tree.dimension_embeddings), dtype=np.float32)
+        embeddings = np.zeros(shape=(0, model_tree.embedder.dimension_embeddings), dtype=np.float32)
 
     return embeddings
 
