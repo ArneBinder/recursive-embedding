@@ -19,13 +19,16 @@ DEPENDENCY_EMBEDDING = -11
 UNIQUE_EMBEDDING = -12
 BACK_EMBEDDING = -13
 SENTENCE_EMBEDDING = -14
+TARGET_EMBEDDING = -15
 
 vocab_manual = {LEXEME_EMBEDDING: u'http://purl.org/olia/olia.owl#Lexeme', UNKNOWN_EMBEDDING: u'UNKNOWN',
                 AGGREGATOR_EMBEDDING: u'AGGREGATOR', ENTITY_EMBEDDING: u'ENTITY',
                 LEMMA_EMBEDDING: u'LEMMA', POS_EMBEDDING: u'POS', SOURCE_EMBEDDING: u'SOURCE',
                 IDENTITY_EMBEDDING: u'IDENTITY', ROOT_EMBEDDING: u'ROOT', DEPENDENCY_EMBEDDING: u'DEPENDENCY',
                 UNIQUE_EMBEDDING: u'UNIQUE', BACK_EMBEDDING: u'BACK',
-                SENTENCE_EMBEDDING: u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence'}
+                SENTENCE_EMBEDDING: u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence',
+                TARGET_EMBEDDING: u'TARGET'
+                }
 
 SEPARATOR = '/'
 

@@ -6,7 +6,7 @@ import os
 import pydot
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
-    LOGGING_FORMAT, SEPARATOR, vocab_manual, UNKNOWN_EMBEDDING, TYPE_REF, TYPE_REF_SEEALSO, IDENTITY_EMBEDDING
+    LOGGING_FORMAT, SEPARATOR, vocab_manual, UNKNOWN_EMBEDDING, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -475,8 +475,10 @@ class Forest(object):
                     # ... and the target tree exists: jump to target root, ...
                     if self.data[target_idx] in self.root_id_pos:
                         target_idx = self.root_id_pos[self.data[target_idx]] + link_content_offset
-                    # ... otherwise skip this element
                     else:
+                        # ... otherwise add the TARGET element
+                        d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
+                        seq_node[KEY_CHILDREN].append({KEY_HEAD: self.lexicon.transform_idx(d_target) if transform else d_target, KEY_CHILDREN: []})
                         continue
 
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
@@ -492,13 +494,16 @@ class Forest(object):
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999, costs={}, link_types=[]):
+        result = None
         # if current data is a link, start at parent NOT NECESSARY (will be transformed to IDENTITY entry)
-        #if self.parents[idx] != 0:
-        #    parent_idx = idx + self.parents[idx]
-        #    if self.data[parent_idx] in link_types:
-        #        idx = parent_idx
+        if self.parents[idx] != 0:
+            parent_idx = idx + self.parents[idx]
+            if self.data[parent_idx] in link_types:
+                d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
+                result = {KEY_HEAD: self.lexicon.transform_idx(d_target), KEY_CHILDREN: []}
 
-        result = self.get_tree_dict(idx, max_depth=max_depth, transform=True)
+        if result is None:
+            result = self.get_tree_dict(idx, max_depth=max_depth, transform=True)
         #cost = costs.get(self.data[idx], 1)
         cost = 1
         if self.parents[idx] != 0 and max_depth > 0:
