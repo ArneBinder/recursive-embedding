@@ -642,7 +642,8 @@ def score():
                                      data_as_hashes=params.get('data_as_hashes', False),
                                      root_ids=root_ids)
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params['transformed_idx'],
-                                      token_list=params['sequences'][i], scores=params['scores'][i])
+                                      token_list=params['sequences'][i],
+                                      scores=params['scores'][i] if 'scores' in params else None)
             assert len(params['data_sequences']) > 0, 'empty data_sequences'
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
@@ -770,7 +771,8 @@ def visualize():
                 forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params.get('data_as_hashes', False),
                                      root_ids=root_ids)
                 forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
-                                      token_list=params['sequences'][i])
+                                      token_list=params['sequences'][i],
+                                      scores=params['scores'][i] if 'scores' in params else None)
             assert len(params['data_sequences']) > 0, 'empty data_sequences'
             concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
