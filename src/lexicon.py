@@ -525,11 +525,16 @@ class Lexicon(object):
                                              '(len(new_vecs + new_vecs_fixed)==%i > len(types)==%i)' \
                                              % (count_total, len(self))
 
-            self._vecs = np.zeros(shape=(count_total, new_vecs_fixed.shape[1]), dtype=np.float32)
+            self._vecs = np.zeros(shape=(len(self), new_vecs_fixed.shape[1]), dtype=np.float32)
             for idx_source, idx_target in enumerate(self.ids_fixed):
                 self._vecs[idx_target] = new_vecs_fixed[idx_source]
             for idx_source, idx_target in enumerate(self.ids_var):
                 self._vecs[idx_target] = new_vecs[idx_source]
+                # if lex entries were added, cancel after last loaded entry
+                if idx_source == len(new_vecs) - 1:
+                    if count_total < len(self):
+                        logger.warning('pad remaining vecs (%i) with zeros' % (len(self) - count_total))
+                    break
         else:
             assert new_vecs is None or len(new_vecs) <= len(self), 'can not set more vecs than amount of existing ' \
                                                                    'types (len(new_vecs)==%i > len(types)==%i)' \
