@@ -531,6 +531,9 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
 
         lexicon = Lexicon(filename=os.path.join(logdir, 'model'), load_ids_fixed=(not no_fixed_vecs))
+
+        # add eventually missing manual vocab entries
+        lexicon.add_all(vocab_manual.values())
         # assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
@@ -542,6 +545,8 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
     else:
         assert train_data_path is not None, 'no checkpoint found and no train_data_path given'
         lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs))
+        # add eventually missing manual vocab entries
+        lexicon.add_all(vocab_manual.values())
 
         # TODO: check this!
         if not no_fixed_vecs:
