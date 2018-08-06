@@ -619,7 +619,7 @@ def embed():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return response
 
 
@@ -665,7 +665,7 @@ def score():
     except Exception as e:
         if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
             lexicon = None
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     if params.get('clear_lexicon', 'false').lower() in ['true', '1']:
         lexicon = None
     return response
@@ -709,7 +709,7 @@ def sim():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
 
     return response
 
@@ -731,7 +731,7 @@ def cluster():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return response
 
 
@@ -751,7 +751,7 @@ def norm():
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
 
     return response
 
@@ -770,7 +770,7 @@ def visualize():
     except Exception as e:
         if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
             lexicon = None
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     if params.get('clear_lexicon', 'false').lower() in ['true', '1']:
         lexicon = None
     return response
@@ -800,7 +800,7 @@ def show_rooted_tree_dict():
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return response
 
 
@@ -829,7 +829,7 @@ def show_enhanced_tree_dict():
             ValueError('Unknown mode=%s. Use "image" (default) or "text".')
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return response
 
 
@@ -856,7 +856,7 @@ def show_roots():
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return response
 
 
@@ -920,7 +920,7 @@ def get_tuple_scores():
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return response
 
 
@@ -934,7 +934,7 @@ def clear_cached_embeddings():
         embedding_indices = None
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return "clearing embeddings successful"
 
 
@@ -949,7 +949,7 @@ def load_data_source():
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e), e.message))
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
     return "reload successful"
 
 
