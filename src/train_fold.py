@@ -680,6 +680,9 @@ def init_model_type(config):
 
 def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
 
+    if config.model_type == MT_REROOT:
+        return [], []
+
     fnames_train = None
     fnames_test = None
     if FLAGS.train_files is not None and FLAGS.train_files.strip() != '':
