@@ -478,6 +478,7 @@ def get_or_calc_scores(params):
             current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
             params['scores'].append(current_scores)
 
+        params['transformed_idx'] = True
         #params['reroot'] = reroot_bk
 
 
@@ -621,6 +622,34 @@ def embed():
     return response
 
 
+def create_visualization_response(params):
+    mode = params.get('vis_mode', 'image')
+    if mode == 'image':
+        for i, data_sequence in enumerate(params['data_sequences']):
+            if 'root_ids' in params:
+                root_ids = params['root_ids'][i]
+            else:
+                root_ids = None
+            forest_temp = Forest(forest=data_sequence, lexicon=lexicon,
+                                 data_as_hashes=params.get('data_as_hashes', False),
+                                 root_ids=root_ids)
+            forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
+                                  token_list=params['sequences'][i],
+                                  scores=params['scores'][i] if 'scores' in params else None)
+        assert len(params['data_sequences']) > 0, 'empty data_sequences'
+        concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
+
+        response = send_file(TEMP_FN_SVG)
+        os.remove(TEMP_FN_SVG)
+    elif mode == 'text':
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+        json_data = json.dumps(filter_result(make_serializable(params)))
+        response = Response(json_data, mimetype=return_type)
+    else:
+        raise ValueError('Unknown mode=%s. Use "image" (default) or "text".')
+    return response
+
+
 @app.route("/api/score", methods=['POST'])
 def score():
     global lexicon
@@ -630,31 +659,7 @@ def score():
         logging.info('Scores requested')
         params = get_params(request)
         get_or_calc_scores(params)
-
-        mode = params.get('vis_mode', 'image')
-        if mode == 'image':
-            for i, data_sequence in enumerate(params['data_sequences']):
-                if 'root_ids' in params:
-                    root_ids = params['root_ids'][i]
-                else:
-                    root_ids = None
-                forest_temp = Forest(forest=data_sequence, lexicon=lexicon,
-                                     data_as_hashes=params.get('data_as_hashes', False),
-                                     root_ids=root_ids)
-                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params['transformed_idx'],
-                                      token_list=params['sequences'][i],
-                                      scores=params['scores'][i] if 'scores' in params else None)
-            assert len(params['data_sequences']) > 0, 'empty data_sequences'
-            concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
-
-            response = send_file(TEMP_FN_SVG)
-            os.remove(TEMP_FN_SVG)
-        elif mode == 'text':
-            return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-            json_data = json.dumps(filter_result(make_serializable(params)))
-            response = Response(json_data, mimetype=return_type)
-        else:
-            ValueError('Unknown mode=%s. Use "image" (default) or "text".')
+        response = create_visualization_response(params)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
@@ -758,32 +763,8 @@ def visualize():
         start = time.time()
         logging.info('Visualizations requested')
         params = get_params(request)
-
         get_or_calc_sequence_data(params)
-
-        mode = params.get('vis_mode', 'image')
-        if mode == 'image':
-            for i, data_sequence in enumerate(params['data_sequences']):
-                if 'root_ids' in params:
-                    root_ids = params['root_ids'][i]
-                else:
-                    root_ids = None
-                forest_temp = Forest(forest=data_sequence, lexicon=lexicon, data_as_hashes=params.get('data_as_hashes', False),
-                                     root_ids=root_ids)
-                forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
-                                      token_list=params['sequences'][i],
-                                      scores=params['scores'][i] if 'scores' in params else None)
-            assert len(params['data_sequences']) > 0, 'empty data_sequences'
-            concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
-
-            response = send_file(TEMP_FN_SVG)
-            os.remove(TEMP_FN_SVG)
-        elif mode == 'text':
-            return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-            json_data = json.dumps(filter_result(make_serializable(params)))
-            response = Response(json_data, mimetype=return_type)
-        else:
-            ValueError('Unknown mode=%s. Use "image" (default) or "text".')
+        response = create_visualization_response(params)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
