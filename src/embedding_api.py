@@ -462,11 +462,11 @@ def get_or_calc_scores(params):
         get_or_calc_sequence_data(params)
         params['embeddings'] = []
         params['scores'] = []
-        reroot_bk = params.get('reroot', False)
+        #reroot_bk = params.get('reroot', False)
         for data, parents in params['data_sequences']:
             current_forest = Forest(data=data, parents=parents, lexicon=lexicon,
                                     data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
-            params['reroot'] = True
+            #params['reroot'] = True
             reroot_forests = get_forests_for_indices_from_forest(indices=range(len(current_forest)),
                                                                  current_forest=current_forest, params=params,
                                                                  transform=False)
@@ -478,7 +478,7 @@ def get_or_calc_scores(params):
             current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
             params['scores'].append(current_scores)
 
-        params['reroot'] = reroot_bk
+        #params['reroot'] = reroot_bk
 
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
