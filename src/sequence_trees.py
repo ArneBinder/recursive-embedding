@@ -342,22 +342,30 @@ class Forest(object):
         _convert_data(data=self.data, converter=converter, lex_size=len(self.lexicon), new_idx_unknown=new_idx_unknown)
         self._dicts = None
 
-    def get_descendant_indices(self, root):
+    def get_descendant_indices(self, root, show_links=True):
         leafs = [root]
-        if self.has_children(root):
+        # do not follow links
+        if self.has_children(root) and (show_links or (self.data[root] not in self.link_types)):
             for c in self.get_children(root):
-                # do not follow links
-                if self.data[c + root] not in self.link_types:
-                    leafs.extend(self.get_descendant_indices(c + root))
+                leafs.extend(self.get_descendant_indices(c + root, show_links=show_links))
         return leafs
 
-    def trees(self, root_indices=None):
+    def trees(self, root_indices=None, show_links=True):
         if root_indices is None:
             root_indices = self.roots
         for i in root_indices:
-            descendant_indices = sorted(self.get_descendant_indices(i))
-            # TODO: check this!
-            yield self.data[descendant_indices], self.parents[descendant_indices]
+            descendant_indices = sorted(self.get_descendant_indices(i, show_links=show_links))
+            # if the slice is not continuous, fix parents
+            if len(descendant_indices) < descendant_indices[-1] - descendant_indices[0]:
+                descendant_indices_map = {idx: i for i, idx in enumerate(descendant_indices)}
+                parents_targets_old = self.parents[descendant_indices] + descendant_indices
+                new_parents = []
+                for i, p_target_old in enumerate(parents_targets_old):
+                    p_target_new = descendant_indices_map.get(p_target_old, i)
+                    new_parents.append(p_target_new - i)
+                yield self.data[descendant_indices], np.array(new_parents, dtype=DTYPE_OFFSET)
+            else:
+                yield self.data[descendant_indices], self.parents[descendant_indices]
 
     def _set_depths(self, indices, current_depth, child_offset=0):
         # depths are counted starting from roots!
@@ -918,6 +926,9 @@ class Forest(object):
             #assert self._root_ids is not None, 'root_ids not set'
             if self._root_ids is not None:
                 logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_ids))
+                assert len(self.roots) == len(self._root_ids), \
+                    'number of roots (%d) does not match number of root_ids (%d)' \
+                    % (len(self.roots), len(self._root_ids))
                 self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
             else:
                 self._root_id_pos = {}

@@ -358,7 +358,7 @@ def get_or_calc_sequence_data(params):
                                           data_as_hashes=current_forest.data_as_hashes,
                                           root_ids=current_forest.root_ids,
                                           lexicon_roots=current_forest.lexicon_roots),
-                       current_forest.trees(root_indices=roots[root_start:root_end]))
+                       current_forest.trees(root_indices=roots[root_start:root_end], show_links=params.get('show_links', True)))
     elif 'idx_start' in params:
         idx_start = params.get('idx_start', 0)
         idx_end = params.get('idx_end', len(current_forest))
