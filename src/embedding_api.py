@@ -284,6 +284,7 @@ def get_or_calc_sequence_data(params):
         params['data_as_hashes'] = params.get('data_as_hashes', False)
         current_forest = Forest(data=np.concatenate(d_list), parents=np.concatenate(p_list), lexicon=lexicon,
                                 data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
+        params['root_ids'] = current_forest.root_ids
     else:
         init_forest(data_path)
         current_forest = forest
@@ -628,7 +629,7 @@ def create_visualization_response(params):
     if mode == 'image':
         for i, data_sequence in enumerate(params['data_sequences']):
             if 'root_ids' in params:
-                root_ids = params['root_ids'][i]
+                root_ids = params['root_ids']
             else:
                 root_ids = None
             forest_temp = Forest(forest=data_sequence, lexicon=lexicon,
