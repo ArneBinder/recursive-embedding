@@ -31,7 +31,8 @@ from lexicon import Lexicon
 from sequence_trees import Forest
 from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, \
-    KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT
+    KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT, TYPE_DBPEDIA_RESOURCE, \
+    TYPE_PMID, vocab_manual, IDENTITY_EMBEDDING
 import data_iterators
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
@@ -225,27 +226,32 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
 
     if current_forest.data_as_hashes:
         current_forest.hashes_to_indices()
-
-    d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
-    d_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
+    link_types = []
     costs = {}
-    if 'link_cost_ref' in params:
-        costs[d_ref] = params['link_cost_ref']
-    if 'link_cost_ref_seealso' in params:
-        costs[d_ref_seealso] = params['link_cost_ref_seealso']
+    if TYPE_REF in lexicon.strings:
+        d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
+        link_types.append(d_ref)
+        if 'link_cost_ref' in params:
+            costs[d_ref] = params['link_cost_ref']
+    if TYPE_REF_SEEALSO in lexicon.strings:
+        d_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
+        link_types.append(d_ref_seealso)
+        if 'link_cost_ref_seealso' in params:
+            costs[d_ref_seealso] = params['link_cost_ref_seealso']
+    #d_dbpedia_resource = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=current_forest.data_as_hashes)
+    #d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=current_forest.data_as_hashes)
 
     forests = []
-
     transformed = params.get('reroot', False) or transform
     for idx in indices:
         if params.get('reroot', False):
             tree_dict = current_forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, costs=costs,
                                                             #transform=True,
-                                                            link_types=[d_ref, d_ref_seealso])
+                                                            link_types=link_types)
         else:
             tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
                                                      transform=transform,
-                                                     costs=costs, link_types=[d_ref, d_ref_seealso])
+                                                     costs=costs, link_types=link_types)
         forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
                         data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
                         lexicon_roots=current_forest.lexicon_roots)#, transformed_indices=transformed)
