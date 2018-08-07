@@ -3,6 +3,17 @@ import numpy as np
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
+TYPE_REF_SEEALSO = u'http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso'
+TYPE_REF = u'http://www.w3.org/2005/11/its/rdf#taIdentRef'
+TYPE_DBPEDIA_RESOURCE = u'http://dbpedia.org/resource'
+TYPE_ANCHOR = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context'
+TYPE_SECTION_SEEALSO = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso'
+TYPE_PARAGRAPH = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph'
+TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title'
+TYPE_SECTION = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section'
+TYPE_SENTENCE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence'
+TYPE_PMID = u'http://id.nlm.nih.gov/pubmed/pmid'
+
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
 
@@ -20,14 +31,15 @@ UNIQUE_EMBEDDING = -12
 BACK_EMBEDDING = -13
 SENTENCE_EMBEDDING = -14
 TARGET_EMBEDDING = -15
+ANCHOR_EMBEDDING = -16
 
 vocab_manual = {LEXEME_EMBEDDING: u'http://purl.org/olia/olia.owl#Lexeme', UNKNOWN_EMBEDDING: u'UNKNOWN',
                 AGGREGATOR_EMBEDDING: u'AGGREGATOR', ENTITY_EMBEDDING: u'ENTITY',
                 LEMMA_EMBEDDING: u'LEMMA', POS_EMBEDDING: u'POS', SOURCE_EMBEDDING: u'SOURCE',
                 IDENTITY_EMBEDDING: u'IDENTITY', ROOT_EMBEDDING: u'ROOT', DEPENDENCY_EMBEDDING: u'DEPENDENCY',
                 UNIQUE_EMBEDDING: u'UNIQUE', BACK_EMBEDDING: u'BACK',
-                SENTENCE_EMBEDDING: u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence',
-                TARGET_EMBEDDING: u'TARGET'
+                SENTENCE_EMBEDDING: TYPE_SENTENCE,
+                TARGET_EMBEDDING: u'TARGET', ANCHOR_EMBEDDING: TYPE_ANCHOR
                 }
 
 SEPARATOR = '/'
@@ -51,17 +63,6 @@ DTYPE_IDX = np.int64
 KEY_HEAD = 'h'
 KEY_CHILDREN = 'c'
 KEY_CANDIDATES = 'ca'
-
-TYPE_REF_SEEALSO = u'http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso'
-TYPE_REF = u'http://www.w3.org/2005/11/its/rdf#taIdentRef'
-TYPE_DBPEDIA_RESOURCE = u'http://dbpedia.org/resource'
-TYPE_ANCHOR = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context'
-TYPE_SECTION_SEEALSO = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso'
-TYPE_PARAGRAPH = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph'
-TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title'
-TYPE_SECTION = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section'
-TYPE_SENTENCE = vocab_manual[SENTENCE_EMBEDDING]
-TYPE_PMID = u'http://id.nlm.nih.gov/pubmed/pmid'
 
 M_INDICES = 'indices'
 M_TEST = 'test'
