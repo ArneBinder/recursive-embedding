@@ -32,7 +32,7 @@ from sequence_trees import Forest
 from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, \
     KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT, TYPE_DBPEDIA_RESOURCE, \
-    TYPE_PMID, vocab_manual, IDENTITY_EMBEDDING
+    TYPE_PMID, vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH
 import data_iterators
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
@@ -214,8 +214,7 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
                                     concat_mode=concat_mode,
                                     inner_concat_mode=inner_concat_mode,
                                     expand_dict=expand_lexicon,
-                                    reader_roots_args={
-                                        'root_label': constants.vocab_manual[constants.IDENTITY_EMBEDDING]})
+                                    reader_roots_args={'root_label': TYPE_PARAGRAPH})
         yield _forest.forest
 
 
