@@ -547,6 +547,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs))
         # add eventually missing manual vocab entries
         lexicon.add_all(vocab_manual.values())
+        lexicon.pad(pad_with='zero')
 
         # TODO: check this!
         if not no_fixed_vecs:
