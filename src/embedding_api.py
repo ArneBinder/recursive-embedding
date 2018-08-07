@@ -204,7 +204,8 @@ def get_params(request):
     return params
 
 
-def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode, expand_lexicon=False):
+def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode, root_label=TYPE_PARAGRAPH,
+                   expand_lexicon=False):
     init_nlp()
     for s in sequences:
         _forest = lexicon.read_data(reader=preprocessing.identity_reader,
@@ -214,7 +215,7 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
                                     concat_mode=concat_mode,
                                     inner_concat_mode=inner_concat_mode,
                                     expand_dict=expand_lexicon,
-                                    reader_roots_args={'root_label': TYPE_PARAGRAPH})
+                                    reader_roots_args={'root_label': root_label or TYPE_PARAGRAPH})
         yield _forest.forest
 
 
@@ -287,7 +288,8 @@ def get_or_calc_sequence_data(params):
             logging.info('use sentence_processor=%s' % sentence_processor.__name__)
 
         params['data_sequences'] = list(parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode,
-                                                       expand_lexicon=params.get('clear_lexicon', 'false').lower() in ['true', '1']))
+                                                       expand_lexicon=params.get('clear_lexicon', 'false').lower() in ['true', '1'],
+                                                       root_label=params.get('root_label', None)))
 
     if 'data_sequences' in params:
         d_list, p_list = zip(*params['data_sequences'])
