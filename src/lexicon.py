@@ -677,21 +677,27 @@ class Lexicon(object):
         self._vecs[idx] = new_vec
         return idx
 
-    def pad(self):
+    def pad(self, pad_with='random'):
         assert self.vecs is not None, 'vecs not set, can not pad'
         if len(self.vecs) == len(self):
             pass
         elif len(self.vecs) < len(self):
-            # take mean and variance from previous vectors
-            if len(self.vecs) > 0:
-                vecs_mean = np.mean(self.vecs, axis=0)
-                vecs_variance = np.var(self.vecs, axis=0)
-            else:
-                vecs_mean = 0.0
-                vecs_variance = 1.0
             new_vecs = np.zeros(shape=(len(self) - len(self.vecs), self.vec_size), dtype=self.vecs.dtype)
-            for i in range(len(new_vecs)):
-                new_vecs[i] = np.random.standard_normal(size=self.vec_size) * vecs_variance + vecs_mean
+            if pad_with == 'random':
+                # take mean and variance from previous vectors
+                if len(self.vecs) > 0:
+                    vecs_mean = np.mean(self.vecs, axis=0)
+                    vecs_variance = np.var(self.vecs, axis=0)
+                else:
+                    vecs_mean = 0.0
+                    vecs_variance = 1.0
+                for i in range(len(new_vecs)):
+                    new_vecs[i] = np.random.standard_normal(size=self.vec_size) * vecs_variance + vecs_mean
+            elif pad_with == 'zero':
+                pass
+            else:
+                raise ValueError('Unknown padding type: %s. Use "random" or "zero".' % pad_with)
+
             self._vecs = np.concatenate([self.vecs, new_vecs])
             #self._dumped_vecs = False
         else:
