@@ -32,7 +32,7 @@ from sequence_trees import Forest
 from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, \
     KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT, TYPE_DBPEDIA_RESOURCE, \
-    TYPE_PMID, vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH
+    TYPE_PMID, vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, LEXEME_EMBEDDING, SEPARATOR
 import data_iterators
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
@@ -426,6 +426,18 @@ def get_or_calc_sequence_data(params):
     else:
         _forests = [current_forest]
 
+    candidates = params.get('candidates', None)
+    if candidates is not None:
+        # convert to lexemes if not already an url (starting with "http://")
+        params['candidates'] = [vocab_manual[LEXEME_EMBEDDING] + SEPARATOR + unicode(c) if not c.startswith('http://') else unicode(c) for c in params['candidates']]
+        params['candidates_data'] = [lexicon.get_d(s=s, data_as_hashes=_forests[0].data_as_hashes) for s in params['candidates']]
+        if params.get('transformed_idx', False):
+            params['candidates_data'] = lexicon.transform_indices(params['candidates_data'])
+        candidate_forest = Forest(data=params['candidates_data'],
+                                  parents=np.zeros(len(params['candidates_data']), dtype=DTYPE_OFFSET),
+                                  lexicon=lexicon)
+        _forests = [_forests[0], candidate_forest]
+
     params['data_sequences'], params['sequences'] = zip(*[([f.data, f.parents], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
 
 
@@ -472,31 +484,66 @@ def get_or_calc_scores(params):
     if 'scores' in params:
         params['scores'] = np.array(params['scores'])
     else:
+        import model_fold
         get_or_calc_sequence_data(params)
         params['embeddings'] = []
         params['scores'] = []
-        assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
-            'can not construct reroot trees of an already transformed tree'
-        #reroot_bk = params.get('reroot', False)
-        for data, parents in params['data_sequences']:
-            current_forest = Forest(data=data, parents=parents, lexicon=lexicon,
-                                    data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
-            #params['reroot'] = True
-            # transform, if not already done
-            reroot_forests, transformed = get_forests_for_indices_from_forest(
-                indices=range(len(current_forest)), current_forest=current_forest, params=params,
-                transform=not params.get('transformed_idx', False))
-            current_embeddings = calc_embeddings(reroot_forests, max_depth=int(params.get('max_depth', 20)),
-                                                 root_ids=params.get('root_ids', None),
-                                                 transformed=transformed) #params['transformed_idx'])
-            params['embeddings'].append(current_embeddings)
-            fdict = {model_main.tree_model.embeddings_all: current_embeddings,
-                     model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
-            current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
-            params['scores'].append(current_scores)
+
+        if 'candidates_data' in params:
+            assert isinstance(model_tree.embedder, model_fold.TreeEmbedding_HTUBatchedHead), \
+                'embedder of tree model has to be TreeEmbedding_HTUBatchedHead'
+
+            _forest = Forest(forest=params['data_sequences'][0], lexicon=lexicon,
+                             data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
+
+            forest_dict = _forest.get_tree_dict(transform=not params.get('transformed_idx', False),
+                                                max_depth=params.get('max_depth', 10),
+                                                # TODO: check these parameters
+                                                context=0,
+                                                costs={},
+                                                link_types=[]
+                                                )
+            #forest_dict[KEY_CANDIDATES] = params['candidates_data']
+            if not params.get('transformed_idx', False):
+                params['candidates_data'] = lexicon.transform_indices(params['candidates_data'])
+
+            batch = []
+            for c in params['candidates_data']:
+                current_tree_dict = forest_dict.copy()
+                current_tree_dict[KEY_CANDIDATES] = [c]
+                batch.append([current_tree_dict])
+
+            fdict_embeddings = model_tree.build_feed_dict(batch)
+            embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict_embeddings)
+            embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
+
+            fdict_scores = {model_main.tree_model.embeddings_all: embeddings,
+                            model_main.values_gold: np.zeros(shape=(len(params['candidates_data']),), dtype=np.float32)}
+
+            current_scores = sess.run(model_main.scores, feed_dict=fdict_scores)
+            params['scores'] = [np.ones(len(_forest)), current_scores.reshape((len(params['candidates_data'])))]
+
+        else:
+            assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
+                'can not construct reroot trees of an already transformed tree'
+            for data, parents in params['data_sequences']:
+                current_forest = Forest(data=data, parents=parents, lexicon=lexicon,
+                                        data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
+                #params['reroot'] = True
+                # transform, if not already done
+                reroot_forests, transformed = get_forests_for_indices_from_forest(
+                    indices=range(len(current_forest)), current_forest=current_forest, params=params,
+                    transform=not params.get('transformed_idx', False))
+                current_embeddings = calc_embeddings(reroot_forests, max_depth=int(params.get('max_depth', 20)),
+                                                     root_ids=params.get('root_ids', None),
+                                                     transformed=transformed) #params['transformed_idx'])
+                params['embeddings'].append(current_embeddings)
+                fdict = {model_main.tree_model.embeddings_all: current_embeddings,
+                         model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
+                current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
+                params['scores'].append(current_scores)
 
         params['transformed_idx'] = True
-        #params['reroot'] = reroot_bk
 
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
