@@ -462,7 +462,7 @@ class Forest(object):
         cost = costs.get(data_head, 1)
 
         if transform:
-            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head, root_ids=self.root_id_set), KEY_CHILDREN: []}
+            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head), KEY_CHILDREN: []}
         else:
             seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
 
@@ -503,7 +503,7 @@ class Forest(object):
                 result = {KEY_HEAD: self.lexicon.transform_idx(d_target), KEY_CHILDREN: []}
 
         if result is None:
-            result = self.get_tree_dict(idx, max_depth=max_depth, transform=True)
+            result = self.get_tree_dict(idx, max_depth=max_depth, transform=True, costs=costs, link_types=link_types)
         #cost = costs.get(self.data[idx], 1)
         cost = 1
         if self.parents[idx] != 0 and max_depth > 0:
@@ -520,7 +520,7 @@ class Forest(object):
         current_id = idx + self.parents[idx]
         #data_head = self.lexicon.reverse_idx(self.data[current_id])
         #if transform:
-        data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_ids=self.root_id_set)
+        data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
         result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         current_dict_tree = result
         while max_depth > 0:
@@ -542,7 +542,7 @@ class Forest(object):
                 current_id = current_id + self.parents[current_id]
                 #data_head = self.lexicon.reverse_idx(self.data[current_id])
                 #if transform:
-                data_head = self.lexicon.transform_idx(self.data[current_id], revert=True, root_ids=self.root_id_set)
+                data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
                 current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child
@@ -565,7 +565,7 @@ class Forest(object):
         mask = np.ones(data.shape, dtype=bool)
         mask[indices_remove_np] = False
         if transform:
-            return self.lexicon.transform_indices(indices=data[mask], root_ids=self.root_id_set)
+            return self.lexicon.transform_indices(indices=data[mask])
         else:
             return data[mask]
 

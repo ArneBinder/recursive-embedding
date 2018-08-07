@@ -8,8 +8,9 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from scipy.sparse import csr_matrix
 
 from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, \
-    TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_DBPEDIA_RESOURCE, TYPE_ANCHOR, TYPE_PARAGRAPH, \
-    TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, CM_SEQUENCE, TYPE_PMID
+    TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_DBPEDIA_RESOURCE, TYPE_ANCHOR, \
+    TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, \
+    CM_SEQUENCE, TYPE_PMID, TARGET_EMBEDDING
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -111,7 +112,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
                                                    costs=costs, link_types=link_ids)
 
         #if transform:
-        candidate_data = [lexicon.transform_idx(idx=d, root_ids=sequence_trees.root_id_set) for d in candidate_data]
+        candidate_data = [lexicon.transform_idx(idx=d) for d in candidate_data]
 
         children = tree[KEY_CHILDREN]
         if len(children) > 0:
@@ -281,7 +282,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     lexicon = forest.lexicon
     costs = {}
     link_types = []
-    root_types = []
+    #root_types = []
 
     # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
     if TYPE_REF in lexicon.strings:
@@ -304,8 +305,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     data_nif_context_transformed = data_nif_context
     data_unknown_transformed = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     if transform:
-        data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context, root_ids=forest.root_id_set)
-        data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed, root_ids=forest.root_id_set)
+        data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context)
+        data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed)
     data_root = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=forest.data_as_hashes)
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
@@ -380,7 +381,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                     break
 
             f = get_tree_naive(idx_start=idx+context_child_offset, idx_end=idx_end, forest=forest,
-                               concat_mode=concat_mode, link_types=[data_ref, data_ref_seealso],
+                               concat_mode=concat_mode, link_types=link_types,
                                remove_types=remove_types_naive, data_aggregator=data_nif_context)
             f.set_children_with_parents()
             tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
@@ -399,9 +400,14 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     logger.info('created %i trees' % n)
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, **kwargs):
+def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, debug=False, **kwargs):
     logger.debug('select %i new root indices (forest size: %i)' % (nbr_indices, len(forest)))
-    indices = np.random.randint(len(forest), size=nbr_indices)
+    if debug:
+        logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
+        indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
+    else:
+        indices = np.random.randint(len(forest), size=nbr_indices)
+    d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, **kwargs):
         samples = np.random.choice(forest.data, size=neg_samples + 1)
         # replace samples that equal the head/root
@@ -410,8 +416,10 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, 
             rep = len(forest.lexicon) - 1
         samples[samples == tree[KEY_HEAD]] = rep
 
-        #if transform:
-        samples = forest.lexicon.transform_indices(samples, root_ids=forest.root_id_set)
+        # NOTE: Other samples could contain targets root ids as well, but in these cases we do not know (and it does
+        # not really matter). In the case when we do not find the sample in vecs_var and vecs_fixed, we have surely a
+        # link (and use d_target as replacement)
+        samples = forest.lexicon.transform_indices(samples, d_unknown_replacement=d_target)
         samples[0] = tree[KEY_HEAD]
         tree[KEY_CANDIDATES] = samples
         tree[KEY_HEAD] = None

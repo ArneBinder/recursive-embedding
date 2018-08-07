@@ -785,11 +785,12 @@ class Lexicon(object):
             self._strings.add(s)
         self.clear_cached_values()
 
-    def transform_idx(self, idx, revert=False, root_ids=[]):
+    def transform_idx(self, idx, revert=False, d_unknown_replacement=None):
         """
         transform lexicon (vec) index to index for vecs_fix (negative) or vecs_var (positive) index
         :param idx: the index to transform
         :param revert: iff True, encode as "reverted" edge
+        :param d_unknown_replacement: data id of that is used if converted idx is not found in idx_var and ids_fixed
         :return: the transformed index
         """
         idx_trans = self.ids_fixed_dict.get(idx, None)
@@ -804,15 +805,19 @@ class Lexicon(object):
             return idx_trans
         #idx_trans = root_id_pos.get(idx, None)
         #if idx_trans is not None:
-        if idx in root_ids:
-            return self.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+        #if idx in root_ids:
+        #    return self.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
 
         #raise ValueError('idx=%i not in ids_fixed, ids_var or root_id_pos' % idx)
-        logger.warning('idx=%i not in ids_fixed, ids_var or root_id_pos. Set to UNKNOWN.' % idx)
-        return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+        if d_unknown_replacement is None:
+            logger.warning('idx=%i not in ids_fixed or ids_var. Set to UNKNOWN.' % idx)
+            return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+        else:
+            #logger.debug('idx=%i not in ids_fixed or ids_var. Set to unknown_replacment: %i.' % (idx, d_unknown_replacement))
+            return d_unknown_replacement
 
-    def transform_indices(self, indices, revert=False, root_ids=[]):
-        return [self.transform_idx(idx=idx, revert=revert, root_ids=root_ids) for idx in indices]
+    def transform_indices(self, indices, revert=False, d_unknown_replacement=None):
+        return [self.transform_idx(idx=idx, revert=revert, d_unknown_replacement=d_unknown_replacement) for idx in indices]
 
     def transform_idx_back(self, idx):
         """
