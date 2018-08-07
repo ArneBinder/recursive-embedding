@@ -12,7 +12,8 @@ from multiprocessing import Pool
 import plac
 import spacy
 
-from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, DTYPE_IDX
+from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, DTYPE_IDX, \
+    TYPE_PMID
 import preprocessing
 from lexicon import Lexicon
 from corpus import FE_UNIQUE_HASHES, FE_COUNTS
@@ -30,7 +31,6 @@ logger.addHandler(logger_streamhandler)
 TYPE_MESH = u"http://id.nlm.nih.gov/mesh"
 TYPE_YEAR = u"http://id.nlm.nih.gov/pubmed/year"
 TYPE_JOURNAL = u"http://id.nlm.nih.gov/pubmed/journal"
-TYPE_PMID = u'http://id.nlm.nih.gov/pubmed/pmid'
 
 KEY_MAPPING = {'journal': TYPE_JOURNAL,
                'meshMajor': TYPE_MESH,

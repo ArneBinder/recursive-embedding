@@ -8,8 +8,8 @@ from sklearn.feature_extraction.text import TfidfTransformer
 from scipy.sparse import csr_matrix
 
 from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, \
-    TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_ROOT, TYPE_ANCHOR, TYPE_PARAGRAPH, \
-    TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, CM_SEQUENCE
+    TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_DBPEDIA_RESOURCE, TYPE_ANCHOR, TYPE_PARAGRAPH, \
+    TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, CM_SEQUENCE, TYPE_PMID
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -53,14 +53,25 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     assert max_depth > 0, 'can not produce candidates for zero depth trees (single nodes)'
 
     lexicon = sequence_trees.lexicon
-    data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
-    data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
-    link_ids = [data_ref, data_ref_seealso]
-    #data_identity = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
+    link_ids = []
     costs = {}
-    if link_cost_ref is not None:
-        costs[data_ref] = link_cost_ref
-    costs[data_ref_seealso] = link_cost_ref_seealso
+    if TYPE_REF in lexicon.strings:
+        data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=sequence_trees.data_as_hashes)
+        link_ids.append(data_ref)
+        if link_cost_ref is not None:
+            costs[data_ref] = link_cost_ref
+    if TYPE_REF_SEEALSO in lexicon.strings:
+        data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=sequence_trees.data_as_hashes)
+        link_ids.append(data_ref_seealso)
+        costs[data_ref_seealso] = link_cost_ref_seealso
+    #root_types = []
+    #if TYPE_PMID in lexicon.strings:
+    #    d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=sequence_trees.data_as_hashes)
+    #    root_types.append(d_pmid)
+    #if TYPE_DBPEDIA_RESOURCE in lexicon.strings:
+    #    d_dbpedia_resource = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=sequence_trees.data_as_hashes)
+    #    root_types.append(d_dbpedia_resource)
+    #data_identity = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=sequence_trees.data_as_hashes)
 
     if len(index_files) > 0:
         indices = np.concatenate([numpy_load(fn) for fn in index_files])
@@ -97,7 +108,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
             logger.warning('not enough samples: %i, required: %i. skip idx=%i' % (len(candidate_data), neg_samples, idx))
             continue
         tree = sequence_trees.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
-                                                   costs=costs, link_types=[data_ref, data_ref_seealso])
+                                                   costs=costs, link_types=link_ids)
 
         #if transform:
         candidate_data = [lexicon.transform_idx(idx=d, root_ids=sequence_trees.root_id_set) for d in candidate_data]
@@ -270,6 +281,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     lexicon = forest.lexicon
     costs = {}
     link_types = []
+    root_types = []
 
     # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
     if TYPE_REF in lexicon.strings:
@@ -281,6 +293,12 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
         costs[data_ref_seealso] = link_cost_ref_seealso
         link_types.append(data_ref_seealso)
+    #if TYPE_PMID in lexicon.strings:
+    #    d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=forest.data_as_hashes)
+    #    root_types.append(d_pmid)
+    #if TYPE_DBPEDIA_RESOURCE in lexicon.strings:
+    #    d_dbpedia_resource = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=forest.data_as_hashes)
+    #    root_types.append(d_dbpedia_resource)
 
     data_nif_context = lexicon.get_d(TYPE_ANCHOR, data_as_hashes=forest.data_as_hashes)
     data_nif_context_transformed = data_nif_context
@@ -288,10 +306,10 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     if transform:
         data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context, root_ids=forest.root_id_set)
         data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed, root_ids=forest.root_id_set)
-    data_root = lexicon.get_d(TYPE_ROOT, data_as_hashes=forest.data_as_hashes)
+    data_root = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=forest.data_as_hashes)
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
-    remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
+    remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
                               TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
     remove_types_naive = [lexicon.get_d(s, data_as_hashes=forest.data_as_hashes) for s in
                           remove_types_naive_str]
@@ -589,7 +607,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode=CM_T
         data_root_seealso_transformed = data_root_seealso
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
-    remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_ROOT, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
+    remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
                               TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
     remove_types_naive = [lexicon.get_d(s, data_as_hashes=sequence_trees.data_as_hashes) for s in remove_types_naive_str]
 

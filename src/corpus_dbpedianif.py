@@ -20,7 +20,7 @@ from rdflib.term import URIRef
 
 import corpus
 import preprocessing
-from constants import TYPE_REF, TYPE_ROOT, TYPE_ANCHOR, \
+from constants import TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_ANCHOR, \
     TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX, LOGGING_FORMAT
 from lexicon import Lexicon, FE_STRINGS
 from mytools import numpy_dump, numpy_load
@@ -233,7 +233,7 @@ def query_first_section_structure(graph, context, cursor=None):
 def tree_from_sorted_parent_triples(sorted_parent_triples, root_id_str,
                                     see_also_refs,
                                     see_also_ref_type=TYPE_REF_SEEALSO,
-                                    root_type=TYPE_ROOT,
+                                    root_type=TYPE_DBPEDIA_RESOURCE,
                                     anchor_type=TYPE_ANCHOR,
                                     terminal_types=None,
                                     see_also_section_type=TYPE_SECTION_SEEALSO

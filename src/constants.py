@@ -54,13 +54,14 @@ KEY_CANDIDATES = 'ca'
 
 TYPE_REF_SEEALSO = u'http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso'
 TYPE_REF = u'http://www.w3.org/2005/11/its/rdf#taIdentRef'
-TYPE_ROOT = u'http://dbpedia.org/resource'
+TYPE_DBPEDIA_RESOURCE = u'http://dbpedia.org/resource'
 TYPE_ANCHOR = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context'
 TYPE_SECTION_SEEALSO = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso'
 TYPE_PARAGRAPH = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph'
 TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title'
 TYPE_SECTION = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section'
 TYPE_SENTENCE = vocab_manual[SENTENCE_EMBEDDING]
+TYPE_PMID = u'http://id.nlm.nih.gov/pubmed/pmid'
 
 M_INDICES = 'indices'
 M_TEST = 'test'
