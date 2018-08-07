@@ -476,9 +476,9 @@ class Forest(object):
                     if self.data[target_idx] in self.root_id_pos:
                         target_idx = self.root_id_pos[self.data[target_idx]] + link_content_offset
                     else:
-                        # ... otherwise add the TARGET element
-                        d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
-                        seq_node[KEY_CHILDREN].append({KEY_HEAD: self.lexicon.transform_idx(d_target) if transform else d_target, KEY_CHILDREN: []})
+                        # ... otherwise add the TARGET element NO: if costs prohibit link following, this is never reached. otherwise this should not be used
+                        #d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
+                        #seq_node[KEY_CHILDREN].append({KEY_HEAD: self.lexicon.transform_idx(d_target) if transform else d_target, KEY_CHILDREN: []})
                         continue
 
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
