@@ -346,7 +346,7 @@ def batch_iter_nearest(number_of_samples, forest_indices, forest_indices_targets
 #        samples = np.random.choice(data_transformed, size=number_of_samples+1)
 #        samples[0] = data_transformed[idx]
 #
-#        #samples = forest.lexicon.transform_indices(samples, root_id_pos=forest.root_id_pos)
+#        #samples = forest.lexicon.transform_indices(samples)
 #
 #        probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
 #        probs[samples == samples[0]] = 1
@@ -1143,7 +1143,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 return stat_queue_sorted[0], cache
 
 
-def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None, cache=None):
+def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None,
+                cache=None, debug=False):
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -1196,6 +1197,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
     tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count = init_model_type(config)
+
+    if debug:
+        tree_iterator_args['debug'] = True
 
     # load forest data
     lexicon_root_fn = '%s.root.id' % config.train_data_path
@@ -1498,4 +1502,4 @@ if __name__ == '__main__':
         # default: execute single run
         else:
             execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
-                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
+                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only, debug=FLAGS.debug)
