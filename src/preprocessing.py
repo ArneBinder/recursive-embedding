@@ -557,11 +557,11 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
         idx_unknown = strings[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]
 
     if reader_roots is None:
-        if 'root_labels' in reader_roots_args:
-            root_labels = reader_roots_args['root_labels']
+        if 'root_label' in reader_roots_args:
+            root_label = reader_roots_args['root_label']
         else:
-            root_labels = constants.vocab_manual[constants.AGGREGATOR_EMBEDDING]
-        _reader_root = iter(lambda: root_labels, -1)
+            root_label = constants.vocab_manual[constants.AGGREGATOR_EMBEDDING]
+        _reader_root = iter(lambda: root_label, -1)
     else:
         _reader_root = reader_roots(**reader_roots_args)
 

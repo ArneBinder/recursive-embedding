@@ -58,9 +58,9 @@ def main(args=None):
     corpus_simtuple.create_corpus(reader_sentences=sentence_reader, reader_scores=score_reader,
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
-                                  #reader_roots_args={'root_labels': [u'SICK_SENTENCE',
+                                  #reader_roots_args={'root_label': [u'SICK_SENTENCE',
                                   #                                   constants.vocab_manual[constants.ROOT_EMBEDDING]]}
-                                  reader_roots_args={'root_labels': constants.vocab_manual[constants.ROOT_EMBEDDING]}
+                                  reader_roots_args={'root_label': constants.vocab_manual[constants.ROOT_EMBEDDING]}
                                   )
 
 

@@ -81,8 +81,10 @@ def main(args=None):
                                   corpus_name=FLAGS.corpus_name,
                                   file_names=file_names,
                                   output_suffix='_%i' % FLAGS.size,
-                                  reader_roots_args={'root_labels': [u'PPDB_PHRASE',
-                                                                     constants.vocab_manual[constants.ROOT_EMBEDDING]]}
+                                  # list as root_label(s) does not work anymore
+                                  #reader_roots_args={'root_labels': [u'PPDB_PHRASE',
+                                  #                                   constants.vocab_manual[constants.ROOT_EMBEDDING]]}
+                                  reader_roots_args={'root_label': u'PPDB_PHRASE'}
                                   )
 
 
