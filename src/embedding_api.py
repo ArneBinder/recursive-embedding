@@ -1022,6 +1022,10 @@ def init_forest(data_path):
         else:
             lexicon_roots = None
         forest = Forest(filename=data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
+        logger.debug('set (root) ids to IDENTITY')
+        d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING],
+                                                  data_as_hashes=forest.data_as_hashes)
+        forest.data[forest.roots + 1] = d_identity
         if tfidf_indices is not None:
             tfidf_root_ids = np.array([forest.root_mapping[root_idx] for root_idx in (tfidf_indices - CONTEXT_ROOT_OFFEST)])
         else:
