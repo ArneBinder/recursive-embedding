@@ -833,7 +833,7 @@ class Lexicon(object):
         return s.startswith(Lexicon.vocab_prefix(man_vocab_id))
 
     def clear_cached_values(self):
-        assert not self.frozen, 'can not modify frozen lexicon'
+        #assert not self.frozen, 'can not modify frozen lexicon'
         self._hashes = None
         self._mapping = None
 
