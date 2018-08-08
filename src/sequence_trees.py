@@ -684,10 +684,13 @@ class Forest(object):
             indices_sorted = scores.argsort()[::-1]
             ranks = np.empty_like(indices_sorted)
             ranks[indices_sorted] = np.arange(len(scores))
+            print(scores)
+            print(ranks)
             # merge identical ranks
             for i, idx in enumerate(indices_sorted):
                 if i > 0 and int(scores[indices_sorted[i-i]] * 1000000) == int(scores[idx] * 1000000):
                     ranks[idx] = ranks[indices_sorted[i-i]]
+            print(ranks)
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
         if token_list is None:
