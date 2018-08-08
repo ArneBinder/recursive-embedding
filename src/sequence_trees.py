@@ -680,6 +680,14 @@ class Forest(object):
         if scores is not None:
             assert len(scores) == end - start, 'number of scores (%i) does not match sequence length (%i)' \
                                                % (len(scores), end - start)
+            # calculate ranks
+            indices_sorted = scores.argsort()[::-1]
+            ranks = np.empty_like(indices_sorted)
+            ranks[indices_sorted] = np.arange(len(scores)) + 1
+            # merge identical ranks
+            for i, idx in enumerate(indices_sorted):
+                if i > 0 and scores[indices_sorted[i-i]] == scores[idx]:
+                    ranks[idx] = ranks[indices_sorted[i-i]]
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
         if token_list is None:
@@ -698,7 +706,7 @@ class Forest(object):
                 penwidth = 1
                 # if scores are given ...
                 if scores is not None:
-                    l += '\n%f' % scores[i]
+                    l += '\n%f\n#%i' % (scores[i], ranks[i])
                     # score 0 -> 255, 0, 0
                     # score 1 -> 255, 255, 255
                     color = '#{:02x}{:02x}{:02x}'.format(255, int(255 * scores[i]), int(255 * scores[i]))
