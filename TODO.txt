@@ -4,6 +4,17 @@ OPEN:
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
+    data:
+     * re-parse:
+        * general:
+            * add ID-LINK node that parents the id
+            * add dependency edge types (process_sentence3?  or process_sentence10?)
+            * add SECTION/ABSTRACT node as direct child of primary section (^=abstract)
+        * BioASQ:
+            * use pure PARAGRAPHs (with PARAGRAPH/BACKGROUND, etc. as direct children)
+            * (?) model paragraphs as sequence (?)
+        * DBpediaNif:
+            * add titles
     writing:
      * create structure / table of contents
     orga:
