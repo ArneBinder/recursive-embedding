@@ -674,7 +674,7 @@ class Forest(object):
                       root_ids=new_root_ids,
                       root_pos=new_root_pos)
 
-    def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None):
+    def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None, color_by_rank=False):
         if end is None:
             end = len(self)
         if scores is not None:
@@ -707,9 +707,16 @@ class Forest(object):
                 # if scores are given ...
                 if scores is not None:
                     l += '\n%f\n#%i' % (scores[i], ranks[i])
+                    if color_by_rank:
+                        if np.max(ranks[i]) == 1:
+                            c = 0.
+                        else:
+                            c = 1. - (ranks[i] - 1) / float(np.max(ranks[i]) - 1)
+                    else:
+                        c = scores[i]
                     # score 0 -> 255, 0, 0
                     # score 1 -> 255, 255, 255
-                    color = '#{:02x}{:02x}{:02x}'.format(255, int(255 * scores[i]), int(255 * scores[i]))
+                    color = '#{:02x}{:02x}{:02x}'.format(255, int(255 * c), int(255 * c))
                     if scores[i] == np.max(scores):
                         penwidth = 3
 

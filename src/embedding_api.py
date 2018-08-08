@@ -524,6 +524,7 @@ def get_or_calc_scores(params):
             if params.get('normalize_scores', True):
                 current_scores = current_scores / np.sum(current_scores)
             params['scores'] = [None, current_scores.reshape((len(params['candidates_data'])))]
+            params['color_by_rank'] = True
 
         else:
             assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
@@ -703,7 +704,8 @@ def create_visualization_response(params):
                                  root_ids=root_ids)
             forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
                                   token_list=params['sequences'][i],
-                                  scores=params['scores'][i] if 'scores' in params else None)
+                                  scores=params['scores'][i] if 'scores' in params else None,
+                                  color_by_rank=params.get('color_by_rank', False))
         assert len(params['data_sequences']) > 0, 'empty data_sequences'
         concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
 
