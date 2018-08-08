@@ -60,7 +60,8 @@ def main(args=None):
                                   file_names=file_names,
                                   #reader_roots_args={'root_label': [u'SICK_SENTENCE',
                                   #                                   constants.vocab_manual[constants.ROOT_EMBEDDING]]}
-                                  reader_roots_args={'root_label': constants.vocab_manual[constants.ROOT_EMBEDDING]}
+                                  #reader_roots_args={'root_label': constants.vocab_manual[constants.ROOT_EMBEDDING]
+                                  reader_roots_args={'root_label': constants.vocab_manual[constants.SENTENCE_EMBEDDING]}
                                   )
 
 

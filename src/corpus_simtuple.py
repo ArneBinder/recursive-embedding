@@ -327,6 +327,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
 
+    # DEPRECATED
+    # UNIQUE_EMBEDDING: u'UNIQUE'
     if FLAGS.create_unique:
         if forest.data_as_hashes:
             raise NotImplementedError('create_unique not implemented for data_as_hashes')

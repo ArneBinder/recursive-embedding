@@ -13,6 +13,11 @@ TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Ti
 TYPE_SECTION = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section'
 TYPE_SENTENCE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence'
 TYPE_PMID = u'http://id.nlm.nih.gov/pubmed/pmid'
+TYPE_LEXEME = u'http://purl.org/olia/olia.owl#Lexeme'
+TYPE_DEPENDENCY_RELATION = u'http://purl.org/olia/olia-top.owl#DependencyRelation'
+TYPE_MORPHOSYNTACTIC_CATEGORY = u'http://purl.org/olia/olia-top.owl#MorphosyntacticCategory'
+TYPE_BASE_FORM = u'http://purl.org/olia/olia.owl#BaseForm'
+TYPE_NAMED_ENTITY = u'http://purl.org/olia/olia.owl#NamedEntity'
 
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
@@ -32,14 +37,21 @@ BACK_EMBEDDING = -13
 SENTENCE_EMBEDDING = -14
 TARGET_EMBEDDING = -15
 ANCHOR_EMBEDDING = -16
+PADDING_EMBEDDING = -17
 
-vocab_manual = {LEXEME_EMBEDDING: u'http://purl.org/olia/olia.owl#Lexeme', UNKNOWN_EMBEDDING: u'UNKNOWN',
-                AGGREGATOR_EMBEDDING: u'AGGREGATOR', ENTITY_EMBEDDING: u'ENTITY',
-                LEMMA_EMBEDDING: u'LEMMA', POS_EMBEDDING: u'POS', SOURCE_EMBEDDING: u'SOURCE',
-                IDENTITY_EMBEDDING: u'IDENTITY', ROOT_EMBEDDING: u'ROOT', DEPENDENCY_EMBEDDING: u'DEPENDENCY',
-                UNIQUE_EMBEDDING: u'UNIQUE', BACK_EMBEDDING: u'BACK',
+vocab_manual = {LEXEME_EMBEDDING: TYPE_LEXEME,
+                UNKNOWN_EMBEDDING: u'UNKNOWN',
+                AGGREGATOR_EMBEDDING: u'AGGREGATOR',
+                ENTITY_EMBEDDING: TYPE_NAMED_ENTITY,
+                LEMMA_EMBEDDING: TYPE_BASE_FORM,
+                POS_EMBEDDING: TYPE_MORPHOSYNTACTIC_CATEGORY,
+                IDENTITY_EMBEDDING: u'IDENTITY',
+                ROOT_EMBEDDING: u'ROOT',
+                DEPENDENCY_EMBEDDING: TYPE_DEPENDENCY_RELATION,
+                PADDING_EMBEDDING: u'PADDING',
                 SENTENCE_EMBEDDING: TYPE_SENTENCE,
-                TARGET_EMBEDDING: u'TARGET', ANCHOR_EMBEDDING: TYPE_ANCHOR
+                TARGET_EMBEDDING: u'TARGET',
+                ANCHOR_EMBEDDING: TYPE_ANCHOR
                 }
 
 SEPARATOR = '/'

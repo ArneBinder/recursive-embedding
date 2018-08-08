@@ -40,10 +40,9 @@ from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_spars
 import mytools
 from mytools import numpy_load, ThreadWithReturnValue
 from sequence_trees import Forest
-from constants import vocab_manual, KEY_HEAD, KEY_CHILDREN, ROOT_EMBEDDING, IDENTITY_EMBEDDING, DTYPE_OFFSET, TYPE_REF, \
-    TYPE_REF_SEEALSO, UNKNOWN_EMBEDDING, UNIQUE_EMBEDDING, TYPE_SECTION_SEEALSO, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
-    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_DATA, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
-    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES
+from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
+    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
+    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING
 from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -850,7 +849,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, lo
             kwargs['sequence_length'] = 500
             for k in tree_iterators.keys():
                 tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
-            _padding_idx = lexicon.get_d(vocab_manual[UNIQUE_EMBEDDING], data_as_hashes=False)
+            _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
             kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
 
         model_tree = model_fold.SequenceTreeModel(lex_size_fix=lexicon.len_fixed,
