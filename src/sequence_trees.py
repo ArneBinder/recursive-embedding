@@ -686,7 +686,7 @@ class Forest(object):
             ranks[indices_sorted] = np.arange(len(scores))
             # merge identical ranks
             for i, idx in enumerate(indices_sorted):
-                if i > 0 and scores[indices_sorted[i-i]] == scores[idx]:
+                if i > 0 and int(scores[indices_sorted[i-i]] * 1000000) == int(scores[idx] * 1000000):
                     ranks[idx] = ranks[indices_sorted[i-i]]
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
