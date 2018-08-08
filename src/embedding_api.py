@@ -263,11 +263,8 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
 def get_or_calc_sequence_data(params):
     global data_path, lexicon
 
-    if params.get('clear_lexicon', 'false').lower() in ['true', '1'] or lexicon is None:
+    if params.get('clear_lexicon', False):
         lexicon = Lexicon()
-        params['clear_lexicon'] = 'true'
-    else:
-        params['clear_lexicon'] = 'false'
 
     if 'sequences' in params:
         sequences = [s.decode("utf-8") for s in params['sequences']]
@@ -288,7 +285,7 @@ def get_or_calc_sequence_data(params):
             logging.info('use sentence_processor=%s' % sentence_processor.__name__)
 
         params['data_sequences'] = list(parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode,
-                                                       expand_lexicon=params.get('clear_lexicon', 'false').lower() in ['true', '1'],
+                                                       expand_lexicon=params.get('clear_lexicon', False),
                                                        root_label=params.get('root_label', None)))
 
     if 'data_sequences' in params:
@@ -732,10 +729,10 @@ def score():
         response = create_visualization_response(params)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
+        if params is not None and params.get('clear_lexicon', False):
             lexicon = None
         raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
-    if params.get('clear_lexicon', 'false').lower() in ['true', '1']:
+    if params.get('clear_lexicon', False):
         lexicon = None
     return response
 
@@ -837,10 +834,10 @@ def visualize():
         response = create_visualization_response(params)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
-        if params is not None and params.get('clear_lexicon', 'false').lower() in ['true', '1']:
+        if params is not None and params.get('clear_lexicon', False):
             lexicon = None
         raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
-    if params.get('clear_lexicon', 'false').lower() in ['true', '1']:
+    if params.get('clear_lexicon', False):
         lexicon = None
     return response
 
