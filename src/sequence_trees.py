@@ -695,12 +695,16 @@ class Forest(object):
                 if reverted:
                     l = l[:-len('-REV')]
 
+                penwidth = 1
                 # if scores are given ...
                 if scores is not None:
                     l += '\n%f' % scores[i]
                     # score 0 -> 255, 0, 0
                     # score 1 -> 255, 255, 255
                     color = '#{:02x}{:02x}{:02x}'.format(255, int(255 * scores[i]), int(255 * scores[i]))
+                    if scores[i] == np.max(scores):
+                        penwidth = 3
+
                 else:
                     if fixed:
                         color = "dodgerblue"
@@ -712,9 +716,10 @@ class Forest(object):
                 if reverted:
                     nodes.append(pydot.Node(i, label=l, style="filled",
                                             fillcolor='%s;0.5:white;0.5' % color,
-                                            gradientangle=135))
+                                            gradientangle=135,
+                                            penwidth=penwidth))
                 else:
-                    nodes.append(pydot.Node(i, label=l, style="filled", fillcolor=color))
+                    nodes.append(pydot.Node(i, label=l, style="filled", fillcolor=color, penwidth=penwidth))
 
             for node in nodes:
                 graph.add_node(node)
