@@ -677,10 +677,9 @@ class Forest(object):
     def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None):
         if end is None:
             end = len(self)
-        if scores is None:
-            scores = np.ones(end-start, dtype=float)
-        assert len(scores) == end - start, 'number of scores (%i) does not match sequence length (%i)' \
-                                           % (len(scores), end - start)
+        if scores is not None:
+            assert len(scores) == end - start, 'number of scores (%i) does not match sequence length (%i)' \
+                                               % (len(scores), end - start)
 
         graph = pydot.Dot(graph_type='digraph', rankdir='LR', bgcolor='transparent')
         if token_list is None:
@@ -697,7 +696,7 @@ class Forest(object):
                     l = l[:-len('-REV')]
 
                 # if scores are given ...
-                if np.sum(scores) < end-start:
+                if scores is not None:
                     l += '\n%f' % scores[i]
                     # score 0 -> 255, 0, 0
                     # score 1 -> 255, 255, 255

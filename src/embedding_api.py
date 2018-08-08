@@ -521,7 +521,9 @@ def get_or_calc_scores(params):
                             model_main.values_gold: np.zeros(shape=(len(params['candidates_data']),), dtype=np.float32)}
 
             current_scores = sess.run(model_main.scores, feed_dict=fdict_scores)
-            params['scores'] = [np.ones(len(_forest)), current_scores.reshape((len(params['candidates_data'])))]
+            if params.get('normalize_scores', True):
+                current_scores = current_scores / np.sum(current_scores)
+            params['scores'] = [None, current_scores.reshape((len(params['candidates_data'])))]
 
         else:
             assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
@@ -541,6 +543,8 @@ def get_or_calc_scores(params):
                 fdict = {model_main.tree_model.embeddings_all: current_embeddings,
                          model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
                 current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
+                if params.get('normalize_scores', False):
+                    current_scores = current_scores / np.sum(current_scores)
                 params['scores'].append(current_scores)
 
         params['transformed_idx'] = True
