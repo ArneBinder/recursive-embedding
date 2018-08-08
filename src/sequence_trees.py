@@ -683,7 +683,7 @@ class Forest(object):
             # calculate ranks
             indices_sorted = scores.argsort()[::-1]
             ranks = np.empty_like(indices_sorted)
-            ranks[indices_sorted] = np.arange(len(scores)) + 1
+            ranks[indices_sorted] = np.arange(len(scores))
             # merge identical ranks
             for i, idx in enumerate(indices_sorted):
                 if i > 0 and scores[indices_sorted[i-i]] == scores[idx]:
@@ -706,12 +706,12 @@ class Forest(object):
                 penwidth = 1
                 # if scores are given ...
                 if scores is not None:
-                    l += '\n%f\n#%i' % (scores[i], ranks[i])
+                    l += '\n%f\n#%i' % (scores[i], ranks[i] + 1)
                     if color_by_rank:
-                        if np.max(ranks[i]) == 1:
+                        if np.max(ranks) == 0:
                             c = 0.
                         else:
-                            c = 1. - (ranks[i] - 1) / float(np.max(ranks[i]) - 1)
+                            c = 1. - ranks[i] / float(np.max(ranks))
                     else:
                         c = scores[i]
                     # score 0 -> 255, 0, 0
