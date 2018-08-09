@@ -3,7 +3,9 @@ OPEN:
      * check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
      * training: allow index files for reroot model to allow training on a data subset
      * training: check merge lexicon for fine-tuning (load from previous checkpoint)
-     * training: allow fine-tuning of embedding-model only and complete model
+     * training: allow fine-tuning of just the embedding-model and the complete model
+     * FIX ROOT_IDS: freeze is important after convert_hashes_to_indices because len(lexicon) is added to root ids
+        possible solutions: use negative values for root_ids AND/OR use lexicon_roots
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
@@ -12,11 +14,12 @@ OPEN:
         * general:
             * add ID-LINK node that parents the id
             * add dependency edge types (process_sentence3?  or process_sentence10?)
-            * add SECTION/ABSTRACT node as direct child of primary section (^=abstract)
+            * add SECTION/ABSTRACT leaf node as direct child of primary section (^=abstract)
         * BioASQ:
-            * use pure PARAGRAPHs (with PARAGRAPH/BACKGROUND, etc. as direct children) TEMPORARY FIX: uniformed all
-                paragraph ids to id of PARAGRAPH/BACKGROUND
-            * (?) model paragraphs as sequence (?)
+            * use pure PARAGRAPHs (with PARAGRAPH/BACKGROUND, etc. as direct children (leaf))
+                TEMPORARY FIX (DONE): uniformed all paragraph ids to id of PARAGRAPH/BACKGROUND
+            * (?) move title out of section
+            * (??) model paragraphs as sequence
         * DBpediaNif:
             * add titles    NO: already available, but really sparse    NOAGAIN: these are only section titles!
     writing:
