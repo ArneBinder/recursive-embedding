@@ -73,6 +73,11 @@ KEY_HEAD = 'h'
 KEY_CHILDREN = 'c'
 KEY_CANDIDATES = 'ca'
 
+# model types
+MT_MULTICLASS = 'multiclass'
+MT_REROOT = 'reroot'
+MT_TREETUPLE = 'tuple'
+
 M_INDICES = 'indices'
 M_TEST = 'test'
 M_TRAIN = 'train'

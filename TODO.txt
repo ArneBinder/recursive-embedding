@@ -1,7 +1,6 @@
 OPEN:
     coding:
      * check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
-     * constants: check, if renaming affects any current data DONE (fixed issues) -> merge (check again)
      * training: allow index files for reroot model to allow training on a data subset
      * training: check merge lexicon for fine-tuning (load from previous checkpoint)
      * training: allow fine-tuning of embedding-model only and complete model
@@ -45,6 +44,8 @@ DONE:
  * early_stopping_metric as parameter
  * re-add testing for language model (reroot) to see performance with dropout disabled
  * bioasq-corpus: use PARAGRAPH instead of PARAGRAPH/... (to "sync" with min_100_paragraph data)
+ * constants: check, if renaming affects any current data DONE (fixed issues) -> merge (check again)
+
 
 
 

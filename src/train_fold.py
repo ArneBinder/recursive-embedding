@@ -42,7 +42,7 @@ from mytools import numpy_load, ThreadWithReturnValue
 from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
-    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING
+    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS
 from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -112,10 +112,6 @@ METRIC_DISCRETE = 'f1_t33'
 METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
 METRIC_REGRESSION = 'pearson_r'
 #STAT_KEY_MAIN_REGRESSION = 'pearson_r'
-
-MT_MULTICLASS = 'multiclass'
-MT_REROOT = 'reroot'
-MT_TREETUPLE = 'tuple'
 
 logger = logging.getLogger('')
 logger.setLevel(logging.DEBUG)

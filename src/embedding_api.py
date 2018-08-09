@@ -32,7 +32,7 @@ from sequence_trees import Forest
 from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, \
     KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT, \
-    vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, SEPARATOR, TYPE_LEXEME
+    vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, SEPARATOR, TYPE_LEXEME, MT_REROOT
 import data_iterators
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
@@ -97,6 +97,7 @@ tfidf_indices = None
 tfidf_root_ids = None
 embedding_indices = None
 embeddings = None
+model_config = None
 
 logger = logging.getLogger('')
 logger.setLevel(logging.DEBUG)
@@ -1073,10 +1074,10 @@ def init_forest(data_path):
         else:
             lexicon_roots = None
         forest = Forest(filename=data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
-        logger.debug('set (root) ids to IDENTITY')
-        d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING],
-                                                  data_as_hashes=forest.data_as_hashes)
-        forest.data[forest.roots + 1] = d_identity
+        if model_config is not None and model_config.model_type == MT_REROOT:
+            logger.warning('set (root) ids to IDENTITY')
+            d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+            forest.data[forest.roots + 1] = d_identity
         if tfidf_indices is not None:
             tfidf_root_ids = np.array([forest.root_mapping[root_idx] for root_idx in (tfidf_indices - CONTEXT_ROOT_OFFEST)])
         else:
@@ -1084,7 +1085,8 @@ def init_forest(data_path):
 
 
 def main(data_source):
-    global sess, model_tree, model_main, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, embedding_indices, embeddings
+    global sess, model_tree, model_main, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, \
+        embedding_indices, embeddings, model_config
     sess = None
     model_tree = None
     model_main = None
@@ -1096,6 +1098,7 @@ def main(data_source):
     tfidf_root_ids = None
     embedding_indices = None
     embeddings = None
+    model_config = None
 
     if data_source is None:
         logging.info('Start api without data source. Use /api/load before any other request.')
