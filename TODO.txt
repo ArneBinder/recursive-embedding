@@ -21,7 +21,7 @@ OPEN:
                 paragraph ids to id of PARAGRAPH/BACKGROUND
             * (?) model paragraphs as sequence (?)
         * DBpediaNif:
-            * add titles    NO: already available, but really sparse
+            * add titles    NO: already available, but really sparse    NOAGAIN: these are only section titles!
     writing:
      * create structure / table of contents
     orga:
