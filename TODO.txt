@@ -1,11 +1,12 @@
 OPEN:
     coding:
      * check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
-     * constants: check, if renaming affects any current data
+     * constants: check, if renaming affects any current data DONE (fixed issues) -> merge (check again)
      * bioasq-corpus: use PARAGRAPH instead of PARAGRAPH/... (to "sync" with min_100_paragraph data)
      * training: allow index files for reroot model to allow training on a data subset
      * training: check merge lexicon for fine-tuning (load from previous checkpoint)
      * training: allow fine-tuning of embedding-model only and complete model
+     * embedding_api: blank IDs only, if reroot model (makes them visible if a simple corpus without model is loaded)
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
