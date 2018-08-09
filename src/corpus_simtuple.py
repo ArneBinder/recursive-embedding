@@ -299,7 +299,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         lexicon.set_to_mean(indices=lexicon.ids_fixed, indices_as_blacklist=True)
 
         if FLAGS.one_hot_dep:
-            lexicon.set_to_onehot(prefix=constants.vocab_manual[constants.DEPENDENCY_EMBEDDING])
+            lexicon.set_to_onehot(prefix=constants.TYPE_DEPENDENCY_RELATION)
 
         # convert data: hashes to indices
         forest.hashes_to_indices()
@@ -327,6 +327,8 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     n = len(scores)
     logging.info('the dataset contains %i scored text tuples' % n)
 
+    # DEPRECATED
+    # UNIQUE_EMBEDDING: u'UNIQUE'
     if FLAGS.create_unique:
         if forest.data_as_hashes:
             raise NotImplementedError('create_unique not implemented for data_as_hashes')

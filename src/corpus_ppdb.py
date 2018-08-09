@@ -36,12 +36,13 @@ def score_reader(filename):
 
 
 # deprecated
-def reader_source(prefix):
-    lc = 0
-    while True:
-        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
-        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
-        lc += 1
+#def reader_source(prefix):
+#    lc = 0
+#    while True:
+#        # SOURCE_EMBEDDING: u'SOURCE'
+#        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
+#        yield '%s/%s/%i' % (constants.vocab_manual[constants.SOURCE_EMBEDDING], prefix, lc)
+#        lc += 1
 
 
 def source_fn(fn):
