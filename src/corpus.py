@@ -7,7 +7,7 @@ import plac
 import spacy
 from spacy.strings import hash_string
 
-from constants import DTYPE_HASH, DTYPE_COUNT, UNKNOWN_EMBEDDING, vocab_manual, LOGGING_FORMAT
+from constants import DTYPE_HASH, DTYPE_COUNT, UNKNOWN_EMBEDDING, vocab_manual, LOGGING_FORMAT, OFFSET_SEEALSO_ROOT
 from lexicon import Lexicon, FE_STRINGS
 from mytools import numpy_dump, numpy_load
 from sequence_trees import Forest, FE_ROOT_ID
@@ -284,7 +284,7 @@ def collect_root_seealso_counts(forest_merged, out_path_merged):
         #return np.load(fn_root_seealso_counts)
         return numpy_load(fn_root_seealso_counts, assert_exists=True)
     t_start = datetime.now()
-    root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + 3)
+    root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + OFFSET_SEEALSO_ROOT)
     #root_seealso_counts.dump(fn_root_seealso_counts)
     numpy_dump(fn_root_seealso_counts, root_seealso_counts)
     logger.info('finished. %s' % str(datetime.now()-t_start))
@@ -299,7 +299,7 @@ def collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_coun
         #return np.load(fn_root_seealso_counts)
         return numpy_load(fn_root_context_sizes, assert_exists=True)
     t_start = datetime.now()
-    #root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + 3)
+    #root_seealso_counts = forest_merged.get_children_counts(forest_merged.roots + OFFSET_SEEALSO_ROOT)
     #root_seealso_counts.dump(fn_root_seealso_counts)
 
     # get node counts of roots by root positions
@@ -307,7 +307,7 @@ def collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_coun
     root_length = root_shifted - forest_merged.roots
     # use root_seealso_counts, if available
     if root_seealso_counts is not None:
-        root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - 3
+        root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - OFFSET_SEEALSO_ROOT
     else:
         # otherwise: last child of root points to first textual data node
         last_root_child_offsets = np.array([forest_merged.get_children(root)[-1] for root in forest_merged.roots])

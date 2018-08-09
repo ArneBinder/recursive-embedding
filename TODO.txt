@@ -51,3 +51,10 @@ DONE:
 
 NOTES:
  * possible Zweitbetreuer: Manfred Stede (NO), Roland (OK)
+
+
+ASSUMPTIONS:
+ * data-structure:
+    * OFFSET_ID = 1; OFFSET_SEEALSO_ROOT = 3 (see constants)
+    * last child of root points to CONTEXT (beginning of textual content):
+        root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - OFFSET_SEEALSO_ROOT

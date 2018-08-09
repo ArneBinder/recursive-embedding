@@ -98,6 +98,11 @@ M_INDEX_FILE_SIZES = 'index_file_sizes'
 
 FN_TREE_INDICES = 'tree_indices'
 
+# structural assumptions
+OFFSET_ID = 1
+OFFSET_SEEALSO_ROOT = 3
+
+
 #DEPRECATED
 
 # edges

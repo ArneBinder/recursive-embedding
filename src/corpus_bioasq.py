@@ -13,7 +13,7 @@ import plac
 import spacy
 
 from constants import TYPE_CONTEXT, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, DTYPE_IDX, \
-    TYPE_PMID
+    TYPE_PMID, OFFSET_ID
 import preprocessing
 from lexicon import Lexicon
 from corpus import FE_UNIQUE_HASHES, FE_COUNTS
@@ -250,7 +250,7 @@ def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=
         forest.set_children_with_parents()
         roots = forest.roots
         # ids are at one position after roots
-        root_ids = forest.data[roots + 1]
+        root_ids = forest.data[roots + OFFSET_ID]
         forest.set_root_ids(root_ids=root_ids)
 
         #out_path = os.path.join(out_path, os.path.basename(in_file))

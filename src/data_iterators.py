@@ -10,7 +10,7 @@ from scipy.sparse import csr_matrix
 from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, \
     TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, \
     TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, \
-    CM_SEQUENCE, TYPE_PMID, TARGET_EMBEDDING
+    CM_SEQUENCE, TYPE_PMID, TARGET_EMBEDDING, OFFSET_ID
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -124,6 +124,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     logger.info('use %i trees for training' % count)
 
 
+# deprecated
 def get_tree_naive(idx_start, idx_end, forest, data_aggregator, concat_mode=CM_SEQUENCE, link_types=[], remove_types=[]):
 
     data = np.zeros(idx_end - idx_start + 1, dtype=forest.data.dtype)
@@ -367,6 +368,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         #sizes_np.dump(sizes_fn)
 
     elif concat_mode == CM_SEQUENCE:
+        # DEPRECATED
         logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
         # TODO:
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
@@ -416,7 +418,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, 
             rep = len(forest.lexicon) - 1
         samples[samples == tree[KEY_HEAD]] = rep
 
-        # NOTE: Other samples could contain targets root ids as well, but in these cases we do not know (and it does
+        # NOTE: Other samples could contain target root ids as well, but in these cases we do not know (and it does
         # not really matter). In the case when we do not find the sample in vecs_var and vecs_fixed, we have surely a
         # link (and use d_target as replacement)
         samples = forest.lexicon.transform_indices(samples, d_unknown_replacement=d_target)
@@ -678,7 +680,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode=CM_T
 
                 # if debug is enabled, show root_id_strings and seealsos
                 if root_strings is not None:
-                    root_id = sequence_trees.data[idx_root + 1] - len(lexicon)
+                    root_id = sequence_trees.data[idx_root + OFFSET_ID] - len(lexicon)
                     logger.debug('root: %s -> [%s]' % (root_strings[root_id], ', '.join([root_strings[root_id] for root_id in seealso_root_ids])))
 
                 #if n >= n_max:

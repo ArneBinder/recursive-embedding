@@ -41,7 +41,7 @@ import mytools
 from mytools import numpy_load, ThreadWithReturnValue
 from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
-    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, \
+    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS
 from config import Config
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
@@ -1208,7 +1208,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     if config.model_type == MT_REROOT:
         logger.debug('set ids to IDENTITY')
         d_identity = lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        forest.data[forest.roots + 1] = d_identity
+        forest.data[forest.roots + OFFSET_ID] = d_identity
 
     # TODO: use this?
     #if config.model_type == MT_REROOT:

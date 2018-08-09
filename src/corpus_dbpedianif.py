@@ -21,7 +21,7 @@ from rdflib.term import URIRef
 import corpus
 import preprocessing
 from constants import TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, \
-    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX, LOGGING_FORMAT
+    TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX, LOGGING_FORMAT, OFFSET_ID
 from lexicon import Lexicon, FE_STRINGS
 from mytools import numpy_dump, numpy_load
 from sequence_trees import Forest
@@ -375,7 +375,7 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1, batch_s
     forest.set_children_with_parents()
     roots = forest.roots
     # ids are at one position after roots
-    root_ids = forest.data[roots + 1]
+    root_ids = forest.data[roots + OFFSET_ID]
     # forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
     forest.set_root_ids(root_ids=root_ids)
 
