@@ -12,7 +12,7 @@ from multiprocessing import Pool
 import plac
 import spacy
 
-from constants import TYPE_ANCHOR, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, DTYPE_IDX, \
+from constants import TYPE_CONTEXT, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, DTYPE_IDX, \
     TYPE_PMID
 import preprocessing
 from lexicon import Lexicon
@@ -85,7 +85,7 @@ def multisplit(text, sep, sep_postfix=u': ', unlabeled=None):
 
 
 def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), keys_mandatory=(), key_id=None,
-           root_text_string=TYPE_ANCHOR, allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM):
+           root_text_string=TYPE_CONTEXT, allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM):
     """
 
     :param records: dicts containing the textual data and optional meta data

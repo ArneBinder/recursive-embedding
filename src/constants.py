@@ -3,11 +3,12 @@ import numpy as np
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
-TYPE_REF_SEEALSO = u'http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso'
+SEPARATOR = u'/'
+
+# OFFICIAL TYPES
 TYPE_REF = u'http://www.w3.org/2005/11/its/rdf#taIdentRef'
 TYPE_DBPEDIA_RESOURCE = u'http://dbpedia.org/resource'
-TYPE_ANCHOR = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context'
-TYPE_SECTION_SEEALSO = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso'
+TYPE_CONTEXT = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context'
 TYPE_PARAGRAPH = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph'
 TYPE_TITLE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title'
 TYPE_SECTION = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section'
@@ -15,46 +16,38 @@ TYPE_SENTENCE = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core
 TYPE_PMID = u'http://id.nlm.nih.gov/pubmed/pmid'
 TYPE_LEXEME = u'http://purl.org/olia/olia.owl#Lexeme'
 TYPE_DEPENDENCY_RELATION = u'http://purl.org/olia/olia-top.owl#DependencyRelation'
-TYPE_MORPHOSYNTACTIC_CATEGORY = u'http://purl.org/olia/olia-top.owl#MorphosyntacticCategory'
-TYPE_BASE_FORM = u'http://purl.org/olia/olia.owl#BaseForm'
+#TYPE_MORPHOSYNTACTIC_CATEGORY = u'http://purl.org/olia/olia-top.owl#MorphosyntacticCategory'
+#TYPE_BASE_FORM = u'http://purl.org/olia/olia.owl#BaseForm'
+TYPE_LEMMA = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#lemma'
+TYPE_POS_TAG = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#posTag'
 TYPE_NAMED_ENTITY = u'http://purl.org/olia/olia.owl#NamedEntity'
+TYPE_PHRASE = u'http://purl.org/olia/olia.owl#Phrase'
+TYPE_ID = u'http://www.w3.org/2005/11/its/rdf#id'
+
+# CREATED TYPES
+TYPE_REF_SEEALSO = TYPE_REF + SEPARATOR + u'seeAlso'
+TYPE_SECTION_SEEALSO = TYPE_SECTION + SEPARATOR + u'/seeAlso'
 
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
 
 AGGREGATOR_EMBEDDING = -2
-#EDGE_EMBEDDING = -3     # deprecated use DEPENDENCY_EMBEDDING
-LEXEME_EMBEDDING = -4
-ENTITY_EMBEDDING = -5
-LEMMA_EMBEDDING = -6
-POS_EMBEDDING = -7
 SOURCE_EMBEDDING = -8
 IDENTITY_EMBEDDING = -9
 ROOT_EMBEDDING = -10
-DEPENDENCY_EMBEDDING = -11
 UNIQUE_EMBEDDING = -12
 BACK_EMBEDDING = -13
-SENTENCE_EMBEDDING = -14
 TARGET_EMBEDDING = -15
 ANCHOR_EMBEDDING = -16
 PADDING_EMBEDDING = -17
 
-vocab_manual = {LEXEME_EMBEDDING: TYPE_LEXEME,
-                UNKNOWN_EMBEDDING: u'UNKNOWN',
+vocab_manual = {UNKNOWN_EMBEDDING: u'UNKNOWN',
                 AGGREGATOR_EMBEDDING: u'AGGREGATOR',
-                ENTITY_EMBEDDING: TYPE_NAMED_ENTITY,
-                LEMMA_EMBEDDING: TYPE_BASE_FORM,
-                POS_EMBEDDING: TYPE_MORPHOSYNTACTIC_CATEGORY,
                 IDENTITY_EMBEDDING: u'IDENTITY',
                 ROOT_EMBEDDING: u'ROOT',
-                DEPENDENCY_EMBEDDING: TYPE_DEPENDENCY_RELATION,
                 PADDING_EMBEDDING: u'PADDING',
-                SENTENCE_EMBEDDING: TYPE_SENTENCE,
                 TARGET_EMBEDDING: u'TARGET',
-                ANCHOR_EMBEDDING: TYPE_ANCHOR
                 }
-
-SEPARATOR = '/'
 
 CM_TREE = 'tree'
 CM_SEQUENCE = 'sequence'

@@ -252,7 +252,7 @@ def get_dict_from_vocab(vocab):
     # i = 1
     i = len(constants.vocab_manual)
     for lexeme in vocab:
-        l = constants.vocab_manual[constants.LEXEME_EMBEDDING] + constants.SEPARATOR + lexeme.orth_
+        l = constants.TYPE_LEXEME + constants.SEPARATOR + lexeme.orth_
         # exclude entities which are in vocab_manual to avoid collisions
         if l in manual_vocab_reverted:
             logger.warn(

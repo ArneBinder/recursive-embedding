@@ -32,7 +32,7 @@ from sequence_trees import Forest
 from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, \
     KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT, TYPE_DBPEDIA_RESOURCE, \
-    TYPE_PMID, vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, LEXEME_EMBEDDING, SEPARATOR
+    TYPE_PMID, vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, LEXEME_EMBEDDING, SEPARATOR, TYPE_LEXEME
 import data_iterators
 from data_iterators import CONTEXT_ROOT_OFFEST
 import data_iterators as diter
@@ -426,7 +426,7 @@ def get_or_calc_sequence_data(params):
     candidates = params.get('candidates', None)
     if candidates is not None:
         # convert to lexemes if not already an url (starting with "http://")
-        params['candidates'] = [vocab_manual[LEXEME_EMBEDDING] + SEPARATOR + unicode(c) if not c.startswith('http://') else unicode(c) for c in params['candidates']]
+        params['candidates'] = [TYPE_LEXEME + SEPARATOR + unicode(c) if not c.startswith('http://') else unicode(c) for c in params['candidates']]
         params['candidates_data'] = [lexicon.get_d(s=s, data_as_hashes=_forests[0].data_as_hashes) for s in params['candidates']]
         if params.get('transformed_idx', False):
             params['candidates_data'] = lexicon.transform_indices(params['candidates_data'])
