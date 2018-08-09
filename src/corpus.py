@@ -118,16 +118,16 @@ def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
         return numpy_load(fn_uniques_filtered, assert_exists=True)
 
     counts_merged = collect_counts_merged(f_paths)
-    root_ids = collect_root_ids(f_paths, out_path_merged)
-    root_ids_set = set(root_ids)
-    assert len(root_ids_set) == len(root_ids), 'root_ids contains %i duplicates' % (len(root_ids) - len(root_ids_set))
+    root_id_hashes = collect_root_ids(f_paths, out_path_merged)
+    root_ids_set = set(root_id_hashes)
+    assert len(root_ids_set) == len(root_id_hashes), 'root_id_hashes contains %i duplicates' % (len(root_id_hashes) - len(root_ids_set))
 
     # calculate coverage
     unique, counts = zip(*((v, counts_merged[v]) for v in counts_merged.keys()))
     unique = np.array(unique)
     counts = np.array(counts)
     unique_mapping = {u: i for i, u in enumerate(unique)}
-    root_ids_arg = np.array([unique_mapping[root_id] for root_id in root_ids])
+    root_ids_arg = np.array([unique_mapping[root_id_hash] for root_id_hash in root_id_hashes])
     non_root_ids_indices = np.delete(np.arange(len(unique)), root_ids_arg)
     #unique_no_roots = unique[non_root_ids_indices]
     counts_no_roots = counts[non_root_ids_indices]
@@ -150,16 +150,18 @@ def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
 
     logger.info('filter uniques by count ...')
     t_start = datetime.now()
-    uniques_filtered = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_HASH)
-    uniques_discarded = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_HASH)
-    counts_filtered = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_COUNT)
-    counts_discarded = np.zeros(shape=len(counts_merged.keys()), dtype=DTYPE_COUNT)
+    uniques_filtered = np.zeros(shape=len(counts_merged.keys()) - len(root_id_hashes), dtype=DTYPE_HASH)
+    uniques_discarded = np.zeros(shape=len(counts_merged.keys()) - len(root_id_hashes), dtype=DTYPE_HASH)
+    counts_filtered = np.zeros(shape=len(counts_merged.keys()) - len(root_id_hashes), dtype=DTYPE_COUNT)
+    counts_discarded = np.zeros(shape=len(counts_merged.keys()) - len(root_id_hashes), dtype=DTYPE_COUNT)
     i_filtered = 0
     i_discarded = 0
     for u in counts_merged.keys():
         #if (u not in root_ids_set and counts_merged[u] >= min_count) \
         #        or (u in root_ids_set and counts_merged[u] >= min_count_root_id >= 0):
-        if u not in root_ids_set and counts_merged[u] >= min_count:
+        if u in root_ids_set:
+            pass
+        elif counts_merged[u] >= min_count:
             uniques_filtered[i_filtered] = u
             counts_filtered[i_filtered] = counts_merged[u]
             i_filtered += 1
@@ -179,45 +181,49 @@ def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
     numpy_dump(fn_uniques_discarded, uniques_discarded)
     numpy_dump(fn_counts_filtered, counts_filtered)
     numpy_dump(fn_counts_discarded, counts_discarded)
-    logger.info('%i entries remain in lexicon, %i were discarded.' % (i_filtered, i_discarded - len(root_ids)))
+    logger.info('%i entries remain in lexicon, %i were discarded.' % (i_filtered, i_discarded))
 
     logger.info('finished. %s' % str(datetime.now() - t_start))
-    return uniques_filtered, root_ids
+    return uniques_filtered, root_id_hashes
 
 
-def merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merged):
+def merge_and_filter_lexicon(uniques_filtered, root_id_hashes, f_paths, out_path_merged):
     logger.info('merge and filter lexicon ...')
     fn_lexicon_discarded = '%s.discarded' % out_path_merged
-    fn_lexicon_root_ids = '%s.root.id' % out_path_merged
+    fn_lexicon_root_id_hashes = '%s.root.id' % out_path_merged
     if Lexicon.exist(filename=out_path_merged, types_only=True):
         logger.info('found lexicon (%s). load from file.' % out_path_merged)
         assert Lexicon.exist(filename=fn_lexicon_discarded, types_only=True), \
             'found lexicon (%s), but misses lexicon_discarded (%s).' % (out_path_merged, fn_lexicon_discarded)
-        assert Lexicon.exist(filename=fn_lexicon_root_ids, types_only=True), \
-            'found lexicon (%s), but misses lexicon_root_ids (%s).' % (out_path_merged, fn_lexicon_root_ids)
+        assert Lexicon.exist(filename=fn_lexicon_root_id_hashes, types_only=True), \
+            'found lexicon (%s), but misses lexicon_root_ids (%s).' % (out_path_merged, fn_lexicon_root_id_hashes)
         # Note: Load with vecs to skip _lexicon_add_vecs, eventually.
-        return Lexicon(filename=out_path_merged, load_vecs=False), Lexicon(filename=fn_lexicon_root_ids, load_vecs=False)
+        return Lexicon(filename=out_path_merged, load_vecs=False), Lexicon(filename=fn_lexicon_root_id_hashes, load_vecs=False)
     t_start = datetime.now()
     uniques_filtered_set = set(uniques_filtered)
+    root_id_hashes_set = set(root_id_hashes)
     lexicon = Lexicon()
     lexicon.add_all(vocab_manual.values())
     lexicon_discarded = Lexicon()
+    lexicon_root_ids = Lexicon()
     for fn in f_paths:
         lex = Lexicon(filename=fn)
         for s in lex.strings:
             h = hash_string(s)
             if h in uniques_filtered_set:
                 lexicon.strings.add(s)
+            elif h in root_id_hashes_set:
+                lexicon_root_ids.strings.add(s)
             else:
                 lexicon_discarded.strings.add(s)
     lexicon.dump(filename=out_path_merged, strings_only=True)
     lexicon_discarded.dump(filename=fn_lexicon_discarded, strings_only=True)
 
-    lexicon_root_ids = Lexicon()
-    for root_id in root_ids:
-        root_id_s = lexicon_discarded.strings[root_id]
-        lexicon_root_ids.strings.add(root_id_s)
-    lexicon_root_ids.dump(filename=fn_lexicon_root_ids, strings_only=True)
+
+    #for root_id in root_id_hashes:
+    #    root_id_s = lexicon_discarded.strings[root_id]
+    #    lexicon_root_ids.strings.add(root_id_s)
+    lexicon_root_ids.dump(filename=fn_lexicon_root_id_hashes, strings_only=True)
 
     logger.info('finished. %s' % str(datetime.now() - t_start))
     return lexicon, lexicon_root_ids
@@ -349,11 +355,11 @@ def merge_batches(out_path, min_count=1, coverage=-1, use_see_also_counts=False)
 
     f_names, f_paths = collect_file_names(out_dir_batches)
 
-    uniques_filtered, root_ids = filter_uniques(f_paths, out_path_merged, min_count, coverage)
+    uniques_filtered, root_id_hashes = filter_uniques(f_paths, out_path_merged, min_count, coverage)
 
-    lexicon, lexicon_root_ids = merge_and_filter_lexicon(uniques_filtered, root_ids, f_paths, out_path_merged)
+    lexicon, lexicon_root_ids = merge_and_filter_lexicon(uniques_filtered, root_id_hashes, f_paths, out_path_merged)
 
-    id_offset_mapping = {o: i for i, o in enumerate(root_ids)}
+    id_offset_mapping = {o: i for i, o in enumerate(root_id_hashes)}
 
     filter_and_convert_data_batches(lexicon, id_offset_mapping, f_names, out_dir_batches, out_dir_batches_converted)
 
