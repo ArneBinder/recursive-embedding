@@ -5,7 +5,7 @@ LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
 SEPARATOR = u'/'
 
-# OFFICIAL TYPES
+# BASE TYPES
 TYPE_REF = u'http://www.w3.org/2005/11/its/rdf#taIdentRef'
 TYPE_DBPEDIA_RESOURCE = u'http://dbpedia.org/resource'
 TYPE_CONTEXT = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context'
@@ -24,13 +24,13 @@ TYPE_NAMED_ENTITY = u'http://purl.org/olia/olia.owl#NamedEntity'
 TYPE_PHRASE = u'http://purl.org/olia/olia.owl#Phrase'
 TYPE_ID = u'http://www.w3.org/2005/11/its/rdf#id'
 
-# CREATED TYPES
-TYPE_REF_SEEALSO = TYPE_REF + SEPARATOR + u'seeAlso'
-TYPE_SECTION_SEEALSO = TYPE_SECTION + SEPARATOR + u'/seeAlso'
+BASE_TYPES = [TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SECTION, TYPE_SECTION,
+              TYPE_SENTENCE, TYPE_PMID, TYPE_LEXEME, TYPE_DEPENDENCY_RELATION, TYPE_LEMMA, TYPE_POS_TAG,
+              TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID]
 
-ALL_TYPES = [TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SECTION, TYPE_SECTION,
-             TYPE_SENTENCE, TYPE_PMID, TYPE_LEXEME, TYPE_DEPENDENCY_RELATION, TYPE_LEMMA, TYPE_POS_TAG,
-             TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID, TYPE_REF_SEEALSO, TYPE_SECTION_SEEALSO]
+# CONSTRUCTED TYPES
+TYPE_REF_SEEALSO = TYPE_REF + SEPARATOR + u'seeAlso'
+TYPE_SECTION_SEEALSO = TYPE_SECTION + SEPARATOR + u'seeAlso'
 
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0

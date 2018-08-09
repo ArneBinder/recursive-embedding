@@ -6,7 +6,7 @@ import os
 import pydot
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
-    LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, ALL_TYPES
+    LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -762,7 +762,7 @@ class Forest(object):
                 if l.startswith(b):
                     return None
 
-            for embedding_prefix in ALL_TYPES:
+            for embedding_prefix in BASE_TYPES:
                 if l.startswith(embedding_prefix + SEPARATOR) and len(l) > len(embedding_prefix + SEPARATOR):
                     return l[len(embedding_prefix + SEPARATOR):]
             return l
