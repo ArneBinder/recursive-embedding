@@ -4,11 +4,12 @@ OPEN:
      * training: allow index files for reroot model to allow training on a data subset
      * training: check merge lexicon for fine-tuning (load from previous checkpoint)
      * training: allow fine-tuning of just the embedding-model and the complete model
-     * FIX ROOT_IDS: freeze is important after convert_hashes_to_indices because len(lexicon) is added to root ids
+     * (!) FIX ROOT_IDS: freeze is important after convert_hashes_to_indices because len(lexicon) is added to root ids
         possible solutions: use negative values for root_ids AND/OR use lexicon_roots
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
+     * try to combine TF-IDF and rec-emb embeddings
     data:
      * re-parse:
         * general:
@@ -56,8 +57,14 @@ NOTES:
  * possible Zweitbetreuer: Manfred Stede (NO), Roland (OK)
 
 
-ASSUMPTIONS:
+ASSUMPTIONS/SPECIFICATIONS:
  * data-structure:
     * OFFSET_ID = 1; OFFSET_SEEALSO_ROOT = 3 (see constants)
     * last child of root points to CONTEXT (beginning of textual content):
         root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - OFFSET_SEEALSO_ROOT
+    * transform_idx: ON RUNTIME (TRAINING/PREDICTION/VISUALIZATION)
+        idx -> ((idx_var OR idx_fixed (by mapping dicts)) ( -> IF REVERT: -idx_var OR -idx_fixed)) OR UNKNOWN(_replacment)
+    * convert_data_hashes_to_indices: ON CORPUS CREATION
+        hash
+            -> IF IN id_offset_mapping (from root_ids): len(lexicon) + id_offset_mapping[d]
+            -> ELSE: idx (lexicon, by mapping)
