@@ -182,7 +182,12 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
                 for i, text in enumerate(texts):
                     if text == u'':
                         continue
-                    record_data.append((text, {'root_type': TYPE_PARAGRAPH + SEPARATOR + labels[i], 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
+                    #record_data.append((text, {'root_type': TYPE_PARAGRAPH + SEPARATOR + labels[i], 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
+
+                    # TEMPORARY OMIT PARAGRAPH LABEL
+                    record_data.append((text, {'root_type': TYPE_PARAGRAPH, 'prepend_tree': prepend,
+                                               'parent_prepend_offset': text_root_offset}))
+
                     prepend = None
 
             # has to be done in the end because the whole record should be discarded at once if an exception is raised
