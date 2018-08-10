@@ -207,6 +207,7 @@ def get_params(request):
 
 def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode, root_label=TYPE_PARAGRAPH,
                    expand_lexicon=False):
+    global lexicon
     init_nlp()
     for s in sequences:
         _forest = lexicon.read_data(reader=preprocessing.identity_reader,
@@ -215,7 +216,7 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
                                     reader_args={'content': s},
                                     concat_mode=concat_mode,
                                     inner_concat_mode=inner_concat_mode,
-                                    expand_dict=expand_lexicon,
+                                    expand_dict=expand_lexicon or len(lexicon) == 0,
                                     reader_roots_args={'root_label': root_label or TYPE_PARAGRAPH})
         yield _forest.forest
 
@@ -1055,11 +1056,13 @@ def all_subclasses(cls):
 
 
 def init_nlp():
-    global nlp
+    global nlp, lexicon
 
     if nlp is None:
         logging.info('load spacy ...')
         nlp = spacy.load('en')
+        if lexicon is None:
+            lexicon = Lexicon()
         #nlp.pipeline = [nlp.tagger, nlp.entity, nlp.parser]
 
 
