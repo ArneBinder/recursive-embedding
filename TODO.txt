@@ -19,6 +19,7 @@ OPEN:
         * BioASQ:
             * use pure PARAGRAPHs (with PARAGRAPH/BACKGROUND, etc. as direct children (leaf))
                 TEMPORARY FIX (DONE): uniformed all paragraph ids to id of PARAGRAPH/BACKGROUND
+                    RE-DO! corpus was newly merged recently
             * (?) move title out of section
             * (??) model paragraphs as sequence
         * DBpediaNif:
