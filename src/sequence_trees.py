@@ -342,8 +342,11 @@ class Forest(object):
         if self.lexicon_roots is not None:
             indices_root_ids = self.roots + OFFSET_ID
             link_types = self.link_types
-            indices_link_types = np.concatenate([np.where(self.data == lt)[0] for lt in link_types])
-            indices_links = self.get_children_batched(indices=indices_link_types) + indices_link_types
+            if len(link_types) > 0:
+                indices_link_types = np.concatenate([np.where(self.data == lt)[0] for lt in link_types])
+                indices_links = self.get_children_batched(indices=indices_link_types) + indices_link_types
+            else:
+                indices_links = []
 
             mask_no_ids = np.ones(len(self.data), dtype=bool)
             mask_no_ids[indices_root_ids] = False
@@ -352,8 +355,9 @@ class Forest(object):
             # mark ids as negative and shift by 1 (no double zero!)
             self._data[indices_root_ids] = - (1 + self.lexicon_roots.convert_data_hashes_to_indices(
                 self.data[indices_root_ids], convert_dtype=False))
-            self._data[indices_links] = - (1 + self.lexicon_roots.convert_data_hashes_to_indices(
-                self.data[indices_links], convert_dtype=False))
+            if len(indices_links) > 0:
+                self._data[indices_links] = - (1 + self.lexicon_roots.convert_data_hashes_to_indices(
+                    self.data[indices_links], convert_dtype=False))
             # all other tokens, etc.
             self._data[mask_no_ids] = self.lexicon.convert_data_hashes_to_indices(
                 self.data[mask_no_ids], convert_dtype=False)
