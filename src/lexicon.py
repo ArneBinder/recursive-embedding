@@ -9,7 +9,7 @@ import os
 
 from preprocessing import read_data, without_prefix, PREFIX_LEX
 from constants import vocab_manual, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, DTYPE_VECS, LOGGING_FORMAT, IDENTITY_EMBEDDING, \
-    UNKNOWN_EMBEDDING
+    UNKNOWN_EMBEDDING, LINK_TYPES
 from sequence_trees import Forest
 from mytools import numpy_dump, numpy_load, numpy_exists
 
@@ -751,20 +751,20 @@ class Lexicon(object):
     #        self._ids_fixed_dict = None
     #        self._ids_var_dict = None
 
-    def convert_data_hashes_to_indices(self, data, id_offset_mapping):
+    def convert_data_hashes_to_indices(self, data, convert_dtype=True):
         s_uk = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
         #data_new = np.zeros(shape=data.shape, dtype=DTYPE_IDX)
         #assert s_uk in self.strings, '%s not in lexicon' % s_uk
         for i in range(len(data)):
             d = data[i]
-            if d in id_offset_mapping:
-                data[i] = len(self) + id_offset_mapping[d]
-            elif d in self.mapping:
+            if d in self.mapping:
                 data[i] = self.mapping[d]
             else:
                 data[i] = self.mapping[self.strings[s_uk]]
         self.freeze()
-        return data.astype(DTYPE_IDX)
+        if convert_dtype:
+            data = data.astype(DTYPE_IDX)
+        return data
         #return data_new
 
     def read_data(self, expand_dict=True, return_hashes=False, *args, **kwargs):
@@ -774,7 +774,7 @@ class Lexicon(object):
         if return_hashes:
             return Forest(data=data, parents=parents, lexicon=self, data_as_hashes=True)
         else:
-            return Forest(data=self.convert_data_hashes_to_indices(data, id_offset_mapping={}), parents=parents, lexicon=self,
+            return Forest(data=self.convert_data_hashes_to_indices(data), parents=parents, lexicon=self,
                           data_as_hashes=False)
 
     def is_fixed(self, idx):
@@ -793,6 +793,10 @@ class Lexicon(object):
         :param d_unknown_replacement: data id of that is used if converted idx is not found in idx_var and ids_fixed
         :return: the transformed index
         """
+        if idx < 0:
+            logger.warning('trying to transform a root_id. set to unknown.')
+            return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+
         idx_trans = self.ids_fixed_dict.get(idx, None)
         if idx_trans is not None:
             if revert:
@@ -835,6 +839,19 @@ class Lexicon(object):
             idx = idx % len(self)
             return self.ids_var[idx], reverted
 
+    def order_by_hashes(self, hashes):
+        assert not self.frozen, 'can not order frozen lexicon by hashes'
+        assert len(hashes) == len(self), 'number of hashes (%i) does not match size of lexicon (%i), can not order by ' \
+                                         'hashes' % (len(hashes), len(self))
+        if self.vecs is not None:
+            raise NotImplementedError('order not implemented for vecs that are not None')
+        new_strings = StringStore()
+        for h in hashes:
+            new_strings.add(self.strings[h])
+        self._strings = new_strings
+        self.clear_cached_values()
+        self._hashes = hashes
+
     @staticmethod
     def vocab_prefix(man_vocab_id):
         return constants.vocab_manual[man_vocab_id] + constants.SEPARATOR
@@ -853,6 +870,18 @@ class Lexicon(object):
 
     def unfreeze(self):
         self._frozen = False
+
+    def get_link_types(self, data_as_hashes):
+        """
+        Get the data of the available link types.
+        :return:
+        """
+        res = []
+        for lt in LINK_TYPES:
+            d = self.get_d(s=lt, data_as_hashes=data_as_hashes)
+            if d != self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=data_as_hashes):
+                res.append(d)
+        return res
 
     def get_s(self, d, data_as_hashes):
         if data_as_hashes:

@@ -840,7 +840,6 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, lo
         tree_embedder = getattr(model_fold, config.tree_embedder)
         kwargs = {}
         if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat):
-            # TODO: this value should depend on max_size_plain, see data_iterators.tree_iterator
             #kwargs['sequence_length'] = model_fold.FLAT_MAX_SIZE
             kwargs['sequence_length'] = 500
             for k in tree_iterators.keys():

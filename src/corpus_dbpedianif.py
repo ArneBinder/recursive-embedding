@@ -373,11 +373,12 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1, batch_s
                                inner_concat_mode='tree', expand_dict=True, as_tuples=True,
                                return_hashes=True, n_threads=n_threads)
     forest.set_children_with_parents()
-    roots = forest.roots
+    #roots = forest.roots
     # ids are at one position after roots
-    root_ids = forest.data[roots + OFFSET_ID]
+    #root_ids = forest.data[roots + OFFSET_ID]
     # forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
-    forest.set_root_ids(root_ids=root_ids)
+    #forest.set_root_ids(root_ids=root_ids)
+    forest.set_root_data_by_offset()
 
     #if len(tree_contexts) > 0:
     #    forest = Forest.concatenate(tree_contexts)
@@ -618,7 +619,8 @@ def parse_context_batch_DEP(nif_context_datas, failed, nlp, filename, t_query):
 
     if len(tree_contexts) > 0:
         forest = Forest.concatenate(tree_contexts)
-        forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
+        #forest.set_root_ids(root_ids=np.array(resource_hashes, dtype=forest.data.dtype))
+        forest.set_root_data_by_offset()
     else:
         forest = None
 

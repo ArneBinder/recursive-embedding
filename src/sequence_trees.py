@@ -6,7 +6,8 @@ import os
 import pydot
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
-    LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES
+    LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
+    OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT, LINK_TYPES
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -149,16 +150,15 @@ class Forest(object):
                  transformed_indices=False):
         self.reset_cache_values()
         self._as_hashes = data_as_hashes
-        self._lexicon = None
+        self._lexicon = lexicon
         self._lexicon_roots = lexicon_roots
         self._data = None
         self._parents = None
         self._children = None
         self._children_pos = None
         self._root_pos = None
+        self._root_data = None
 
-        if lexicon is not None:
-            self._lexicon = lexicon
         if filename is not None:
             self.load(filename=filename, load_parents=load_parents, load_children=load_children,
                       load_root_ids=load_root_ids, load_root_pos=load_root_pos)
@@ -182,8 +182,9 @@ class Forest(object):
         self._depths_collected = None
         self._dicts = {}
         self._root_id_pos = None
-        self._root_id_mapping = None
+        self._root_data_mapping = None
         self._root_mapping = None
+        self._root_id_set = None
 
     def load(self, filename, load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True):
         logger.debug('load data and parents from %s ...' % filename)
@@ -214,10 +215,10 @@ class Forest(object):
             'no structure data (parents or children) loaded'
         #if load_root_ids and os.path.exists('%s.%s' % (filename, FE_ROOT_ID)):
         if load_root_ids:
-            #self._root_ids = np.load('%s.%s' % (filename, FE_ROOT_ID))
-            self._root_ids = numpy_load('%s.%s' % (filename, FE_ROOT_ID), assert_exists=False)
+            #self._root_data = np.load('%s.%s' % (filename, FE_ROOT_ID))
+            self._root_data = numpy_load('%s.%s' % (filename, FE_ROOT_ID), assert_exists=False)
         else:
-            self._root_ids = None
+            self._root_data = None
         #if load_root_pos and os.path.exists('%s.%s' % (filename, FE_ROOT_POS)):
         if load_root_pos:
             #self._root_pos = np.load('%s.%s' % (filename, FE_ROOT_POS))
@@ -259,7 +260,7 @@ class Forest(object):
             else:
                 assert root_ids.dtype == data_dtype, 'root_ids has wrong dtype (%s), expected: %s' \
                                                      % (root_ids.dtype, data_dtype)
-        self._root_ids = root_ids
+        self._root_data = root_ids
         self._root_pos = root_pos
         assert self._parents is not None or \
                (self._children_pos is not None and self._children is not None and self._root_pos is not None), \
@@ -274,6 +275,7 @@ class Forest(object):
     def set_lexicon_roots(self, lexicon_roots):
         self._lexicon_roots = lexicon_roots
 
+    # deprecated
     def set_root_ids(self, root_ids):
         assert len(root_ids) == len(self.roots), 'wrong amount of root ids=%i (amount of roots=%i)' \
                                                  % (len(root_ids), len(self.roots))
@@ -283,7 +285,13 @@ class Forest(object):
         else:
             assert root_ids.dtype == DTYPE_IDX, 'wrong dtype of new root_ids=%s (expected: %s)' \
                                                 % (str(root_ids.dtype), str(DTYPE_IDX))
-        self._root_ids = root_ids
+        self._root_data = root_ids
+
+    def set_root_data_by_offset(self):
+        #if self.data_as_hashes:
+        self._root_data = self.data[self.roots + OFFSET_ID]
+        #else:
+        #    self._root_data = -self.data[self.roots + OFFSET_ID] - 1
 
     def dump(self, filename, save_parents=True, save_children=True, save_root_ids=True, save_root_pos=True):
         logger.debug('dump data ...')
@@ -304,9 +312,9 @@ class Forest(object):
             numpy_dump('%s.%s' % (filename, FE_CHILDREN), self._children)
             numpy_dump('%s.%s' % (filename, FE_CHILDREN_POS), self._children_pos)
 
-        if save_root_ids and self._root_ids is not None:
-            #self._root_ids.dump('%s.%s' % (filename, FE_ROOT_ID))
-            numpy_dump('%s.%s' % (filename, FE_ROOT_ID), self._root_ids)
+        if save_root_ids and self._root_data is not None:
+            #self._root_data.dump('%s.%s' % (filename, FE_ROOT_ID))
+            numpy_dump('%s.%s' % (filename, FE_ROOT_ID), self._root_data)
 
         if save_root_pos and self._root_pos is not None:
             #self._root_pos.dump('%s.%s' % (filename, FE_ROOT_POS))
@@ -328,13 +336,27 @@ class Forest(object):
 
         return data_exist and structure_exist
 
-    def hashes_to_indices(self, id_offset_mapping={}):
+    def hashes_to_indices(self):
         assert self.lexicon is not None, 'no lexicon available'
         assert self.data_as_hashes, 'data consists already of indices'
+        if self.lexicon_roots is not None:
+            root_id_indices = self.roots + OFFSET_ID
+            mask_no_ids = np.ones(len(self.data), dtype=bool)
+            mask_no_ids[root_id_indices] = False
 
-        self._data = self.lexicon.convert_data_hashes_to_indices(self.data, id_offset_mapping)
-        if self._root_ids is not None:
-            self._root_ids = self.lexicon.convert_data_hashes_to_indices(self._root_ids, id_offset_mapping)
+            # mark ids as negative and shift by 1 (no double zero!)
+            self._data[root_id_indices] = - (1 + self.lexicon_roots.convert_data_hashes_to_indices(
+                self.data[root_id_indices], convert_dtype=False))
+            # all other tokens, etc.
+            self._data[mask_no_ids] = self.lexicon.convert_data_hashes_to_indices(
+                self.data[mask_no_ids], convert_dtype=False)
+            self._data = self.data.astype(DTYPE_IDX)
+
+            self.set_root_data_by_offset()
+        else:
+            self._data = self.lexicon.convert_data_hashes_to_indices(self.data)
+        #if self._root_data is not None:
+        #    self._root_data = self.lexicon.convert_data_hashes_to_indices(self._root_data, id_offset_mapping)
         self._as_hashes = False
 
     def convert_data(self, converter, new_idx_unknown):
@@ -350,6 +372,9 @@ class Forest(object):
                 leafs.extend(self.get_descendant_indices(c + root, show_links=show_links))
         return leafs
 
+    # TODO: fix this!
+    # show_links==True does not show http://www.w3.org/2005/11/its/rdf#taIdentRef/SeeAlso links and
+    # show_links==False does not adapt parents correctly (see ID:http://dbpedia.org/resource/14.5mm_JDJ)
     def trees(self, root_indices=None, show_links=True):
         if root_indices is None:
             root_indices = self.roots
@@ -435,7 +460,7 @@ class Forest(object):
         return self._dicts[idx]
 
     def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
-                      link_content_offset=2):
+                      link_content_offset=OFFSET_CONTEXT):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -469,19 +494,21 @@ class Forest(object):
         # ATTENTION: allows cost of 0!
         if self.has_children(idx) and 0 <= cost <= max_depth:
             for child_offset in self.get_children(idx):
-                target_idx = idx + child_offset
+                child_idx = idx + child_offset
                 # if the child is a link ...
                 if data_head in link_types:
                     # ... and the target tree exists: jump to target root, ...
-                    if self.data[target_idx] in self.root_id_pos:
-                        target_idx = self.root_id_pos[self.data[target_idx]] + link_content_offset
+                    #if self.data[child_idx] in self.root_id_pos:
+                    target_root_pos = self.root_id_pos.get(self.data[child_idx], None)
+                    if target_root_pos is not None:
+                        child_idx = target_root_pos + link_content_offset
                     else:
                         # ... otherwise add the TARGET element NO: if costs prohibit link following, this is never reached. otherwise this should not be used
                         #d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
                         #seq_node[KEY_CHILDREN].append({KEY_HEAD: self.lexicon.transform_idx(d_target) if transform else d_target, KEY_CHILDREN: []})
                         continue
 
-                seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_idx,
+                seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=child_idx,
                                                                  max_depth=max_depth - cost,
                                                                  context=context, transform=transform or context > 0,
                                                                  costs=costs,
@@ -583,8 +610,8 @@ class Forest(object):
         if a._parents is not None:
             assert b._parents is not None, 'parent array of first forest is set, but not of second, can not %s.' \
                                            % operation
-        if a._root_ids is not None:
-            assert b._root_ids is not None, 'root_ids of first forest is set, but not of the second, can not %s.' \
+        if a._root_data is not None:
+            assert b._root_data is not None, 'root_ids of first forest is set, but not of the second, can not %s.' \
                                             % operation
         if a._root_pos is not None:
             assert b._root_pos is not None, 'root positions of first forest are set, but not of the second, can not %s.' \
@@ -607,8 +634,8 @@ class Forest(object):
         else:
             new_children = None
             new_children_pos = None
-        if self._root_ids is not None:
-            new_root_ids = np.concatenate([f._root_ids for f in [self] + others])
+        if self._root_data is not None:
+            new_root_ids = np.concatenate([f._root_data for f in [self] + others])
         else:
             new_root_ids = None
         if self._parents is not None:
@@ -648,10 +675,10 @@ class Forest(object):
             new_children = None
             new_children_pos = None
 
-        if forests[0]._root_ids is not None:
-            new_root_ids = np.concatenate([f._root_ids for f in forests])
+        if forests[0]._root_data is not None:
+            new_root_data = np.concatenate([f._root_data for f in forests])
         else:
-            new_root_ids = None
+            new_root_data = None
         if forests[0]._parents is not None:
             new_parents = np.concatenate([f.parents for f in forests])
         else:
@@ -670,8 +697,8 @@ class Forest(object):
                       children=new_children,
                       children_pos=new_children_pos,
                       data_as_hashes=forests[0].data_as_hashes,
-                      lexicon=forests[0].lexicon,
-                      root_ids=new_root_ids,
+                      #lexicon=forests[0].lexicon,
+                      root_ids=new_root_data,
                       root_pos=new_root_pos)
 
     def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None, color_by_rank=False):
@@ -777,18 +804,24 @@ class Forest(object):
         if len(self.data) > 0:
             for d in self.data[start:end]:
                 reverted = False
+
                 if transformed:
                     d, reverted = self.lexicon.transform_idx_back(d)
-                s = self.lexicon.get_s(d, self.data_as_hashes)
-                root_id = self.root_id_mapping.get(d, None)
-                if self.data_as_hashes:
-                    d = self.lexicon.mapping[self.lexicon.strings[s]]
-                if root_id is not None:
-                    if self.lexicon_roots is not None:
-                        root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
-                        s = 'ID:%s' % root_s
+                    s = self.lexicon.get_s(d, self.data_as_hashes)
+                else:
+                    if d < 0 or self.lexicon_roots.get_s(d, data_as_hashes=self.data_as_hashes) != vocab_manual[UNKNOWN_EMBEDDING]:
+                        s = 'ID:%s' % self.lexicon_roots.get_s(d if self.data_as_hashes else -d + 1, self.data_as_hashes)
                     else:
-                        s = 'ID:%s(%s)' % (root_id, s)
+                        s = self.lexicon.get_s(d, self.data_as_hashes)
+                #root_id = self.root_id_mapping.get(d, None)
+                #if self.data_as_hashes:
+                #    d = self.lexicon.mapping[self.lexicon.strings[s]]
+                #if root_id is not None:
+                #    if self.lexicon_roots is not None:
+                #        root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
+                #        s = 'ID:%s' % root_s
+                #    else:
+                #        s = 'ID:%s(%s)' % (root_id, s)
                 #if s == vocab_manual[UNKNOWN_EMBEDDING]:
                 #    s = 'ID:%s(%s)' % (d, s)
 
@@ -904,14 +937,29 @@ class Forest(object):
 
     @property
     def roots(self):
+        """
+        Holds the indices (regarding the data sequence) of all roots.
+        :return: a plain numpy array containing all root positions
+        """
         if self._root_pos is None:
             logger.debug('forest: create roots from parents (%i)' % len(self.parents))
             self._root_pos = np.where(self.parents == 0)[0].astype(DTYPE_IDX)
         return self._root_pos
 
     @property
-    def root_ids(self):
-        return self._root_ids
+    def root_data(self):
+        """
+        Holds data for all root ids. As hashes, if self.data_as_hashes, or as NEGATIVE VALUES SHIFTED BY ONE to avoid
+        collision with sequence data. Can be used with lexicon_roots to get the string representation of the root id.
+        :return: a plain numpy array holding root data entries referencing elements in lexicon_roots
+        """
+        #if self._root_data is None:
+        #    logger.debug('get root_ids from lexicon_roots')
+        #    assert self.lexicon_roots is not None, 'can not create root_ids because lexicon_roots is None'
+        #    self._root_data = np.arange(len(self.lexicon_roots), dtype=DTYPE_IDX)
+        #if self._root_data is None:
+        #    self.set_root_ids_with_data()
+        return self._root_data
 
     @property
     def depths(self):
@@ -938,6 +986,11 @@ class Forest(object):
 
     @property
     def lexicon_roots(self):
+        """
+        Get the lexicon responsible for root data.
+        ATTENTION: The order of its string entries does not have to reflect the order of the roots!
+        :return: the root data lexicon
+        """
         return self._lexicon_roots
 
     @property
@@ -946,52 +999,71 @@ class Forest(object):
 
     @property
     def root_id_pos(self):
+        """
+        Maps from root_data to the position of the associated root in the data sequence.
+        :return: the mapping
+        """
         if self._root_id_pos is None:
-            #assert self._root_ids is not None, 'root_ids not set'
-            if self._root_ids is not None:
-                logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_ids))
-                if len(self.roots) != len(self._root_ids):
+            #assert self._root_data is not None, 'root_ids not set'
+            if self._root_data is not None:
+                logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_data))
+                if len(self.roots) != len(self._root_data):
                     logger.warning('number of roots (%d) does not match number of root_ids (%d). Set root_id_pos to {}.'
-                                   % (len(self.roots), len(self._root_ids)))
+                                   % (len(self.roots), len(self._root_data)))
                     self._root_id_pos = {}
                 else:
-                    self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_ids)}
+                    self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_data)}
             else:
                 self._root_id_pos = {}
         return self._root_id_pos
 
+    #not used
     @property
     def root_id_set(self):
-        try:
-            return self._root_id_set
-        except AttributeError:
-            if self._root_ids is not None:
-                logger.debug('forest: create root_id_set from root_ids (%i)' % len(self._root_ids))
-                self._root_id_set = set(self.root_ids)
+        """
+        A set representation of root_data.
+        :return: A set containing the values of root_data or an empty set, if no root_data is available
+        """
+        if self._root_id_set is None:
+            if self._root_data is not None:
+                logger.debug('forest: create root_id_set from root_ids (%i)' % len(self.root_data))
+                self._root_id_set = set(self.root_data)
             else:
                 self._root_id_set = set()
-            return self._root_id_set
+        return self._root_id_set
+
 
     @property
     def root_id_mapping(self):
-        if self._root_id_mapping is None:
-            #assert self._root_ids is not None, 'root_ids not set'
-            if self._root_ids is not None:
-                logger.debug('forest: create root_id_mapping from root_ids (%i)' % len(self._root_ids))
-                self._root_id_mapping = {v: i for i, v in enumerate(self._root_ids)}
+        """
+        Maps from root_data to root index
+        :return: a mapping as a dict or an empty dict if no root_data is available
+        """
+        if self._root_data_mapping is None:
+            #assert self._root_data is not None, 'root_ids not set'
+            if self._root_data is not None:
+                logger.debug('forest: create root_id_mapping from root_ids (%i)' % len(self._root_data))
+                self._root_data_mapping = {v: i for i, v in enumerate(self._root_data)}
             else:
-                self._root_id_mapping = {}
-        return self._root_id_mapping
+                self._root_data_mapping = {}
+        return self._root_data_mapping
 
     @property
     def root_mapping(self):
+        """
+        Maps from root positions regarding the data sequence to indices in the roots array
+        :return:
+        """
         if self._root_mapping is None:
-            logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_ids))
+            logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self.roots))
             self._root_mapping = {pos: i for i, pos in enumerate(self.roots)}
         return self._root_mapping
 
     @property
     def link_types(self):
-        link_ref = self.lexicon.get_d(s=TYPE_REF, data_as_hashes=self.data_as_hashes)
-        link_ref_seealso = self.lexicon.get_d(s=TYPE_REF_SEEALSO, data_as_hashes=self.data_as_hashes)
-        return [link_ref, link_ref_seealso]
+        """
+        Get the data of the link types available in the associated lexicon.
+        :return: data of link types
+        """
+        assert self.lexicon is not None, 'can not get link types if lexicon is not available'
+        return self.lexicon.get_link_types(data_as_hashes=self.data_as_hashes)

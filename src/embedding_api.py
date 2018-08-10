@@ -254,7 +254,7 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
                                                      transform=transform,
                                                      costs=costs, link_types=link_types)
         forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                        data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
+                        data_as_hashes=current_forest.data_as_hashes, #root_ids=current_forest.root_data,
                         lexicon_roots=current_forest.lexicon_roots)#, transformed_indices=transformed)
         forests.append(forest)
 
@@ -298,12 +298,11 @@ def get_or_calc_sequence_data(params):
         init_forest(data_path)
         current_forest = forest
         params['data_as_hashes'] = current_forest.data_as_hashes
-        params['root_ids'] = current_forest.root_ids
+        params['root_ids'] = current_forest.root_data
 
     _forests = []
     #params['transformed_idx'] = False
 
-    # TODO: check setting of params['data_as_hashes'] and params['transformed_idx']
     if 'indices_getter' in params:
 
         #if not os.path.isfile(fn):
@@ -351,7 +350,7 @@ def get_or_calc_sequence_data(params):
                 break
             #for tree_dict in tree_dicts:
             vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                                data_as_hashes=current_forest.data_as_hashes, root_ids=current_forest.root_ids,
+                                data_as_hashes=current_forest.data_as_hashes, #root_ids=current_forest.root_data,
                                 lexicon_roots=current_forest.lexicon_roots)
 
             _forests.append(vis_forest)
@@ -365,7 +364,7 @@ def get_or_calc_sequence_data(params):
 
         _forests = map(lambda seq: Forest(forest=seq, lexicon=lexicon,
                                           data_as_hashes=current_forest.data_as_hashes,
-                                          root_ids=current_forest.root_ids,
+                                          #root_ids=current_forest.root_data,
                                           lexicon_roots=current_forest.lexicon_roots),
                        current_forest.trees(root_indices=roots[root_start:root_end], show_links=params.get('show_links', True)))
     elif 'idx_start' in params:
@@ -379,7 +378,8 @@ def get_or_calc_sequence_data(params):
         _forests = [Forest(data=current_forest.data[idx_start:idx_end],
                            parents=current_forest.parents[idx_start:idx_end],
                            lexicon=lexicon, data_as_hashes=current_forest.data_as_hashes,
-                           root_ids=current_forest.root_ids, lexicon_roots=current_forest.lexicon_roots)]
+                           #root_ids=current_forest.root_data,
+                           lexicon_roots=current_forest.lexicon_roots)]
     elif 'idx' in params:
         _forests, transformed = get_forests_for_indices_from_forest(indices=[params['idx']], current_forest=current_forest,
                                                                     params=params, transform=False)#, transform=params['transformed_idx'])
@@ -410,14 +410,15 @@ def get_or_calc_sequence_data(params):
             tree_dict = {KEY_HEAD: candidate_heads[0], KEY_CHILDREN: tree_dict_children}
             vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
                                 data_as_hashes=current_forest.data_as_hashes,
-                                root_ids=current_forest.root_ids,
+                                #root_ids=current_forest.root_data,
                                 lexicon_roots=current_forest.lexicon_roots)
             _forests.append(vis_forest)
 
             candidates_forest = Forest(data=candidate_heads[1:],
                                        parents=np.zeros(shape=len(candidate_heads)-1, dtype=DTYPE_OFFSET),
                                        lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes,
-                                       root_ids=current_forest.root_ids, lexicon_roots=current_forest.lexicon_roots
+                                       #root_ids=current_forest.root_data,
+                                       lexicon_roots=current_forest.lexicon_roots
                                        )
             _forests.append(candidates_forest)
 

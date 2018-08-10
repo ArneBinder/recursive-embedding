@@ -59,12 +59,21 @@ NOTES:
 
 ASSUMPTIONS/SPECIFICATIONS:
  * data-structure:
-    * OFFSET_ID = 1; OFFSET_SEEALSO_ROOT = 3 (see constants)
+    * OFFSET_ID = 1; OFFSET_CONTEXT = 2; OFFSET_SEEALSO_ROOT = 3 (see constants)
     * last child of root points to CONTEXT (beginning of textual content):
-        root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - OFFSET_SEEALSO_ROOT
-    * transform_idx: ON RUNTIME (TRAINING/PREDICTION/VISUALIZATION)
-        idx -> ((idx_var OR idx_fixed (by mapping dicts)) ( -> IF REVERT: -idx_var OR -idx_fixed)) OR UNKNOWN(_replacment)
-    * convert_data_hashes_to_indices: ON CORPUS CREATION
+        see collect_root_context_sizes:
+            root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - OFFSET_SEEALSO_ROOT
+    * 3 states of data:
+        (0) hashes
+        (1) lexicon indices: positive indices for DATA, indices for IDs are negative and shifted by 1 (to handle 0 idx)
+        (2) lex_var and lex_fixed indices, eventually INVERTED:
+                lex_var positive, lex_fixed negative; +(-) len(lexicon) for INVERTED
+    * (0) -> (1) convert_data_hashes_to_indices: ON CORPUS CREATION
         hash
             -> IF IN id_offset_mapping (from root_ids): len(lexicon) + id_offset_mapping[d]
             -> ELSE: idx (lexicon, by mapping)
+    * (1) -> (2) transform_idx: ON RUNTIME (TRAINING/PREDICTION/VISUALIZATION)
+        NOTE: removes/resolves negative lexicon indices (used for IDs in state (1))
+        idx -> ((idx_var OR idx_fixed (by mapping dicts)) ( -> IF REVERT: -idx_var OR -idx_fixed)) OR UNKNOWN(_replacment)
+
+

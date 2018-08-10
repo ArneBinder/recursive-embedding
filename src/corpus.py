@@ -196,7 +196,7 @@ def merge_and_filter_lexicon(uniques_filtered, root_id_hashes, f_paths, out_path
         assert Lexicon.exist(filename=fn_lexicon_discarded, types_only=True), \
             'found lexicon (%s), but misses lexicon_discarded (%s).' % (out_path_merged, fn_lexicon_discarded)
         assert Lexicon.exist(filename=fn_lexicon_root_id_hashes, types_only=True), \
-            'found lexicon (%s), but misses lexicon_root_ids (%s).' % (out_path_merged, fn_lexicon_root_id_hashes)
+            'found lexicon (%s), but misses lexicon_root_data (%s).' % (out_path_merged, fn_lexicon_root_id_hashes)
         # Note: Load with vecs to skip _lexicon_add_vecs, eventually.
         return Lexicon(filename=out_path_merged, load_vecs=False), Lexicon(filename=fn_lexicon_root_id_hashes, load_vecs=False)
     t_start = datetime.now()
@@ -205,7 +205,7 @@ def merge_and_filter_lexicon(uniques_filtered, root_id_hashes, f_paths, out_path
     lexicon = Lexicon()
     lexicon.add_all(vocab_manual.values())
     lexicon_discarded = Lexicon()
-    lexicon_root_ids = Lexicon()
+    lexicon_root_data = Lexicon()
     for fn in f_paths:
         lex = Lexicon(filename=fn)
         for s in lex.strings:
@@ -213,23 +213,27 @@ def merge_and_filter_lexicon(uniques_filtered, root_id_hashes, f_paths, out_path
             if h in uniques_filtered_set:
                 lexicon.strings.add(s)
             elif h in root_id_hashes_set:
-                lexicon_root_ids.strings.add(s)
+                lexicon_root_data.strings.add(s)
             else:
                 lexicon_discarded.strings.add(s)
     lexicon.dump(filename=out_path_merged, strings_only=True)
     lexicon_discarded.dump(filename=fn_lexicon_discarded, strings_only=True)
 
-
     #for root_id in root_id_hashes:
     #    root_id_s = lexicon_discarded.strings[root_id]
-    #    lexicon_root_ids.strings.add(root_id_s)
-    lexicon_root_ids.dump(filename=fn_lexicon_root_id_hashes, strings_only=True)
+    #    lexicon_root_data.strings.add(root_id_s)
+
+    # Has to be ordered by root_id_hashes. They do not occur in the order of the roots in the data because of links
+    # that can appear before the root they are pointing to.
+    logger.debug('order by lexicon_roots by hashes...')
+    lexicon_root_data.order_by_hashes(root_id_hashes)
+    lexicon_root_data.dump(filename=fn_lexicon_root_id_hashes, strings_only=True)
 
     logger.info('finished. %s' % str(datetime.now() - t_start))
-    return lexicon, lexicon_root_ids
+    return lexicon, lexicon_root_data
 
 
-def filter_and_convert_data_batches(lexicon, id_offset_mapping, f_names, out_dir_batches, out_dir_batches_converted):
+def filter_and_convert_data_batches(lexicon, lexicon_roots, f_names, out_dir_batches, out_dir_batches_converted):
     logger.info('filter and convert batches ...')
     t_start = datetime.now()
     assert vocab_manual[UNKNOWN_EMBEDDING] in lexicon.strings or not lexicon.frozen, 'UNKNOWN_EMBEDDING not in ' \
@@ -242,8 +246,8 @@ def filter_and_convert_data_batches(lexicon, id_offset_mapping, f_names, out_dir
         if Forest.exist(filename=fn_path_out):
             count_skipped += 1
             continue
-        forest = Forest(filename=fn_path_in, lexicon=lexicon)
-        forest.hashes_to_indices(id_offset_mapping)
+        forest = Forest(filename=fn_path_in, lexicon=lexicon, lexicon_roots=lexicon_roots)
+        forest.hashes_to_indices()
         forest.dump(filename=fn_path_out)
     logger.info('finished (processed: %i, skipped: %i). %s' % (len(f_names) - count_skipped, count_skipped,
                                                                str(datetime.now() - t_start)))
@@ -359,9 +363,9 @@ def merge_batches(out_path, min_count=1, coverage=-1, use_see_also_counts=False)
 
     lexicon, lexicon_root_ids = merge_and_filter_lexicon(uniques_filtered, root_id_hashes, f_paths, out_path_merged)
 
-    id_offset_mapping = {o: i for i, o in enumerate(root_id_hashes)}
+    #id_offset_mapping = {o: i for i, o in enumerate(root_id_hashes)}
 
-    filter_and_convert_data_batches(lexicon, id_offset_mapping, f_names, out_dir_batches, out_dir_batches_converted)
+    filter_and_convert_data_batches(lexicon, lexicon_root_ids, f_names, out_dir_batches, out_dir_batches_converted)
 
     lexicon = lexicon_add_vecs(lexicon, out_path_merged)
 

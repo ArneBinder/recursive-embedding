@@ -248,10 +248,11 @@ def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=
                                    return_hashes=True, n_threads=n_threads)
 
         forest.set_children_with_parents()
-        roots = forest.roots
+        #roots = forest.roots
         # ids are at one position after roots
-        root_ids = forest.data[roots + OFFSET_ID]
-        forest.set_root_ids(root_ids=root_ids)
+        #root_ids = forest.data[roots + OFFSET_ID]
+        #forest.set_root_ids(root_ids=root_ids)
+        forest.set_root_data_by_offset()
 
         #out_path = os.path.join(out_path, os.path.basename(in_file))
         lexicon.dump(filename=out_base_name, strings_only=True)

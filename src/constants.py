@@ -32,6 +32,8 @@ BASE_TYPES = [TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, TYPE_PARAGRAPH, TYP
 TYPE_REF_SEEALSO = TYPE_REF + SEPARATOR + u'seeAlso'
 TYPE_SECTION_SEEALSO = TYPE_SECTION + SEPARATOR + u'seeAlso'
 
+LINK_TYPES = [TYPE_REF, TYPE_REF_SEEALSO]
+
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
 
@@ -100,6 +102,7 @@ FN_TREE_INDICES = 'tree_indices'
 
 # structural assumptions
 OFFSET_ID = 1
+OFFSET_CONTEXT = 2
 OFFSET_SEEALSO_ROOT = 3
 
 

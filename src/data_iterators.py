@@ -222,26 +222,28 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
     """
     data_unknown = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING],
                                         data_as_hashes=forest.data_as_hashes)
-    data_ref = forest.lexicon.get_d(link_type, data_as_hashes=forest.data_as_hashes)
-    n = 0
+    d_link_type = forest.lexicon.get_d(link_type, data_as_hashes=forest.data_as_hashes)
+    n_trees = 0
+    n_links = 0
     for idx in indices:
         target_root_ids = []
+        # allow multiple link edges
         for child_offset in forest.get_children(idx):
             child_data = forest.data[idx + child_offset]
-            assert child_data == data_ref, 'link_data (%s, data=%i, idx=%i) is not as expected (%s). parent: %s, data=%i, idx=%i' \
-                                           % (forest.lexicon.get_s(child_data, data_as_hashes=forest.data_as_hashes),
-                                              child_data,
-                                              idx + child_offset,
-                                              forest.lexicon.get_s(data_ref, data_as_hashes=forest.data_as_hashes),
-                                              forest.lexicon.get_s(forest.data[idx], data_as_hashes=forest.data_as_hashes),
-                                              forest.data[idx],
-                                              idx
-                                              )
-            target_offsets = forest.get_children(idx + child_offset)
-            assert len(target_offsets) == 1, ' link has more or less then one targets: %i' % len(target_offsets)
+            # allow only one type of link edge
+            assert child_data == d_link_type, \
+                'link_data (%s, data=%i, idx=%i) is not as expected (%s). parent: %s, data=%i, idx=%i' \
+                % (forest.lexicon.get_s(child_data, data_as_hashes=forest.data_as_hashes),
+                   child_data, idx + child_offset,
+                   forest.lexicon.get_s(d_link_type, data_as_hashes=forest.data_as_hashes),
+                   forest.lexicon.get_s(forest.data[idx], data_as_hashes=forest.data_as_hashes),
+                   forest.data[idx], idx)
+            child_offset_target = forest.get_children(idx + child_offset)
+            assert len(child_offset_target) == 1, 'link has more or less then one targets: %i' % len(child_offset_target)
 
-            target_id_idx = idx + child_offset + target_offsets[0]
+            target_id_idx = idx + child_offset + child_offset_target[0]
             target_id_data = forest.data[target_id_idx]
+            # TODO: should not be possible
             if target_id_data == data_unknown:
                 continue
             target_root_id = forest.root_id_mapping.get(target_id_data, None)
@@ -251,10 +253,11 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
         if len(target_root_ids) > 0:
             yield target_root_ids
-            n += 1
+            n_trees += 1
+            n_links += len(target_root_ids)
         else:
             yield None
-    logger.info('found %i trees with links (%s)' % (n, link_type))
+    logger.info('found %i trees with %i links in total (%s)' % (n_trees, n_links, link_type))
 
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
@@ -341,6 +344,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
 
             root_pos = idx - CONTEXT_ROOT_OFFEST
             root_idx = forest.root_mapping[root_pos]
+            # get position of next root or end of sequence data
             if root_idx == len(forest.roots) - 1:
                 idx_end = len(forest)
             else:
@@ -370,7 +374,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     elif concat_mode == CM_SEQUENCE:
         # DEPRECATED
         logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
-        # TODO:
+        # TODO: remove
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
         # root_ids occur only directly after link_types
         for idx in indices:
@@ -410,6 +414,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, 
     else:
         indices = np.random.randint(len(forest), size=nbr_indices)
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, **kwargs):
         samples = np.random.choice(forest.data, size=neg_samples + 1)
         # replace samples that equal the head/root
@@ -417,11 +422,16 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, 
         if rep == tree[KEY_HEAD]:
             rep = len(forest.lexicon) - 1
         samples[samples == tree[KEY_HEAD]] = rep
+        # set IDs to IDENTITY
+        samples[samples < 0] = d_identity
 
+        # NOTE IS DEPRECATED
         # NOTE: Other samples could contain target root ids as well, but in these cases we do not know (and it does
         # not really matter). In the case when we do not find the sample in vecs_var and vecs_fixed, we have surely a
         # link (and use d_target as replacement)
-        samples = forest.lexicon.transform_indices(samples, d_unknown_replacement=d_target)
+        #samples = forest.lexicon.transform_indices(samples, d_unknown_replacement=d_target)
+
+        samples = forest.lexicon.transform_indices(samples)
         samples[0] = tree[KEY_HEAD]
         tree[KEY_CANDIDATES] = samples
         tree[KEY_HEAD] = None
@@ -436,7 +446,6 @@ def embeddings_tfidf(aggregated_trees):
     :return:
     """
 
-    # TODO: test!
     # * create id-list versions of articles
     #   --> use data_single_iterator_dbpedianif_context with concat_mode='aggregate'
     #   --> use heads (keys) of root child
