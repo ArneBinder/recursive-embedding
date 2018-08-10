@@ -17,7 +17,7 @@ RUN apt-get update \
 #RUN curl -fSsL -O https://bootstrap.pypa.io/get-pip.py && \
 #    python get-pip.py && \
 #    rm get-pip.py
-RUN pip install pip==9.0.3
+RUN pip install pip==9.0.3 && pip install --no-cache-dir setuptools
 RUN pip install --no-cache-dir spacy && python -m spacy download en_core_web_md && python -m spacy link en_core_web_md en
 
 ARG PROJECT_ROOT=/root/recursive-embedding
