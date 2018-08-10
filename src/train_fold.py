@@ -545,39 +545,42 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         #lexicon.add_all(vocab_manual.values())
         #lexicon.pad(pad_with='zero')
 
-        # TODO: check this!
-        if not no_fixed_vecs:
-            lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
-            lexicon.add_flag(indices=lexicon.ids_fixed)
+        if lexicon.has_vecs:
+            # TODO: check this!
+            if not no_fixed_vecs:
+                lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
+                lexicon.add_flag(indices=lexicon.ids_fixed)
 
-        # TODO: check this!
-        if additional_vecs_path is not None and additional_vecs_path.strip() != '':
-            logger.info('add embedding vecs from: %s' % additional_vecs_path)
-            # ATTENTION: add_lex should contain only lower case entries, because self_to_lowercase=True
-            add_lex = Lexicon(filename=additional_vecs_path)
-            ids_added = set(lexicon.add_vecs_from_other(add_lex, self_to_lowercase=True))
-            ids_added_not = [i for i in range(len(lexicon)) if i not in ids_added]
-            # remove ids_added_not from lexicon.ids_fixed
-            lexicon._ids_fixed = np.array([_id for _id in lexicon._ids_fixed if _id not in ids_added_not], dtype=lexicon.ids_fixed.dtype)
+            # TODO: check this!
+            if additional_vecs_path is not None and additional_vecs_path.strip() != '':
+                logger.info('add embedding vecs from: %s' % additional_vecs_path)
+                # ATTENTION: add_lex should contain only lower case entries, because self_to_lowercase=True
+                add_lex = Lexicon(filename=additional_vecs_path)
+                ids_added = set(lexicon.add_vecs_from_other(add_lex, self_to_lowercase=True))
+                ids_added_not = [i for i in range(len(lexicon)) if i not in ids_added]
+                # remove ids_added_not from lexicon.ids_fixed
+                lexicon._ids_fixed = np.array([_id for _id in lexicon._ids_fixed if _id not in ids_added_not], dtype=lexicon.ids_fixed.dtype)
 
-        #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
-        #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        if logdir_pretrained:
-            logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
-            old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
-            assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
-            reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-            lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
-            lexicon_old.init_vecs(checkpoint_reader=reader_old)
-            lexicon.merge(lexicon_old, add=False, remove=False)
+            #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
+            #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+            if logdir_pretrained:
+                logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
+                old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
+                assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
+                reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
+                lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
+                lexicon_old.init_vecs(checkpoint_reader=reader_old)
+                lexicon.merge(lexicon_old, add=False, remove=False)
 
-        # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
-        # lexicon.pad()
+            # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
+            # lexicon.pad()
 
-        if not dont_dump:
-            lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
-            assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
-                                      (len(lexicon), len(lexicon.vecs))
+            if not dont_dump:
+                lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
+                assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
+                                          (len(lexicon), len(lexicon.vecs))
+        else:
+            logger.warning('NO VECS AVAILABLE FOR LEXICON')
 
 
 
