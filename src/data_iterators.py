@@ -245,6 +245,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
             target_id_data = forest.data[target_id_idx]
             # TODO: should not be possible
             if target_id_data == data_unknown:
+                logger.warning('target_id_data is UNKNOWN (target_id_idx: %i), skip' % target_id_idx)
                 continue
             target_root_id = forest.root_id_mapping.get(target_id_data, None)
             if target_root_id is None:
