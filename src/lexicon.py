@@ -362,8 +362,8 @@ FE_STRINGS = 'string'
 
 
 class Lexicon(object):
-    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, #string_list=None,
-                 load_vecs=True, load_ids_fixed=True):
+    def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, checkpoint_reader=None,
+                 load_vecs=True, load_ids_fixed=True, add_vocab_manual=False):
         """
         Create a Lexicon from file, from types (and optionally from vecs), from spacy vocabulary or from spacy
         StringStore.
@@ -376,8 +376,6 @@ class Lexicon(object):
         self._frozen = False
         self._mapping = None
         self._hashes = None
-        #self._ids_fixed = set()
-        #self._ids_fixed = None
         self._ids_var = None
         self._ids_fixed_dict = None
         self._ids_var_dict = None
@@ -385,7 +383,11 @@ class Lexicon(object):
         if filename is not None:
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
             self.init_ids_fixed(filename if load_ids_fixed else None, assert_exists=False)
-            if load_vecs and Lexicon.exist(filename, vecs_only=True):
+            if add_vocab_manual:
+                self.add_all(vocab_manual.values())
+            if checkpoint_reader is not None:
+                self.init_vecs(checkpoint_reader=checkpoint_reader)
+            elif load_vecs and Lexicon.exist(filename, vecs_only=True):
                 self.init_vecs(filename=filename)
             else:
                 # set dummy vecs
@@ -393,6 +395,8 @@ class Lexicon(object):
         elif types is not None:
             #types_dep = types
             self._strings = StringStore(types)
+            if add_vocab_manual:
+                self.add_all(vocab_manual.values())
             if vecs is not None:
                 self._vecs = vecs
                 self.init_ids_fixed()
@@ -403,6 +407,8 @@ class Lexicon(object):
             self._vecs, types = get_dict_from_vocab(nlp_vocab)
             self.init_ids_fixed()
             self._strings = StringStore(types)
+            if add_vocab_manual:
+                self.add_all(vocab_manual.values())
         #elif string_list is not None:
         #    self._strings = StringStore(string_list)
         #    self.init_vecs()
@@ -410,6 +416,8 @@ class Lexicon(object):
         # create empty lexicon
         if self._strings is None:
             self._strings = StringStore()
+            if add_vocab_manual:
+                self.add_all(vocab_manual.values())
             self.init_ids_fixed()
             self.init_vecs()
 
