@@ -213,11 +213,11 @@ def merge_and_filter_lexicon(uniques_filtered, root_id_hashes, f_paths, out_path
         for s in lex.strings:
             h = hash_string(s)
             if h in uniques_filtered_set:
-                lexicon.strings.add(s)
+                lexicon.add(s)
             elif h in root_id_hashes_set:
-                lexicon_root_data.strings.add(s)
+                lexicon_root_data.add(s)
             else:
-                lexicon_discarded.strings.add(s)
+                lexicon_discarded.add(s)
     lexicon.dump(filename=out_path_merged, strings_only=True)
     lexicon_discarded.dump(filename=fn_lexicon_discarded, strings_only=True)
 
@@ -240,7 +240,10 @@ def filter_and_convert_data_batches(lexicon, lexicon_roots, f_names, out_dir_bat
     t_start = datetime.now()
     assert vocab_manual[UNKNOWN_EMBEDDING] in lexicon.strings or not lexicon.frozen, 'UNKNOWN_EMBEDDING not in ' \
                                                                                      'lexicon, but it is frozen'
-    lexicon.strings.add(vocab_manual[UNKNOWN_EMBEDDING])
+    lexicon.add(vocab_manual[UNKNOWN_EMBEDDING])
+    assert vocab_manual[UNKNOWN_EMBEDDING] in lexicon_roots.strings or not lexicon_roots.frozen, 'UNKNOWN_EMBEDDING not in ' \
+                                                                                     'lexicon_roots, but it is frozen'
+    lexicon_roots.add(vocab_manual[UNKNOWN_EMBEDDING])
     count_skipped = 0
     for fn in f_names:
         fn_path_in = os.path.join(out_dir_batches, fn)
