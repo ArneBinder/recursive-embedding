@@ -809,8 +809,9 @@ class Forest(object):
                     d, reverted = self.lexicon.transform_idx_back(d)
                     s = self.lexicon.get_s(d, self.data_as_hashes)
                 else:
-                    if self.lexicon_roots is not None and (d < 0 or self.lexicon_roots.get_s(d, data_as_hashes=self.data_as_hashes) != vocab_manual[UNKNOWN_EMBEDDING]):
-                        s = 'ID:%s' % self.lexicon_roots.get_s(d if self.data_as_hashes else -d + 1, self.data_as_hashes)
+                    if self.lexicon_roots is not None \
+                            and (d < 0 or (self.data_as_hashes and self.lexicon_roots.get_s(d, data_as_hashes=True) != vocab_manual[UNKNOWN_EMBEDDING])):
+                        s = 'ID:%s' % self.lexicon_roots.get_s(d if self.data_as_hashes else -d - 1, self.data_as_hashes)
                     else:
                         s = self.lexicon.get_s(d, self.data_as_hashes)
                 #root_id = self.root_id_mapping.get(d, None)
