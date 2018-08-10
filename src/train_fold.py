@@ -525,24 +525,25 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         logger.debug(saved_shapes)
         logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
 
-        lexicon = Lexicon(filename=os.path.join(logdir, 'model'), load_ids_fixed=(not no_fixed_vecs))
+        lexicon = Lexicon(filename=os.path.join(logdir, 'model'), checkpoint_reader=reader, add_vocab_manual=True,
+                          load_ids_fixed=(not no_fixed_vecs))
 
         # add eventually missing manual vocab entries
-        lexicon.add_all(vocab_manual.values())
+        #lexicon.add_all(vocab_manual.values())
         # assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
         #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
         #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        try:
-            lexicon.init_vecs(checkpoint_reader=reader)
-        except AssertionError:
-            logger.warning('no embedding vecs found in model')
-            lexicon.init_vecs()
+        #try:
+        #    lexicon.init_vecs(checkpoint_reader=reader)
+        #except AssertionError:
+        #    logger.warning('no embedding vecs found in model')
+        #    lexicon.init_vecs()
     else:
         assert train_data_path is not None, 'no checkpoint found and no train_data_path given'
-        lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs))
+        lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs), add_vocab_manual=True)
         # add eventually missing manual vocab entries
-        lexicon.add_all(vocab_manual.values())
-        lexicon.pad(pad_with='zero')
+        #lexicon.add_all(vocab_manual.values())
+        #lexicon.pad(pad_with='zero')
 
         # TODO: check this!
         if not no_fixed_vecs:
