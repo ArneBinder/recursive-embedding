@@ -340,13 +340,20 @@ class Forest(object):
         assert self.lexicon is not None, 'no lexicon available'
         assert self.data_as_hashes, 'data consists already of indices'
         if self.lexicon_roots is not None:
-            root_id_indices = self.roots + OFFSET_ID
+            indices_root_ids = self.roots + OFFSET_ID
+            link_types = self.link_types
+            indices_link_types = np.concatenate([np.where(self.data == lt)[0] for lt in link_types])
+            indices_links = self.get_children_batched(indices=indices_link_types) + indices_link_types
+
             mask_no_ids = np.ones(len(self.data), dtype=bool)
-            mask_no_ids[root_id_indices] = False
+            mask_no_ids[indices_root_ids] = False
+            mask_no_ids[indices_links] = False
 
             # mark ids as negative and shift by 1 (no double zero!)
-            self._data[root_id_indices] = - (1 + self.lexicon_roots.convert_data_hashes_to_indices(
-                self.data[root_id_indices], convert_dtype=False))
+            self._data[indices_root_ids] = - (1 + self.lexicon_roots.convert_data_hashes_to_indices(
+                self.data[indices_root_ids], convert_dtype=False))
+            self._data[indices_links] = - (1 + self.lexicon_roots.convert_data_hashes_to_indices(
+                self.data[indices_links], convert_dtype=False))
             # all other tokens, etc.
             self._data[mask_no_ids] = self.lexicon.convert_data_hashes_to_indices(
                 self.data[mask_no_ids], convert_dtype=False)
@@ -854,6 +861,18 @@ class Forest(object):
 
         c = self._children[child_pos]
         return self._children[child_pos+1:child_pos+1+c]
+
+    def get_children_batched(self, indices):
+        try:
+            child_positions = self._children_pos[indices]
+        except TypeError:
+            # self._children_pos is None
+            self.set_children_with_parents()
+            child_positions = self._children_pos[indices]
+
+        counts = self._children[child_positions]
+        _indices = np.concatenate([np.arange(child_positions[i]+1, child_positions[i]+1+counts[i]) for i in range(len(indices))])
+        return self._children[_indices]
 
     def get_children_counts(self, indices):
         try:

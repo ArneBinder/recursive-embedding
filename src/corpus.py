@@ -138,8 +138,10 @@ def filter_uniques(f_paths, out_path_merged, min_count=None, coverage=None):
         count_counts_sorted = count_counts[count_counts_sorted_indices]
         counts_summed = np.cumsum((count_uniques_sorted * count_counts_sorted)[::-1])
         counts_coverage = counts_summed / float(counts_summed[-1])
+        if counts_coverage[-1] != 1.0:
+            logger.warning('Maximal calculated counts_coverage is not 1.0 (%f). Set it to 1.0.' % counts_coverage[-1])
         idx_rev = np.searchsorted(counts_coverage, coverage)
-        min_count = count_uniques_sorted[-idx_rev]
+        min_count = count_uniques_sorted[-(idx_rev+1)]
         coverage = counts_coverage[idx_rev]
     else:
         assert min_count is not None and min_count > 0, 'coverage and min_count are None or invalid (less or equal zero)'

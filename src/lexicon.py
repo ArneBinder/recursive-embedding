@@ -788,6 +788,11 @@ class Lexicon(object):
     def is_fixed(self, idx):
         return idx in self.ids_fixed_dict
 
+    def add(self, new_string):
+        if new_string not in self.strings:
+            self.strings.add(new_string)
+            self.clear_cached_values()
+
     def add_all(self, new_strings):
         for s in new_strings:
             self._strings.add(s)
