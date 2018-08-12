@@ -642,11 +642,12 @@ def init_model_type(config):
         # tree_iterator = diters.data_tuple_iterator_reroot
         tree_iterator = diters.tree_iterator
 
-        def _get_indices(index_files, forest, **unused):
-            # create a dummy. real index sampling happens in reroot_wrapper
-            return [], None, [0]
+        #def _get_indices(index_files, forest, **unused):
+        #    # create a dummy. real index sampling happens in reroot_wrapper
+        #    return [], None, [0]
 
-        indices_getter = _get_indices
+        #indices_getter = _get_indices
+        indices_getter = diters.indices_reroot
         load_parents = True
     # elif config.model_type == 'tfidf':
     #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -680,8 +681,8 @@ def init_model_type(config):
 
 def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
 
-    if config.model_type == MT_REROOT:
-        return [], []
+    #if config.model_type == MT_REROOT:
+    #    return [], []
 
     fnames_train = None
     fnames_test = None
@@ -1252,11 +1253,18 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             if m == M_TEST and config.nbr_trees_test:
                 nbr_indices = config.nbr_trees_test
             logger.info('%s: use %i indices per epoch (forest size: %i)' % (m, nbr_indices, len(forest)))
-            # overwrite dummy indices with correct number of dummy indices
+
+            root_indices = meta[m][M_INDICES]
+            # create a mapping to all data that will be used in training
+            indices_mapping = np.concatenate([np.arange(forest.roots[root_idx],
+                                                        forest.roots[root_idx + 1] if root_idx + 1 < len(
+                                                            forest.roots) else len(forest)) for root_idx in
+                                              root_indices])
+            # overwrite root indices with correct number of dummy tree indices
             meta[m][M_INDICES] = np.zeros(nbr_indices)
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, tree_iter=tree_iterator, forest=forest,
-                                           neg_samples=meta[m][M_NEG_SAMPLES],
-                                           nbr_indices=nbr_indices, **tree_iterator_args)
+                                           neg_samples=meta[m][M_NEG_SAMPLES], nbr_indices=nbr_indices,
+                                           indices_mapping=indices_mapping, **tree_iterator_args)
         else:
             meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
                                            **tree_iterator_args)

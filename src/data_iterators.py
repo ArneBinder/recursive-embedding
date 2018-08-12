@@ -407,30 +407,30 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     logger.info('created %i trees' % n)
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, transform=True, debug=False, **kwargs):
-    logger.debug('select %i new root indices (forest size: %i)' % (nbr_indices, len(forest)))
+def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping, transform=True, debug=False, **kwargs):
+    logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping)))
     if debug:
         logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
-        indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
+        assert nbr_indices <= len(indices_mapping), 'nbr_indices (%i) is higher then selected data size (%i)' \
+                                                    % (nbr_indices, len(indices_mapping))
+        _indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
     else:
-        indices = np.random.randint(len(forest), size=nbr_indices)
-    d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        _indices = np.random.randint(len(indices_mapping), size=nbr_indices)
+    indices = indices_mapping[_indices]
+    #d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, **kwargs):
-        samples = np.random.choice(forest.data, size=neg_samples + 1)
+        #samples = np.random.choice(forest.data, size=neg_samples + 1)
+        # sample only from selected data
+        sample_indices = np.random.choice(indices_mapping, size=neg_samples + 1)
+        samples = forest.data[sample_indices]
         # replace samples that equal the head/root
         rep = np.random.randint(len(forest.lexicon) - 1)
         if rep == tree[KEY_HEAD]:
             rep = len(forest.lexicon) - 1
         samples[samples == tree[KEY_HEAD]] = rep
-        # set IDs to IDENTITY
+        # set all IDs (under roots and links) to IDENTITY
         samples[samples < 0] = d_identity
-
-        # NOTE IS DEPRECATED
-        # NOTE: Other samples could contain target root ids as well, but in these cases we do not know (and it does
-        # not really matter). In the case when we do not find the sample in vecs_var and vecs_fixed, we have surely a
-        # link (and use d_target as replacement)
-        #samples = forest.lexicon.transform_indices(samples, d_unknown_replacement=d_target)
 
         samples = forest.lexicon.transform_indices(samples)
         samples[0] = tree[KEY_HEAD]
@@ -578,6 +578,12 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
         mesh_ids.append(mesh_csr)
 
     return np.array(indices_context_root), mesh_ids, [len(np.load(ind_f)) for ind_f in index_files]
+
+
+def indices_reroot(index_files, **unused):
+    # get root indices from files
+    indices = index_iterator(index_files)
+    return np.array(list(indices), dtype=DTYPE_IDX), None, [len(np.load(ind_f)) for ind_f in index_files]
 
 
 def indices_dbpedianif_dummy(forest, **unused):
