@@ -570,7 +570,8 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
                 lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
                 lexicon_old.init_vecs(checkpoint_reader=reader_old)
-                lexicon.merge(lexicon_old, add=False, remove=False)
+                logger.debug('merge old lexicon into new one...')
+                lexicon.merge(lexicon_old, add_entries=True, replace_vecs=True)
 
             # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
             # lexicon.pad()

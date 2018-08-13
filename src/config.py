@@ -132,10 +132,10 @@ default_config = {'train_data_path': ['DEFINE_string',
                   #                 #   True,
                   #                 'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
                   #                 'restore'],
-                  'extensions': ['DEFINE_string',
-                                 '',
-                                 'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
-                                 'xt'],
+                  #'extensions': ['DEFINE_string',
+                  #               '',
+                  #               'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
+                  #               'xt'],
                   'clipping': ['DEFINE_float',
                                5.0,
                                'global norm threshold for clipping gradients',
@@ -205,9 +205,10 @@ class Config(object):
             # new_train_data_path = default_config['train_data_path']
             # new_extensions = default_config['extensions']
             with open(os.path.join(logdir_pretrained, 'flags.json'), 'r') as infile:
-                self._values = json.load(infile)
+                self.__dict__['__values'] = json.load(infile)
+            # overwrite with current settings (just train_data_path and extensions)
             self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
-            self.__dict__['__values']['extensions'] = default_config['extensions']
+            #self.__dict__['__values']['extensions'] = default_config['extensions']
         elif values is not None:
             self.__dict__['__values'] = values
         else:

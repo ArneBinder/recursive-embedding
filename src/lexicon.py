@@ -484,7 +484,7 @@ class Lexicon(object):
         self._ids_var_dict = None
         self._ids_var = None
 
-    def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None,
+    def init_vecs(self, filename=None, new_vecs=None, new_vecs_fixed=None, checkpoint_reader=None, vocab=None, dims=None,
                   vocab_prefix=PREFIX_LEX):
         if filename is not None:
             assert self._ids_fixed is not None, 'ids_fixed is None'
@@ -543,13 +543,17 @@ class Lexicon(object):
                     if count_total < len(self):
                         logger.warning('pad remaining vecs (%i) with zeros' % (len(self) - count_total))
                     break
-        else:
-            assert new_vecs is None or len(new_vecs) <= len(self), 'can not set more vecs than amount of existing ' \
+        elif new_vecs is not None:
+            assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing ' \
                                                                    'types (len(new_vecs)==%i > len(types)==%i)' \
                                                                    % (len(new_vecs), len(self))
             self._vecs = new_vecs
+        elif dims is not None and dims > 0:
+            self._vecs = np.zeros(shape=(0, dims), dtype=DTYPE_VECS)
+        else:
+            self._vecs = None
 
-        if self._vecs is not None:
+        if self._vecs is not None and self._vecs.shape[0] > 0:
             self.freeze()
 
     def add_vecs_from_other(self, other, mode='concat', self_to_lowercase=True, flag_added=True):
@@ -711,37 +715,46 @@ class Lexicon(object):
         else:
             raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
 
-    # TODO: adapt for StringStore! does not work like this!
-    def merge(self, other, add=True, remove=True):
-        #self._vecs, types_dep = merge_dicts(vecs1=self.vecs, types1=self.types, vecs2=other.vecs, types2=other.types, add=add, remove=remove)
-        #self._strings = StringStore(types_dep)
-        if self.frozen or other.frozen:
-            raise NotImplementedError('merging of frozen lexicons not implemented')
+    def merge(self, other, add_entries=True, replace_vecs=True):
+        """
+        Merge other lexicon into this one.
+        :param other: the other lexicon that will be merged into this one
+        :param add_entries: If True, add all entries from other to this one.
+        :param replace_vecs: If True, replace vecs that are in other with there entries.
+        :return: a numpy array that can be used to convert data encoded with the other lexicon to the merged one. At
+        position i it holds the index of the i'th entry of the other in the merged lexicon. So, converter[d_other]
+        produces the new data entry (eventually the entry related to UNKNOWN, if d_other is not in the merged lexicon,
+        see add_entries).
+        """
 
-        if add and remove:
-            self._strings = StringStore(other.strings)
-        elif add and not remove:
+        if add_entries:
             self.add_all(other.strings)
-        elif not add and remove:
-            new_strings = StringStore()
-            for s in self.strings:
-                if s in other.strings:
-                    new_strings.add(s)
-            self._strings = new_strings
-        elif not add and not remove:
-            pass
 
-        self.clear_cached_values()
+        d_unknown = self.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+        d_unknown_other = other.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
 
-        #self._mapping = None
-        #self.clear_cached_values()
-        #self._dumped_vecs = False
-        #self._dumped_types = False
-        #if add:
-        #    converter_other = [self.mapping[t] for t in other.types]
-        #else:
-        #    converter_other = None
-        #return converter_other
+        # initialize with unknown
+        converter = np.ones(len(other), dtype=DTYPE_IDX) * d_unknown
+        for h in self.mapping:
+            idx_other = other.mapping.get(h, None)
+            if idx_other is not None:
+                converter[idx_other] = self.mapping[h]
+
+        if other.has_vecs:
+            if not self.has_vecs or self.dims == 0:
+                self.init_vecs(dims=other.dims)
+            else:
+                assert self.dims == other.dims, 'dimensions of own vecs (%i) does not match others (%i), can not merge ' \
+                                                'lexica' % (self.dims, other.dims)
+            self.pad(pad_with='zero')
+            if replace_vecs:
+                self.vecs[converter] = other.vecs
+                # overwrite with correct vec for UNKNOWN (converter was initialized with UNKNOWN, so the new UNKNOWN
+                # vec was set with all entries in other but not in self one after teh other, resulting in the last of
+                # these vecs assigned to the UNKNOWN position in self)
+                self.vecs[d_unknown] = other.vecs[d_unknown_other]
+
+        return converter
 
     def replicate_types(self, prefix='', suffix=''):
         assert len(prefix) + len(suffix) > 0, 'please provide a prefix or a suffix.'
@@ -1001,7 +1014,7 @@ class Lexicon(object):
         # maps positions to hashes
         #return self._types
         if self._hashes is None:
-            logger.debug('lexicon: create types from strings (%i)' % len(self.strings))
+            logger.debug('lexicon: create hashes from strings (%i)' % len(self.strings))
             self._hashes = np.zeros(shape=(len(self.strings),), dtype=DTYPE_HASH)
             for i, s in enumerate(self.strings):
                 self._hashes[i] = self.strings[s]
@@ -1029,6 +1042,11 @@ class Lexicon(object):
     @property
     def has_vecs(self):
         return self._vecs is not None
+
+    @property
+    def dims(self):
+        assert self.has_vecs, 'the lexicon has no vecs, can not get dimensions'
+        return self.vecs.shape[1]
 
     @property
     def frozen(self):
