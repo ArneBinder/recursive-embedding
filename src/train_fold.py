@@ -651,7 +651,8 @@ def init_model_type(config):
     #    load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == MT_REROOT:
         if config.tree_embedder.strip() != 'TreeEmbedding_HTU_reduceSUM_mapGRU':
-            raise NotImplementedError('reroot model only implemented for tree_embedder == TreeEmbedding_HTU_reduceSUM_mapGRU')
+            raise NotImplementedError('reroot model only implemented for tree_embedder == '
+                                      'TreeEmbedding_HTU_reduceSUM_mapGRU, but it is: %s' % config.tree_embedder.strip())
         # set tree_embedder to batched head version
         config.tree_embedder = 'TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU'
 
@@ -1454,7 +1455,7 @@ if __name__ == '__main__':
         FLAGS._parse_flags()
         # pylint: enable=protected-access
         # keep (TREE_)MODEL_PARAMETERS
-        config.update_with_flags(FLAGS, keep_model_parameters=True)
+        config.update_with_flags(FLAGS, keep_model_parameters=logdir_continue or logdir_pretrained)
         if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
 
             scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
