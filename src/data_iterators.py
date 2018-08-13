@@ -417,8 +417,8 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping,
     else:
         _indices = np.random.randint(len(indices_mapping), size=nbr_indices)
     indices = indices_mapping[_indices]
-    #d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, **kwargs):
         #samples = np.random.choice(forest.data, size=neg_samples + 1)
         # sample only from selected data
@@ -429,8 +429,9 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping,
         if rep == tree[KEY_HEAD]:
             rep = len(forest.lexicon) - 1
         samples[samples == tree[KEY_HEAD]] = rep
-        # set all IDs (under roots and links) to IDENTITY
-        samples[samples < 0] = d_identity
+        # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
+        # replaced by IDENTITY in train_fold.execute_run.
+        samples[samples < 0] = d_target
 
         samples = forest.lexicon.transform_indices(samples)
         samples[0] = tree[KEY_HEAD]
