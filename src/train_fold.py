@@ -43,7 +43,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS
-from config import Config, FLAGS_FN
+from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
 import data_iterators as diters
@@ -514,12 +514,15 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 no_fixed_vecs=False, additional_vecs_path=None):
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
     if logdir_continue:
+        raise NotImplementedError('usage of logdir_continue not implemented')
         assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
-    old_checkpoint_fn = None
-    old_config = None
+    #old_checkpoint_fn = None
+    fine_tune = False
+    prev_config = None
     if checkpoint_fn is not None:
         if not checkpoint_fn.startswith(logdir):
             raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
+        prev_config = Config(logdir=logdir)
         logger.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
         saved_shapes = reader.get_variable_to_shape_map()
@@ -546,6 +549,12 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         #lexicon.add_all(vocab_manual.values())
         #lexicon.pad(pad_with='zero')
 
+        if logdir_pretrained:
+            prev_config = Config(logdir=logdir_pretrained)
+            no_fixed_vecs = prev_config.no_fixed_vecs
+            additional_vecs_path = prev_config.additional_vecs
+            fine_tune = True
+
         if lexicon.has_vecs:
             # TODO: check this!
             if not no_fixed_vecs:
@@ -569,10 +578,10 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 # Check, if flags file is available (because of docker-compose file, logdir_pretrained could be just
                 # train path prefix and is therefore not None, but does not point to a valid train dir).
                 if os.path.exists(os.path.join(logdir_pretrained, FLAGS_FN)):
-                    old_config = Config(logdir=logdir_pretrained)
-                    old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
-                    assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
-                    reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
+                    #old_config = Config(logdir=logdir_pretrained)
+                    checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
+                    assert checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
+                    reader_old = tf.train.NewCheckpointReader(checkpoint_fn)
                     lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
                     lexicon_old.init_vecs(checkpoint_reader=reader_old)
                     logger.debug('merge old lexicon into new one...')
@@ -596,7 +605,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
     logger.info('lexicon size: %i' % len(lexicon))
     #logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
     #logger.debug('ROOT_idx: %i' % ROOT_idx)
-    return lexicon, checkpoint_fn, old_checkpoint_fn, old_config
+    return lexicon, checkpoint_fn, prev_config, fine_tune
 
 
 def init_model_type(config):
@@ -641,6 +650,11 @@ def init_model_type(config):
     #    discrete_model = True
     #    load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == MT_REROOT:
+        if config.tree_embedder.strip() != 'TreeEmbedding_HTU_reduceSUM_mapGRU':
+            raise NotImplementedError('reroot model only implemented for tree_embedder == TreeEmbedding_HTU_reduceSUM_mapGRU')
+        # set tree_embedder to batched head version
+        config.tree_embedder = 'TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU'
+
         config.batch_iter = batch_iter_reroot.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
         neg_samples = config.neg_samples
@@ -1172,11 +1186,25 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     ## get lexicon
-    lexicon, checkpoint_fn, old_checkpoint_fn, old_config = exec_cached(
+    lexicon, checkpoint_fn, prev_config, fine_tune = exec_cached(
         cache, get_lexicon, discard_kwargs=('logdir'),
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, additional_vecs_path=config.additional_vecs)
-    loaded_from_checkpoint = checkpoint_fn is not None
+    # use previous tree model config values
+    #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
+    #if prev_config is not None and config.model_type != prev_config.model_type:
+    #    if config.model_type != prev_config.model_type:
+        #    reuse_parameters = TREE_MODEL_PARAMETERS
+    #        restore_only_tree_embedder = True
+        #else:
+        #    reuse_parameters = MODEL_PARAMETERS
+        #logger.info('use (tree) model parameters from previous model: %s'
+        #            % ', '.join(['%s: %s' % (p, prev_config.__getattr__(p)) for p in reuse_parameters]))
+        #for p in reuse_parameters:
+        #    v = prev_config.__getattr__(p)
+        #    config.__setattr__(p, v)
+
+    loaded_from_checkpoint = checkpoint_fn is not None and not fine_tune
     if loaded_from_checkpoint:
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
@@ -1311,26 +1339,28 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             # PREPARE TRAINING #########################################################################################
 
-            if old_checkpoint_fn is not None:
-                logger.info(
-                    'restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...' % old_checkpoint_fn)
-                lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_VAR) \
-                               + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=model_fold.VAR_NAME_LEXICON_FIX)
-                #optimizer_vars = model_train.optimizer_vars() + [model_train.global_step] \
-                #                 + ((model_test.optimizer_vars() + [
-                #    model_test.global_step]) if model_test is not None and model_test != model_train else [])
+            if fine_tune:
+                logger.info('restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...'
+                            % checkpoint_fn)
                 optimizer_vars = meta[M_TRAIN][M_MODEL].optimizer_vars() + [meta[M_TRAIN][M_MODEL].global_step] \
                                  + ((meta[M_TEST][M_MODEL].optimizer_vars() + [
                     meta[M_TEST][M_MODEL].global_step]) if M_TEST in meta and meta[M_TEST][M_MODEL] != meta[M_TRAIN][M_MODEL] else [])
 
-                restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
-                                item not in lexicon_vars + optimizer_vars]
+                lexicon_vars = [v for v in set(model_fold.get_lexicon_vars()) if v not in optimizer_vars]
+                tree_embedder_vars = [v for v in set(model_fold.get_tree_embedder_vars()) if v not in optimizer_vars]
+
+                if config.model_type != prev_config.model_type:
+                    restore_vars = tree_embedder_vars
+                else:
+                    restore_vars = [item for item in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES) if
+                                    item not in lexicon_vars + optimizer_vars]
+                logger.debug('restore vars: %s' % str(restore_vars))
                 pre_train_saver = tf.train.Saver(restore_vars)
             else:
                 pre_train_saver = None
 
             def load_pretrain(sess):
-                pre_train_saver.restore(sess, old_checkpoint_fn)
+                pre_train_saver.restore(sess, checkpoint_fn)
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
@@ -1340,7 +1370,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 save_summaries_secs=10,
                 save_model_secs=0,
                 summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph),
-                init_fn=load_pretrain if pre_train_saver is not None else None
+                init_fn=load_pretrain if fine_tune else None
             )
             #if dev_iterator is not None or test_iterator is not None:
             test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph) if M_TEST in meta else None
@@ -1384,12 +1414,20 @@ def add_metrics(d, stats, metric_main=None, prefix=''):
 
 if __name__ == '__main__':
     mytools.logging_init()
-    logger.debug('test')
+    # account for prefix if started via docker-compose.yml
+    if FLAGS.logdir_continue is not None and FLAGS.logdir_continue.strip() == '/root/train/':
+        logdir_continue = None
+    else:
+        logdir_continue = FLAGS.logdir_continue
+    if FLAGS.logdir_pretrained is not None and FLAGS.logdir_pretrained.strip() == '/root/train/':
+        logdir_pretrained = None
+    else:
+        logdir_pretrained = FLAGS.logdir_pretrained
 
     # Handle multiple logdir_continue's
     # ATTENTION: discards any FLAGS (e.g. provided as argument) contained in default_config!
-    if FLAGS.logdir_continue is not None and ',' in FLAGS.logdir_continue:
-        logdirs = FLAGS.logdir_continue.split(',')
+    if logdir_continue is not None and ',' in logdir_continue:
+        logdirs = logdir_continue.split(',')
         logger.info('execute %i runs ...' % len(logdirs))
         stats_prefix = 'score_'
         with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
@@ -1401,21 +1439,22 @@ if __name__ == '__main__':
                 logger.info('START RUN %i of %i' % (i, len(logdirs)))
                 config = Config(logdir=logdir)
                 config_dict = config.as_dict()
-                stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
+                stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
                                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
                 csvfile.flush()
     else:
-        config = Config(logdir=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
+        config = Config(logdir=logdir_continue, logdir_pretrained=logdir_pretrained)
         USE_CACHE = False
         # get default config (or load from logdir_continue/logdir_pretrained)
         config.init_flags()
         # pylint: disable=protected-access
         FLAGS._parse_flags()
         # pylint: enable=protected-access
-        config.update_with_flags(FLAGS)
+        # keep (TREE_)MODEL_PARAMETERS
+        config.update_with_flags(FLAGS, keep_model_parameters=True)
         if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
 
             scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
@@ -1513,5 +1552,5 @@ if __name__ == '__main__':
 
         # default: execute single run
         else:
-            execute_run(config, logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained,
+            execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
                         test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only, debug=FLAGS.debug)

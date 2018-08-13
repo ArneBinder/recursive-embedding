@@ -19,8 +19,8 @@ DIMENSION_SIM_MEASURE = 300
 VAR_NAME_LEXICON_VAR = 'embeddings'
 VAR_NAME_LEXICON_FIX = 'embeddings_fix'
 VAR_NAME_GLOBAL_STEP = 'global_step'
-VAR_PREFIX_FC_LEAF = 'FC_embedding'
-VAR_PREFIX_FC_ROOT = 'FC_output'
+VAR_PREFIX_FC_LEAF = 'FC_leaf'
+VAR_PREFIX_FC_ROOT = 'FC_root'
 VAR_PREFIX_FC_REVERSE = 'FC_reverse'
 VAR_PREFIX_TREE_EMBEDDING = 'TreeEmbedding'
 VAR_PREFIX_SIM_MEASURE = 'sim_measure'
@@ -228,7 +228,7 @@ class TreeEmbedding(object):
             self._state_size = state_size
         else:
             self._state_size = self._dim_embeddings  # state_size
-        self._name = VAR_PREFIX_TREE_EMBEDDING + '_' + name  # + '_%d' % self._state_size
+        self._name = VAR_PREFIX_TREE_EMBEDDING + '/' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
         with tf.variable_scope(self.name) as scope:
@@ -353,6 +353,17 @@ class TreeEmbedding(object):
     @property
     def output_size(self):
         raise NotImplementedError
+
+
+def get_lexicon_vars():
+    lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=VAR_NAME_LEXICON_VAR) \
+                   + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=VAR_NAME_LEXICON_FIX)
+    return lexicon_vars
+
+
+def get_tree_embedder_vars():
+    tree_embedder_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=VAR_PREFIX_TREE_EMBEDDING)
+    return tree_embedder_vars
 
 
 class TreeEmbedding_TREE_LSTM(TreeEmbedding):
@@ -764,7 +775,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     def __init__(self, name, #tree_count, #data_transformed,
                  **kwargs):
         #assert root_fc_sizes == 0, 'no root_fc allowed for HTUBatchedHead'
-        super(TreeEmbedding_HTUBatchedHead, self).__init__(name='BatchedHead_' + name, #root_fc_size=root_fc_sizes,
+        super(TreeEmbedding_HTUBatchedHead, self).__init__(name=name, #root_fc_size=root_fc_sizes,
                                                            **kwargs)
         #self._batch_size = tree_count
         #self._data_transformed = data_transformed
@@ -1144,11 +1155,15 @@ class TreeModel(object):
 
         #self._output_size = int(self._embeddings_plain.shape[-1])
 
+        i = 0
         for s in self._root_fc_sizes:
             if s > 0:
-                fc = tf.contrib.layers.fully_connected(inputs=self._embeddings_plain, num_outputs=s, activation_fn=tf.nn.tanh)
-                self._embeddings_plain = tf.nn.dropout(fc, keep_prob=self._keep_prob)
-                #self._output_size = s
+                with tf.variable_scope(VAR_PREFIX_TREE_EMBEDDING+'/'+VAR_PREFIX_FC_ROOT + '/' + str(i)) as scope:
+                    fc = tf.contrib.layers.fully_connected(inputs=self._embeddings_plain, num_outputs=s,
+                                                           activation_fn=tf.nn.tanh, scope=scope)
+                    self._embeddings_plain = tf.nn.dropout(fc, keep_prob=self._keep_prob)
+                    #self._output_size = s
+                    i += 1
 
     @property
     def embeddings_all(self):

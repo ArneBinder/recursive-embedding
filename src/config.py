@@ -190,44 +190,33 @@ default_config = {'train_data_path': ['DEFINE_string',
                   }
 
 ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']
-MODEL_PARAMETERS = ['additional_vecs', 'tree_embedder', 'leaf_fc_size', 'root_fc_sizes', 'state_size', 'max_depth',
-                    'context', 'link_cost_ref', 'concat_mode', 'no_fixed_vecs', 'batch_iter']
+# TODO: check if no_fixed_vecs should be moved to DESCRIPTION_PARAMETERS
+TREE_MODEL_PARAMETERS = ['additional_vecs', 'leaf_fc_size', 'root_fc_sizes', 'state_size',
+                         'no_fixed_vecs', 'tree_embedder']
+MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'model_type']
+DESCRIPTION_PARAMETERS = MODEL_PARAMETERS \
+                         + ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'batch_iter']
 FLAGS_FN = 'flags.json'
 
 
 class Config(object):
     def __init__(self, logdir=None, logdir_pretrained=None, values=None):
-        loaded = self.from_logdir(logdir=logdir)
-        if logdir_pretrained and not loaded:
-            #logging.info('load flags from logdir_pretrained: %s', logdir_pretrained)
-            loaded = self.from_logdir(logdir=logdir_pretrained)
-            if loaded:
-                self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
-
-        if not loaded:
-            if values is not None:
-                self.__dict__['__values'] = values
-            else:
-                self.__dict__['__values'] = default_config
-
-    def from_logdir(self, logdir):
-        loaded = False
         if logdir:
-            logging.info('load flags from logdir: %s', logdir)
-            try:
-                with open(os.path.join(logdir, FLAGS_FN), 'r') as infile:
-                    self.__dict__['__values'] = json.load(infile)
-                loaded = True
-            except IOError as e:
-                # Check, if checkpoint file is available (because of docker-compose file, logdir(_continue/_pretrained)
-                # could be just the train path prefix and is therefore not None, but does not point to a valid train
-                # dir).
-                checkpoint_fn = tf.train.latest_checkpoint(logdir)
-                if checkpoint_fn is not None:
-                    raise e
-                else:
-                    logging.warning('Could not read flags from: %s. Do not use logdir data.' % logdir)
-        return loaded
+            self.set_from_logdir(logdir)
+        elif logdir_pretrained:
+            self.set_from_logdir(logdir_pretrained)
+            #self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
+        elif values is not None:
+            self.__dict__['__values'] = values
+        else:
+            self.__dict__['__values'] = default_config
+
+    def set_from_logdir(self, logdir, parameter_whitelist=None):
+        with open(os.path.join(logdir, FLAGS_FN), 'r') as infile:
+            values_dict = json.load(infile)
+        if parameter_whitelist is not None:
+            values_dict = {k: values_dict[k] for k in values_dict if k in parameter_whitelist}
+        self.__dict__['__values'] = values_dict
 
     def __getattr__(self, name):
         """Retrieves the 'value' attribute of the entry name."""
@@ -295,7 +284,7 @@ class Config(object):
         return '_'.join(res)
 
     def get_model_description(self):
-        return self.serialize(filter_flags=MODEL_PARAMETERS)
+        return self.serialize(filter_flags=DESCRIPTION_PARAMETERS)
 
     def set_run_description(self):
         if 'run_description' not in self.__dict__['__values']:
@@ -309,10 +298,17 @@ class Config(object):
             #    config['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
             #    logging.info('serialized run description: ' + config['run_description'][1])
 
-    def update_with_flags(self, flags):
+    def update_with_flags(self, flags, keep_model_parameters=True):
+        blacklist = []
+        if keep_model_parameters:
+            if getattr(flags, 'model_type') != self.model_type:
+                blacklist = TREE_MODEL_PARAMETERS
+            else:
+                blacklist = MODEL_PARAMETERS
+
         for flag in self:
             # get real flag value
-            if flag in flags.__dict__['__flags']:
+            if flag in flags.__dict__['__flags'] and flag not in blacklist:
                 new_value = getattr(flags, flag)
                 self.__setattr__(flag, new_value)
 
