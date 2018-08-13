@@ -196,11 +196,11 @@ MODEL_PARAMETERS = ['additional_vecs', 'tree_embedder', 'leaf_fc_size', 'root_fc
 
 class Config(object):
     def __init__(self, logdir_continue=None, logdir_pretrained=None, values=None):
-        if logdir_continue is not None:
+        if logdir_continue:
             logging.info('load flags from logdir: %s', logdir_continue)
             with open(os.path.join(logdir_continue, 'flags.json'), 'r') as infile:
                 self.__dict__['__values'] = json.load(infile)
-        elif logdir_pretrained is not None:
+        elif logdir_pretrained:
             logging.info('load flags from logdir_pretrained: %s', logdir_pretrained)
             # new_train_data_path = default_config['train_data_path']
             # new_extensions = default_config['extensions']

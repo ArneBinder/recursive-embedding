@@ -552,7 +552,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 lexicon.add_flag(indices=lexicon.ids_fixed)
 
             # TODO: check this!
-            if additional_vecs_path is not None and additional_vecs_path.strip() != '':
+            if additional_vecs_path:
                 logger.info('add embedding vecs from: %s' % additional_vecs_path)
                 # ATTENTION: add_lex should contain only lower case entries, because self_to_lowercase=True
                 add_lex = Lexicon(filename=additional_vecs_path)
