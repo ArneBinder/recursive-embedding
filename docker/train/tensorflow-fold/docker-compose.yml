@@ -21,6 +21,7 @@ services:
     command: >
         --train_data_path=/root/corpora_out/${TRAIN_DATA}
         --logdir=/root/train/${TRAIN_LOGDIR}
+        --logdir_pretrained=/root/train/${LOGDIR_PRETRAINED}
         --model_type=${MODEL_TYPE}
         --dev_file_index=${DEV_FILE_INDEX}
         --batch_size=${BATCH_SIZE}
