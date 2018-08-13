@@ -43,7 +43,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS
-from config import Config
+from config import Config, FLAGS_FN
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
 import data_iterators as diters
@@ -565,13 +565,19 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
             #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
             if logdir_pretrained:
                 logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
-                old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
-                assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
-                reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
-                lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
-                lexicon_old.init_vecs(checkpoint_reader=reader_old)
-                logger.debug('merge old lexicon into new one...')
-                lexicon.merge(lexicon_old, add_entries=True, replace_vecs=True)
+                # Check, if flags file is available (because of docker-compose file, logdir_pretrained could be just
+                # train path prefix and is therefore not None, but does not point to a valid train dir).
+                if os.path.exists(os.path.join(logdir_pretrained, FLAGS_FN)):
+                    old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
+                    assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
+                    reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
+                    lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
+                    lexicon_old.init_vecs(checkpoint_reader=reader_old)
+                    logger.debug('merge old lexicon into new one...')
+                    lexicon.merge(lexicon_old, add_entries=True, replace_vecs=True)
+                else:
+                    logger.warning('logdir_pretrained is not None (%s), but no flags file found. Do not try to load '
+                                   'from logdir_pretrained.' % logdir_pretrained)
 
             # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
             # lexicon.pad()
