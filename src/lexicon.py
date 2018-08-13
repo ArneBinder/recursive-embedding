@@ -728,7 +728,9 @@ class Lexicon(object):
         """
 
         if add_entries:
+            size_before = len(self)
             self.add_all(other.strings)
+            logger.debug('added %i entries to lexicon. new size: %i' % (len(self) - size_before, len(self)))
 
         d_unknown = self.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
         d_unknown_other = other.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
@@ -753,6 +755,7 @@ class Lexicon(object):
                 # vec was set with all entries in other but not in self one after teh other, resulting in the last of
                 # these vecs assigned to the UNKNOWN position in self)
                 self.vecs[d_unknown] = other.vecs[d_unknown_other]
+                logger.debug('replaced %i vecs of %i (lexicon merge)' % (len(np.unique(converter)), len(self)))
 
         return converter
 
