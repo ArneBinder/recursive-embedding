@@ -203,6 +203,7 @@ class Config(object):
             try:
                 with open(os.path.join(logdir_continue, FLAGS_FN), 'r') as infile:
                     self.__dict__['__values'] = json.load(infile)
+                loaded = True
             except IOError as e:
                 # Check, if checkpoint file is available (because of docker-compose file, logdir_continue could be
                 # just the train path prefix and is therefore not None, but does not point to a valid train dir).
@@ -211,7 +212,6 @@ class Config(object):
                     raise e
                 else:
                     logging.warning('Could not read flags from: %s. Do not use logdir_continue.' % logdir_continue)
-            loaded = True
         if logdir_pretrained and not loaded:
             logging.info('load flags from logdir_pretrained: %s', logdir_pretrained)
             # new_train_data_path = default_config['train_data_path']
@@ -219,6 +219,10 @@ class Config(object):
             try:
                 with open(os.path.join(logdir_pretrained, FLAGS_FN), 'r') as infile:
                     self.__dict__['__values'] = json.load(infile)
+                    # overwrite with current settings (just train_data_path and extensions)
+                self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
+                # self.__dict__['__values']['extensions'] = default_config['extensions']
+                loaded = True
             except IOError as e:
                 # Check, if checkpoint file is available (because of docker-compose file, logdir_pretrained could be
                 # just the train path prefix and is therefore not None, but does not point to a valid train dir).
@@ -227,10 +231,6 @@ class Config(object):
                     raise e
                 else:
                     logging.warning('Could not read flags from: %s. Do not use logdir_pretrained.' % logdir_pretrained)
-            # overwrite with current settings (just train_data_path and extensions)
-            self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
-            #self.__dict__['__values']['extensions'] = default_config['extensions']
-            loaded = True
 
         if not loaded:
             if values is not None:
