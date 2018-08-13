@@ -1,11 +1,9 @@
 OPEN:
     coding:
      * check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
-     * training: allow index files for reroot model to allow training on a data subset
      * training: check merge lexicon for fine-tuning (load from previous checkpoint)
      * training: allow fine-tuning of just the embedding-model and the complete model
-     * (!) FIX ROOT_IDS: freeze is important after convert_hashes_to_indices because len(lexicon) is added to root ids
-        possible solutions: use negative values for root_ids AND/OR use lexicon_roots
+     * training: restrict link targets to selected train/test data
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
@@ -32,6 +30,8 @@ OPEN:
         * "Einführung in Semantic Web" (Wandelt)
      * enrol for diploma thesis
 
+TEST:
+ * training: allow index files for reroot model to allow training on a data subset
 
 DONE:
  * attention_SINGLE + identity - DONE
@@ -50,6 +50,9 @@ DONE:
  * bioasq-corpus: use PARAGRAPH instead of PARAGRAPH/... (to "sync" with min_100_paragraph data)
  * constants: check, if renaming affects any current data DONE (fixed issues) -> merge (check again)
  * embedding_api: blank IDs only, if reroot model (makes them visible if a simple corpus without model is loaded)
+ * (!) FIX ROOT_IDS: freeze is important after convert_hashes_to_indices because len(lexicon) is added to root ids
+        -> use negative values for root_ids AND use lexicon_roots
+ * merge lexicon_roots when concatenating forests
 
 
 

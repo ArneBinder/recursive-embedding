@@ -627,6 +627,9 @@ class Forest(object):
         if a._root_pos is not None:
             assert b._root_pos is not None, 'root positions of first forest are set, but not of the second, can not %s.' \
                                             % operation
+        if a._lexicon_roots is not None:
+            assert b._lexicon_roots is not None, 'lexicon_roots of first forest are set, but not of the second, can not %s.' \
+                                            % operation
 
     def extend(self, others):
         if type(others) != list:
@@ -662,6 +665,16 @@ class Forest(object):
             new_root_pos = np.concatenate(new_root_pos_list)
         else:
             new_root_pos = None
+
+        # add lexicon_roots
+        # TODO: Test this!
+        if self._lexicon_roots is not None:
+            for f in others:
+                for s in f._lexion_roots.strings:
+                    assert s not in self._lexicon_roots.strings, 'root string (%s) already in lexicon_roots' % s
+                    self._lexicon_roots.strings.add(s)
+        self._lexicon_roots.clear_cached_values()
+
         self.set_forest(data=np.concatenate([f.data for f in [self] + others]),
                         parents=new_parents,
                         children=new_children,
@@ -703,12 +716,24 @@ class Forest(object):
             new_root_pos = np.concatenate(new_root_pos_list)
         else:
             new_root_pos = None
+        # add lexicon_roots.
+        # TODO: Test this!
+        if forests[0]._lexicon_roots is not None:
+            logger.warning('Concatenate Forests with lexicon_roots reuses and appends to the lexicon_roots of the '
+                           'first Forest.')
+            for f in forests[1:]:
+                for s in f._lexion_roots.strings:
+                    assert s not in forests[0]._lexicon_roots.strings, 'root string (%s) already in lexicon_roots' % s
+                    forests[0]._lexicon_roots.strings.add(s)
+        forests[0]._lexicon_roots.clear_cached_values()
+
         return Forest(data=np.concatenate([f.data for f in forests]),
                       parents=new_parents,
                       children=new_children,
                       children_pos=new_children_pos,
                       data_as_hashes=forests[0].data_as_hashes,
                       #lexicon=forests[0].lexicon,
+                      lexicon_roots=forests[0]._lexicon_roots,
                       root_ids=new_root_data,
                       root_pos=new_root_pos)
 
