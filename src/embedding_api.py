@@ -1108,7 +1108,7 @@ def main(data_source):
         logging.info('Start api without data source. Use /api/load before any other request.')
         return
 
-    lexicon, checkpoint_fn, _ = get_lexicon(logdir=data_source, train_data_path=data_source, dont_dump=True)
+    lexicon, checkpoint_fn, _, _ = get_lexicon(logdir=data_source, train_data_path=data_source, dont_dump=True)
     if checkpoint_fn:
         assert lexicon.vecs is None or lexicon.is_filled, \
             'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' \
@@ -1117,7 +1117,7 @@ def main(data_source):
     # load model
     if checkpoint_fn:
         import model_fold
-        model_config = Config(logdir_continue=data_source)
+        model_config = Config(logdir=data_source)
         data_path = model_config.train_data_path
 
         with tf.Graph().as_default() as graph:

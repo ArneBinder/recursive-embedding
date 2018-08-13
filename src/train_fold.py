@@ -516,6 +516,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
     if logdir_continue:
         assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
     old_checkpoint_fn = None
+    old_config = None
     if checkpoint_fn is not None:
         if not checkpoint_fn.startswith(logdir):
             raise ValueError('entry in checkpoint file ("%s") is not located in logdir=%s' % (checkpoint_fn, logdir))
@@ -568,6 +569,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 # Check, if flags file is available (because of docker-compose file, logdir_pretrained could be just
                 # train path prefix and is therefore not None, but does not point to a valid train dir).
                 if os.path.exists(os.path.join(logdir_pretrained, FLAGS_FN)):
+                    old_config = Config(logdir=logdir_pretrained)
                     old_checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
                     assert old_checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
                     reader_old = tf.train.NewCheckpointReader(old_checkpoint_fn)
@@ -594,7 +596,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
     logger.info('lexicon size: %i' % len(lexicon))
     #logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
     #logger.debug('ROOT_idx: %i' % ROOT_idx)
-    return lexicon, checkpoint_fn, old_checkpoint_fn
+    return lexicon, checkpoint_fn, old_checkpoint_fn, old_config
 
 
 def init_model_type(config):
@@ -1170,13 +1172,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     ## get lexicon
-    lexicon, checkpoint_fn, old_checkpoint_fn = exec_cached(cache, get_lexicon, discard_kwargs=('logdir'),
-                                                            logdir=logdir,
-                                                            train_data_path=config.train_data_path,
-                                                            logdir_pretrained=logdir_pretrained,
-                                                            logdir_continue=logdir_continue,
-                                                            no_fixed_vecs=config.no_fixed_vecs,
-                                                            additional_vecs_path=config.additional_vecs)
+    lexicon, checkpoint_fn, old_checkpoint_fn, old_config = exec_cached(
+        cache, get_lexicon, discard_kwargs=('logdir'),
+        logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=logdir_pretrained,
+        logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, additional_vecs_path=config.additional_vecs)
     loaded_from_checkpoint = checkpoint_fn is not None
     if loaded_from_checkpoint:
         # create test result writer
@@ -1394,13 +1393,13 @@ if __name__ == '__main__':
         logger.info('execute %i runs ...' % len(logdirs))
         stats_prefix = 'score_'
         with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
-            fieldnames = Config(logdir_continue=logdirs[0]).as_dict().keys() \
+            fieldnames = Config(logdir=logdirs[0]).as_dict().keys() \
                          + [stats_prefix + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION]
             score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames, delimiter='\t', extrasaction='ignore')
             score_writer.writeheader()
             for i, logdir in enumerate(logdirs, 1):
                 logger.info('START RUN %i of %i' % (i, len(logdirs)))
-                config = Config(logdir_continue=logdir)
+                config = Config(logdir=logdir)
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=FLAGS.logdir_pretrained,
                                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
@@ -1409,7 +1408,7 @@ if __name__ == '__main__':
                 score_writer.writerow(config_dict)
                 csvfile.flush()
     else:
-        config = Config(logdir_continue=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
+        config = Config(logdir=FLAGS.logdir_continue, logdir_pretrained=FLAGS.logdir_pretrained)
         USE_CACHE = False
         # get default config (or load from logdir_continue/logdir_pretrained)
         config.init_flags()

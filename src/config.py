@@ -196,47 +196,38 @@ FLAGS_FN = 'flags.json'
 
 
 class Config(object):
-    def __init__(self, logdir_continue=None, logdir_pretrained=None, values=None):
-        loaded = False
-        if logdir_continue:
-            logging.info('load flags from logdir: %s', logdir_continue)
-            try:
-                with open(os.path.join(logdir_continue, FLAGS_FN), 'r') as infile:
-                    self.__dict__['__values'] = json.load(infile)
-                loaded = True
-            except IOError as e:
-                # Check, if checkpoint file is available (because of docker-compose file, logdir_continue could be
-                # just the train path prefix and is therefore not None, but does not point to a valid train dir).
-                checkpoint_fn = tf.train.latest_checkpoint(logdir_continue)
-                if checkpoint_fn is not None:
-                    raise e
-                else:
-                    logging.warning('Could not read flags from: %s. Do not use logdir_continue.' % logdir_continue)
+    def __init__(self, logdir=None, logdir_pretrained=None, values=None):
+        loaded = self.from_logdir(logdir=logdir)
         if logdir_pretrained and not loaded:
-            logging.info('load flags from logdir_pretrained: %s', logdir_pretrained)
-            # new_train_data_path = default_config['train_data_path']
-            # new_extensions = default_config['extensions']
-            try:
-                with open(os.path.join(logdir_pretrained, FLAGS_FN), 'r') as infile:
-                    self.__dict__['__values'] = json.load(infile)
-                    # overwrite with current settings (just train_data_path and extensions)
+            #logging.info('load flags from logdir_pretrained: %s', logdir_pretrained)
+            loaded = self.from_logdir(logdir=logdir_pretrained)
+            if loaded:
                 self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
-                # self.__dict__['__values']['extensions'] = default_config['extensions']
-                loaded = True
-            except IOError as e:
-                # Check, if checkpoint file is available (because of docker-compose file, logdir_pretrained could be
-                # just the train path prefix and is therefore not None, but does not point to a valid train dir).
-                checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
-                if checkpoint_fn is not None:
-                    raise e
-                else:
-                    logging.warning('Could not read flags from: %s. Do not use logdir_pretrained.' % logdir_pretrained)
 
         if not loaded:
             if values is not None:
                 self.__dict__['__values'] = values
             else:
                 self.__dict__['__values'] = default_config
+
+    def from_logdir(self, logdir):
+        loaded = False
+        if logdir:
+            logging.info('load flags from logdir: %s', logdir)
+            try:
+                with open(os.path.join(logdir, FLAGS_FN), 'r') as infile:
+                    self.__dict__['__values'] = json.load(infile)
+                loaded = True
+            except IOError as e:
+                # Check, if checkpoint file is available (because of docker-compose file, logdir(_continue/_pretrained)
+                # could be just the train path prefix and is therefore not None, but does not point to a valid train
+                # dir).
+                checkpoint_fn = tf.train.latest_checkpoint(logdir)
+                if checkpoint_fn is not None:
+                    raise e
+                else:
+                    logging.warning('Could not read flags from: %s. Do not use logdir data.' % logdir)
+        return loaded
 
     def __getattr__(self, name):
         """Retrieves the 'value' attribute of the entry name."""
