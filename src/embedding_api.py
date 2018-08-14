@@ -225,6 +225,7 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
 
     max_depth = params.get('max_depth', 10)
     context = params.get('context', 0)
+    transform = transform or context > 0
 
     if current_forest.data_as_hashes:
         current_forest.hashes_to_indices()
