@@ -344,7 +344,7 @@ class Forest(object):
             link_types = self.link_types
             if len(link_types) > 0:
                 indices_link_types = np.concatenate([np.where(self.data == lt)[0] for lt in link_types])
-                indices_links = self.get_children_batched(indices=indices_link_types) + indices_link_types
+                indices_links = self.get_child_positions_batched(indices=indices_link_types)
             else:
                 indices_links = []
 
@@ -403,13 +403,11 @@ class Forest(object):
             else:
                 yield self.data[descendant_indices], self.parents[descendant_indices]
 
-    def _set_depths(self, indices, current_depth, child_offset=0):
-        # depths are counted starting from roots!
-        for i in indices:
-            idx = i + child_offset
-            self._depths[idx] = current_depth
-            if self.has_children(idx):
-                self._set_depths(self.get_children(idx), current_depth + 1, idx)
+    def _set_depths(self, indices, current_depth):
+        self._depths[indices] = current_depth
+        child_positions = self.get_child_positions_batched(indices)
+        if len(child_positions) > 0:
+            self._set_depths(child_positions, current_depth + 1)
 
     def trees_equal(self, root1, root2):
         _cmp = _compare_tree_dicts(self.get_tree_dict_cached(root1), self.get_tree_dict_cached(root2))
@@ -891,7 +889,9 @@ class Forest(object):
         c = self._children[child_pos]
         return self._children[child_pos+1:child_pos+1+c]
 
-    def get_children_batched(self, indices):
+    def get_child_positions_batched(self, indices):
+        if len(indices) == 0:
+            return []
         try:
             child_positions = self._children_pos[indices]
         except TypeError:
@@ -900,8 +900,9 @@ class Forest(object):
             child_positions = self._children_pos[indices]
 
         counts = self._children[child_positions]
-        _indices = np.concatenate([np.arange(child_positions[i]+1, child_positions[i]+1+counts[i]) for i in range(len(indices))])
-        return self._children[_indices]
+        indices_list = [np.arange(child_positions[i]+1, child_positions[i]+1+counts[i]) for i in range(len(indices))]
+        positions = np.concatenate([self._children[l] + indices[i] for i, l in enumerate(indices_list)])
+        return positions
 
     def get_children_counts(self, indices):
         try:
@@ -1013,7 +1014,7 @@ class Forest(object):
     @property
     def depths(self):
         if self._depths is None:
-            logger.debug('forest: create depths')
+            logger.debug('forest: calculate depths')
             self._depths = np.zeros(shape=self.data.shape, dtype=DTYPE_DEPTH)
             self._set_depths(self.roots, 0)
             self._depths_collected = None
