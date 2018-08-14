@@ -1244,10 +1244,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         lexicon_roots = None
     forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
 
-    if config.model_type == MT_REROOT:
-        logger.debug('set ids to IDENTITY')
-        d_identity = lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        forest.data[forest.roots + OFFSET_ID] = d_identity
+    #if config.model_type == MT_REROOT:
+    logger.debug('set ids to IDENTITY')
+    d_identity = lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+    forest.data[forest.roots + OFFSET_ID] = d_identity
 
     # TODO: use this?
     #if config.model_type == MT_REROOT:
