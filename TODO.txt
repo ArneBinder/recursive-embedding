@@ -20,6 +20,7 @@ OPEN:
             * (??) model paragraphs as sequence
         * DBpediaNif:
             * add titles    NO: already available, but really sparse    NOAGAIN: these are only section titles!
+     * check:
     writing:
      * create structure / table of contents
     orga:
@@ -53,6 +54,7 @@ DONE:
  * merge lexicon_roots when concatenating forests
  * training: check merge lexicon for fine-tuning (load from previous checkpoint)
  * training: allow fine-tuning of just the embedding-model and the complete model
+ * check data: depths of all positions
 
 
 

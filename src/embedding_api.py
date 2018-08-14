@@ -439,6 +439,10 @@ def get_or_calc_sequence_data(params):
         _forests = [_forests[0], candidate_forest]
 
     params['data_sequences'], params['sequences'] = zip(*[([f.data, f.parents], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
+    if params.get('calc_depths', False):
+        params['depths'] = [f.depths for f in _forests]
+    if params.get('calc_depths_max', False):
+        params['depths_max'] = np.array([np.max(f.depths) for f in _forests])
 
 
 def calc_embeddings(data_sequences_or_trees, transformed, root_ids=None, max_depth=20):
