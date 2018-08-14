@@ -287,13 +287,13 @@ class Config(object):
         return self.serialize(filter_flags=DESCRIPTION_PARAMETERS)
 
     def set_run_description(self):
-        if 'run_description' not in self.__dict__['__values']:
-            run_desc = self.serialize()
-            self.__dict__['__values']['run_description'] = ['DEFINE_string',
-                                                            run_desc,
-                                                            'short string description of the current run',
-                                                            None]
-            logging.debug('set run description: %s' % self.run_description)
+        #if 'run_description' not in self.__dict__['__values']:
+        run_desc = self.serialize()
+        self.__dict__['__values']['run_description'] = ['DEFINE_string',
+                                                        run_desc,
+                                                        'short string description of the current run',
+                                                        None]
+        logging.debug('set run description: %s' % self.run_description)
             # if 'run_description' not in config:
             #    config['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
             #    logging.info('serialized run description: ' + config['run_description'][1])
