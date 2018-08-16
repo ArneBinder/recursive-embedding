@@ -224,6 +224,10 @@ class Config(object):
             values_dict = json.load(infile)
         if parameter_whitelist is not None:
             values_dict = {k: values_dict[k] for k in values_dict if k in parameter_whitelist}
+
+        # add (new) default config values and keys excluded via whitelist
+        for p in list(set(default_config) - set(values_dict)):
+            values_dict[p] = default_config[p]
         self.__dict__['__values'] = values_dict
 
     def __getattr__(self, name):
