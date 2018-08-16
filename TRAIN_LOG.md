@@ -8,4 +8,14 @@
 ==========
  * use unsupervised models from 2018-08-13 to initialize supervised BIOASQ training (supervised/log/DEBUG/BIOASQ/split10000_xa_to_xy/TF1/)
     * supervised/log/DEBUG/BIOASQ/split10000_xa_to_xy/TF1/PRETRAINED_BIOASQ/biter_bs100_clp5.0_cmTREE_cntxt0_devfidx0_fc0_kp1.0_leaffc600_learnr0.0003_lc-1_dpth8_mtREROOT_nbrt100000_nbrtt10000_ns20_nfxTRUE_optADAMOPTIMIZER_rootfc0_state900_dataMERGEDMIN100PARAGRAPHSFOREST_teTREEEMBEDDINGHTUREDUCESUMMAPGRU
+        -> overfits heavily!
 
+ * train unsupervised w/o leafFC, depth16 and depth8:
+    * unsupervised/log/DEBUG/BIOASQ/split10000_xa_to_xy/reroot_paragraphs/biter_bs100_clp5.0_cmTREE_cntxt0_devfidx0_fc0_kp1.0_leaffc0_learnr0.0003_lc-1_dpth16_mtREROOT_nbrt100000_nbrtt10000_ns20_nfxTRUE_optADAMOPTIMIZER_rootfc0_state900_dataMERGEDMIN100PARAGRAPHSFOREST_teTREEEMBEDDINGHTUREDUCESUMMAPGRU
+    * unsupervised/log/DEBUG/DBPEDIANIF_MIN100/reroot/biter_bs100_clp5.0_cmTREE_cntxt0_devfidx0_fc0_kp1.0_leaffc0_learnr0.0003_lc-1_dpth8_mtREROOT_nbrt100000_nbrtt10000_ns20_nfxTRUE_optADAMOPTIMIZER_rootfc0_state900_dataMERGEDMIN100FOREST_teTREEEMBEDDINGHTUREDUCESUMMAPGRU
+
+2018-08-15
+==========
+ * train BIOASQ-mc on unsupervised w/o leafFC (from 2018-08-14): dont train any vecs at all, but both depth16
+    * supervised/log/DEBUG/BIOASQ/split10000_xa_to_xy/TF1/PRETRAINED_BIOASQ/avfTRUE_biter_bs100_clp5.0_cmTREE_cntxt0_devfidx0_ddtTRUE_fc2000_kp0.9_leaffc0_learnr0.001_lc-1_dpth16_mtMULTICLASS_nbrt10000_nbrtt1000_ns20_nfxFALSE_optADAMOPTIMIZER_rootfc0_state900_dataMERGEDMIN100PARAGRAPHSFOREST_teTREEEMBEDDINGHTUREDUCESUMMAPGRU
+    * supervised/log/DEBUG/BIOASQ/split10000_xa_to_xy/TF1/PRETRAINED_DBPEDIANIF/avfTRUE_biter_bs100_clp5.0_cmTREE_cntxt0_devfidx0_ddtTRUE_fc2000_kp0.9_leaffc0_learnr0.001_lc-1_dpth16_mtMULTICLASS_nbrt10000_nbrtt1000_ns20_nfxFALSE_optADAMOPTIMIZER_rootfc0_state900_dataMERGEDMIN100PARAGRAPHSFOREST_teTREEEMBEDDINGHTUREDUCESUMMAPGRU

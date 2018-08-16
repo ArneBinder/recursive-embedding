@@ -2,6 +2,8 @@ OPEN:
     coding:
      * check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
      * training: restrict link targets to selected train/test data
+     * fix double assignment bug (0 can not be a fixed vec, see TreeEmbedding.embed and Lexicon.transform_idx)
+     * training: implement TFIDF+HTU embeddings
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
@@ -54,7 +56,9 @@ DONE:
  * merge lexicon_roots when concatenating forests
  * training: check merge lexicon for fine-tuning (load from previous checkpoint)
  * training: allow fine-tuning of just the embedding-model and the complete model
- * check data: depths of all positions
+ * check data: depths of all positions (dbpedanif: 14+-5; bioasq: 16+-5)
+ * added parameter all_vecs_fixed
+ * added parameter dont_dump_trees
 
 
 
