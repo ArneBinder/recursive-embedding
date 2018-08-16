@@ -544,7 +544,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
 
         if lexicon.has_vecs:
             # TODO: check this!
-            if not no_fixed_vecs:
+            if not no_fixed_vecs and not all_vecs_fixed:
                 lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
                 lexicon.add_flag(indices=lexicon.ids_fixed)
 
@@ -578,7 +578,9 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                                    'from logdir_pretrained.' % logdir_pretrained)
 
             if all_vecs_fixed:
-                lexicon.init_ids_fixed(ids_fixed=np.arange(len(lexicon), dtype=DTYPE_IDX))
+                # zero (UNKNOWN) has to remain trainable because of double assignment bug (see TreeEmbedding.embed and
+                # Lexicon.transform_idx)
+                lexicon.init_ids_fixed(ids_fixed=np.arange(len(lexicon) - 1, dtype=DTYPE_IDX) + 1)
 
             # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
             # lexicon.pad()
