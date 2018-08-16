@@ -890,7 +890,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, lo
 
         prepared_embeddings = exec_cached(cache, compile_trees, discard_kwargs='all', add_kwargs={'type': 'tree'},
                                           tree_iterators=tree_iterators, compiler=model_tree.compiler,
-                                          cache_dir=cache_dir,
+                                          cache_dir=None if config.dont_dump_trees else cache_dir,
                                           index_file_names=index_file_names, index_file_sizes=index_file_sizes)
         #else:
         #    prepared_embeddings = None

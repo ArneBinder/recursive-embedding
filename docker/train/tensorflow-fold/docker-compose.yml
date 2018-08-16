@@ -51,6 +51,7 @@ services:
         --additional_vecs=${ADDITIONAL_VECS}
         --grid_config_file=${GRID_CONFIG_FILE}
         --run_count=${RUN_COUNT}
+        --dont_dump_trees=${DONT_DUMP_TREES}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
