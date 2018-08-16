@@ -42,7 +42,8 @@ from mytools import numpy_load, ThreadWithReturnValue
 from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
-    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS
+    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS, \
+    DTYPE_IDX
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -511,7 +512,7 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 #    return ds
 
 def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False,
-                no_fixed_vecs=False, additional_vecs_path=None):
+                no_fixed_vecs=False, all_vecs_fixed=False, additional_vecs_path=None):
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
     if logdir_continue:
         raise NotImplementedError('usage of logdir_continue not implemented')
@@ -530,24 +531,10 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
 
         lexicon = Lexicon(filename=os.path.join(logdir, 'model'), checkpoint_reader=reader, add_vocab_manual=True,
-                          load_ids_fixed=(not no_fixed_vecs))
-
-        # add eventually missing manual vocab entries
-        #lexicon.add_all(vocab_manual.values())
-        # assert len(lexicon) == saved_shapes[model_fold.VAR_NAME_LEXICON][0]
-        #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
-        #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-        #try:
-        #    lexicon.init_vecs(checkpoint_reader=reader)
-        #except AssertionError:
-        #    logger.warning('no embedding vecs found in model')
-        #    lexicon.init_vecs()
+                          load_ids_fixed=True)
     else:
         assert train_data_path is not None, 'no checkpoint found and no train_data_path given'
         lexicon = Lexicon(filename=train_data_path, load_ids_fixed=(not no_fixed_vecs), add_vocab_manual=True)
-        # add eventually missing manual vocab entries
-        #lexicon.add_all(vocab_manual.values())
-        #lexicon.pad(pad_with='zero')
 
         if logdir_pretrained:
             prev_config = Config(logdir=logdir_pretrained)
@@ -589,6 +576,9 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 else:
                     logger.warning('logdir_pretrained is not None (%s), but no flags file found. Do not try to load '
                                    'from logdir_pretrained.' % logdir_pretrained)
+
+            if all_vecs_fixed:
+                lexicon.init_ids_fixed(ids_fixed=np.arange(len(lexicon), dtype=DTYPE_IDX))
 
             # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
             # lexicon.pad()
@@ -1190,7 +1180,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     lexicon, checkpoint_fn, prev_config, fine_tune = exec_cached(
         cache, get_lexicon, discard_kwargs=('logdir'),
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=logdir_pretrained,
-        logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, additional_vecs_path=config.additional_vecs)
+        logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
+        additional_vecs_path=config.additional_vecs)
     # use previous tree model config values
     #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
     #if prev_config is not None and config.model_type != prev_config.model_type:

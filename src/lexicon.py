@@ -471,8 +471,7 @@ class Lexicon(object):
                 else:
                     os.remove('%s.%s.npy' % (filename, FE_VECS))
 
-    def init_ids_fixed(self, filename=None, assert_exists=False):
-        ids_fixed = None
+    def init_ids_fixed(self, filename=None, ids_fixed=None, assert_exists=False):
         if filename is not None:
             ids_fixed = numpy_load('%s.%s' % (filename, FE_IDS_VECS_FIXED), assert_exists=assert_exists)
         if ids_fixed is None:

@@ -43,6 +43,7 @@ services:
         --neg_samples=${NEG_SAMPLES}
         --train_files=${TRAIN_FILES}
         --no_fixed_vecs=${NO_FIXED_VECS}
+        --all_vecs_fixed=${ALL_VECS_FIXED}
         --batch_iter=${BATCH_ITER}
         --batch_iter_test=${BATCH_ITER_TEST}
         --nbr_trees=${NBR_TREES}

@@ -186,16 +186,20 @@ default_config = {'train_data_path': ['DEFINE_string',
                   'no_fixed_vecs': ['DEFINE_boolean',
                                     False,
                                     'If enabled, train all embedding vecs (including these in .fix.npy file).',
-                                    'nfx'],
+                                    'nfv'],
+                  'all_vecs_fixed': ['DEFINE_boolean',
+                                    False,
+                                    'If enabled, do not train any embedding vecs.',
+                                    'avf'],
                   }
 
 ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']
 # TODO: check if no_fixed_vecs should be moved to DESCRIPTION_PARAMETERS
-TREE_MODEL_PARAMETERS = ['additional_vecs', 'leaf_fc_size', 'root_fc_sizes', 'state_size',
-                         'no_fixed_vecs', 'tree_embedder']
+TREE_MODEL_PARAMETERS = ['additional_vecs', 'leaf_fc_size', 'root_fc_sizes', 'state_size', 'tree_embedder']
 MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'model_type']
 DESCRIPTION_PARAMETERS = MODEL_PARAMETERS \
-                         + ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'batch_iter']
+                         + ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'batch_iter', 'no_fixed_vecs',
+                            'all_vecs_fixed']
 FLAGS_FN = 'flags.json'
 
 
