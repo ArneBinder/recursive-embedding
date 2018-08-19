@@ -23,10 +23,11 @@ TYPE_POS_TAG = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#
 TYPE_NAMED_ENTITY = u'http://purl.org/olia/olia.owl#NamedEntity'
 TYPE_PHRASE = u'http://purl.org/olia/olia.owl#Phrase'
 TYPE_ID = u'http://www.w3.org/2005/11/its/rdf#id'
+TYPE_NIF = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#'
 
 BASE_TYPES = [TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SECTION, TYPE_SECTION,
               TYPE_SENTENCE, TYPE_PMID, TYPE_LEXEME, TYPE_DEPENDENCY_RELATION, TYPE_LEMMA, TYPE_POS_TAG,
-              TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID]
+              TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID, TYPE_NIF]
 
 # CONSTRUCTED TYPES
 TYPE_REF_SEEALSO = TYPE_REF + SEPARATOR + u'seeAlso'

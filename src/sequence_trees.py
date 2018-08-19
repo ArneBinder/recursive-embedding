@@ -826,6 +826,8 @@ class Forest(object):
             for embedding_prefix in BASE_TYPES:
                 if l.startswith(embedding_prefix + SEPARATOR) and len(l) > len(embedding_prefix + SEPARATOR):
                     return l[len(embedding_prefix + SEPARATOR):]
+                elif l.startswith(embedding_prefix) and len(l) > len(embedding_prefix):
+                    return l[len(embedding_prefix):]
             return l
         else:
             return l
