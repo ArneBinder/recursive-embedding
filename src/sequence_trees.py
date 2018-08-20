@@ -723,7 +723,7 @@ class Forest(object):
                 for s in f._lexion_roots.strings:
                     assert s not in forests[0]._lexicon_roots.strings, 'root string (%s) already in lexicon_roots' % s
                     forests[0]._lexicon_roots.strings.add(s)
-        forests[0]._lexicon_roots.clear_cached_values()
+            forests[0]._lexicon_roots.clear_cached_values()
 
         return Forest(data=np.concatenate([f.data for f in forests]),
                       parents=new_parents,
@@ -800,7 +800,7 @@ class Forest(object):
             for node in nodes:
                 graph.add_node(node)
 
-            # add invisible edges for alignment
+            # add invisible edges for horizontal alignment
             last_node = nodes[0]
             for node in nodes[1:]:
                 graph.add_edge(pydot.Edge(last_node, node, weight=100, style='invis'))
