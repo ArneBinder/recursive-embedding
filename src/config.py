@@ -296,8 +296,9 @@ class Config(object):
                     flag_name = flag
                 flag_name = flag_name.replace('_', '')
                 flag_value = str(value).replace('_', '').replace(',', '-')
-                # if flag_value is a path, take only the last two subfolders
-                flag_value = ''.join(flag_value.split(os.sep)[-2:])
+                # if flag_value is a path, take only the last folder name
+                if os.sep in flag_value:
+                    flag_value = flag_value.split(os.sep)[-2]
                 res.append(flag_name.lower() + flag_value.upper())
         return '_'.join(res)
 
