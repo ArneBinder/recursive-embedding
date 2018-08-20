@@ -114,6 +114,8 @@ METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
 METRIC_REGRESSION = 'pearson_r'
 #STAT_KEY_MAIN_REGRESSION = 'pearson_r'
 
+TREE_EMBEDDER_PREFIX = 'TreeEmbedding_'
+
 logger = logging.getLogger('')
 logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
@@ -642,11 +644,12 @@ def init_model_type(config):
     #    discrete_model = True
     #    load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == MT_REROOT:
-        if config.tree_embedder.strip() != 'TreeEmbedding_HTU_reduceSUM_mapGRU':
+        if config.tree_embedder.strip() != 'HTU_reduceSUM_mapGRU':
             raise NotImplementedError('reroot model only implemented for tree_embedder == '
-                                      'TreeEmbedding_HTU_reduceSUM_mapGRU, but it is: %s' % config.tree_embedder.strip())
+                                      '%sHTU_reduceSUM_mapGRU, but it is: %s'
+                                      % (TREE_EMBEDDER_PREFIX, config.tree_embedder.strip()))
         # set tree_embedder to batched head version
-        config.tree_embedder = 'TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU'
+        config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU'
 
         config.batch_iter = batch_iter_reroot.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
@@ -893,7 +896,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None,
         optimizer = getattr(tf.train, optimizer)
 
     if config.tree_embedder != 'tfidf':
-        tree_embedder = getattr(model_fold, config.tree_embedder)
+        tree_embedder = getattr(model_fold, TREE_EMBEDDER_PREFIX + config.tree_embedder)
         kwargs = {}
         if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat):
             #kwargs['sequence_length'] = model_fold.FLAT_MAX_SIZE

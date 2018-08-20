@@ -37,7 +37,7 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     '',
                                     # '50,100,50',
                                     'Batch iterator used in do_epoch. If not set, choose one in do_epoch.',
-                                    'biter'
+                                    None
                                     ],
                   # DEPRECATED use only batch_iter
                   #'batch_iter_test': ['DEFINE_string',
@@ -53,7 +53,7 @@ default_config = {'train_data_path': ['DEFINE_string',
                   'dev_file_index': ['DEFINE_integer',
                                      1,
                                      'Which file of the train data files should be used as test data.',
-                                     'devfidx'],
+                                     'dfidx'],
                   #'sim_measure': ['DEFINE_string',
                   #                'sim_cosine',
                   #                'similarity measure implementation (tensorflow) from model_fold for similarity score '
@@ -63,21 +63,21 @@ default_config = {'train_data_path': ['DEFINE_string',
                   #                '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
                   #                'sm'],
                   'tree_embedder': ['DEFINE_string',
-                                    'TreeEmbedding_FLAT_AVG',
+                                    'FLAT_AVG',
                                     'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
                                     'calling which accepts a sequence tree and produces an embedding. '
                                     'Currently implemented (see model_fold.py):'
-                                    '"TreeEmbedding_TREE_LSTM"           -> TreeLSTM'
-                                    '"TreeEmbedding_HTU_GRU"             -> Headed Tree Unit, using a GRU for order aware '
+                                    '"TREE_LSTM"           -> TreeLSTM'
+                                    '"HTU_GRU"             -> Headed Tree Unit, using a GRU for order aware '
                                     '                                       and summation for order unaware composition'
-                                    '"TreeEmbedding_FLAT_AVG"            -> Averaging applied to first level children '
+                                    '"FLAT_AVG"            -> Averaging applied to first level children '
                                     '                                       (discarding the root)'
-                                    '"TreeEmbedding_FLAT_AVG_2levels"    -> Like TreeEmbedding_FLAT_AVG, but concatenating first'
+                                    '"FLAT_AVG_2levels"    -> Like TreeEmbedding_FLAT_AVG, but concatenating first'
                                     '                                       second level children (e.g. dep-edge embedding) to '
                                     '                                       the first level children (e.g. token embeddings)'
-                                    '"TreeEmbedding_FLAT_LSTM"           -> LSTM applied to first level children (discarding the'
+                                    '"FLAT_LSTM"           -> LSTM applied to first level children (discarding the'
                                     '                                       root)'
-                                    '"TreeEmbedding_FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
+                                    '"FLAT_LSTM_2levels"   -> Like TreeEmbedding_FLAT_LSTM, but concatenating '
                                     '                                       first second level children (e.g. dependency-edge '
                                     '                                       type embedding) to the first level children '
                                     '                                       (e.g. token embeddings)',
@@ -107,12 +107,12 @@ default_config = {'train_data_path': ['DEFINE_string',
                   'state_size': ['DEFINE_integer',
                                  50,
                                  'size of the composition layer',
-                                 'state'],
+                                 'st'],
                   'learning_rate': ['DEFINE_float',
                                     0.02,
                                     # 'tanh',
                                     'learning rate',
-                                    'learn_r'],
+                                    'lr'],
                   'optimizer': ['DEFINE_string',
                                 'AdadeltaOptimizer',
                                 'optimizer',
