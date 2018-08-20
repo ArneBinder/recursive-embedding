@@ -870,8 +870,9 @@ def prepare_embeddings_tfidf(tree_iterators, cache_dir=None, index_file_names=No
             for i, s in enumerate(sizes):
                 fn = fn_names[i]
                 embeddings_list.append(_tree_embeddings_tfidf[j])
+                logger.info('%s dataset (%s): use %i different trees. Dump to file: %s'
+                            % (m, index_file_names[m][i], _tree_embeddings_tfidf[j].shape[0], fn))
                 scipy.sparse.save_npz(file=fn, matrix=_tree_embeddings_tfidf[j])
-                logger.info('%s dataset: use %i different trees' % (m, _tree_embeddings_tfidf[j].shape[0]))
                 current_embedding_dim = _tree_embeddings_tfidf[j].shape[1]
                 assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
                     'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
