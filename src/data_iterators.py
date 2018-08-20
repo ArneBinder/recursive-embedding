@@ -354,11 +354,14 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
                                                              link_types=link_types,
                                                              remove_types=remove_types_naive, transform=transform)
-            if len(data_span_cleaned) > max_size_plain:
-                logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.' % (len(data_span_cleaned), max_size_plain))
-            #sizes.append([root_idx, len(data_span_cleaned)])
+            if max_size_plain > 0:
+                if len(data_span_cleaned) > max_size_plain:
+                    logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
+                                   % (len(data_span_cleaned), max_size_plain))
+                #sizes.append([root_idx, len(data_span_cleaned)])
+                data_span_cleaned = data_span_cleaned[:max_size_plain]
             tree_context = {KEY_HEAD: data_nif_context_transformed,
-                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned[:max_size_plain]]}
+                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             yield tree_context
             n += 1
         # statistics
