@@ -194,14 +194,15 @@ def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), 
             for d in record_data:
                 yield d
             count_finished += 1
-        except Warning:
+        except Warning as e:
             count_discarded += 1
+            #logger.debug('failed to process record (%s): %s' % (e.message, str(record)))
             pass
         except Exception as e:
             count_discarded += 1
             logger.warning('failed to process record (%s): %s' % (e.message, str(record)))
 
-    logger.debug('discarded %i of %i records' % (count_discarded, count_finished + count_discarded))
+    logger.info('discarded %i of %i records' % (count_discarded, count_finished + count_discarded))
 
 
 def read_file(in_file):
@@ -341,7 +342,12 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
 
-    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-parse.log'))
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-parse.info.log'))
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-parse.debug.log'))
     logger_fh.setLevel(logging.DEBUG)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
@@ -350,7 +356,7 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
 
-    logger.debug('use in_path=%s, out_path=%s, n_threads=%i, parser_batch_size=%i' %
+    logger.info('use in_path=%s, out_path=%s, n_threads=%i, parser_batch_size=%i' %
                  (in_path, out_path, n_threads, parser_batch_size))
     logger.info('init parser ...')
     parser = spacy.load('en')

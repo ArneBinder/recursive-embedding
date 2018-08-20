@@ -345,7 +345,12 @@ def collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_coun
     # min_count_root_id=('minimal count a root_id has to occur to stay in the lexicon', 'option', 'r', int),
 )
 def merge_batches(out_path, min_count=1, coverage=-1, use_see_also_counts=False):  # , min_count_root_id=-1):
-    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-merge.log'))
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-merge.info.log'))
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-merge.debug.log'))
     logger_fh.setLevel(logging.DEBUG)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
