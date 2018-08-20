@@ -1136,7 +1136,7 @@ def main(data_source):
                 model_config.keep_prob = 1.0
                 model_tree, model_main, prepared_embeddings = create_models(
                     config=model_config, lexicon=lexicon, tree_count=1, tree_iterators={},
-                    logdir=data_source, use_inception_tree_model=True)
+                    use_inception_tree_model=True)
 
                 if model_config.tree_embedder == 'tfidf':
                     raise NotImplementedError('tfidf model not implemented for embedding_api')

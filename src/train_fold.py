@@ -683,6 +683,7 @@ def init_model_type(config):
         if config.tree_embedder == 'tfidf':
             tree_iterator_args['concat_mode'] = CM_AGGREGATE
             tree_iterator_args['context'] = 0
+            tree_iterator_args['max_size_plain'] = config.sequence_length
         tree_iterator = diters.tree_iterator
         indices_getter = partial(diters.indices_bioasq, classes_ids=classes_ids)
         tree_count = 1
@@ -800,69 +801,102 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
     return compiled_trees
 
 
-def prepare_embeddings_tfidf(tree_iterators, logdir):
+def prepare_embeddings_tfidf(tree_iterators, cache_dir=None, index_file_names=None, index_file_sizes=None):
+    # save compiled trees to file, if cache_dir is given
+    if cache_dir is not None:
+        assert index_file_names is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
+                                             'is defined), but no index file names given.'
+        assert index_file_sizes is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
+                                             'is defined), but no index file sizes given.'
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir)
+
     prepared_embeddings = {}
 
-    # check, if tfidf data exists
-    tfidf_exist = []
-    for i, m in enumerate([M_TRAIN, M_TEST]):
-        fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
-        if os.path.exists(fn_tfidf_data):
-            tfidf_exist.append(m)
-    # if tfidf data exists, load tfidf_data and indices
-    if len(tfidf_exist) > 0:
-        embedding_dim = -1
-        prepared_embeddings = {}
-        tree_indices = {}
-        indices_nbr = 0
-        for m in tfidf_exist:
-            fn_tfidf_data = os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m)
-            fn_tree_indices = os.path.join(logdir, '%s.%s.npy' % (FN_TREE_INDICES, m))
-            if os.path.exists(fn_tfidf_data):
-                assert os.path.exists(fn_tree_indices), \
-                    'found tfidf data (%s), but no related indices file (%s)' % (fn_tfidf_data, fn_tree_indices)
-                prepared_embeddings[m] = scipy.sparse.load_npz(fn_tfidf_data)
-                tree_indices[m] = numpy_load(fn_tree_indices)
-                logging.info('%s dataset: use %i different tree embeddings' % (m, prepared_embeddings[m].shape[0]))
-                current_embedding_dim = prepared_embeddings[m].shape[1]
-                assert embedding_dim == -1 or embedding_dim == current_embedding_dim, 'current embedding_dim: %i does not match previous one: %i' % (
-                    current_embedding_dim, embedding_dim)
-                embedding_dim = current_embedding_dim
-                indices_nbr += len(tree_indices[m])
-        assert embedding_dim != -1, 'no data sets created'
-        logging.debug('number of tfidf_indices: %i with dimension: %i' % (indices_nbr, embedding_dim))
-    else:
-        logger.info('create %s data sets (tf-idf) ...' % ', '.join(tree_iterators.keys()))
-        assert logdir is not None, 'no logdir provided to dump tfidf embeddings'
+    # no caching to file
+    if cache_dir is None:
+        # create TF-IDF
         _tree_embeddings_tfidf = diters.embeddings_tfidf([tree_iterators[m]() for m in tree_iterators.keys()])
         embedding_dim = -1
         for i, m in enumerate(tree_iterators.keys()):
             prepared_embeddings[m] = _tree_embeddings_tfidf[i]
-            scipy.sparse.save_npz(file=os.path.join(logdir, 'embeddings_tfidf.%s.npz' % m),
-                                  matrix=prepared_embeddings[m])
+            # scipy.sparse.save_npz(file=os.path.join(cache_dir, 'embeddings_tfidf.%s.npz' % m),
+            #                      matrix=compiled_trees[m])
             logger.info('%s dataset: use %i different trees' % (m, prepared_embeddings[m].shape[0]))
             current_embedding_dim = prepared_embeddings[m].shape[1]
             assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
-                'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
+                'current embedding_dim: %i does not match previous one: %i' % (
+                    current_embedding_dim, embedding_dim)
             embedding_dim = current_embedding_dim
         assert embedding_dim != -1, 'no data sets created'
+        return prepared_embeddings, embedding_dim
 
+    # with caching to/from file
+    cache_fn_names = {m: [os.path.join(cache_dir, '%s.tfidf.npz' % os.path.splitext(os.path.basename(ind_fn))[0])
+                      for ind_fn in index_file_names[m]] for m in tree_iterators}
+    if all([all([os.path.exists(fn) for fn in cache_fn_names[m]]) for m in cache_fn_names]):
+        embedding_dim = -1
+        for m in cache_fn_names:
+            embeddings_list = []
+            for fn in cache_fn_names[m]:
+                logger.debug('load tfidf embeddings from files: %s' % fn)
+                embeddings_list.extend(scipy.sparse.load_npz(fn))
+                # check dimensions
+                current_embedding_dim = embeddings_list[-1].shape[1]
+                assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
+                    'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
+                embedding_dim = current_embedding_dim
+            prepared_embeddings[m] = vstack(embeddings_list)
+    else:
+        logger.info('create TF-IDF embeddings for data sets: %s ...' % ', '.join(tree_iterators.keys()))
+        #assert cache_dir is not None, 'no cache_dir provided to dump tfidf embeddings'
+
+        def _iter():
+            for m in tree_iterators:
+                sizes = index_file_sizes[m]
+                for s in sizes:
+                    current_iter = tree_iterators[m]()
+                    trees = [current_iter.next() for _ in range(s)]
+                    yield trees
+
+        _tree_embeddings_tfidf = diters.embeddings_tfidf(_iter())
+        embedding_dim = -1
+        #i = 0
+        j = 0
+        for m in tree_iterators.keys():
+            sizes = index_file_sizes[m]
+            fn_names = cache_fn_names[m]
+            embeddings_list = []
+            for i, s in enumerate(sizes):
+                fn = fn_names[i]
+                embeddings_list.append(_tree_embeddings_tfidf[j])
+                scipy.sparse.save_npz(file=fn, matrix=_tree_embeddings_tfidf[j])
+                logger.info('%s dataset: use %i different trees' % (m, _tree_embeddings_tfidf[j].shape[0]))
+                current_embedding_dim = _tree_embeddings_tfidf[j].shape[1]
+                assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
+                    'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
+                embedding_dim = current_embedding_dim
+                j += 1
+
+            prepared_embeddings[m] = vstack(embeddings_list)
+
+    assert embedding_dim != -1, 'no data sets created'
     return prepared_embeddings, embedding_dim
 
 
-def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, logdir=None,
+def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None,
                   use_inception_tree_model=False, cache=None, index_file_names=None, index_file_sizes=None):
 
     optimizer = config.optimizer
     if optimizer is not None:
         optimizer = getattr(tf.train, optimizer)
 
-    if not config.tree_embedder == 'tfidf':
+    if config.tree_embedder != 'tfidf':
         tree_embedder = getattr(model_fold, config.tree_embedder)
         kwargs = {}
         if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat):
             #kwargs['sequence_length'] = model_fold.FLAT_MAX_SIZE
-            kwargs['sequence_length'] = 500
+            kwargs['sequence_length'] = config.sequence_length #or 500
             for k in tree_iterators.keys():
                 tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
             _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
@@ -885,8 +919,8 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, lo
                                                   **kwargs
                                                   )
         cache_dir = None
-        if config.model_type != MT_REROOT:
-            cache_dir = os.path.join(data_dir, 'compiled', config.get_model_description())
+        if config.model_type != MT_REROOT and data_dir is not None:
+            cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_compile_trees())
 
         prepared_embeddings = exec_cached(cache, compile_trees, discard_kwargs='all', add_kwargs={'type': 'tree'},
                                           tree_iterators=tree_iterators, compiler=model_tree.compiler,
@@ -895,9 +929,14 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None, lo
         #else:
         #    prepared_embeddings = None
     else:
+        cache_dir = None
+        if data_dir is not None:
+            cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_calculate_tfidf())
         prepared_embeddings, embedding_dim = exec_cached(cache, prepare_embeddings_tfidf, discard_kwargs='all',
                                                          add_kwargs={'type': 'tfidf'},
-                                                         tree_iterators=tree_iterators, logdir=logdir)
+                                                         tree_iterators=tree_iterators, cache_dir=cache_dir,
+                                                         index_file_names=index_file_names,
+                                                         index_file_sizes=index_file_sizes)
 
         model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tree_count,
                                                keep_prob=config.keep_prob, sparse=True,
@@ -1307,7 +1346,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             logger.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
             model_tree, model, prepared_embeddings = create_models(
-                config=config, lexicon=lexicon,  tree_count=tree_count, logdir=logdir,
+                config=config, lexicon=lexicon,  tree_count=tree_count, #logdir=logdir,
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
                 cache=cache,
                 data_dir=parent_dir,

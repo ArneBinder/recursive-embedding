@@ -164,6 +164,10 @@ default_config = {'train_data_path': ['DEFINE_string',
                                   'how to concatenate the tokens (tree: use tree structure, sequence: as ordered '
                                   'sequence, aggregate: bag-of-tokens)',
                                   'cm'],
+                  'sequence_length': ['DEFINE_integer',
+                                      1000,
+                                      'maximum number of tokens for plain structures (flatconcat and TFIDF)',
+                                      'sl'],
                   'neg_samples': ['DEFINE_integer',
                                   0,
                                   'count of negative samples per tree',
@@ -198,12 +202,14 @@ default_config = {'train_data_path': ['DEFINE_string',
                   }
 
 ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']
-# TODO: check if no_fixed_vecs should be moved to DESCRIPTION_PARAMETERS
+
+# used for compile trees
 TREE_MODEL_PARAMETERS = ['additional_vecs', 'leaf_fc_size', 'root_fc_sizes', 'state_size', 'tree_embedder']
-MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'model_type']
-DESCRIPTION_PARAMETERS = MODEL_PARAMETERS \
-                         + ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'batch_iter', 'no_fixed_vecs',
-                            'all_vecs_fixed', 'dont_dump_trees']
+# used for compile trees
+TREE_STRUCTURE_PARAMETERS = ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'sequence_length',
+                             'no_fixed_vecs', 'all_vecs_fixed']
+MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'model_type', 'batch_iter']
+DESCRIPTION_PARAMETERS = MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS + ['dont_dump_trees']
 FLAGS_FN = 'flags.json'
 
 
@@ -295,8 +301,14 @@ class Config(object):
                 res.append(flag_name.lower() + flag_value.upper())
         return '_'.join(res)
 
-    def get_model_description(self):
+    def get_description(self):
         return self.serialize(filter_flags=DESCRIPTION_PARAMETERS)
+
+    def get_serialization_for_compile_trees(self):
+        return self.serialize(filter_flags=TREE_MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS)
+
+    def get_serialization_for_calculate_tfidf(self):
+        return self.serialize(filter_flags=['tree_embedder', 'sequence_length'])
 
     def set_run_description(self):
         #if 'run_description' not in self.__dict__['__values']:

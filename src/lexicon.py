@@ -497,7 +497,11 @@ class Lexicon(object):
                 new_vecs = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_VAR)
             if model_fold.VAR_NAME_LEXICON_FIX in saved_shapes:
                 new_vecs_fixed = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_FIX)
-            assert new_vecs is not None or new_vecs_fixed is not None, 'no vecs and no vecs_fixed found in checkpoint'
+            #assert new_vecs is not None or new_vecs_fixed is not None, 'no vecs and no vecs_fixed found in checkpoint'
+            if new_vecs is None and new_vecs_fixed is None:
+                logger.warning('No vecs and no vecs_fixed found in checkpoint. Set vecs to None.')
+                new_vecs = None
+                new_vecs_fixed = None
         elif vocab is not None:
             assert new_vecs_fixed is None, 'no new_vecs_fixed allowed when initializing from vocab. set vecs_fixed ' \
                                            'indices afterwards.'
