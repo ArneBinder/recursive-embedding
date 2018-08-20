@@ -854,8 +854,8 @@ def prepare_embeddings_tfidf(tree_iterators, cache_dir=None, index_file_names=No
         def _iter():
             for m in tree_iterators:
                 sizes = index_file_sizes[m]
+                current_iter = tree_iterators[m]()
                 for s in sizes:
-                    current_iter = tree_iterators[m]()
                     trees = [current_iter.next() for _ in range(s)]
                     yield trees
 
