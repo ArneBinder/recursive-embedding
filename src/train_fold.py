@@ -1484,7 +1484,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             # TODO: try
             #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
 
-            work_forests = [forest.get_copy() for _ in range(nbr_work_forests)]
+            work_forests = [forest.get_copy(copy_parents=load_parents, copy_lexicon_roots=False, copy_vecs=False) for _ in range(nbr_work_forests)]
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
                                   test_result_writer, logdir, cache, debug, work_forests=work_forests)
             logger.removeHandler(fh_info)

@@ -363,7 +363,7 @@ FE_STRINGS = 'string'
 
 class Lexicon(object):
     def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, checkpoint_reader=None,
-                 load_vecs=True, load_ids_fixed=True, add_vocab_manual=False):
+                 ids_fixed=None, load_vecs=True, load_ids_fixed=True, add_vocab_manual=False):
         """
         Create a Lexicon from file, from types (and optionally from vecs), from spacy vocabulary or from spacy
         StringStore.
@@ -376,13 +376,11 @@ class Lexicon(object):
         self._frozen = False
         self._mapping = None
         self._hashes = None
-        self._ids_var = None
-        self._ids_fixed_dict = None
-        self._ids_var_dict = None
         self._strings = strings
+        self.init_ids_fixed(ids_fixed=ids_fixed)
         if filename is not None:
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
-            self.init_ids_fixed(filename if load_ids_fixed else None, assert_exists=False)
+            self.init_ids_fixed(filename if load_ids_fixed else None, ids_fixed=ids_fixed, assert_exists=False)
             if add_vocab_manual:
                 self.add_all(vocab_manual.values())
             if checkpoint_reader is not None:
@@ -399,16 +397,18 @@ class Lexicon(object):
                 self.add_all(vocab_manual.values())
             if vecs is not None:
                 self._vecs = vecs
-                self.init_ids_fixed()
+                #self.init_ids_fixed(ids_fixed=ids_fixed)
             else:
                 # set dummy vecs
                 self.init_vecs()
         elif nlp_vocab is not None:
             self._vecs, types = get_dict_from_vocab(nlp_vocab)
-            self.init_ids_fixed()
+            #self.init_ids_fixed(ids_fixed=ids_fixed)
             self._strings = StringStore(types)
             if add_vocab_manual:
                 self.add_all(vocab_manual.values())
+        #else:
+            #self.init_ids_fixed(ids_fixed=ids_fixed)
         #elif string_list is not None:
         #    self._strings = StringStore(string_list)
         #    self.init_vecs()
@@ -418,8 +418,13 @@ class Lexicon(object):
             self._strings = StringStore()
             if add_vocab_manual:
                 self.add_all(vocab_manual.values())
-            self.init_ids_fixed()
             self.init_vecs()
+
+    def get_copy(self, copy_vecs=True, copy_ids_fixed=True):
+        return Lexicon(strings=StringStore(self.strings),
+                       ids_fixed=self.ids_fixed.copy() if self.ids_fixed is not None and copy_ids_fixed else None,
+                       vecs=self.vecs.copy() if self.vecs is not None and copy_vecs else None)
+
 
     # deprecated use StringStore
     @staticmethod
@@ -474,10 +479,10 @@ class Lexicon(object):
     def init_ids_fixed(self, filename=None, ids_fixed=None, assert_exists=False):
         if filename is not None:
             ids_fixed = numpy_load('%s.%s' % (filename, FE_IDS_VECS_FIXED), assert_exists=assert_exists)
+            if ids_fixed is not None:
+                logger.debug('loaded ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
         if ids_fixed is None:
             ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
-        else:
-            logger.debug('loaded ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
         self._ids_fixed = ids_fixed
         self._ids_fixed_dict = None
         self._ids_var_dict = None

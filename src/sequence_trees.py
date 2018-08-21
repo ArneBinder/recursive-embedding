@@ -176,15 +176,14 @@ class Forest(object):
             raise ValueError(
                 'Not enouth arguments to instantiate Forest object. Please provide a filename or data and parent arrays.')
 
-    def get_copy(self, copy_parents=True, copy_children=True, copy_lexicon=True, copy_lexicon_roots=True):
+    def get_copy(self, copy_parents=True, copy_children=True, copy_lexicon=True, copy_lexicon_roots=True, copy_vecs=True):
         logger.debug('copy forest ...')
         return Forest(data=self.data.copy(),
                       parents=self.parents.copy() if copy_parents and self.parents is not None else None,
                       children=self._children.copy() if copy_children and self._children is not None else None,
                       children_pos=self._children_pos.copy() if copy_children and self._children_pos is not None else None,
-                      # TODO: copy lexica!
-                      lexicon=self.lexicon if copy_lexicon else None,
-                      lexicon_roots=self.lexicon_roots if copy_lexicon_roots else None
+                      lexicon=self.lexicon.get_copy(copy_vecs=copy_vecs) if copy_lexicon else None,
+                      lexicon_roots=self.lexicon_roots.get_copy() if copy_lexicon_roots else None
                       )
 
     def reset_cache_values(self):
