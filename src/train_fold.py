@@ -837,8 +837,6 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, cache_dir=None, index_fi
         return prepared_embeddings, embedding_dim
 
     # with caching to/from file
-    raise NotImplementedError('this is not implemented')
-    # THE FOLLOWING CODE DOES NOT USE EXCLUSIVELY THE TRAIN VOCAB FOR TEST SET CREATION
     cache_fn_names = {m: [os.path.join(cache_dir, '%s.tfidf.npz' % os.path.splitext(os.path.basename(ind_fn))[0])
                       for ind_fn in index_file_names[m]] for m in tree_iterators}
     if all([all([os.path.exists(fn) for fn in cache_fn_names[m]]) for m in cache_fn_names]):
@@ -856,36 +854,35 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, cache_dir=None, index_fi
             prepared_embeddings[m] = vstack(embeddings_list)
     else:
         logger.info('create TF-IDF embeddings for data sets: %s ...' % ', '.join(tree_iterators.keys()))
-        #assert cache_dir is not None, 'no cache_dir provided to dump tfidf embeddings'
 
-        def _iter():
-            for m in tree_iterators:
-                sizes = index_file_sizes[m]
-                current_iter = tree_iterators[m]()
-                for s in sizes:
-                    trees = [current_iter.next() for _ in range(s)]
-                    yield trees
+        def _iter(_m):
+            sizes = index_file_sizes[_m]
+            current_iter = tree_iterators[_m]()
+            for s in sizes:
+                trees = [current_iter.next() for _ in range(s)]
+                yield trees
 
-        _tree_embeddings_tfidf = diters.embeddings_tfidf(_iter())
+        vocab = None
+        tree_embeddings_tfidf = {}
+        if M_TRAIN in tree_iterators:
+            tree_embeddings_tfidf[M_TRAIN], vocab = diters.embeddings_tfidf(_iter(M_TRAIN), d_unknown)
+        if M_TEST in tree_iterators:
+            tree_embeddings_tfidf[M_TEST], _ = diters.embeddings_tfidf(_iter(M_TEST), d_unknown, vocabulary=vocab)
+
         embedding_dim = -1
-        #i = 0
-        j = 0
         for m in tree_iterators.keys():
             sizes = index_file_sizes[m]
             fn_names = cache_fn_names[m]
-            embeddings_list = []
+            embeddings_list = tree_embeddings_tfidf[m]
             for i, s in enumerate(sizes):
                 fn = fn_names[i]
-                embeddings_list.append(_tree_embeddings_tfidf[j])
                 logger.info('%s dataset (%s): use %i different trees. Dump to file: %s'
-                            % (m, index_file_names[m][i], _tree_embeddings_tfidf[j].shape[0], fn))
-                scipy.sparse.save_npz(file=fn, matrix=_tree_embeddings_tfidf[j])
-                current_embedding_dim = _tree_embeddings_tfidf[j].shape[1]
+                            % (m, index_file_names[m][i], tree_embeddings_tfidf[m][i].shape[0], fn))
+                scipy.sparse.save_npz(file=fn, matrix=tree_embeddings_tfidf[m][i])
+                current_embedding_dim = tree_embeddings_tfidf[m][i].shape[1]
                 assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
                     'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
                 embedding_dim = current_embedding_dim
-                j += 1
-
             prepared_embeddings[m] = vstack(embeddings_list)
 
     assert embedding_dim != -1, 'no data sets created'
@@ -939,8 +936,8 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None,
     else:
         cache_dir = None
         # DISABLED CACHING BECAUSE NOT IMPLEMENTED CORRECTLY
-        #if data_dir is not None:
-        #    cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_calculate_tfidf())
+        if data_dir is not None:
+            cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_calculate_tfidf())
         d_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
         prepared_embeddings, embedding_dim = exec_cached(cache, prepare_embeddings_tfidf, discard_kwargs='all',
                                                          add_kwargs={'type': 'tfidf'},
