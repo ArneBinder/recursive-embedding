@@ -443,7 +443,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping,
         yield tree
 
 
-def embeddings_tfidf(aggregated_trees):
+def embeddings_tfidf(aggregated_trees, d_unknown, vocabulary=None):
     """
     trees --> tf-idf embeddings
 
@@ -463,7 +463,14 @@ def embeddings_tfidf(aggregated_trees):
     indptr = [0]
     indices = []
     data = []
-    vocabulary = {}
+    if vocabulary is None:
+        # add unknown as first entry
+        vocabulary = {d_unknown: 0}
+        expand = True
+    else:
+        expand = False
+        assert d_unknown in vocabulary, 'd_unknown=%i not in predefined vocabulary'
+    i_unknown = vocabulary[d_unknown]
 
     positions = [0]
     n = 0
@@ -472,7 +479,10 @@ def embeddings_tfidf(aggregated_trees):
         for tree_context in tree_context_iter:
             d = [node[KEY_HEAD] for node in tree_context[KEY_CHILDREN]]
             for term in d:
-                index = vocabulary.setdefault(term, len(vocabulary))
+                if expand:
+                    index = vocabulary.setdefault(term, len(vocabulary))
+                else:
+                    index = vocabulary.get(term, i_unknown)
                 indices.append(index)
                 data.append(1)
             indptr.append(len(indices))
@@ -485,7 +495,7 @@ def embeddings_tfidf(aggregated_trees):
     # transform to tf-idf
     tf_transformer = TfidfTransformer(use_idf=False).fit(counts)
     tf_idf = tf_transformer.transform(counts)
-    return [tf_idf[positions[i]:positions[i+1], :] for i in range(len(positions)-1)]
+    return [tf_idf[positions[i]:positions[i+1], :] for i in range(len(positions)-1)], vocabulary
 
 
 def indices_dbpedianif(index_files, forest, **unused):

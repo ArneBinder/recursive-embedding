@@ -43,7 +43,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS, \
-    DTYPE_IDX
+    DTYPE_IDX, UNKNOWN_EMBEDDING
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -804,7 +804,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
     return compiled_trees
 
 
-def prepare_embeddings_tfidf(tree_iterators, cache_dir=None, index_file_names=None, index_file_sizes=None):
+def prepare_embeddings_tfidf(tree_iterators, d_unknown, cache_dir=None, index_file_names=None, index_file_sizes=None):
     # save compiled trees to file, if cache_dir is given
     if cache_dir is not None:
         assert index_file_names is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
@@ -819,12 +819,14 @@ def prepare_embeddings_tfidf(tree_iterators, cache_dir=None, index_file_names=No
     # no caching to file
     if cache_dir is None:
         # create TF-IDF
-        _tree_embeddings_tfidf = diters.embeddings_tfidf([tree_iterators[m]() for m in tree_iterators.keys()])
+        vocab = None
+        if M_TRAIN in tree_iterators:
+            (prepared_embeddings[M_TRAIN],), vocab = diters.embeddings_tfidf([tree_iterators[M_TRAIN]()], d_unknown)
+        if M_TEST in tree_iterators:
+            (prepared_embeddings[M_TEST],), _ = diters.embeddings_tfidf([tree_iterators[M_TEST]()], d_unknown,
+                                                                        vocabulary=vocab)
         embedding_dim = -1
         for i, m in enumerate(tree_iterators.keys()):
-            prepared_embeddings[m] = _tree_embeddings_tfidf[i]
-            # scipy.sparse.save_npz(file=os.path.join(cache_dir, 'embeddings_tfidf.%s.npz' % m),
-            #                      matrix=compiled_trees[m])
             logger.info('%s dataset: use %i different trees' % (m, prepared_embeddings[m].shape[0]))
             current_embedding_dim = prepared_embeddings[m].shape[1]
             assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
@@ -835,6 +837,8 @@ def prepare_embeddings_tfidf(tree_iterators, cache_dir=None, index_file_names=No
         return prepared_embeddings, embedding_dim
 
     # with caching to/from file
+    raise NotImplementedError('this is not implemented')
+    # THE FOLLOWING CODE DOES NOT USE EXCLUSIVELY THE TRAIN VOCAB FOR TEST SET CREATION
     cache_fn_names = {m: [os.path.join(cache_dir, '%s.tfidf.npz' % os.path.splitext(os.path.basename(ind_fn))[0])
                       for ind_fn in index_file_names[m]] for m in tree_iterators}
     if all([all([os.path.exists(fn) for fn in cache_fn_names[m]]) for m in cache_fn_names]):
@@ -934,11 +938,15 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None,
         #    prepared_embeddings = None
     else:
         cache_dir = None
-        if data_dir is not None:
-            cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_calculate_tfidf())
+        # DISABLED CACHING BECAUSE NOT IMPLEMENTED CORRECTLY
+        #if data_dir is not None:
+        #    cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_calculate_tfidf())
+        d_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
         prepared_embeddings, embedding_dim = exec_cached(cache, prepare_embeddings_tfidf, discard_kwargs='all',
                                                          add_kwargs={'type': 'tfidf'},
-                                                         tree_iterators=tree_iterators, cache_dir=cache_dir,
+                                                         tree_iterators=tree_iterators,
+                                                         d_unknown=d_unknown,
+                                                         cache_dir=cache_dir,
                                                          index_file_names=index_file_names,
                                                          index_file_sizes=index_file_sizes)
 
