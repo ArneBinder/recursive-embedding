@@ -935,7 +935,6 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None,
         #    prepared_embeddings = None
     else:
         cache_dir = None
-        # DISABLED CACHING BECAUSE NOT IMPLEMENTED CORRECTLY
         if data_dir is not None:
             cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_calculate_tfidf())
         d_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
