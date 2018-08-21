@@ -101,6 +101,9 @@ tf.flags.DEFINE_boolean('precompile',
                         True,
                         'If enabled, compile all trees once. Otherwise trees are compiled batch wise, which results in '
                         'decreased memory consumption.')
+tf.flags.DEFINE_integer('nbr_work_forests',
+                        0,
+                        'if >0, replicate forest to use multiple threads for tree_dict creation')
 
 # flags which are not logged in logdir/flags.json
 #tf.flags.DEFINE_string('master', '',
@@ -392,7 +395,8 @@ def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tre
 
 def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indices_targets=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True, debug=False):
+             highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True, debug=False,
+             work_forests=None):
 
     logger.debug('use %i forest_indices for this epoch' % len(forest_indices))
     #dataset_indices = np.arange(len(forest_indices))
@@ -466,7 +470,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indi
 
                 trees_batched = []
                 if len(forest_indices_batched_np) > 0:
-                    trees_batched = list(chunks(dataset_trees(forest_indices_batched_np.flatten()),
+                    trees_batched = list(chunks(dataset_trees(forest_indices_batched_np.flatten(), work_forests=work_forests),
                                                 len(tree_indices_batched[0]), cut=True))
             else:
                 trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
@@ -1103,7 +1107,7 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
 
 
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                    test_result_writer, logdir, cache=None, debug=False):
+                    test_result_writer, logdir, cache=None, debug=False, work_forests=None):
     with supervisor.managed_session() as sess:
         if lexicon.is_filled:
             logger.info('init embeddings with external vectors...')
@@ -1143,7 +1147,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     # number_of_samples=None,
                     highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                     batch_iter=meta[M_TEST][M_BATCH_ITER],
-                    debug=debug
+                    debug=debug,
+                    work_forests=work_forests
                 )
             if M_TRAIN not in meta:
                 if values_all is None or values_all_gold is None:
@@ -1199,7 +1204,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
                 batch_iter=meta[M_TRAIN][M_BATCH_ITER],
                 return_values=False,
-                debug=debug
+                debug=debug,
+                work_forests=work_forests
             )
 
             if config.model_type == MT_REROOT:
@@ -1223,7 +1229,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                     batch_iter=meta[M_TEST][M_BATCH_ITER],
                     return_values=False,
-                    debug=debug
+                    debug=debug,
+                    work_forests=work_forests
                 )
             else:
                 step_test, loss_test, stats_test = step_train, loss_train, stats_train
@@ -1260,7 +1267,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None,
-                cache=None, precompile=True, debug=False):
+                cache=None, precompile=True, nbr_work_forests=0, debug=False):
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -1477,8 +1484,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             # TODO: try
             #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
 
+            work_forests = [forest.get_copy() for _ in range(nbr_work_forests)]
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                                  test_result_writer, logdir, cache, debug)
+                                  test_result_writer, logdir, cache, debug, work_forests=work_forests)
             logger.removeHandler(fh_info)
             logger.removeHandler(fh_debug)
             supervisor.stop()
@@ -1539,7 +1547,7 @@ if __name__ == '__main__':
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
                                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                                       precompile=FLAGS.precompile)
+                                       precompile=FLAGS.precompile, nbr_work_forests=FLAGS.nbr_work_forests)
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
@@ -1635,7 +1643,8 @@ if __name__ == '__main__':
 
                         # train
                         metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None,
-                                                             precompile=FLAGS.precompile)
+                                                             precompile=FLAGS.precompile,
+                                                             nbr_work_forests=FLAGS.nbr_work_forests)
                         main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
@@ -1644,7 +1653,8 @@ if __name__ == '__main__':
                             metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
                                                                    precompile=FLAGS.precompile,
                                                                    test_file=FLAGS.test_file,
-                                                                   cache=cache_test if USE_CACHE else None)
+                                                                   cache=cache_test if USE_CACHE else None,
+                                                                   nbr_work_forests=FLAGS.nbr_work_forests)
                             main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
                                                       prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
@@ -1658,4 +1668,4 @@ if __name__ == '__main__':
         else:
             execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
                         test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                        precompile=FLAGS.precompile, debug=FLAGS.debug)
+                        precompile=FLAGS.precompile, nbr_work_forests=FLAGS.nbr_work_forests, debug=FLAGS.debug)
