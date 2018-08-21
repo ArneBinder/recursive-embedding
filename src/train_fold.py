@@ -762,7 +762,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
         if cache_dir is None:
             with compiler.multiprocessing_pool():
                 compiled_trees[m] = list(
-                    compiler.build_loom_inputs(map(lambda x: [x], tree_iterators[m]()), ordered=True))
+                    compiler.build_loom_inputs(([x] for x in tree_iterators[m]()), ordered=True))
         else:
             compiled_trees[m] = []
             cache_fn_names = [os.path.join(cache_dir, '%s.compiled' % os.path.splitext(os.path.basename(ind_fn))[0])
