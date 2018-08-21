@@ -322,7 +322,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
 
     n = 0
 
-    logger.debug('create trees with concat_mode=%s' % concat_mode)
+    #logger.debug('create trees with concat_mode=%s' % concat_mode)
     x = (1 + (len(indices) / 100))
     if concat_mode == CM_TREE:
         for idx in indices:
@@ -335,9 +335,9 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             yield tree_context
             n += 1
             # measure progress in percent
-            if n % x == 0:
-                progress = n / x
-                logger.debug('%i%%' % progress)
+            #if n % x == 0:
+            #    progress = n / x
+            #    logger.debug('%i%%' % progress)
     elif concat_mode == CM_AGGREGATE:
         # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
         # sequential and in order, especially root_ids occur in data only directly after link_types
@@ -369,9 +369,9 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             yield tree_context
             n += 1
             # measure progress in percent
-            if n % x == 0:
-                progress = n / x
-                logger.debug('%i%%' % progress)
+            #if n % x == 0:
+            #    progress = n / x
+            #    logger.debug('%i%%' % progress)
         # statistics
         #sizes_np = np.array(sizes)
         #sizes_fn = 'sizes_plain.npy'
@@ -415,7 +415,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             n += 1
     else:
         raise ValueError('unknown concat_mode=%s' % concat_mode)
-    logger.info('created %i trees' % n)
+    #logger.debug('created %i trees' % n)
 
 
 def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping, transform=True, debug=False, **kwargs):

@@ -53,6 +53,7 @@ services:
         --run_count=${RUN_COUNT}
         --dont_dump_trees=${DONT_DUMP_TREES}
         --sequence_length=${SEQUENCE_LENGTH}
+        --precompile=${PRECOMPILE}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 

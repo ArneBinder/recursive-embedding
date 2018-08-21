@@ -38,7 +38,7 @@ from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_spars
 
 # model flags (saved in flags.json)
 import mytools
-from mytools import numpy_load, ThreadWithReturnValue
+from mytools import numpy_load, chunks
 from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
@@ -95,6 +95,10 @@ tf.flags.DEFINE_integer('run_count',
 tf.flags.DEFINE_boolean('debug',
                         False,
                         'enable debug mode (additional output, but slow)')
+tf.flags.DEFINE_boolean('precompile',
+                        True,
+                        'If enabled, compile all trees once. Otherwise trees are compiled batch wise, which results in '
+                        'decreased memory consumption.')
 
 # flags which are not logged in logdir/flags.json
 #tf.flags.DEFINE_string('master', '',
@@ -287,6 +291,8 @@ def batch_iter_naive(number_of_samples, forest_indices, forest_indices_targets, 
 
 def batch_iter_nearest(number_of_samples, forest_indices, forest_indices_targets, sess, tree_model,
                        highest_sims_model, dataset_trees, tree_model_batch_size, idx_forest_to_idx_trees):
+    raise NotImplementedError('batch_iter_nearest is depreacted')
+
     _tree_embeddings = []
     feed_dict = {}
     if isinstance(tree_model, model_fold.DummyTreeModel):
@@ -374,17 +380,19 @@ def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
             yield sampled_indices, current_probs, None
 
 
-def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tree):
+def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tree, shuffle=True):
     indices = np.arange(len(forest_indices))
-    np.random.shuffle(indices)
+    if shuffle:
+        np.random.shuffle(indices)
     for i in indices:
         yield [indices_forest_to_tree[forest_indices[i]]], indices_targets[i]
 
 
-def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None, dataset_trees=None,
+def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indices_targets=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True):
+             highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True, debug=False):
 
+    logger.debug('use %i forest_indices for this epoch' % len(forest_indices))
     #dataset_indices = np.arange(len(forest_indices))
     #np.random.shuffle(dataset_indices)
     logger.debug('reset metrics...')
@@ -411,12 +419,13 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     tree_model_batch_size = 10
     indices_forest_to_tree = {idx: i for i, idx in enumerate(forest_indices)}
     iter_args = {batch_iter_naive: [number_of_samples, forest_indices, indices_targets, indices_forest_to_tree],
+                 # batch_iter_nearest is DEPRECATED
                  batch_iter_nearest: [number_of_samples, forest_indices, indices_targets, sess,
                                       model.tree_model, highest_sims_model, dataset_trees, tree_model_batch_size,
                                       indices_forest_to_tree],
                  batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
                  batch_iter_reroot: [forest_indices, number_of_samples],
-                 batch_iter_multiclass: [forest_indices, indices_targets, indices_forest_to_tree]}
+                 batch_iter_multiclass: [forest_indices, indices_targets, indices_forest_to_tree, not debug]}
 
     if batch_iter is not None and batch_iter.strip() != '':
         _iter = globals()[batch_iter]
@@ -438,7 +447,15 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     for batch in td.group_by_batches(_batch_iter, config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
         if hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor'):
-            trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
+            if callable(dataset_trees):
+                forest_indices_batched_np = forest_indices[np.array(tree_indices_batched)]
+
+                trees_batched = []
+                if len(forest_indices_batched_np) > 0:
+                    trees_batched = list(chunks(dataset_trees(forest_indices_batched_np.flatten()),
+                                                len(tree_indices_batched[0]), cut=True))
+            else:
+                trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
             feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
         else:
             tree_indices_batched_np = np.array(tree_indices_batched)
@@ -760,9 +777,19 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
     for m in tree_iterators:
         logger.info('create %s data set (tree-embeddings) ...' % m)
         if cache_dir is None:
-            with compiler.multiprocessing_pool():
-                compiled_trees[m] = list(
-                    compiler.build_loom_inputs(([x] for x in tree_iterators[m]()), ordered=True))
+            try:
+                with compiler.multiprocessing_pool():
+                    compiled_trees[m] = list(
+                        compiler.build_loom_inputs(([x] for x in tree_iterators[m]()), ordered=True))
+            except TypeError:
+                # if the tree_iterator is not satisfied, return a function that can be called with the missing arguments
+                def _compile(*args, **kwargs):
+                    with compiler.multiprocessing_pool():
+                        _compiled = compiler.build_loom_inputs(([x] for x in tree_iterators[m](*args, **kwargs)), ordered=True)
+                    return _compiled
+
+                compiled_trees[m] = _compile
+
         else:
             compiled_trees[m] = []
             cache_fn_names = [os.path.join(cache_dir, '%s.compiled' % os.path.splitext(os.path.basename(ind_fn))[0])
@@ -799,7 +826,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                         #np.array(current_trees).dump(fn)
                     compiled_trees[m].extend(current_trees)
 
-        logger.info('%s dataset: compiled %i different trees' % (m, len(compiled_trees[m])))
+        logger.info('%s dataset: compiled %i different trees' % (m, len(compiled_trees[m]) if not callable(compiled_trees[m]) else -1))
 
     return compiled_trees
 
@@ -1053,7 +1080,7 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
 
 
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                    test_result_writer, logdir, cache=None):
+                    test_result_writer, logdir, cache=None, debug=False):
     with supervisor.managed_session() as sess:
         if lexicon.is_filled:
             logger.info('init embeddings with external vectors...')
@@ -1092,7 +1119,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
                     # number_of_samples=None,
                     highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                    batch_iter=meta[M_TEST][M_BATCH_ITER])
+                    batch_iter=meta[M_TEST][M_BATCH_ITER],
+                    debug=debug
+                )
             if M_TRAIN not in meta:
                 if values_all is None or values_all_gold is None:
                     logger.warning('Predicted and gold values are None. Passed return_values=False?')
@@ -1146,7 +1175,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
                 highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
                 batch_iter=meta[M_TRAIN][M_BATCH_ITER],
-                return_values=False
+                return_values=False,
+                debug=debug
             )
 
             if config.model_type == MT_REROOT:
@@ -1169,7 +1199,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     test_result_writer=test_result_writer,
                     highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                     batch_iter=meta[M_TEST][M_BATCH_ITER],
-                    return_values=False
+                    return_values=False,
+                    debug=debug
                 )
             else:
                 step_test, loss_test, stats_test = step_train, loss_train, stats_train
@@ -1206,7 +1237,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None,
-                cache=None, debug=False):
+                cache=None, precompile=True, debug=False):
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -1341,8 +1372,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                            neg_samples=meta[m][M_NEG_SAMPLES], nbr_indices=nbr_indices,
                                            indices_mapping=indices_mapping, **tree_iterator_args)
         else:
-            meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
-                                           **tree_iterator_args)
+            if precompile:
+                meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
+                                               **tree_iterator_args)
+            else:
+                meta[m][M_TREE_ITER] = partial(tree_iterator, forest=forest, **tree_iterator_args)
 
     # MODEL DEFINITION #################################################################################################
 
@@ -1421,7 +1455,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
 
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                                  test_result_writer, logdir, cache)
+                                  test_result_writer, logdir, cache, debug)
             logger.removeHandler(fh_info)
             logger.removeHandler(fh_debug)
             supervisor.stop()
@@ -1481,7 +1515,8 @@ if __name__ == '__main__':
                 config = Config(logdir=logdir)
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
-                                       test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only)
+                                       test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
+                                       precompile=FLAGS.precompile)
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
@@ -1576,14 +1611,19 @@ if __name__ == '__main__':
                             continue
 
                         # train
-                        metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None)
+                        metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None,
+                                                             precompile=FLAGS.precompile)
                         main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
                         # test
                         if test_fname is not None:
-                            metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True, test_file=FLAGS.test_file, cache=cache_test if USE_CACHE else None)
-                            main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_test)
+                            metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
+                                                                   precompile=FLAGS.precompile,
+                                                                   test_file=FLAGS.test_file,
+                                                                   cache=cache_test if USE_CACHE else None)
+                            main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
+                                                      prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
                         d['run_description'] = c.run_description
 
@@ -1594,4 +1634,5 @@ if __name__ == '__main__':
         # default: execute single run
         else:
             execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
-                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only, debug=FLAGS.debug)
+                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
+                        precompile=FLAGS.precompile, debug=FLAGS.debug)
