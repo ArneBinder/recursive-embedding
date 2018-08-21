@@ -19,17 +19,20 @@ if [ -n "$2" ]; then
     NVIDIA_VISIBLE_DEVICES="$2"
 fi
 
-NBR_CPUS=4
-## use third argument as cpu nbr, if available
+
+## use third argument as cpu set, if available
 if [ -n "$3" ]; then
-    NBR_CPUS="$3"
+    CPU_SET="$3"
+else
+    NBR_CPUS=4
+    echo "NBR_CPUS: $NBR_CPUS"
+    CPU_SET=$(($2 * $NBR_CPUS))-$(($2 * $NBR_CPUS + $NBR_CPUS - 1))
 fi
 
-echo "NBR_CPUS: $NBR_CPUS"
+export CPU_SET
+echo "CPU_SET: $CPU_SET"
 export NVIDIA_VISIBLE_DEVICES
 echo "NVIDIA_VISIBLE_DEVICES: $NVIDIA_VISIBLE_DEVICES"
-export CPU_SET=$(($2 * $NBR_CPUS))-$(($2 * $NBR_CPUS + $NBR_CPUS - 1))
-echo "CPU_SET: $CPU_SET"
 
 LOG_FN="$HOST_TRAIN/$PROJECT_NAME"_gpu"$NVIDIA_VISIBLE_DEVICES.log"
 
