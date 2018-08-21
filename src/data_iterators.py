@@ -334,6 +334,11 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                     costs=costs, link_types=link_types)
             yield tree_context
             n += 1
+            # measure progress in percent
+            x = (1 + (len(indices) / 100))
+            if n % x == 0:
+                progress = n / x
+                logger.debug('%i%%' % progress)
     elif concat_mode == CM_AGGREGATE:
         # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
         # sequential and in order, especially root_ids occur in data only directly after link_types
@@ -364,6 +369,11 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                             KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
             yield tree_context
             n += 1
+            # measure progress in percent
+            x = (1 + (len(indices) / 100))
+            if n % x == 0:
+                progress = n / x
+                logger.debug('%i%%' % progress)
         # statistics
         #sizes_np = np.array(sizes)
         #sizes_fn = 'sizes_plain.npy'
