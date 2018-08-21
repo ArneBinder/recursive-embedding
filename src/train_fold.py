@@ -17,6 +17,8 @@ from multiprocessing.pool import ThreadPool
 import scipy
 from functools import reduce, partial
 import cPickle as pickle
+import Queue
+from threading import Thread
 
 import numpy as np
 import six
@@ -443,6 +445,18 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indi
     _batch_iter = _iter(*iter_args[_iter])
     _result_all = []
 
+    batch_queue = Queue.Queue(maxsize=100)
+
+    def process_batches(_q, _vars, _res):
+        while True:
+            _feed_dict = _q.get()
+            _res.append(sess.run(_vars, _feed_dict))
+            _q.task_done()
+
+    worker = Thread(target=process_batches, args=(batch_queue, execute_vars, _result_all))
+    worker.setDaemon(True)
+    worker.start()
+
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for batch in td.group_by_batches(_batch_iter, config.batch_size):
         tree_indices_batched, probs_batched = zip(*batch)
@@ -467,7 +481,10 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indi
             probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(probs_batched))
 
         feed_dict[model.values_gold] = probs_batched
-        _result_all.append(sess.run(execute_vars, feed_dict))
+        batch_queue.put(feed_dict)
+        #_result_all.append(sess.run(execute_vars, feed_dict))
+
+    batch_queue.join()
 
     # list of dicts to dict of lists
     if len(_result_all) > 0:
