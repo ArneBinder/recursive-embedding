@@ -4,7 +4,6 @@ OPEN:
      * (-) training: restrict link targets to selected train/test data
      * (-) fix double assignment bug (0 can not be a fixed vec, see TreeEmbedding.embed and Lexicon.transform_idx)
      * (+) training: implement TFIDF+HTU embeddings
-     * (++) training: tree-model: fix halting after "DEBUG create trees with concat_mode=tree" for large datasets
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers
@@ -32,9 +31,6 @@ OPEN:
         * "Einführung in Semantic Web" (Wandelt)
      * enrol for diploma thesis
 
-TEST:
- * training: allow index files for reroot model to allow training on a data subset
-
 DONE:
  * attention_SINGLE + identity - DONE
  * check number of structured abstracts in BioASQ dataset - DONE: ~3/10 ≈ 4.05 Mio abstracts
@@ -54,6 +50,7 @@ DONE:
  * embedding_api: blank IDs only, if reroot model (makes them visible if a simple corpus without model is loaded)
  * (!) FIX ROOT_IDS: freeze is important after convert_hashes_to_indices because len(lexicon) is added to root ids
         -> use negative values for root_ids AND use lexicon_roots
+ * training: allow index files for reroot model to allow training on a data subset
  * merge lexicon_roots when concatenating forests
  * training: check merge lexicon for fine-tuning (load from previous checkpoint)
  * training: allow fine-tuning of just the embedding-model and the complete model
@@ -61,6 +58,8 @@ DONE:
  * added parameter all_vecs_fixed
  * added parameter dont_dump_trees
  * training: create TFIDF vocabulary only from train data and use it without expansion for test data creation
+ * training: tree-model: fix halting after "DEBUG create trees with concat_mode=tree" for large datasets
+        -> NOT FIXED, but reason is lac of memory usage of swap
 
 
 
