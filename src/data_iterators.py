@@ -323,7 +323,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     n = 0
 
     logger.debug('create trees with concat_mode=%s' % concat_mode)
-
+    x = (1 + (len(indices) / 100))
     if concat_mode == CM_TREE:
         for idx in indices:
             if reroot:
@@ -335,7 +335,6 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             yield tree_context
             n += 1
             # measure progress in percent
-            x = (1 + (len(indices) / 100))
             if n % x == 0:
                 progress = n / x
                 logger.debug('%i%%' % progress)
@@ -370,7 +369,6 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             yield tree_context
             n += 1
             # measure progress in percent
-            x = (1 + (len(indices) / 100))
             if n % x == 0:
                 progress = n / x
                 logger.debug('%i%%' % progress)
