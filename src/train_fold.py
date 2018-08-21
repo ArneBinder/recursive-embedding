@@ -565,7 +565,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
             # TODO: check this!
             if not no_fixed_vecs and not all_vecs_fixed:
                 lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
-                lexicon.add_flag(indices=lexicon.ids_fixed)
+                #lexicon.add_flag(indices=lexicon.ids_fixed)
 
             # TODO: check this!
             if additional_vecs_path:
@@ -605,6 +605,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
             # lexicon.pad()
 
             if not dont_dump:
+                logger.debug('dump lexicon to: %s ...' % os.path.join(logdir, 'model'))
                 lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
                 assert lexicon.is_filled, 'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' % \
                                           (len(lexicon), len(lexicon.vecs))
