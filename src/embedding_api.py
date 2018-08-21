@@ -458,7 +458,7 @@ def calc_embeddings(data_sequences_or_trees, transformed, root_ids=None, max_dep
             tree = Forest(forest=data_and_parents_or_tree, lexicon=lexicon, root_ids=root_ids)
 
         #tree.visualize(filename='debug_%d.svg' % i, transformed=transformed)
-        tree_dict = tree.get_tree_dict(max_depth=max_depth, transform=not transformed)
+        tree_dict = tree.get_tree_dict(idx=tree.roots[0], max_depth=max_depth, transform=not transformed)
         # add correct root as candidate (if HTUBatchedHead model is used)
         tree_dict[KEY_CANDIDATES] = [tree_dict[KEY_HEAD]]
         batch.append([tree_dict])
@@ -501,7 +501,8 @@ def get_or_calc_scores(params):
             _forest = Forest(forest=params['data_sequences'][0], lexicon=lexicon,
                              data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
 
-            forest_dict = _forest.get_tree_dict(transform=not params.get('transformed_idx', False),
+            forest_dict = _forest.get_tree_dict(idx=_forest.roots[0],
+                                                transform=not params.get('transformed_idx', False),
                                                 max_depth=params.get('max_depth', 10),
                                                 # TODO: check these parameters
                                                 context=0,

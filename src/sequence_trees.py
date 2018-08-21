@@ -180,7 +180,7 @@ class Forest(object):
         self._children_dict = None
         self._depths = None
         self._depths_collected = None
-        self._dicts = {}
+        self._dicts = None
         self._root_id_pos = None
         self._root_data_mapping = None
         self._root_mapping = None
@@ -468,7 +468,7 @@ class Forest(object):
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
-    def get_tree_dict(self, idx=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
+    def get_tree_dict(self, idx, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
@@ -487,8 +487,17 @@ class Forest(object):
                                    beneath the link
         :return: the dict version of the subtree
         """
-        if idx is None:
-            idx = self.roots[0]
+        #if idx is None:
+        #    idx = self.roots[0]
+
+        # caching
+        #if self._dicts is not None:
+        #    depth = min(self.depths[idx], max_depth)
+        #    seq_node = self._dicts.get((idx, depth), None)
+        #    if seq_node is not None:
+        #        logger.debug('got tree from cache')
+        #        return seq_node
+
         data_head = self.data[idx]
 
         assert context == 0 or transform, 'context > 0, but transform is disabled.'
@@ -527,6 +536,10 @@ class Forest(object):
                                                                     #transform=transform,
                                                                     costs=costs,
                                                                     link_types=link_types))
+        # caching
+        #if self._dicts is not None:
+        #    depth = min(self.depths[idx], max_depth)
+        #    self._dicts[(idx, depth)] = seq_node
         return seq_node
 
     def get_tree_dict_rooted(self, idx, max_depth=9999, costs={}, link_types=[]):

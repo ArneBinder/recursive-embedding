@@ -280,6 +280,9 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     if reroot:
         assert concat_mode == CM_TREE, 'reroot requires concat_mode==%s, but found concat_mode: %s' % (CM_TREE, concat_mode)
 
+    # enable tree dict caching
+    #forest._dicts = {}
+
     #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
     sys.setrecursionlimit(1000)
     #print(resource.getrlimit(resource.RLIMIT_STACK))
