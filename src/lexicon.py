@@ -420,11 +420,10 @@ class Lexicon(object):
                 self.add_all(vocab_manual.values())
             self.init_vecs()
 
-    def get_copy(self, copy_vecs=True, copy_ids_fixed=True):
+    def copy(self, copy_vecs=True, copy_ids_fixed=True):
         return Lexicon(strings=StringStore(self.strings),
-                       ids_fixed=self.ids_fixed.copy() if self.ids_fixed is not None and copy_ids_fixed else None,
-                       vecs=self.vecs.copy() if self.vecs is not None and copy_vecs else None)
-
+                       ids_fixed=self._ids_fixed.copy() if self._ids_fixed is not None and copy_ids_fixed else None,
+                       vecs=self._vecs.copy() if self._vecs is not None and copy_vecs else None)
 
     # deprecated use StringStore
     @staticmethod

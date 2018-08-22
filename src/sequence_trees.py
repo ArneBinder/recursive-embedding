@@ -162,28 +162,33 @@ class Forest(object):
         if filename is not None:
             self.load(filename=filename, load_parents=load_parents, load_children=load_children,
                       load_root_ids=load_root_ids, load_root_pos=load_root_pos)
-        elif (data is not None and parents is not None) or forest is not None:
+        elif (data is not None and parents is not None ) \
+                or (data is not None and children is not None and children_pos is not None)\
+                or forest is not None:
             self.set_forest(data=data, parents=parents, forest=forest, children=children, children_pos=children_pos,
-                            data_as_hashes=data_as_hashes, root_ids=root_ids, root_pos=root_pos)
+                            data_as_hashes=data_as_hashes, root_data=root_ids, root_pos=root_pos)
         elif tree_dict is not None:
             _data, _parents = _sequence_node_to_sequence_trees(tree_dict)
             if transformed_indices:
                 assert not data_as_hashes, 'can not transform indices back if data_as_hashes'
                 for i in range(len(_data)):
                     _data[i], _ = self.lexicon.transform_idx_back(_data[i])
-            self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes, root_ids=root_ids)
+            self.set_forest(data=_data, parents=_parents, data_as_hashes=data_as_hashes, root_data=root_ids)
         else:
             raise ValueError(
-                'Not enouth arguments to instantiate Forest object. Please provide a filename or data and parent arrays.')
+                'Not enouth arguments to instantiate Forest object. Please provide a filename or data and (parents or children) arrays.')
 
-    def get_copy(self, copy_parents=True, copy_children=True, copy_lexicon=True, copy_lexicon_roots=True, copy_vecs=True):
+    def copy(self, copy_parents=True, copy_children=True, copy_lexicon=True, copy_root_pos=True,
+             copy_lexicon_roots=True, copy_root_data=True, lexicon_copy_vecs=True, lexicon_copy_ids_fixed=True):
         logger.debug('copy forest ...')
         return Forest(data=self.data.copy(),
-                      parents=self.parents.copy() if copy_parents and self.parents is not None else None,
+                      parents=self._parents.copy() if copy_parents and self._parents is not None else None,
                       children=self._children.copy() if copy_children and self._children is not None else None,
                       children_pos=self._children_pos.copy() if copy_children and self._children_pos is not None else None,
-                      lexicon=self.lexicon.get_copy(copy_vecs=copy_vecs) if copy_lexicon else None,
-                      lexicon_roots=self.lexicon_roots.get_copy() if copy_lexicon_roots else None
+                      root_pos=self._root_pos.copy() if copy_root_pos and self._root_pos is not None else None,
+                      root_ids=self._root_data.copy() if copy_root_data and self._root_data is not None else None,
+                      lexicon=self.lexicon.copy(copy_vecs=lexicon_copy_vecs, copy_ids_fixed=lexicon_copy_ids_fixed) if copy_lexicon else None,
+                      lexicon_roots=self.lexicon_roots.copy() if copy_lexicon_roots else None
                       )
 
     def reset_cache_values(self):
@@ -237,7 +242,7 @@ class Forest(object):
             self._root_pos = None
 
     def set_forest(self, data=None, parents=None, forest=None, children=None, children_pos=None,
-                   data_as_hashes=False, root_ids=None, root_pos=None):
+                   data_as_hashes=False, root_data=None, root_pos=None):
         self._as_hashes = data_as_hashes
         if self.data_as_hashes:
             data_dtype = DTYPE_HASH
@@ -248,29 +253,37 @@ class Forest(object):
                                      'arrays: len=2' % str(len(forest))
             data = forest[0]
             parents = forest[1]
-        assert len(data) == len(parents), \
-            'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
         if not isinstance(data, np.ndarray) or not data.dtype == data_dtype:
             data = np.array(data, dtype=data_dtype)
-        if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_OFFSET:
-            parents = np.array(parents, dtype=DTYPE_OFFSET)
         self._data = data
+        if parents is not None:
+            assert len(data) == len(parents), \
+                'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
+            if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_OFFSET:
+                parents = np.array(parents, dtype=DTYPE_OFFSET)
         self._parents = parents
+        if children_pos is not None:
+            assert children is not None, 'children_pos is given, but children is None'
+            assert len(data) == len(children_pos), \
+                'sizes of data and children_pos arrays differ: len(data)==%i != len(children_pos)==%i' % (
+                len(data), len(children_pos))
 
-        if children is not None and children_pos is not None:
-            if not isinstance(children, np.ndarray) or not children.dtype == DTYPE_OFFSET:
-                children = np.array(children, dtype=DTYPE_OFFSET)
             if not isinstance(children_pos, np.ndarray) or not children_pos.dtype == DTYPE_IDX:
                 children_pos = np.array(children_pos, dtype=DTYPE_IDX)
+        if children is not None:
+            assert children_pos is not None, 'children is given, but children_pos is None'
+            if not isinstance(children, np.ndarray) or not children.dtype == DTYPE_OFFSET:
+                children = np.array(children, dtype=DTYPE_OFFSET)
+
         self._children = children
         self._children_pos = children_pos
-        if root_ids is not None:
-            if not isinstance(root_ids, np.ndarray):
-                root_ids = np.array(root_ids, dtype=data_dtype)
+        if root_data is not None:
+            if not isinstance(root_data, np.ndarray):
+                root_data = np.array(root_data, dtype=data_dtype)
             else:
-                assert root_ids.dtype == data_dtype, 'root_ids has wrong dtype (%s), expected: %s' \
-                                                     % (root_ids.dtype, data_dtype)
-        self._root_data = root_ids
+                assert root_data.dtype == data_dtype, 'root_ids has wrong dtype (%s), expected: %s' \
+                                                      % (root_data.dtype, data_dtype)
+        self._root_data = root_data
         self._root_pos = root_pos
         assert self._parents is not None or \
                (self._children_pos is not None and self._children is not None and self._root_pos is not None), \
@@ -700,7 +713,7 @@ class Forest(object):
                         parents=new_parents,
                         children=new_children,
                         children_pos=new_children_pos,
-                        root_ids=new_root_ids,
+                        root_data=new_root_ids,
                         root_pos=new_root_pos)
 
     @staticmethod
