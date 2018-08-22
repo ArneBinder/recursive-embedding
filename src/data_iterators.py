@@ -2,8 +2,6 @@ import logging
 import numpy as np
 import os
 import sys
-import Queue
-from threading import Thread
 
 from sklearn.feature_extraction.text import TfidfTransformer
 from scipy.sparse import csr_matrix
@@ -263,8 +261,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
-                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000, root_ids_set = None,
-                  work_forests=None,
+                  link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000,
                   **unused):
     """
     create trees rooted at indices
@@ -330,55 +327,19 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #logger.debug('create trees with concat_mode=%s' % concat_mode)
     #x = (1 + (len(indices) / 100))
     if concat_mode == CM_TREE:
-
-        if work_forests is not None and len(work_forests) > 0:
-            q = Queue.Queue(maxsize=100)
-            _res = []
-
-            def _do(_q, _forest):
-                while True:
-                    _i, _idx = _q.get()
-                    if reroot:
-                        tree_context = _forest.get_tree_dict_rooted(idx=_idx, max_depth=max_depth,  # transform=transform,
-                                                                    costs=costs, link_types=link_types)
-                    else:
-                        tree_context = _forest.get_tree_dict(idx=_idx, max_depth=max_depth, context=context,
-                                                             transform=transform,
-                                                             costs=costs, link_types=link_types)
-                    _res.append((_i, tree_context))
-                    _q.task_done()
-
-            for wf in work_forests + [forest]:
-                worker_query = Thread(target=_do,
-                                      args=(q, wf))  # copy_lexicon=False, copy_lexicon_roots=False)))
-                worker_query.setDaemon(True)
-                worker_query.start()
-                #logger.debug('thread started')
-
-            for i, idx in enumerate(indices):
-                q.put((i, idx))
-            q.join()
-            #tree_context = forest.get_tree_dict(idx=indices[0], max_depth=max_depth, context=context, transform=transform,
-            #                                    costs=costs, link_types=link_types)
-            for i, t in sorted(_res, key=lambda _x: _x[0]):
-                yield t
-                #yield tree_context
-                n += 1
-        else:
-            for idx in indices:
-                if reroot:
-                    tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
-                                                               costs=costs, link_types=link_types)
-                else:
-                    tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
-                                                        costs=costs, link_types=link_types)
-                yield tree_context
-                n += 1
-                # measure progress in percent
-                #if n % x == 0:
-                #    progress = n / x
-                #    logger.debug('%i%%' % progress)
-
+        for idx in indices:
+            if reroot:
+                tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
+                                                           costs=costs, link_types=link_types)
+            else:
+                tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
+                                                    costs=costs, link_types=link_types)
+            yield tree_context
+            n += 1
+            # measure progress in percent
+            #if n % x == 0:
+            #    progress = n / x
+            #    logger.debug('%i%%' % progress)
 
     elif concat_mode == CM_AGGREGATE:
         # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
