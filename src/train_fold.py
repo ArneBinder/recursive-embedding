@@ -39,8 +39,8 @@ from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_spars
     convert_sparse_tensor_to_sparse_matrix
 
 # model flags (saved in flags.json)
-import mytools
-from mytools import numpy_load, chunks
+#import mytools
+from mytools import numpy_load, chunks, flatten, numpy_dump, logging_init
 from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
@@ -393,12 +393,14 @@ def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tre
         yield [indices_forest_to_tree[forest_indices[i]]], indices_targets[i]
 
 
-def process_batches_single(_q, _vars, _res_dict, _sess, _model, _sparse_probs):
+def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _sparse_probs):
     while True:
-        _i, _feed_dict, _trees_batched, _probs_batched = _q.get()
+        _i, _trees_batched, _sparse_embeddings, _probs_batched = _q.get()
 
         if _trees_batched is not None:
             _feed_dict[_model.tree_model.compiler.loom_input_tensor] = _trees_batched
+        if _sparse_embeddings is not None:
+            _feed_dict[_model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(_sparse_embeddings)
         # if values_gold expects a sparse tensor, convert probs_batched
         if _sparse_probs:
             _probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(_probs_batched))
@@ -408,7 +410,7 @@ def process_batches_single(_q, _vars, _res_dict, _sess, _model, _sparse_probs):
         _q.task_done()
 
 
-def prepare_batches_multi(_q_in, _q_out, _feed_dict, _forest, dataset_trees, forest_indices):
+def prepare_batches_multi(_q_in, _q_out, _forest, dataset_trees, forest_indices):
     while True:
         _i, _tree_indices_batched, _probs_batched = _q_in.get()
 
@@ -421,37 +423,53 @@ def prepare_batches_multi(_q_in, _q_out, _feed_dict, _forest, dataset_trees, for
             trees_generator = None
             n = -1
 
-        _q_out.put((_i, _feed_dict, trees_generator, n, _probs_batched))
+        _q_out.put((_i, trees_generator, n, _probs_batched))
+        _q_in.task_done()
+
+
+def create_trees_simple(_q_in, _q_out, _iter, _forest):
+    while True:
+        _i, _indices = _q_in.get()
+        _trees = list(_iter(indices=_indices, forest=_forest))
+        _q_out.put((_i, _trees))
         _q_in.task_done()
 
 
 def compile_batches_single(_q_in, _q_out, _compiler):
     with _compiler.multiprocessing_pool():
         while True:
-            _i, _feed_dict, trees_generator, _n, _probs_batched = _q_in.get()
+            _i, trees_generator, _n, _probs_batched = _q_in.get()
 
             if _n > 0:
                 _compiled = _compiler.build_loom_inputs(([x] for x in trees_generator), ordered=True)
                 _trees_batched = list(chunks(_compiled, _n))
             else:
                 _trees_batched = []
-            _q_out.put((_i, _feed_dict, _trees_batched, _probs_batched))
+            _q_out.put((_i, _trees_batched, None, _probs_batched))
             _q_in.task_done()
 
 
-def prepare_batches_single(_q_in, _q_out, _feed_dict, model, dataset_trees, compile):
+def compile_batches_simple(_q_in, res_dict, _compiler):
+    with _compiler.multiprocessing_pool():
+        while True:
+            _i, _trees = _q_in.get()
+            res_dict[_i] = list(_compiler.build_loom_inputs(([t] for t in _trees), ordered=True))
+            _q_in.task_done()
+
+
+def prepare_batches_single(_q_in, _q_out, dataset_trees, compilation_required):
     while True:
         _i, _tree_indices_batched, _probs_batched = _q_in.get()
-        if compile:
-            trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in
+        if compilation_required:
+            trees_compiled = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in
                                      _tree_indices_batched]
+            sparse_embeddings = None
         else:
             tree_indices_batched_np = np.array(_tree_indices_batched)
             sparse_embeddings = dataset_trees[tree_indices_batched_np.flatten()]
-            _feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(sparse_embeddings)
-            trees_batched = None
+            trees_compiled = None
 
-        _q_out.put((_i, _feed_dict, trees_batched, _probs_batched))
+        _q_out.put((_i, trees_compiled, sparse_embeddings, _probs_batched))
         _q_in.task_done()
 
 
@@ -511,20 +529,21 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indi
     _batch_iter = _iter(*iter_args[_iter])
     _result_all_dict = {}
 
-    _compile = hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor')
-    _sparse_probs = isinstance(model.values_gold, tf.SparseTensor)
+    compilation_required = hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor')
+    already_precompiled = not callable(dataset_trees)
+    sparse_probs_required = isinstance(model.values_gold, tf.SparseTensor)
+
     batch_queue = Queue.Queue(maxsize=100)
     train_worker = Thread(target=process_batches_single,
-                          args=(batch_queue, execute_vars, _result_all_dict, sess, model, _sparse_probs))
+                          args=(batch_queue, execute_vars, feed_dict, _result_all_dict, sess, model, sparse_probs_required))
     train_worker.setDaemon(True)
     logger.debug('start train thread (single)...')
     train_worker.start()
 
     prebatch_queue = Queue.Queue()
-
-    #lock = Lock()
     compile_queue = None
-    if work_forests is not None and callable(dataset_trees) and _compile:
+    if not already_precompiled and compilation_required:
+        assert work_forests is not None, 'compilation required, but no work forests available'
         compile_queue = Queue.Queue(maxsize=100)
         compile_worker = Thread(target=compile_batches_single,
                                 args=(compile_queue, batch_queue, model.tree_model.compiler))
@@ -534,7 +553,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indi
 
         for wf in work_forests:
             prepare_worker = Thread(target=prepare_batches_multi,
-                                    args=(prebatch_queue, compile_queue, feed_dict.copy(), wf,
+                                    args=(prebatch_queue, compile_queue, wf,
                                           dataset_trees, forest_indices.copy()))
             prepare_worker.setDaemon(True)
 
@@ -542,7 +561,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indi
             prepare_worker.start()
     else:
         prepare_worker = Thread(target=prepare_batches_single,
-                                args=(prebatch_queue, batch_queue, feed_dict, model, dataset_trees, _compile))
+                                args=(prebatch_queue, batch_queue, dataset_trees, compilation_required))
         prepare_worker.setDaemon(True)
         logger.debug('start prepare thread (single)...')
         prepare_worker.start()
@@ -758,8 +777,8 @@ def init_model_type(config):
     elif config.model_type == MT_REROOT:
         if config.tree_embedder.strip() != 'HTU_reduceSUM_mapGRU':
             raise NotImplementedError('reroot model only implemented for tree_embedder == '
-                                      '%sHTU_reduceSUM_mapGRU, but it is: %s'
-                                      % (TREE_EMBEDDER_PREFIX, config.tree_embedder.strip()))
+                                      'HTU_reduceSUM_mapGRU, but it is: %s'
+                                      % config.tree_embedder.strip())
         # set tree_embedder to batched head version
         config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU'
 
@@ -858,7 +877,8 @@ def check_train_test_overlap(forest_indices_train, forest_indices_train_target, 
     return forest_indices_test_target
 
 
-def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=None, index_file_sizes=None):
+def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=None, index_file_sizes=None,
+                  work_forests=None, indices=None):
     # save compiled trees to file, if cache_dir is given
     if cache_dir is not None:
         assert index_file_names is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
@@ -870,15 +890,55 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
 
     compiled_trees = {}
     for m in tree_iterators:
+        try:
+            current_tree_iter = tree_iterators[m]()
+        except TypeError:
+            assert work_forests is not None, '%s tree_iterator is not satisfied, but work_forests are None' % m
+
+            assert indices is not None, '%s tree_iterator is not satisfied, but indices are None' % m
+            assert m in indices, '%s tree_iterator is not satisfied, but no indices for %s given' % (m, m)
+
+            if len(work_forests) == 1:
+                # to avoid multi-threading overhead if only one forest is available
+                current_tree_iter = tree_iterators[m](forest=work_forests[0], indices=indices[m])
+            else:
+                #current_tree_iter = tree_iterators[m](forest=work_forests[0], indices=indices[m])
+                indices_queue = Queue.Queue()
+                trees_queue = Queue.Queue()
+                for wf in work_forests:
+                    tree_worker = Thread(target=create_trees_simple, args=(indices_queue, trees_queue,
+                                                                           tree_iterators[m], wf))
+                    tree_worker.setDaemon(True)
+                    logger.debug('start prepare thread (multi)...')
+                    tree_worker.start()
+
+                res_dict = {}
+                compile_worker = Thread(target=compile_batches_simple, args=(trees_queue, res_dict, compiler))
+                compile_worker.setDaemon(True)
+                logger.debug('start compile thread (single)...')
+                compile_worker.start()
+
+                bs = 100
+                for i, pos in enumerate(range(0, len(indices[m]), bs)):
+                    current_indices = indices[m][pos:pos+bs]
+                    indices_queue.put((i, current_indices))
+
+                indices_queue.join()
+                trees_queue.join()
+                compiled_trees[m] = flatten([res_dict[i] for i in range(len(res_dict))])
+                logger.info('%s dataset: compiled %i different trees' % (m, len(compiled_trees[m])))
+
+                # TODO: handle caching
+                continue
+
         logger.info('create %s data set (tree-embeddings) ...' % m)
         if cache_dir is None:
-            try:
-                with compiler.multiprocessing_pool():
-                    compiled_trees[m] = list(
-                        compiler.build_loom_inputs(([x] for x in tree_iterators[m]()), ordered=True))
-            except TypeError:
-                # if the tree_iterator is not satisfied, just return it again for later calling with missing arguments
-                compiled_trees[m] = tree_iterators[m]
+            #try:
+            with compiler.multiprocessing_pool():
+                compiled_trees[m] = list(compiler.build_loom_inputs(([x] for x in current_tree_iter), ordered=True))
+            #except TypeError:
+            #    # if the tree_iterator is not satisfied, just return it again for later calling with missing arguments
+            #    compiled_trees[m] = tree_iterators[m]
 
         else:
             compiled_trees[m] = []
@@ -894,7 +954,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                     compiled_trees[m].extend(current_trees)
             # otherwise, already compiled trees have to be skipped (i.e. the iterator has to be called)
             else:
-                tree_iter = tree_iterators[m]()
+                #tree_iter = tree_iterators[m]()
                 for i, ind_fn in enumerate(index_file_names[m]):
                     nbr_indices = index_file_sizes[m][i]
                     #base_fn = os.path.splitext(os.path.basename(ind_fn))[0]
@@ -905,10 +965,10 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                             current_trees = pickle.load(pf)
                         #current_trees = np.load(fn).tolist()
                         for _ in range(nbr_indices):
-                            tree_iter.next()
+                            current_tree_iter.next()
                     else:
                         with compiler.multiprocessing_pool():
-                            current_trees = list(compiler.build_loom_inputs(([tree_iter.next()] for _ in range(nbr_indices)), ordered=True))
+                            current_trees = list(compiler.build_loom_inputs(([current_tree_iter.next()] for _ in range(nbr_indices)), ordered=True))
                         logger.debug('dump compiled trees to: %s' % fn)
                         with open(fn, 'wb') as pf:
                             pickle.dump(current_trees, pf)
@@ -1006,8 +1066,9 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, cache_dir=None, index_fi
     return prepared_embeddings, embedding_dim
 
 
-def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None,
-                  use_inception_tree_model=False, cache=None, index_file_names=None, index_file_sizes=None):
+def create_models(config, lexicon, tree_count, tree_iterators, work_forests=None, indices=None, data_dir=None,
+                  use_inception_tree_model=False, cache=None, index_file_names=None, index_file_sizes=None,
+                  precompile=True):
 
     optimizer = config.optimizer
     if optimizer is not None:
@@ -1044,10 +1105,14 @@ def create_models(config, lexicon, tree_count, tree_iterators, data_dir=None,
         if config.model_type != MT_REROOT and data_dir is not None:
             cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_compile_trees())
 
-        prepared_embeddings = exec_cached(cache, compile_trees, discard_kwargs='all', add_kwargs={'type': 'tree'},
-                                          tree_iterators=tree_iterators, compiler=model_tree.compiler,
-                                          cache_dir=None if config.dont_dump_trees else cache_dir,
-                                          index_file_names=index_file_names, index_file_sizes=index_file_sizes)
+        if precompile:
+            prepared_embeddings = exec_cached(cache, compile_trees, discard_kwargs='all', add_kwargs={'type': 'tree'},
+                                              tree_iterators=tree_iterators, compiler=model_tree.compiler,
+                                              cache_dir=None if config.dont_dump_trees else cache_dir,
+                                              index_file_names=index_file_names, index_file_sizes=index_file_sizes,
+                                              work_forests=work_forests, indices=indices)
+        else:
+            prepared_embeddings = tree_iterators
         #else:
         #    prepared_embeddings = None
     else:
@@ -1428,7 +1493,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         meta[m][M_INDICES], meta[m][M_INDICES_TARGETS], meta[m][M_INDEX_FILE_SIZES] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
         # dump tree indices
         if not loaded_from_checkpoint:
-            mytools.numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
+            numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
 
     if config.model_type == MT_TREETUPLE:
         if M_TEST in meta and M_TRAIN in meta \
@@ -1446,6 +1511,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
         meta[M_TRAIN][M_NEG_SAMPLES] = config.neg_samples
 
+    #if not precompile:
+    if nbr_work_forests > 0:
+        logger.debug('create %i additional work forests ...' % nbr_work_forests)
+    work_forests = [forest] + [forest.copy(copy_parents=load_parents, copy_lexicon_roots=False,
+                                           lexicon_copy_vecs=False) for _ in range(nbr_work_forests)]
+
     # set tree iterator
     for m in meta:
         if config.model_type == MT_REROOT:
@@ -1461,16 +1532,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                             forest.roots) else len(forest)) for root_idx in
                                               root_indices])
             # overwrite root indices with correct number of dummy tree indices
+            # TODO: rework for use with work_forests (multi-threading)
             meta[m][M_INDICES] = np.zeros(nbr_indices)
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, tree_iter=tree_iterator, forest=forest,
                                            neg_samples=meta[m][M_NEG_SAMPLES], nbr_indices=nbr_indices,
                                            indices_mapping=indices_mapping, **tree_iterator_args)
         else:
-            if precompile:
-                meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
-                                               **tree_iterator_args)
-            else:
-                meta[m][M_TREE_ITER] = partial(tree_iterator, **tree_iterator_args)
+            #if precompile:
+            meta[m][M_TREE_ITER] = partial(tree_iterator, **tree_iterator_args)
+            #else:
+            #    meta[m][M_TREE_ITER] = partial(tree_iterator, **tree_iterator_args)
 
     # MODEL DEFINITION #################################################################################################
 
@@ -1487,7 +1558,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 cache=cache,
                 data_dir=parent_dir,
                 index_file_names={m: meta[m][M_FNAMES] for m in meta},
-                index_file_sizes={m: meta[m][M_INDEX_FILE_SIZES] for m in meta}
+                index_file_sizes={m: meta[m][M_INDEX_FILE_SIZES] for m in meta},
+                work_forests=work_forests if precompile else None,
+                indices={m: meta[m][M_INDICES] for m in meta},
+                precompile=precompile
             )
 
             models_nearest = create_models_nearest(model_tree=model_tree,
@@ -1548,10 +1622,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             # TODO: try
             #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
 
-            if nbr_work_forests > 0:
-                logger.debug('create %i work forests ...' % nbr_work_forests)
-                work_forests = [forest.copy(copy_parents=load_parents, copy_lexicon_roots=False, lexicon_copy_vecs=False) for _ in range(nbr_work_forests)] + [forest]
-            else:
+            if precompile:
                 work_forests = None
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
                                   test_result_writer, logdir, cache, debug, work_forests=work_forests)
@@ -1587,7 +1658,7 @@ def add_metrics(d, stats, metric_main=None, prefix=''):
 
 
 if __name__ == '__main__':
-    mytools.logging_init()
+    logging_init()
     # account for prefix if started via docker-compose.yml
     if FLAGS.logdir_continue is not None and FLAGS.logdir_continue.strip() == '/root/train/':
         logdir_continue = None

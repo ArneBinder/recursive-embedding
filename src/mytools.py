@@ -77,6 +77,10 @@ def mkdir_p(path):
             raise
 
 
+def flatten(l):
+    return [item for sublist in l for item in sublist]
+
+
 def fn_timer(function):
     @wraps(function)
     def function_timer(*args, **kwargs):
@@ -212,6 +216,17 @@ def chunks(g, n, cut=False):
     #if len(l) > 0 and not cut:
     #    yield l
     assert len(l) == 0 or cut, '%i elements remain after chunking with n=%i' % (len(l), n)
+
+
+# similar to numpy.split, but uses sizes instead of end positions
+def partition(l, sizes):
+    assert sum(sizes) == len(l), 'sum(sizes): %i != len(l): %i' % (sum(sizes), len(l))
+    res = []
+    start = 0
+    for s in sizes:
+        res.append(l[start:start+s])
+        start += s
+    return res
 
 
 class ThreadWithReturnValue(Thread):
