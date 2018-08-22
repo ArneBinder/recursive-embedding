@@ -195,6 +195,10 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     False,
                                     'If enabled, do not train any embedding vecs.',
                                     'avf'],
+                  'all_vecs_zero': ['DEFINE_boolean',
+                                    False,
+                                    'If enabled, intialize all embedding vecs with zero.',
+                                    'avz'],
                   'dont_dump_trees': ['DEFINE_boolean',
                                     False,
                                     'If enabled, do not dump compiled trees in cache dir.',
@@ -209,7 +213,7 @@ TREE_MODEL_PARAMETERS = ['additional_vecs', 'leaf_fc_size', 'root_fc_sizes', 'st
 TREE_STRUCTURE_PARAMETERS = ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'sequence_length',
                              'no_fixed_vecs', 'all_vecs_fixed']
 MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'model_type', 'batch_iter']
-DESCRIPTION_PARAMETERS = MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS + ['dont_dump_trees']
+DESCRIPTION_PARAMETERS = MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS + ['dont_dump_trees', 'all_vecs_zero']
 FLAGS_FN = 'flags.json'
 
 
