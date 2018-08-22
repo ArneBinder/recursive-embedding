@@ -393,6 +393,68 @@ def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tre
         yield [indices_forest_to_tree[forest_indices[i]]], indices_targets[i]
 
 
+def process_batches_single(_q, _vars, _res_dict, _sess, _model, _sparse_probs):
+    while True:
+        _i, _feed_dict, _trees_batched, _probs_batched = _q.get()
+
+        if _trees_batched is not None:
+            _feed_dict[_model.tree_model.compiler.loom_input_tensor] = _trees_batched
+        # if values_gold expects a sparse tensor, convert probs_batched
+        if _sparse_probs:
+            _probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(_probs_batched))
+
+        _feed_dict[_model.values_gold] = _probs_batched
+        _res_dict[_i] = _sess.run(_vars, _feed_dict)
+        _q.task_done()
+
+
+def prepare_batches_multi(_q_in, _q_out, _feed_dict, _forest, dataset_trees, forest_indices):
+    while True:
+        _i, _tree_indices_batched, _probs_batched = _q_in.get()
+
+        if len(_tree_indices_batched) > 0:
+            forest_indices_batched_np = forest_indices[np.array(_tree_indices_batched)]
+            forest_indices_batched_np_flat = forest_indices_batched_np.flatten()
+            n = len(_tree_indices_batched[0])
+            trees_generator = list(dataset_trees(forest_indices_batched_np_flat, forest=_forest))
+        else:
+            trees_generator = None
+            n = -1
+
+        _q_out.put((_i, _feed_dict, trees_generator, n, _probs_batched))
+        _q_in.task_done()
+
+
+def compile_batches_single(_q_in, _q_out, _compiler):
+    with _compiler.multiprocessing_pool():
+        while True:
+            _i, _feed_dict, trees_generator, _n, _probs_batched = _q_in.get()
+
+            if _n > 0:
+                _compiled = _compiler.build_loom_inputs(([x] for x in trees_generator), ordered=True)
+                _trees_batched = list(chunks(_compiled, _n))
+            else:
+                _trees_batched = []
+            _q_out.put((_i, _feed_dict, _trees_batched, _probs_batched))
+            _q_in.task_done()
+
+
+def prepare_batches_single(_q_in, _q_out, _feed_dict, model, dataset_trees, compile):
+    while True:
+        _i, _tree_indices_batched, _probs_batched = _q_in.get()
+        if compile:
+            trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in
+                                     _tree_indices_batched]
+        else:
+            tree_indices_batched_np = np.array(_tree_indices_batched)
+            sparse_embeddings = dataset_trees[tree_indices_batched_np.flatten()]
+            _feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(sparse_embeddings)
+            trees_batched = None
+
+        _q_out.put((_i, _feed_dict, trees_batched, _probs_batched))
+        _q_in.task_done()
+
+
 def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indices_targets=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
              highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True, debug=False,
@@ -447,48 +509,57 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees, indi
                 _iter = batch_iter_naive
     logger.debug('use %s' % _iter.__name__)
     _batch_iter = _iter(*iter_args[_iter])
-    _result_all = []
+    _result_all_dict = {}
 
+    _compile = hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor')
+    _sparse_probs = isinstance(model.values_gold, tf.SparseTensor)
     batch_queue = Queue.Queue(maxsize=100)
+    train_worker = Thread(target=process_batches_single,
+                          args=(batch_queue, execute_vars, _result_all_dict, sess, model, _sparse_probs))
+    train_worker.setDaemon(True)
+    logger.debug('start train thread (single)...')
+    train_worker.start()
 
-    def process_batches(_q, _vars, _res):
-        while True:
-            _feed_dict = _q.get()
-            _res.append(sess.run(_vars, _feed_dict))
-            _q.task_done()
+    prebatch_queue = Queue.Queue()
 
-    worker = Thread(target=process_batches, args=(batch_queue, execute_vars, _result_all))
-    worker.setDaemon(True)
-    worker.start()
+    #lock = Lock()
+    compile_queue = None
+    if work_forests is not None and callable(dataset_trees) and _compile:
+        compile_queue = Queue.Queue(maxsize=100)
+        compile_worker = Thread(target=compile_batches_single,
+                                args=(compile_queue, batch_queue, model.tree_model.compiler))
+        compile_worker.setDaemon(True)
+        logger.debug('start compile thread (single)...')
+        compile_worker.start()
+
+        for wf in work_forests:
+            prepare_worker = Thread(target=prepare_batches_multi,
+                                    args=(prebatch_queue, compile_queue, feed_dict.copy(), wf,
+                                          dataset_trees, forest_indices.copy()))
+            prepare_worker.setDaemon(True)
+
+            logger.debug('start prepare thread (multi)...')
+            prepare_worker.start()
+    else:
+        prepare_worker = Thread(target=prepare_batches_single,
+                                args=(prebatch_queue, batch_queue, feed_dict, model, dataset_trees, _compile))
+        prepare_worker.setDaemon(True)
+        logger.debug('start prepare thread (single)...')
+        prepare_worker.start()
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
-    for batch in td.group_by_batches(_batch_iter, config.batch_size):
+    for i, batch in enumerate(td.group_by_batches(_batch_iter, config.batch_size)):
         tree_indices_batched, probs_batched = zip(*batch)
-        if hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor'):
-            if callable(dataset_trees):
-                forest_indices_batched_np = forest_indices[np.array(tree_indices_batched)]
+        # TODO: entangle tree_indices_batched and probs_batched (copy does not work for tuples. modify iterators?)
+        prebatch_queue.put((i, tree_indices_batched, probs_batched))
 
-                trees_batched = []
-                if len(forest_indices_batched_np) > 0:
-                    trees_batched = list(chunks(dataset_trees(forest_indices_batched_np.flatten(), work_forests=work_forests),
-                                                len(tree_indices_batched[0]), cut=True))
-            else:
-                trees_batched = [[dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in tree_indices_batched]
-            feed_dict[model.tree_model.compiler.loom_input_tensor] = trees_batched
-        else:
-            tree_indices_batched_np = np.array(tree_indices_batched)
-            trees_batched = dataset_trees[tree_indices_batched_np.flatten()]
-            feed_dict[model.tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(trees_batched)
-
-        # if values_gold expects a sparse tensor, convert probs_batched
-        if isinstance(model.values_gold, tf.SparseTensor):
-            probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(probs_batched))
-
-        feed_dict[model.values_gold] = probs_batched
-        batch_queue.put(feed_dict)
-        #_result_all.append(sess.run(execute_vars, feed_dict))
-
+    prebatch_queue.join()
+    if compile_queue is not None:
+        compile_queue.join()
     batch_queue.join()
+
+    # order results
+    _result_all = [_result_all_dict[i] for i in range(len(_result_all_dict))]
 
     # list of dicts to dict of lists
     if len(_result_all) > 0:
@@ -806,13 +877,8 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                     compiled_trees[m] = list(
                         compiler.build_loom_inputs(([x] for x in tree_iterators[m]()), ordered=True))
             except TypeError:
-                # if the tree_iterator is not satisfied, return a function that can be called with the missing arguments
-                def _compile(*args, **kwargs):
-                    with compiler.multiprocessing_pool():
-                        _compiled = compiler.build_loom_inputs(([x] for x in tree_iterators[m](*args, **kwargs)), ordered=True)
-                    return _compiled
-
-                compiled_trees[m] = _compile
+                # if the tree_iterator is not satisfied, just return it again for later calling with missing arguments
+                compiled_trees[m] = tree_iterators[m]
 
         else:
             compiled_trees[m] = []
@@ -1404,7 +1470,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 meta[m][M_TREE_ITER] = partial(tree_iterator, indices=meta[m][M_INDICES], forest=forest,
                                                **tree_iterator_args)
             else:
-                meta[m][M_TREE_ITER] = partial(tree_iterator, forest=forest, **tree_iterator_args)
+                meta[m][M_TREE_ITER] = partial(tree_iterator, **tree_iterator_args)
 
     # MODEL DEFINITION #################################################################################################
 
@@ -1484,7 +1550,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
 
             if nbr_work_forests > 0:
                 logger.debug('create %i work forests ...' % nbr_work_forests)
-            work_forests = [forest.copy(copy_parents=load_parents, copy_lexicon_roots=False, lexicon_copy_vecs=False) for _ in range(nbr_work_forests)]
+                work_forests = [forest.copy(copy_parents=load_parents, copy_lexicon_roots=False, lexicon_copy_vecs=False) for _ in range(nbr_work_forests)] + [forest]
+            else:
+                work_forests = None
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
                                   test_result_writer, logdir, cache, debug, work_forests=work_forests)
             logger.removeHandler(fh_info)

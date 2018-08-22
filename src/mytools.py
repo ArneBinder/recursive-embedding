@@ -201,7 +201,7 @@ def numpy_exists(filename):
     return os.path.exists(filename) or os.path.exists('%s.npy' % filename)
 
 
-def chunks(g, n, cut=True):
+def chunks(g, n, cut=False):
     """Yield successive n-sized chunks from generator g."""
     l = []
     for i, x in enumerate(g):
@@ -209,8 +209,9 @@ def chunks(g, n, cut=True):
         if (i + 1) % n == 0:
             yield l
             l = []
-    if len(l) > 0 and not cut:
-        yield l
+    #if len(l) > 0 and not cut:
+    #    yield l
+    assert len(l) == 0 or cut, '%i elements remain after chunking with n=%i' % (len(l), n)
 
 
 class ThreadWithReturnValue(Thread):
