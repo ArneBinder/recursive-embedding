@@ -552,7 +552,7 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 #    return ds
 
 def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False,
-                no_fixed_vecs=False, all_vecs_fixed=False, additional_vecs_path=None):
+                no_fixed_vecs=False, all_vecs_fixed=False, all_vecs_zero=False, additional_vecs_path=None):
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
     if logdir_continue:
         raise NotImplementedError('usage of logdir_continue not implemented')
@@ -583,12 +583,9 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
             fine_tune = True
 
         if lexicon.has_vecs:
-            # TODO: check this!
             if not no_fixed_vecs and not all_vecs_fixed:
                 lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
-                #lexicon.add_flag(indices=lexicon.ids_fixed)
 
-            # TODO: check this!
             if additional_vecs_path:
                 logger.info('add embedding vecs from: %s' % additional_vecs_path)
                 # ATTENTION: add_lex should contain only lower case entries, because self_to_lowercase=True
@@ -627,8 +624,8 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 # Lexicon.transform_idx)
                 lexicon.init_ids_fixed(ids_fixed=np.arange(len(lexicon) - 1, dtype=DTYPE_IDX) + 1)
 
-            # lexicon.replicate_types(suffix=constants.SEPARATOR + constants.vocab_manual[constants.BACK_EMBEDDING])
-            # lexicon.pad()
+            if all_vecs_zero:
+                lexicon.set_to_zero()
 
             if not dont_dump:
                 logger.debug('dump lexicon to: %s ...' % os.path.join(logdir, 'model'))
@@ -1291,6 +1288,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         cache, get_lexicon, discard_kwargs=('logdir'),
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
+        all_vecs_zero=config.all_vecs_zero,
         additional_vecs_path=config.additional_vecs)
     # use previous tree model config values
     #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
