@@ -629,7 +629,7 @@ class Lexicon(object):
         return res
 
     def get_indices(self, indices=None, prefix=None, indices_as_blacklist=False):
-        assert indices is not None or prefix is not None, 'please provide indices or a prefix'
+        #assert indices is not None or prefix is not None, 'please provide indices or a prefix'
         if prefix is not None:
             indices = self.get_ids_for_prefix(prefix)
         if indices is None:
