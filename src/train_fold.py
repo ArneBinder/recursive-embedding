@@ -18,7 +18,7 @@ import scipy
 from functools import reduce, partial
 import cPickle as pickle
 import Queue
-from threading import Thread
+from threading import Thread, Event
 
 import numpy as np
 import six
@@ -435,8 +435,8 @@ def create_trees_simple(_q_in, _q_out, _iter, _forest):
         _q_in.task_done()
 
 
-def compile_batches_single(_q_in, _q_out, _compiler):
-    with _compiler.multiprocessing_pool():
+def compile_batches_single(_q_in, _q_out, _compiler, use_pool=True):
+    def _do():
         while True:
             _i, trees_generator, _n, _probs_batched = _q_in.get()
 
@@ -448,13 +448,25 @@ def compile_batches_single(_q_in, _q_out, _compiler):
             _q_out.put((_i, _trees_batched, None, _probs_batched))
             _q_in.task_done()
 
+    if use_pool:
+        with _compiler.multiprocessing_pool():
+            _do()
+    else:
+        _do()
 
-def compile_batches_simple(_q_in, res_dict, _compiler):
-    with _compiler.multiprocessing_pool():
+
+def compile_batches_simple(_q_in, res_dict, _compiler, use_pool=True):
+    def _do():
         while True:
             _i, _trees = _q_in.get()
             res_dict[_i] = list(_compiler.build_loom_inputs(([t] for t in _trees), ordered=True))
             _q_in.task_done()
+
+    if use_pool:
+        with _compiler.multiprocessing_pool():
+            _do()
+    else:
+        _do()
 
 
 def prepare_batches_single(_q_in, _q_out, dataset_trees, compilation_required):
@@ -878,7 +890,7 @@ def check_train_test_overlap(forest_indices_train, forest_indices_train_target, 
 
 
 def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=None, index_file_sizes=None,
-                  work_forests=None, indices=None):
+                  work_forests=None, indices=None, use_pool=True):
     # save compiled trees to file, if cache_dir is given
     if cache_dir is not None:
         assert index_file_names is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
@@ -890,6 +902,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
 
     compiled_trees = {}
     for m in tree_iterators:
+        logger.debug('compile %s trees ...' % m)
         try:
             current_tree_iter = tree_iterators[m]()
         except TypeError:
@@ -913,7 +926,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                     tree_worker.start()
 
                 res_dict = {}
-                compile_worker = Thread(target=compile_batches_simple, args=(trees_queue, res_dict, compiler))
+                compile_worker = Thread(target=compile_batches_simple, args=(trees_queue, res_dict, compiler, use_pool))
                 compile_worker.setDaemon(True)
                 logger.debug('start compile thread (single)...')
                 compile_worker.start()
@@ -931,10 +944,12 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                 # TODO: handle caching
                 continue
 
-        logger.info('create %s data set (tree-embeddings) ...' % m)
         if cache_dir is None:
             #try:
-            with compiler.multiprocessing_pool():
+            if use_pool:
+                with compiler.multiprocessing_pool():
+                    compiled_trees[m] = list(compiler.build_loom_inputs(([x] for x in current_tree_iter), ordered=True))
+            else:
                 compiled_trees[m] = list(compiler.build_loom_inputs(([x] for x in current_tree_iter), ordered=True))
             #except TypeError:
             #    # if the tree_iterator is not satisfied, just return it again for later calling with missing arguments
@@ -967,8 +982,13 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                         for _ in range(nbr_indices):
                             current_tree_iter.next()
                     else:
-                        with compiler.multiprocessing_pool():
-                            current_trees = list(compiler.build_loom_inputs(([current_tree_iter.next()] for _ in range(nbr_indices)), ordered=True))
+                        if use_pool:
+                            with compiler.multiprocessing_pool():
+                                current_trees = list(compiler.build_loom_inputs(([current_tree_iter.next()] for _ in range(nbr_indices)), ordered=True))
+                        else:
+                            current_trees = list(
+                                compiler.build_loom_inputs(([current_tree_iter.next()] for _ in range(nbr_indices)),
+                                                           ordered=True))
                         logger.debug('dump compiled trees to: %s' % fn)
                         with open(fn, 'wb') as pf:
                             pickle.dump(current_trees, pf)
@@ -1306,6 +1326,29 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 metric = METRIC_REGRESSION
             else:
                 raise ValueError('no metric defined for model_type=%s' % meta[model_for_metric][M_MODEL].model_type)
+
+        if config.model_type == MT_REROOT:
+            # only one queue element is neccessary
+            train_tree_queue = Queue.Queue(1)
+            train_tree_queue.put(meta[M_TRAIN][M_TREES])
+
+            def _recompile(stop_event):
+                _compiler = meta[M_TRAIN][M_MODEL].tree_model.compiler
+                with _compiler.multiprocessing_pool():
+                    while not stop_event.is_set():
+                        train_tree_queue.put(compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
+                                             compiler=_compiler, use_pool=False)[M_TRAIN])
+
+            stop_trees_worker = Event()
+            train_trees_worker = Thread(target=_recompile, args=(stop_trees_worker,))
+            train_trees_worker.setDaemon(True)
+            logger.debug('start re-compile thread (single)...')
+            train_trees_worker.start()
+
+        else:
+            train_tree_queue = None
+            stop_trees_worker = None
+
         # NOTE: this depends on metric (pearson/mse/roc/...)
         METRIC_MIN_INIT = -1
         stat_queue = [{metric: METRIC_MIN_INIT}]
@@ -1316,10 +1359,10 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             # TRAIN
 
             # re-create and compile trees for reroot (language) model
-            if M_TREES not in meta[M_TRAIN]:
-                logger.debug('generate trees for training with new samples')
-                meta[M_TRAIN][M_TREES] = compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
-                                                       compiler=meta[M_TRAIN][M_MODEL].tree_model.compiler)[M_TRAIN]
+            if train_tree_queue is not None:
+                logger.debug('wait for compiled trees ...')
+                meta[M_TRAIN][M_TREES] = train_tree_queue.get()
+                train_tree_queue.task_done()
 
             step_train, loss_train, _, _, stats_train = do_epoch(
                 supervisor, sess,
@@ -1335,9 +1378,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 debug=debug,
                 work_forests=work_forests
             )
-
-            if config.model_type == MT_REROOT:
-                del meta[M_TRAIN][M_TREES]
 
             # TEST
 
@@ -1391,6 +1431,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
             if 0 < config.early_stopping_window < len(stat_queue):
                 logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
+                if stop_trees_worker is not None:
+                    stop_trees_worker.set()
                 return stat_queue_sorted[0], cache
 
 

@@ -276,8 +276,12 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     :param unused:
     :return:
     """
+    # use if and warning instead of assertion because of dummy concat modes
+    #if reroot and concat_mode != CM_TREE:
+    #    logger.warning('reroot requires concat_mode==%s, but found concat_mode: %s' % (CM_TREE, concat_mode))
     if reroot:
-        assert concat_mode == CM_TREE, 'reroot requires concat_mode==%s, but found concat_mode: %s' % (CM_TREE, concat_mode)
+        assert concat_mode == CM_TREE, 'reroot requires concat_mode==%s, but found concat_mode: %s' \
+                                       % (CM_TREE, concat_mode)
 
     # enable tree dict caching
     #forest._dicts = {}
