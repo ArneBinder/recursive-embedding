@@ -1135,7 +1135,7 @@ def main(data_source):
                 #assert model_config.model_type == 'tuple', 'only model_type=tuple implemented'
                 #model_tree, model_tuple, prepared_embeddings, tree_indices = create_models(
                 model_config.keep_prob = 1.0
-                model_tree, model_main, prepared_embeddings = create_models(
+                model_tree, model_main, prepared_embeddings, compiled_trees = create_models(
                     config=model_config, lexicon=lexicon, tree_count=1, tree_iterators={},
                     use_inception_tree_model=True)
 

@@ -425,7 +425,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #logger.debug('created %i trees' % n)
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping, transform=True, debug=False, **kwargs):
+def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping, transform=True, debug=False, indices=None, **kwargs):
     logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping)))
     if debug:
         logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
