@@ -1136,6 +1136,15 @@ def create_models(config, lexicon, tree_count, tree_iterators, indices=None, dat
                                            index_file_names=index_file_names, index_file_sizes=index_file_sizes,
                                            #work_forests=work_forests,
                                            indices=indices)
+        elif M_TEST in tree_iterators:
+            # TODO: check, if correct
+            compiled_trees = compile_trees(tree_iterators={M_TEST: tree_iterators[M_TEST]},
+                                           compiler=model_tree.compiler,
+                                           cache_dir=None if config.dont_dump_trees else cache_dir,
+                                           index_file_names={M_TEST: index_file_names[M_TEST]},
+                                           index_file_sizes={M_TEST: index_file_sizes[M_TEST]},
+                                           # work_forests=work_forests,
+                                           indices={M_TEST: indices[M_TEST]})
         #else:
         #    compiled_trees = tree_iterators
         #else:
@@ -1628,11 +1637,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 meta[m][M_MODEL] = model
                 #if m in models_nearest:
                 #    meta[m][M_MODEL_NEAREST] = models_nearest[m]
-                if compiled_trees is not None:
+                if compiled_trees is not None and m in compiled_trees:
                     meta[m][M_TREES] = compiled_trees[m]
                 else:
                     meta[m][M_TREES] = None
-                if prepared_embeddings is not None:
+                if prepared_embeddings is not None and m in prepared_embeddings:
                     meta[m][M_EMBEDDINGS] = prepared_embeddings[m]
                 else:
                     meta[m][M_EMBEDDINGS] = None
