@@ -55,7 +55,6 @@ services:
         --dont_dump_trees=${DONT_DUMP_TREES}
         --sequence_length=${SEQUENCE_LENGTH}
         --precompile=${PRECOMPILE}
-        --nbr_work_forests=${NBR_WORK_FORESTS}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 

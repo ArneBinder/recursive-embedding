@@ -101,9 +101,6 @@ tf.flags.DEFINE_boolean('precompile',
                         True,
                         'If enabled, compile all trees once. Otherwise trees are compiled batch wise, which results in '
                         'decreased memory consumption.')
-tf.flags.DEFINE_integer('nbr_work_forests',
-                        0,
-                        'if >0, replicate forest to use multiple threads for tree_dict creation')
 tf.flags.DEFINE_boolean('clean_train_trees',
                         False,
                         'If enabled, delete train trees after every train executionion to decrease memory consumption.'
@@ -1456,7 +1453,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None,
-                cache=None, precompile=True, clean_train_trees=False, nbr_work_forests=0, debug=False,
+                cache=None, precompile=True, clean_train_trees=False, debug=False,
                 use_tfidf_embeddings=False):
     config.set_run_description()
 
@@ -1572,12 +1569,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     if M_TRAIN in meta:
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
         meta[M_TRAIN][M_NEG_SAMPLES] = config.neg_samples
-
-    #if not precompile:
-    #if nbr_work_forests > 0:
-    #    logger.debug('create %i additional work forests ...' % nbr_work_forests)
-    #work_forests = [forest] + [forest.copy(copy_parents=load_parents, copy_lexicon_roots=False,
-    #                                       lexicon_copy_vecs=False) for _ in range(nbr_work_forests)]
 
     # set tree iterator
     for m in meta:
@@ -1754,8 +1745,7 @@ if __name__ == '__main__':
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
                                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                                       precompile=FLAGS.precompile, clean_train_trees=FLAGS.clean_train_trees,
-                                       nbr_work_forests=FLAGS.nbr_work_forests)
+                                       precompile=FLAGS.precompile, clean_train_trees=FLAGS.clean_train_trees)
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
@@ -1852,8 +1842,7 @@ if __name__ == '__main__':
                         # train
                         metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None,
                                                              precompile=FLAGS.precompile,
-                                                             clean_train_trees=FLAGS.clean_train_trees,
-                                                             nbr_work_forests=FLAGS.nbr_work_forests)
+                                                             clean_train_trees=FLAGS.clean_train_trees)
                         main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
@@ -1863,8 +1852,7 @@ if __name__ == '__main__':
                                                                    precompile=FLAGS.precompile,
                                                                    clean_train_trees=FLAGS.clean_train_trees,
                                                                    test_file=FLAGS.test_file,
-                                                                   cache=cache_test if USE_CACHE else None,
-                                                                   nbr_work_forests=FLAGS.nbr_work_forests)
+                                                                   cache=cache_test if USE_CACHE else None)
                             main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
                                                       prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
@@ -1878,5 +1866,4 @@ if __name__ == '__main__':
         else:
             execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
                         test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                        precompile=FLAGS.precompile, clean_train_trees=FLAGS.clean_train_trees,
-                        nbr_work_forests=FLAGS.nbr_work_forests, debug=FLAGS.debug)
+                        precompile=FLAGS.precompile, clean_train_trees=FLAGS.clean_train_trees, debug=FLAGS.debug)
