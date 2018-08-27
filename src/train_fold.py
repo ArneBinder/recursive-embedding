@@ -1271,7 +1271,7 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
 
 
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                    test_result_writer, logdir, cache=None, debug=False, work_forests=None, clean_train_trees=False):
+                    test_result_writer, logdir, cache=None, debug=False, clean_train_trees=False):
     with supervisor.managed_session() as sess:
         if lexicon.is_filled:
             logger.info('init embeddings with external vectors...')
@@ -1313,7 +1313,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     #highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                     batch_iter=meta[M_TEST][M_BATCH_ITER],
                     debug=debug,
-                    work_forests=work_forests
+                    #work_forests=work_forests
                 )
             if M_TRAIN not in meta:
                 if values_all is None or values_all_gold is None:
@@ -1396,7 +1396,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 batch_iter=meta[M_TRAIN][M_BATCH_ITER],
                 return_values=False,
                 debug=debug,
-                work_forests=work_forests
+                #work_forests=work_forests
             )
 
             if M_TREES in meta[M_TRAIN] and (clean_train_trees or train_tree_queue is not None):
@@ -1423,7 +1423,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     batch_iter=meta[M_TEST][M_BATCH_ITER],
                     return_values=False,
                     debug=debug,
-                    work_forests=work_forests
+                    #work_forests=work_forests
                 )
             else:
                 step_test, loss_test, stats_test = step_train, loss_train, stats_train
@@ -1462,7 +1462,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None,
-                cache=None, precompile=True, clean_train_trees=False, debug=False,
+                cache=None, precompile=True, debug=False,
                 use_tfidf_embeddings=False):
     config.set_run_description()
 
@@ -1692,8 +1692,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             #if precompile:
             #    work_forests = None
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                                  test_result_writer, logdir, cache, debug, work_forests=None,
-                                  clean_train_trees=clean_train_trees)
+                                  test_result_writer, logdir, cache, debug, clean_train_trees=not precompile)
             logger.removeHandler(fh_info)
             logger.removeHandler(fh_debug)
             supervisor.stop()
@@ -1754,7 +1753,7 @@ if __name__ == '__main__':
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
                                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                                       precompile=FLAGS.precompile, clean_train_trees=FLAGS.clean_train_trees)
+                                       precompile=FLAGS.precompile)
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
@@ -1850,8 +1849,7 @@ if __name__ == '__main__':
 
                         # train
                         metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None,
-                                                             precompile=FLAGS.precompile,
-                                                             clean_train_trees=FLAGS.clean_train_trees)
+                                                             precompile=FLAGS.precompile)
                         main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
@@ -1859,7 +1857,6 @@ if __name__ == '__main__':
                         if test_fname is not None:
                             metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
                                                                    precompile=FLAGS.precompile,
-                                                                   clean_train_trees=FLAGS.clean_train_trees,
                                                                    test_file=FLAGS.test_file,
                                                                    cache=cache_test if USE_CACHE else None)
                             main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
@@ -1875,4 +1872,4 @@ if __name__ == '__main__':
         else:
             execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
                         test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                        precompile=FLAGS.precompile, clean_train_trees=FLAGS.clean_train_trees, debug=FLAGS.debug)
+                        precompile=FLAGS.precompile, debug=FLAGS.debug)
