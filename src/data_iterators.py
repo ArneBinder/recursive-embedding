@@ -495,10 +495,19 @@ def embeddings_tfidf(aggregated_trees, d_unknown, vocabulary=None):
             n += 1
         positions.append(n)
 
+    # if vocabulary was given, add dummy document that contains all vocabulary entries to get correct shape.
+    # Because we cut with positions array, it is not impact the output.
+    if not expand:
+        for index in vocabulary.values():
+            indices.append(index)
+            data.append(1)
+        indptr.append(len(indices))
+
     counts = csr_matrix((data, indices, indptr), dtype=int)
-    logger.debug('shape of count matrix: %s' % str(counts.shape))
+    logger.debug('shape of count matrix: %s%s' % (str(counts.shape), ' (dummy document was added)' if not expand else ''))
 
     # transform to tf-idf
+    # TODO: check use_idf=False
     tf_transformer = TfidfTransformer(use_idf=False).fit(counts)
     tf_idf = tf_transformer.transform(counts)
     return [tf_idf[positions[i]:positions[i+1], :] for i in range(len(positions)-1)], vocabulary
