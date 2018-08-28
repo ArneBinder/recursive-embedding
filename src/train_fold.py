@@ -866,23 +866,8 @@ def init_model_type(config):
                               'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
         # tree_iterator = diters.data_tuple_iterator_reroot
         tree_iterator = diters.tree_iterator
-
-        #def _get_indices(index_files, forest, **unused):
-        #    # create a dummy. real index sampling happens in reroot_wrapper
-        #    return [], None, [0]
-
-        #indices_getter = _get_indices
         indices_getter = diters.indices_reroot
         load_parents = True
-    # elif config.model_type == 'tfidf':
-    #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-    #                          'concat_mode': CM_AGGREGATE}
-    #    tree_iterator = diters.tree_iterator
-    #    indices_getter = diters.indices_dbpedianif
-    #    # tuple_size = config.neg_samples + 1
-    #    tuple_size = 1
-    #    discrete_model = True
-    #    load_parents = False
     elif config.model_type == MT_MULTICLASS:
         classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
         logger.info('number of classes to predict: %i' % len(classes_ids))
