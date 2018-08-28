@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import copy
 import csv
+from datetime import datetime, timedelta
 import fnmatch
 import json
 import logging
@@ -426,25 +427,6 @@ def batch_iter_reroot(forest_indices, number_of_samples):
         yield [idx], probs
 
 
-def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use_sparse_probs, _use_sparse_embeddings):
-    while True:
-        _i, _trees_batched, _embeddings, _probs_batched = _q.get()
-
-        if _trees_batched is not None:
-            _feed_dict[_model.tree_model.compiler.loom_input_tensor] = _trees_batched
-        if _embeddings is not None and _use_sparse_embeddings:
-            _embeddings = convert_sparse_matrix_to_sparse_tensor(_embeddings)
-        if _embeddings is not None:
-            _feed_dict[_model.tree_model.embeddings_placeholder] = _embeddings
-        # if values_gold expects a sparse tensor, convert probs_batched
-        if _use_sparse_probs:
-            _probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(_probs_batched))
-
-        _feed_dict[_model.values_gold] = _probs_batched
-        _res_dict[_i] = _sess.run(_vars, _feed_dict)
-        _q.task_done()
-
-
 def prepare_batches_multi(_q_in, _q_out, _forest, dataset_trees, forest_indices):
     while True:
         _i, _tree_indices_batched, _probs_batched = _q_in.get()
@@ -510,6 +492,8 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
         while True:
             _i, _forest_indices_batched_np, _probs_batched = _q_in.get()
 
+            t_start = datetime.now()
+
             embeddings = None
             trees_compiled = None
 
@@ -521,7 +505,7 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
             elif _compiler is not None and _tree_iter is not None:
                 #forest_indices_batched_np = np.array(_forest_indices_batched)
                 gen_trees_compiled = _compiler.build_loom_inputs(([t] for t in _tree_iter(indices=_forest_indices_batched_np.flatten())), ordered=True)
-                trees_compiled = list(chunks(gen_trees_compiled, _forest_indices_batched_np[0].shape[0]))
+                trees_compiled = list(chunks(gen_trees_compiled, n=_forest_indices_batched_np.shape[1]))
             # add sparse embeddings if available
             # TODO: check, if chunking is necessary
             if _dataset_embeddings is not None:
@@ -529,7 +513,8 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
                 # convert forest_indices to tree_indices
                 embeddings = _dataset_embeddings[[_forest_indices_to_trees_indices[idx] for idx in _forest_indices_batched_np.flatten()]]
 
-            _q_out.put((_i, trees_compiled, embeddings, _probs_batched))
+            t_delta = datetime.now() - t_start
+            _q_out.put((_i, trees_compiled, embeddings, _probs_batched, t_delta))
             _q_in.task_done()
 
     if _dataset_trees is None and _compiler is not None and use_pool:
@@ -537,6 +522,27 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
             _do()
     else:
         _do()
+
+
+def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use_sparse_probs, _use_sparse_embeddings):
+    while True:
+        _i, _trees_batched, _embeddings, _probs_batched, _time_prepare = _q.get()
+        t_start = datetime.now()
+        if _trees_batched is not None:
+            _feed_dict[_model.tree_model.compiler.loom_input_tensor] = _trees_batched
+        if _embeddings is not None and _use_sparse_embeddings:
+            _embeddings = convert_sparse_matrix_to_sparse_tensor(_embeddings)
+        if _embeddings is not None:
+            _feed_dict[_model.tree_model.embeddings_placeholder] = _embeddings
+        # if values_gold expects a sparse tensor, convert probs_batched
+        if _use_sparse_probs:
+            _probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(_probs_batched))
+
+        _feed_dict[_model.values_gold] = _probs_batched
+        _res = _sess.run(_vars, _feed_dict)
+        t_delta = datetime.now() - t_start
+        _res_dict[_i] = (_res, _time_prepare, t_delta)
+        _q.task_done()
 
 
 def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None,
@@ -643,6 +649,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     logger.debug('start prepare thread (single)...')
     prepare_worker.start()
 
+    t_start = datetime.now()
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for i, batch in enumerate(td.group_by_batches(_batch_iter, config.batch_size)):
         forest_indices_batched, probs_batched = zip(*batch)
@@ -652,7 +659,12 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     batch_queue.join()
 
     # order results
-    _result_all = [_result_all_dict[i] for i in range(len(_result_all_dict))]
+    _result_all = [_result_all_dict[i][0] for i in range(len(_result_all_dict))]
+    # time
+    time_prepare = sum([_result_all_dict[i][1] for i in range(len(_result_all_dict))], timedelta())
+    time_train = sum([_result_all_dict[i][2] for i in range(len(_result_all_dict))], timedelta())
+    logger.debug('time_prepare: %s\ttime_train: %s\ttime_total: %s'
+                 % (str(time_prepare), str(time_train), str(datetime.now() - t_start)))
 
     # list of dicts to dict of lists
     if len(_result_all) > 0:
