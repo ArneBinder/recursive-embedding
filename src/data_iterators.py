@@ -506,10 +506,12 @@ def embeddings_tfidf(aggregated_trees, d_unknown, vocabulary=None):
     counts = csr_matrix((data, indices, indptr), dtype=int)
     logger.debug('shape of count matrix: %s%s' % (str(counts.shape), ' (dummy document was added)' if not expand else ''))
 
-    # transform to tf-idf
-    # TODO: check use_idf=False
-    tf_transformer = TfidfTransformer(use_idf=False).fit(counts)
-    tf_idf = tf_transformer.transform(counts)
+    # transform to tf-idf,
+    # see http://scikit-learn.org/stable/tutorial/text_analytics/working_with_text_data.html#from-occurrences-to-frequencies
+    #tf_transformer = TfidfTransformer(use_idf=False).fit(counts)
+    #tf_idf = tf_transformer.transform(counts)
+    tfidf_transformer = TfidfTransformer()
+    tf_idf = tfidf_transformer.fit_transform(counts)
     return [tf_idf[positions[i]:positions[i+1], :] for i in range(len(positions)-1)], vocabulary
 
 
