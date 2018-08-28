@@ -513,7 +513,7 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
             embeddings = None
             trees_compiled = None
 
-            assert len(_probs_batched) > 0, 'empty batch (probs_batched has length 0)'
+            assert len(_forest_indices_batched_np) > 0, 'empty batch (forest_indices_batched has length 0)'
             # use pre-compiled trees, if available
             if _dataset_trees is not None:
                 trees_compiled = [[_dataset_trees[_forest_indices_to_trees_indices[tree_idx]] for tree_idx in tree_indices] for tree_indices in _forest_indices_batched_np]
@@ -521,7 +521,7 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
             elif _compiler is not None and _tree_iter is not None:
                 #forest_indices_batched_np = np.array(_forest_indices_batched)
                 gen_trees_compiled = _compiler.build_loom_inputs(([t] for t in _tree_iter(indices=_forest_indices_batched_np.flatten())), ordered=True)
-                trees_compiled = list(chunks(gen_trees_compiled, _probs_batched[0].shape[0]))
+                trees_compiled = list(chunks(gen_trees_compiled, _forest_indices_batched_np[0].shape[0]))
             # add sparse embeddings if available
             # TODO: check, if chunking is necessary
             if _dataset_embeddings is not None:
