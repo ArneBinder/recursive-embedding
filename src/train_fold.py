@@ -486,7 +486,8 @@ def compile_batches_simple(_q_in, res_dict, _compiler, use_pool=True):
         _do()
 
 
-def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dataset_trees, _dataset_embeddings, _tree_iter, _compiler, use_pool=True):
+def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dataset_trees, _dataset_embeddings,
+                           _tree_iter, _compiler, use_pool=True, debug=False):
 
     def _do():
         while True:
@@ -514,6 +515,8 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
                 embeddings = _dataset_embeddings[[_forest_indices_to_trees_indices[idx] for idx in _forest_indices_batched_np.flatten()]]
 
             t_delta = datetime.now() - t_start
+            if debug:
+                logger.debug('prepared batch %i. time_prepare: %s' % (_i, str(t_delta)))
             _q_out.put((_i, trees_compiled, embeddings, _probs_batched, t_delta))
             _q_in.task_done()
 
@@ -524,7 +527,7 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
         _do()
 
 
-def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use_sparse_probs, _use_sparse_embeddings):
+def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use_sparse_probs, _use_sparse_embeddings, debug=False):
     while True:
         _i, _trees_batched, _embeddings, _probs_batched, _time_prepare = _q.get()
         t_start = datetime.now()
@@ -542,6 +545,8 @@ def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use
         _res = _sess.run(_vars, _feed_dict)
         t_delta = datetime.now() - t_start
         _res_dict[_i] = (_res, _time_prepare, t_delta)
+        if debug:
+            logger.debug('finished batch %i. time_prepare: %s\ttime_train: %s' % (_i, str(_time_prepare), str(t_delta)))
         _q.task_done()
 
 
@@ -629,13 +634,14 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     _result_all_dict = {}
 
     compilation_required = hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor')
-    sparse_embeddings_required = hasattr(model.tree_model, 'embeddings_placeholder')
+    sparse_embeddings_required = hasattr(model.tree_model, 'embeddings_placeholder') \
+                                 and isinstance(model.tree_model.embeddings_placeholder, tf.SparseTensor)
     sparse_probs_required = isinstance(model.values_gold, tf.SparseTensor)
 
-    batch_queue = Queue.Queue(maxsize=100)
+    batch_queue = Queue.Queue()
     train_worker = Thread(target=process_batches_single,
                           args=(batch_queue, execute_vars, feed_dict, _result_all_dict, sess, model,
-                                sparse_probs_required, sparse_embeddings_required))
+                                sparse_probs_required, sparse_embeddings_required, debug))
     train_worker.setDaemon(True)
     logger.debug('start train thread (single)...')
     train_worker.start()
@@ -644,7 +650,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     prepare_worker = Thread(target=prepare_batches_single,
                             args=(prebatch_queue, batch_queue, indices_forest_to_tree, dataset_trees,
                                   dataset_embeddings, tree_iter,
-                                  model.tree_model.compiler if compilation_required else None, True))
+                                  model.tree_model.compiler if compilation_required else None, True, debug))
     prepare_worker.setDaemon(True)
     logger.debug('start prepare thread (single)...')
     prepare_worker.start()
@@ -1830,7 +1836,7 @@ if __name__ == '__main__':
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
                                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                                       precompile=FLAGS.precompile)
+                                       precompile=FLAGS.precompile, debug=FLAGS.debug)
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
@@ -1926,7 +1932,8 @@ if __name__ == '__main__':
 
                         # train
                         metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None,
-                                                             precompile=FLAGS.precompile)
+                                                             precompile=FLAGS.precompile,
+                                                             debug=FLAGS.debug)
                         main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
@@ -1935,7 +1942,8 @@ if __name__ == '__main__':
                             metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
                                                                    precompile=FLAGS.precompile,
                                                                    test_file=FLAGS.test_file,
-                                                                   cache=cache_test if USE_CACHE else None)
+                                                                   cache=cache_test if USE_CACHE else None,
+                                                                   debug=FLAGS.debug)
                             main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
                                                       prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
