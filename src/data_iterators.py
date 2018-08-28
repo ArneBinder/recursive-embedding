@@ -425,19 +425,10 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #logger.debug('created %i trees' % n)
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, nbr_indices, indices_mapping, transform=True, debug=False, indices=None, **kwargs):
-    logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping)))
-    if debug:
-        logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
-        assert nbr_indices <= len(indices_mapping), 'nbr_indices (%i) is higher then selected data size (%i)' \
-                                                    % (nbr_indices, len(indices_mapping))
-        _indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
-    else:
-        _indices = np.random.randint(len(indices_mapping), size=nbr_indices)
-    indices = indices_mapping[_indices]
+def reroot_wrapper(tree_iter, neg_samples, forest, indices_mapping, indices, transform=True, debug=False, **kwargs):
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    for tree in tree_iter(forest=forest, indices=indices, reroot=True, **kwargs):
+    for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
         #samples = np.random.choice(forest.data, size=neg_samples + 1)
         # sample only from selected data
         sample_indices = np.random.choice(indices_mapping, size=neg_samples + 1)

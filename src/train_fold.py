@@ -45,7 +45,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS, \
-    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS
+    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -265,7 +265,18 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
 
 
 def batch_iter_naive(number_of_samples, forest_indices, forest_indices_targets, idx_forest_to_idx_trees, sampler=None):
-
+    """
+    batch iterator for tree tuple settings. yields the correct forest index and number_of_samples negative samples for
+    every tree rooted at the respective forest_indices and the respective probabilities [1, 0, 0, ...] e.g.
+    [1] + [0] * number_of_samples.
+    :param number_of_samples: number of negative samples
+    :param forest_indices: indices for forest that root the used trees
+    :param forest_indices_targets: lists containing indices to trees that are true (positive) targets for every index
+                                    in forest_indices
+    :param idx_forest_to_idx_trees: mapping to convert forest_indices to indices of compiled trees
+    :param sampler:
+    :return: indices to forest (source, correct_target, number_of_samples negative samples), probabilities
+    """
     if sampler is None:
         def sampler(idx_target):
             # sample from [1, len(dataset_indices)-1] (inclusive); size +1 to hold the correct target and +1 to hold
@@ -293,9 +304,10 @@ def batch_iter_naive(number_of_samples, forest_indices, forest_indices_targets, 
             probs = np.zeros(shape=len(candidate_indices), dtype=DT_PROBS)
             probs[ix] = 1
 
-            yield sample_indices, probs
+            yield forest_indices[sample_indices], probs
 
 
+# DEPRECATED
 def batch_iter_nearest(number_of_samples, forest_indices, forest_indices_targets, sess, tree_model,
                        highest_sims_model, dataset_trees, tree_model_batch_size, idx_forest_to_idx_trees):
     raise NotImplementedError('batch_iter_nearest is depreacted')
@@ -365,13 +377,7 @@ def batch_iter_nearest(number_of_samples, forest_indices, forest_indices_targets
 #        yield [idx], probs, samples
 
 
-def batch_iter_reroot(forest_indices, number_of_samples):
-    for idx in np.arange(len(forest_indices)):
-        probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
-        probs[0] = 1
-        yield [idx], probs
-
-
+# DEPRECATED
 def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
     for i in range(len(forest_indices)):
         ix = np.isin(forest_indices, forest_indices_targets[i])
@@ -384,15 +390,40 @@ def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
             sampled_indices = np.arange(start - 1, start + batch_size)
             sampled_indices[0] = i
             current_probs = probs[start:start + batch_size]
-            yield sampled_indices, current_probs, None
+            yield forest_indices[sampled_indices], current_probs, None
 
 
-def batch_iter_multiclass(forest_indices, indices_targets, indices_forest_to_tree, shuffle=True):
+def batch_iter_multiclass(forest_indices, indices_targets, shuffle=True):
+    """
+    For every index in forest_indices, yield it and the respective values of indices_targets
+    :param forest_indices: indices to the forest
+    :param indices_targets: the target values, e.g. sparse class probabilities for every entry in forest_indices
+    :param shuffle: if True, shuffle the indices
+    :return:
+    """
     indices = np.arange(len(forest_indices))
     if shuffle:
         np.random.shuffle(indices)
     for i in indices:
-        yield [indices_forest_to_tree[forest_indices[i]]], indices_targets[i]
+        #yield [indices_forest_to_tree[forest_indices[i]]], indices_targets[i]
+        yield [forest_indices[i]], indices_targets[i]
+
+
+def batch_iter_reroot(forest_indices, number_of_samples):
+    """
+        For every _dummy_ index in forest_indices, yield its index and an array of probabilities of
+        number_of_samples + 1 entries where only the first is one and all other are zero.
+        :param forest_indices: dummy indices (just length is important)
+        :param number_of_samples: number of classes/additional trees with probability of zero
+        :return:
+        """
+    #indices = np.arange(len(forest_indices))
+    probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
+    probs[0] = 1
+    for idx in forest_indices:
+        #probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
+        #probs[0] = 1
+        yield [idx], probs
 
 
 def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use_sparse_probs, _use_sparse_embeddings):
@@ -473,11 +504,11 @@ def compile_batches_simple(_q_in, res_dict, _compiler, use_pool=True):
         _do()
 
 
-def prepare_batches_single(_q_in, _q_out, _dataset_trees, _dataset_embeddings, _tree_iter, _compiler, use_pool=True):
+def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dataset_trees, _dataset_embeddings, _tree_iter, _compiler, use_pool=True):
 
     def _do():
         while True:
-            _i, _tree_indices_batched, _probs_batched = _q_in.get()
+            _i, _forest_indices_batched_np, _probs_batched = _q_in.get()
 
             embeddings = None
             trees_compiled = None
@@ -485,17 +516,18 @@ def prepare_batches_single(_q_in, _q_out, _dataset_trees, _dataset_embeddings, _
             assert len(_probs_batched) > 0, 'empty batch (probs_batched has length 0)'
             # use pre-compiled trees, if available
             if _dataset_trees is not None:
-                trees_compiled = [[_dataset_trees[tree_idx] for tree_idx in tree_indices] for tree_indices in _tree_indices_batched]
+                trees_compiled = [[_dataset_trees[_forest_indices_to_trees_indices[tree_idx]] for tree_idx in tree_indices] for tree_indices in _forest_indices_batched_np]
             # otherwise compile (and create forests)
             elif _compiler is not None and _tree_iter is not None:
-                tree_indices_batched_np = np.array(_tree_indices_batched)
-                trees_compiled = list(_compiler.build_loom_inputs(([t] for t in _tree_iter(indices=tree_indices_batched_np.flatten())), ordered=True))
-                trees_compiled = list(chunks(trees_compiled, _probs_batched[0].shape[0]))
+                #forest_indices_batched_np = np.array(_forest_indices_batched)
+                gen_trees_compiled = _compiler.build_loom_inputs(([t] for t in _tree_iter(indices=_forest_indices_batched_np.flatten())), ordered=True)
+                trees_compiled = list(chunks(gen_trees_compiled, _probs_batched[0].shape[0]))
             # add sparse embeddings if available
             # TODO: check, if chunking is necessary
             if _dataset_embeddings is not None:
-                tree_indices_batched_np = np.array(_tree_indices_batched)
-                embeddings = _dataset_embeddings[tree_indices_batched_np.flatten()]
+                #forest_indices_batched_np = np.array(_forest_indices_batched)
+                # convert forest_indices to tree_indices
+                embeddings = _dataset_embeddings[[_forest_indices_to_trees_indices[idx] for idx in _forest_indices_batched_np.flatten()]]
 
             _q_out.put((_i, trees_compiled, embeddings, _probs_batched))
             _q_in.task_done()
@@ -507,12 +539,36 @@ def prepare_batches_single(_q_in, _q_out, _dataset_trees, _dataset_embeddings, _
         _do()
 
 
-def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees=None, tree_iter=None, dataset_embeddings=None,
-             indices_targets=None,
+def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None,
+             tree_iter=None, dataset_trees=None, dataset_embeddings=None,
              train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True, debug=False,
-             work_forests=None):
-
+             highest_sims_model=None, number_of_samples=None, batch_iter='', return_values=True, debug=False):
+    """
+    Execute one training or testing epoch. Use precompield trees or prepared embeddings, if available. Otherwise,
+    create and compile trees batch wise on the run while training (or predicting).
+    :param supervisor: the training supervisor
+    :param sess: the training tensorflow session
+    :param model: the model
+    :param epoch: number of current epoch
+    :param forest_indices: indices with respect to the forest whose trees are used for training
+    :param indices_targets: indices for target data. In the tree tuple case, lists with indices that point to the
+                            forest. For (multi) class prediction, (sparse) class probabilities.
+    :param tree_iter: iterator that requires a parameter indices pointing to forest and produces trees rooted by these
+                      indices
+    :param dataset_trees: precompiled trees for every index in forest_indices
+    :param dataset_embeddings: prepared (sparse) embeddings for every index in forest_indices
+    :param train: If True, train the model. Otherwise, predict only.
+    :param emit: If True, emit statistics to the superviser.writer/test_writer
+    :param test_step: If train==False, use this for statistics
+    :param test_writer: If train==False, use this tensorflow statistics writer
+    :param test_result_writer: If train==False, use this prediction result csv writer
+    :param highest_sims_model: DEPRECATED
+    :param number_of_samples: numb er of neattive samples for tree tuple settings
+    :param batch_iter: one of the implemented batch iterators (batch_iter_naive, )
+    :param return_values: Iff True, calculate predictions
+    :param debug: enable debugging mode
+    :return:
+    """
     logger.debug('use %i forest_indices for this epoch' % len(forest_indices))
     #dataset_indices = np.arange(len(forest_indices))
     #np.random.shuffle(dataset_indices)
@@ -538,6 +594,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees=None,
         assert test_result_writer is not None, 'training is disabled, but test_result_writer is not set'
 
     #tree_model_batch_size = 10
+    #_map = {idx: i for i, idx in enumerate(forest_indices)}
+    #indices_forest_to_tree = np.vectorize(_map.get)
     indices_forest_to_tree = {idx: i for i, idx in enumerate(forest_indices)}
     iter_args = {batch_iter_naive: [number_of_samples, forest_indices, indices_targets, indices_forest_to_tree],
                  # batch_iter_nearest is DEPRECATED
@@ -546,7 +604,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees=None,
                  #                     indices_forest_to_tree],
                  batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
                  batch_iter_reroot: [forest_indices, number_of_samples],
-                 batch_iter_multiclass: [forest_indices, indices_targets, indices_forest_to_tree, not debug]}
+                 batch_iter_multiclass: [forest_indices, indices_targets, not debug]}
 
     if batch_iter is not None and batch_iter.strip() != '':
         _iter = globals()[batch_iter]
@@ -570,23 +628,25 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, dataset_trees=None,
 
     batch_queue = Queue.Queue(maxsize=100)
     train_worker = Thread(target=process_batches_single,
-                          args=(batch_queue, execute_vars, feed_dict, _result_all_dict, sess, model, sparse_probs_required, sparse_embeddings_required))
+                          args=(batch_queue, execute_vars, feed_dict, _result_all_dict, sess, model,
+                                sparse_probs_required, sparse_embeddings_required))
     train_worker.setDaemon(True)
     logger.debug('start train thread (single)...')
     train_worker.start()
 
     prebatch_queue = Queue.Queue()
     prepare_worker = Thread(target=prepare_batches_single,
-                            args=(prebatch_queue, batch_queue, dataset_trees, dataset_embeddings, tree_iter, model.tree_model.compiler if compilation_required else None, True))
+                            args=(prebatch_queue, batch_queue, indices_forest_to_tree, dataset_trees,
+                                  dataset_embeddings, tree_iter,
+                                  model.tree_model.compiler if compilation_required else None, True))
     prepare_worker.setDaemon(True)
     logger.debug('start prepare thread (single)...')
     prepare_worker.start()
 
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for i, batch in enumerate(td.group_by_batches(_batch_iter, config.batch_size)):
-        tree_indices_batched, probs_batched = zip(*batch)
-        # TODO: entangle tree_indices_batched and probs_batched (copy does not work for tuples. modify iterators?)
-        prebatch_queue.put((i, tree_indices_batched, probs_batched))
+        forest_indices_batched, probs_batched = zip(*batch)
+        prebatch_queue.put((i, np.array(forest_indices_batched), probs_batched))
 
     prebatch_queue.join()
     batch_queue.join()
@@ -773,6 +833,7 @@ def init_model_type(config):
         indices_getter = diters.indices_dbpedianif
         tree_count = 1
         load_parents = (tree_iterator_args['context'] > 0)
+        config.batch_iter = batch_iter_naive.__name__
     # elif config.model_type == 'tuple_single':
     #    tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
     #                          'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
@@ -1347,18 +1408,24 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
         if config.model_type == MT_REROOT:
             # only one queue element is neccessary
             train_tree_queue = Queue.Queue(1)
-            train_tree_queue.put(meta[M_TRAIN][M_TREES])
+            if M_TREES in meta[M_TRAIN] and meta[M_TRAIN][M_TREES] is not None \
+                    and M_INDICES in meta[M_TRAIN] and meta[M_TRAIN][M_INDICES] is not None:
+                train_tree_queue.put((meta[M_TRAIN][M_INDICES], meta[M_TRAIN][M_TREES]))
 
-            def _recompile(stop_event):
+            def _resample_and_recompile_train(stop_event):
                 _compiler = meta[M_TRAIN][M_MODEL].tree_model.compiler
+                assert M_INDICES_SAMPLER in meta[M_TRAIN], '%s not found in meta[train], but it is required to ' \
+                                                           're-sample indices' % M_INDICES_SAMPLER
                 with _compiler.multiprocessing_pool():
                     while not stop_event.is_set():
-                        train_tree_queue.put(compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
-                                                           indices={M_TRAIN: meta[M_TRAIN][M_INDICES]},
-                                                           compiler=_compiler, use_pool=False)[M_TRAIN])
+                        _indices = meta[M_TRAIN][M_INDICES_SAMPLER]()
+                        _trees = compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
+                                               indices={M_TRAIN: _indices},
+                                               compiler=_compiler, use_pool=False)[M_TRAIN]
+                        train_tree_queue.put((_indices, _trees))
 
             stop_trees_worker = Event()
-            train_trees_worker = Thread(target=_recompile, args=(stop_trees_worker,))
+            train_trees_worker = Thread(target=_resample_and_recompile_train, args=(stop_trees_worker,))
             train_trees_worker.setDaemon(True)
             logger.debug('start re-compile thread (single)...')
             train_trees_worker.start()
@@ -1371,15 +1438,14 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
         METRIC_MIN_INIT = -1
         stat_queue = [{metric: METRIC_MIN_INIT}]
         max_queue_length = 0
-        for epoch, shuffled in enumerate(
-                td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
+        for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
 
             # TRAIN
 
             # re-create and compile trees for reroot (language) model
             if train_tree_queue is not None:
                 logger.debug('wait for compiled trees ...')
-                meta[M_TRAIN][M_TREES] = train_tree_queue.get()
+                meta[M_TRAIN][M_INDICES], meta[M_TRAIN][M_TREES] = train_tree_queue.get()
                 train_tree_queue.task_done()
 
             step_train, loss_train, _, _, stats_train = do_epoch(
@@ -1593,11 +1659,25 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                                                         forest.roots[root_idx + 1] if root_idx + 1 < len(
                                                             forest.roots) else len(forest)) for root_idx in
                                               root_indices])
-            # overwrite root indices with correct number of dummy tree indices
-            # TODO: rework for use with work_forests (multi-threading)
-            meta[m][M_INDICES] = np.zeros(nbr_indices)
-            meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper, tree_iter=tree_iterator, forest=forest,
-                                           neg_samples=meta[m][M_NEG_SAMPLES], nbr_indices=nbr_indices,
+
+            def _sample_indices():
+                logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping)))
+                if debug:
+                    logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
+                    assert nbr_indices <= len(indices_mapping), 'nbr_indices (%i) is higher then selected data size (%i)' \
+                                                                % (nbr_indices, len(indices_mapping))
+                    _indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
+                else:
+                    _indices = np.random.randint(len(indices_mapping), size=nbr_indices)
+                return indices_mapping[_indices]
+
+            # overwrite root indices with index sampler
+            #meta[m][M_INDICES] = np.zeros(nbr_indices)
+            meta[m][M_INDICES_SAMPLER] = _sample_indices
+            meta[m][M_INDICES] = _sample_indices()
+            meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
+                                           tree_iter=tree_iterator, forest=forest,
+                                           neg_samples=meta[m][M_NEG_SAMPLES], #nbr_indices=nbr_indices,
                                            indices_mapping=indices_mapping, **tree_iterator_args)
         else:
             #if precompile:

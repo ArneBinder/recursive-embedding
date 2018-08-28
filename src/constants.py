@@ -83,6 +83,7 @@ MT_REROOT = 'reroot'
 MT_TREETUPLE = 'tuple'
 
 M_INDICES = 'indices'
+M_INDICES_SAMPLER = 'indices_sampler'
 M_TEST = 'test'
 M_TRAIN = 'train'
 M_MODEL = 'model'
