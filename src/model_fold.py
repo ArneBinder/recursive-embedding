@@ -1140,7 +1140,8 @@ def get_jaccard_sim(tree_tuple):
 
 
 class TreeModel(object):
-    def __init__(self, embeddings_plain, keep_prob_placeholder=None, keep_prob_default=1.0, root_fc_sizes=0, **kwargs):
+    def __init__(self, embeddings_plain, prepared_embeddings_plain=None, keep_prob_placeholder=None,
+                 keep_prob_default=1.0, root_fc_sizes=0, **kwargs):
 
         if keep_prob_placeholder is None:
             keep_prob_placeholder = tf.placeholder_with_default(keep_prob_default, shape=())
@@ -1152,6 +1153,8 @@ class TreeModel(object):
             self._root_fc_sizes = [root_fc_sizes]
 
         self._embeddings_plain = embeddings_plain
+        if prepared_embeddings_plain is not None:
+            self._embeddings_plain = tf.concat((self._embeddings_plain, prepared_embeddings_plain), axis=-1)
 
         #self._output_size = int(self._embeddings_plain.shape[-1])
 
@@ -1180,7 +1183,20 @@ class TreeModel(object):
 
 
 class SequenceTreeModel(TreeModel):
-    def __init__(self, tree_count, tree_embedder, keep_prob_default, state_size, **kwargs):
+    def __init__(self, tree_count, tree_embedder, keep_prob_default, state_size, prepared_embeddings_dim=-1,
+                 prepared_embeddings_sparse=False, **kwargs):
+
+        prepared_embeddings_plain = None
+        if prepared_embeddings_dim > 0:
+            if prepared_embeddings_sparse:
+                self._prepared_embeddings_placeholder = tf.sparse_placeholder(shape=[None, prepared_embeddings_dim], dtype=tf.float32)
+                prepared_embeddings_plain = tf.reshape(
+                    tf.sparse_tensor_to_dense(self._prepared_embeddings_placeholder, validate_indices=False),
+                    shape=[-1, prepared_embeddings_dim])
+            else:
+                self._prepared_embeddings_placeholder = tf.placeholder(shape=[None, prepared_embeddings_dim], dtype=tf.float32)
+                prepared_embeddings_plain = tf.reshape(self._prepared_embeddings_placeholder, shape=[-1, prepared_embeddings_dim])
+
         keep_prob_placeholder = tf.placeholder_with_default(keep_prob_default, shape=())
 
         self._tree_embed = tree_embedder(keep_prob_placeholder=keep_prob_placeholder, state_size=state_size, **kwargs)
@@ -1203,6 +1219,7 @@ class SequenceTreeModel(TreeModel):
 
         super(SequenceTreeModel, self).__init__(
             embeddings_plain=tf.reshape(self._tree_embeddings_all, shape=[-1, self.embedder.output_size]),
+            prepared_embeddings_plain=prepared_embeddings_plain,
             keep_prob_placeholder=keep_prob_placeholder,
             **kwargs)
 
@@ -1216,6 +1233,10 @@ class SequenceTreeModel(TreeModel):
     @property
     def compiler(self):
         return self._compiler
+
+    @property
+    def prepared_embeddings_placeholder(self):
+        return self._prepared_embeddings_placeholder
 
 
 class DummyTreeModel(TreeModel):
@@ -1233,7 +1254,7 @@ class DummyTreeModel(TreeModel):
         super(DummyTreeModel, self).__init__(embeddings_plain=embeddings_plain, **kwargs)
 
     @property
-    def embeddings_placeholder(self):
+    def prepared_embeddings_placeholder(self):
         return self._embeddings_placeholder
 
 

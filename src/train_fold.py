@@ -46,7 +46,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS, \
-    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER
+    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -317,7 +317,7 @@ def batch_iter_nearest(number_of_samples, forest_indices, forest_indices_targets
     feed_dict = {}
     if isinstance(tree_model, model_fold.DummyTreeModel):
         for start in range(0, dataset_trees.shape[0], tree_model_batch_size):
-            feed_dict[tree_model.embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(dataset_trees[start:start+tree_model_batch_size])
+            feed_dict[tree_model.prepared_embeddings_placeholder] = convert_sparse_matrix_to_sparse_tensor(dataset_trees[start:start+tree_model_batch_size])
             current_tree_embeddings = sess.run(tree_model.embeddings_all, feed_dict)
             _tree_embeddings.append(current_tree_embeddings)
     else:
@@ -536,7 +536,7 @@ def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use
         if _embeddings is not None and _use_sparse_embeddings:
             _embeddings = convert_sparse_matrix_to_sparse_tensor(_embeddings)
         if _embeddings is not None:
-            _feed_dict[_model.tree_model.embeddings_placeholder] = _embeddings
+            _feed_dict[_model.tree_model.prepared_embeddings_placeholder] = _embeddings
         # if values_gold expects a sparse tensor, convert probs_batched
         if _use_sparse_probs:
             _probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(_probs_batched))
@@ -634,8 +634,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     _result_all_dict = {}
 
     compilation_required = hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor')
-    sparse_embeddings_required = hasattr(model.tree_model, 'embeddings_placeholder') \
-                                 and isinstance(model.tree_model.embeddings_placeholder, tf.SparseTensor)
+    sparse_embeddings_required = hasattr(model.tree_model, 'prepared_embeddings_placeholder') \
+                                 and isinstance(model.tree_model.prepared_embeddings_placeholder, tf.SparseTensor)
     sparse_probs_required = isinstance(model.values_gold, tf.SparseTensor)
 
     batch_queue = Queue.Queue()
@@ -839,13 +839,6 @@ def init_model_type(config):
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
-        if config.tree_embedder == 'tfidf':
-            tree_iterator_args['concat_mode'] = CM_AGGREGATE
-            tree_iterator_args['context'] = 0
-        # if FLAGS.debug:
-        #    root_strings_store = StringStore()
-        #    root_strings_store.from_disk('%s.root.id.string' % config.train_data_path)
-        #    tree_iterator_args['root_strings'] = [s for s in root_strings_store]
 
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_dbpedianif
@@ -892,10 +885,6 @@ def init_model_type(config):
 
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
-        if config.tree_embedder == 'tfidf':
-            tree_iterator_args['concat_mode'] = CM_AGGREGATE
-            tree_iterator_args['context'] = 0
-            tree_iterator_args['max_size_plain'] = config.sequence_length
         tree_iterator = diters.tree_iterator
         indices_getter = partial(diters.indices_bioasq, classes_ids=classes_ids)
         tree_count = 1
@@ -1152,7 +1141,7 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, indices, cache_dir=None,
     return prepared_embeddings, embedding_dim
 
 
-def create_models(config, lexicon, tree_count, tree_iterators, indices=None, data_dir=None,
+def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tfidf, indices=None, data_dir=None,
                   use_inception_tree_model=False, index_file_names=None, index_file_sizes=None,
                   precompile=True, create_tfidf_embeddings=False):
 
@@ -1162,8 +1151,31 @@ def create_models(config, lexicon, tree_count, tree_iterators, indices=None, dat
 
     compiled_trees = None
     prepared_embeddings = None
-    model_tree = None
-    if config.tree_embedder != 'tfidf':
+    prepared_embeddings_dim = -1
+    create_tfidf_embeddings = create_tfidf_embeddings or config.tree_embedder == 'tfidf'
+    if create_tfidf_embeddings:
+        cache_dir = None
+        if data_dir is not None:
+            # get tfidf config serialization and append number of train files
+            # TODO: ATTENTION: if config.train_files does not consist of consecutive index files with increasing split
+            # index i, idx.<i>.npy, that path is not sufficient!
+            cache_dir = os.path.join(data_dir, 'cache', '%s_numtf%i'
+                                     % (config.get_serialization_for_calculate_tfidf(), len(index_file_names[M_TRAIN])))
+        d_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+        prepared_embeddings, prepared_embeddings_dim = prepare_embeddings_tfidf(tree_iterators=tree_iterators_tfidf,
+                                                                                indices=indices,
+                                                                                d_unknown=d_unknown,
+                                                                                cache_dir=cache_dir,
+                                                                                index_file_names=index_file_names,
+                                                                                index_file_sizes=index_file_sizes)
+
+    if config.tree_embedder == 'tfidf':
+        model_tree = model_fold.DummyTreeModel(embeddings_dim=prepared_embeddings_dim, tree_count=tree_count,
+                                               keep_prob=config.keep_prob, sparse=True,
+                                               root_fc_sizes=[int(s) for s in
+                                                              ('0' + config.root_fc_sizes).split(',')], )
+
+    else:
         tree_embedder = getattr(model_fold, TREE_EMBEDDER_PREFIX + config.tree_embedder)
         kwargs = {}
         if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat):
@@ -1185,6 +1197,8 @@ def create_models(config, lexicon, tree_count, tree_iterators, indices=None, dat
                                                                  ('0' + config.root_fc_sizes).split(',')],
                                                   keep_prob_default=config.keep_prob,
                                                   tree_count=tree_count,
+                                                  prepared_embeddings_dim=prepared_embeddings_dim,
+                                                  prepared_embeddings_sparse=True,
                                                   # data_transfomed=data_transformed
                                                   # tree_count=1,
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
@@ -1198,7 +1212,6 @@ def create_models(config, lexicon, tree_count, tree_iterators, indices=None, dat
             compiled_trees = compile_trees(tree_iterators=tree_iterators, compiler=model_tree.compiler,
                                            cache_dir=None if config.dont_dump_trees else cache_dir,
                                            index_file_names=index_file_names, index_file_sizes=index_file_sizes,
-                                           #work_forests=work_forests,
                                            indices=indices)
         elif M_TEST in tree_iterators:
             # TODO: check, if correct
@@ -1207,31 +1220,8 @@ def create_models(config, lexicon, tree_count, tree_iterators, indices=None, dat
                                            cache_dir=None if config.dont_dump_trees else cache_dir,
                                            index_file_names={M_TEST: index_file_names[M_TEST]},
                                            index_file_sizes={M_TEST: index_file_sizes[M_TEST]},
-                                           # work_forests=work_forests,
                                            indices={M_TEST: indices[M_TEST]})
-        #else:
-        #    compiled_trees = tree_iterators
-        #else:
-        #    prepared_embeddings = None
-    if config.tree_embedder == 'tfidf' or create_tfidf_embeddings:
-        cache_dir = None
-        if data_dir is not None:
-            # get tfidf config serialization and append number of train files
-            cache_dir = os.path.join(data_dir, 'cache', '%s_numtf%i'
-                                     % (config.get_serialization_for_calculate_tfidf(), len(index_file_names[M_TRAIN])))
-        d_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
-        prepared_embeddings, embedding_dim = prepare_embeddings_tfidf(tree_iterators=tree_iterators,
-                                                                      indices=indices,
-                                                                      d_unknown=d_unknown,
-                                                                      cache_dir=cache_dir,
-                                                                      index_file_names=index_file_names,
-                                                                      index_file_sizes=index_file_sizes)
 
-        if model_tree is None:
-            model_tree = model_fold.DummyTreeModel(embeddings_dim=embedding_dim, tree_count=tree_count,
-                                                   keep_prob=config.keep_prob, sparse=True,
-                                                   root_fc_sizes=[int(s) for s in
-                                                                  ('0' + config.root_fc_sizes).split(',')], )
 
     if use_inception_tree_model:
         inception_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size, sparse=False,
@@ -1531,8 +1521,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None,
-                cache=None, precompile=True, debug=False,
-                use_tfidf_embeddings=False):
+                cache=None, precompile=True, debug=False):
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -1598,6 +1587,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
     tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count = init_model_type(config)
+    tree_iterator_args_tfidf = None
+    if config.use_tfidf or config.tree_embedder == 'tfidf':
+        tree_iterator_args_tfidf = tree_iterator_args.copy()
+        tree_iterator_args_tfidf['concat_mode'] = CM_AGGREGATE
+        tree_iterator_args_tfidf['context'] = 0
+        tree_iterator_args_tfidf['max_size_plain'] = config.sequence_length
 
     if debug:
         tree_iterator_args['debug'] = True
@@ -1685,6 +1680,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
         else:
             #if precompile:
             meta[m][M_TREE_ITER] = partial(tree_iterator, forest=forest, **tree_iterator_args)
+            if tree_iterator_args_tfidf is not None:
+                meta[m][M_TREE_ITER_TFIDF] = partial(tree_iterator, forest=forest, **tree_iterator_args_tfidf)
             #else:
             #    meta[m][M_TREE_ITER] = partial(tree_iterator, **tree_iterator_args)
 
@@ -1700,6 +1697,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
             model_tree, model, prepared_embeddings, compiled_trees = create_models(
                 config=config, lexicon=lexicon,  tree_count=tree_count, #logdir=logdir,
                 tree_iterators={m: meta[m][M_TREE_ITER] for m in meta},
+                tree_iterators_tfidf={m: meta[m][M_TREE_ITER_TFIDF] for m in meta if M_TREE_ITER_TFIDF in meta[m]},
                 #cache=cache,
                 data_dir=parent_dir,
                 index_file_names={m: meta[m][M_FNAMES] for m in meta},
@@ -1707,7 +1705,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
                 #work_forests=work_forests if precompile else None,
                 indices={m: meta[m][M_INDICES] for m in meta},
                 precompile=precompile,
-                create_tfidf_embeddings=use_tfidf_embeddings
+                create_tfidf_embeddings=config.use_tfidf
             )
 
             #models_nearest = create_models_nearest(model_tree=model_tree,

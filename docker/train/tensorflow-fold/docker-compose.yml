@@ -26,6 +26,7 @@ services:
         --dev_file_index=${DEV_FILE_INDEX}
         --batch_size=${BATCH_SIZE}
         --tree_embedder=${TREE_EMBEDDER}
+        --use_tfidf=${USE_TFIDF}
         --learning_rate=${LEARNING_RATE}
         --optimizer=${OPTIMIZER}
         --early_stopping_window=${EARLY_STOPPING_WINDOW}

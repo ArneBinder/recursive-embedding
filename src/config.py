@@ -203,6 +203,10 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     False,
                                     'If enabled, do not dump compiled trees in cache dir.',
                                     'ddt'],
+                  'use_tfidf': ['DEFINE_boolean',
+                                      False,
+                                      'If enabled, appedn TF-IDF embeddings to the tree model output.',
+                                      'tfidf'],
                   }
 
 ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']
@@ -212,7 +216,7 @@ TREE_MODEL_PARAMETERS = ['additional_vecs', 'leaf_fc_size', 'root_fc_sizes', 'st
 # used for compile trees
 TREE_STRUCTURE_PARAMETERS = ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'sequence_length',
                              'no_fixed_vecs', 'all_vecs_fixed']
-MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'model_type', 'batch_iter']
+MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'use_tfidf', 'model_type', 'batch_iter']
 DESCRIPTION_PARAMETERS = MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS + ['dont_dump_trees', 'all_vecs_zero']
 FLAGS_FN = 'flags.json'
 
@@ -313,7 +317,7 @@ class Config(object):
         return self.serialize(filter_flags=TREE_MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS)
 
     def get_serialization_for_calculate_tfidf(self):
-        return self.serialize(filter_flags=['tree_embedder', 'sequence_length', 'dev_file_index'])
+        return self.serialize(filter_flags=['sequence_length', 'dev_file_index'])
 
     def set_run_description(self):
         #if 'run_description' not in self.__dict__['__values']:
