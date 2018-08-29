@@ -1383,7 +1383,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 else:
                     values_all.dump(os.path.join(logdir, 'sims.np'))
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
-                lexicon.dump(filename=os.path.join(logdir, 'model'))
+                #lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
                 return stats_dict
 
         # clear vecs in lexicon to clean up memory
