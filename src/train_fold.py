@@ -60,7 +60,7 @@ tf.flags.DEFINE_string('logdir',
                        #  '/home/arne/ML_local/tf/supervised/log/SA/EMBEDDING_FC_dim300',
                        '/home/arne/ML_local/tf/supervised/log/SA/PRETRAINED',
                        'Directory in which to write event logs.')
-tf.flags.DEFINE_string('test_file',
+tf.flags.DEFINE_string('test_files',
                        None,
                        'Set this to execute only.')
 tf.flags.DEFINE_string('train_files',
@@ -1528,7 +1528,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 return stat_queue_sorted[0], cache
 
 
-def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=None, init_only=None, test_only=None,
+def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files=None, init_only=None, test_only=None,
                 cache=None, precompile=True, debug=False):
     config.set_run_description()
 
@@ -1587,7 +1587,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_file=
     parent_dir = os.path.abspath(os.path.join(config.train_data_path, os.pardir))
 
     ## handle train/test index files
-    fnames_train, fnames_test = get_index_file_names(config=config, parent_dir=parent_dir, test_files=test_file,
+    fnames_train, fnames_test = get_index_file_names(config=config, parent_dir=parent_dir, test_files=test_files,
                                                      test_only=test_only)
     if not (test_only or init_only):
         meta[M_TRAIN] = {M_FNAMES: fnames_train}
@@ -1841,7 +1841,7 @@ if __name__ == '__main__':
                 config = Config(logdir=logdir)
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
-                                       test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
+                                       test_files=FLAGS.test_files, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
                                        precompile=FLAGS.precompile, debug=FLAGS.debug)
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
@@ -1924,11 +1924,12 @@ if __name__ == '__main__':
 
                         # check, if the test file exists, before executing the run
                         train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
-                        if FLAGS.test_file is not None and FLAGS.test_file.strip() != '':
-                            test_fname = os.path.join(train_data_dir, FLAGS.test_file)
-                            assert os.path.isfile(test_fname), 'could not find test file: %s' % test_fname
-                        else:
-                            test_fname = None
+                        use_test_files = False
+                        if FLAGS.test_files is not None and FLAGS.test_files.strip() != '':
+                            for t_fn in FLAGS.test_files.strip().split(','):
+                                current_test_fname = os.path.join(train_data_dir, FLAGS.test_files.strip())
+                                assert os.path.isfile(current_test_fname), 'could not find test file: %s' % current_test_fname
+                                use_test_files = True
 
                         # skip already processed
                         if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
@@ -1944,10 +1945,10 @@ if __name__ == '__main__':
                         logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
 
                         # test
-                        if test_fname is not None:
+                        if use_test_files:
                             metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
                                                                    precompile=FLAGS.precompile,
-                                                                   test_file=FLAGS.test_file,
+                                                                   test_files=FLAGS.test_files,
                                                                    cache=cache_test if USE_CACHE else None,
                                                                    debug=FLAGS.debug)
                             main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
@@ -1962,5 +1963,5 @@ if __name__ == '__main__':
         # default: execute single run
         else:
             execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
-                        test_file=FLAGS.test_file, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
+                        test_files=FLAGS.test_files, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
                         precompile=FLAGS.precompile, debug=FLAGS.debug)
