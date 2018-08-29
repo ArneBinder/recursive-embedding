@@ -1145,6 +1145,7 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, indices, cache_dir=None,
         current_embedding_dim = prepared_embeddings[M_TEST].shape[1]
         assert embedding_dim == -1 or embedding_dim == current_embedding_dim, \
             'current embedding_dim: %i does not match previous one: %i' % (current_embedding_dim, embedding_dim)
+        embedding_dim = current_embedding_dim
 
     assert embedding_dim != -1, 'no data sets created'
     return prepared_embeddings, embedding_dim
