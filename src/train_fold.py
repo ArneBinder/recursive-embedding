@@ -1459,8 +1459,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             )
 
             if M_TREES in meta[M_TRAIN] and (clean_train_trees or train_tree_queue is not None):
-                logger.debug('delete train trees')
+                logger.debug('delete train trees and indices')
                 del meta[M_TRAIN][M_TREES]
+                del meta[M_TRAIN][M_INDICES]
 
             # TEST
 
