@@ -317,7 +317,7 @@ class Config(object):
         return self.serialize(filter_flags=TREE_MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS)
 
     def get_serialization_for_calculate_tfidf(self):
-        return self.serialize(filter_flags=['sequence_length', 'dev_file_index'])
+        return self.serialize(filter_flags=['sequence_length'])
 
     def set_run_description(self):
         #if 'run_description' not in self.__dict__['__values']:
