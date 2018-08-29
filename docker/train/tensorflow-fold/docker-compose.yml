@@ -57,6 +57,8 @@ services:
         --sequence_length=${SEQUENCE_LENGTH}
         --precompile=${PRECOMPILE}
         --debug=${DEBUG}
+        --discard_tree_embeddings=${DISCARD_TREE_EMBEDDINGS}
+        --discard_prepared_embeddings=${DISCARD_PREPARED_EMBEDDINGS}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 

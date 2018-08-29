@@ -1141,7 +1141,8 @@ def get_jaccard_sim(tree_tuple):
 
 class TreeModel(object):
     def __init__(self, embeddings_plain, prepared_embeddings_plain=None, keep_prob_placeholder=None,
-                 keep_prob_default=1.0, root_fc_sizes=0, **kwargs):
+                 keep_prob_default=1.0, root_fc_sizes=0, discard_tree_embeddings=False,
+                  discard_prepared_embeddings=False, **kwargs):
 
         if keep_prob_placeholder is None:
             keep_prob_placeholder = tf.placeholder_with_default(keep_prob_default, shape=())
@@ -1153,7 +1154,11 @@ class TreeModel(object):
             self._root_fc_sizes = [root_fc_sizes]
 
         self._embeddings_plain = embeddings_plain
+        if discard_tree_embeddings:
+            self._embeddings_plain = tf.zeros_like(self._embeddings_plain)
         if prepared_embeddings_plain is not None:
+            if discard_prepared_embeddings:
+                prepared_embeddings_plain = tf.zeros_like(prepared_embeddings_plain)
             self._embeddings_plain = tf.concat((self._embeddings_plain, prepared_embeddings_plain), axis=-1)
 
         #self._output_size = int(self._embeddings_plain.shape[-1])

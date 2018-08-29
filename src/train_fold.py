@@ -106,6 +106,12 @@ tf.flags.DEFINE_boolean('clean_train_trees',
                         False,
                         'If enabled, delete train trees after every train executionion to decrease memory consumption.'
                         'That requires re-compilation of all trees during training.')
+tf.flags.DEFINE_boolean('discard_tree_embeddings',
+                        False,
+                        'If enabled, discard embeddings produced by the tree model and pass instead vecs of zeros.')
+tf.flags.DEFINE_boolean('discard_prepared_embeddings',
+                        False,
+                        'If enabled, discard prepared embeddings like tf-idf and pass instead vecs of zeros.')
 
 
 # flags which are not logged in logdir/flags.json
@@ -1153,7 +1159,13 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, indices, cache_dir=None,
 
 def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tfidf, indices=None, data_dir=None,
                   use_inception_tree_model=False, index_file_names=None, index_file_sizes=None,
-                  precompile=True, create_tfidf_embeddings=False):
+                  precompile=True, create_tfidf_embeddings=False, discard_tree_embeddings=False,
+                  discard_prepared_embeddings=False):
+
+    if discard_tree_embeddings:
+        logger.warning('discard tree embeddings')
+    if discard_prepared_embeddings:
+        logger.warning('discard prepared embeddings')
 
     optimizer = config.optimizer
     if optimizer is not None:
@@ -1181,8 +1193,9 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
     if config.tree_embedder == 'tfidf':
         model_tree = model_fold.DummyTreeModel(embeddings_dim=prepared_embeddings_dim, tree_count=tree_count,
                                                keep_prob=config.keep_prob, sparse=True,
-                                               root_fc_sizes=[int(s) for s in
-                                                              ('0' + config.root_fc_sizes).split(',')], )
+                                               root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
+                                               discard_tree_embeddings=discard_tree_embeddings,
+                                               discard_prepared_embeddings=discard_prepared_embeddings)
 
     else:
         tree_embedder = getattr(model_fold, TREE_EMBEDDER_PREFIX + config.tree_embedder)
@@ -1208,6 +1221,8 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                   tree_count=tree_count,
                                                   prepared_embeddings_dim=prepared_embeddings_dim,
                                                   prepared_embeddings_sparse=True,
+                                                  discard_tree_embeddings=discard_tree_embeddings,
+                                                  discard_prepared_embeddings=discard_prepared_embeddings,
                                                   # data_transfomed=data_transformed
                                                   # tree_count=1,
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
@@ -1529,7 +1544,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files=None, init_only=None, test_only=None,
-                cache=None, precompile=True, debug=False):
+                cache=None, precompile=True, debug=False, discard_tree_embeddings=False,
+                discard_prepared_embeddings=False):
     config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
@@ -1589,9 +1605,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
     ## handle train/test index files
     fnames_train, fnames_test = get_index_file_names(config=config, parent_dir=parent_dir, test_files=test_files,
                                                      test_only=test_only)
-    if not (test_only or init_only):
+    if not (test_only or init_only or fnames_train is None or len(fnames_train) == 0):
         meta[M_TRAIN] = {M_FNAMES: fnames_train}
-    if not FLAGS.dont_test:
+    if not (FLAGS.dont_test or fnames_test is None or len(fnames_test) == 0):
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
     tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count = init_model_type(config)
@@ -1713,7 +1729,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
                 #work_forests=work_forests if precompile else None,
                 indices={m: meta[m][M_INDICES] for m in meta},
                 precompile=precompile,
-                create_tfidf_embeddings=config.use_tfidf
+                create_tfidf_embeddings=config.use_tfidf,
+                discard_tree_embeddings=discard_tree_embeddings,
+                discard_prepared_embeddings=discard_prepared_embeddings,
             )
 
             #models_nearest = create_models_nearest(model_tree=model_tree,
@@ -1964,4 +1982,6 @@ if __name__ == '__main__':
         else:
             execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
                         test_files=FLAGS.test_files, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                        precompile=FLAGS.precompile, debug=FLAGS.debug)
+                        precompile=FLAGS.precompile, debug=FLAGS.debug,
+                        discard_tree_embeddings=FLAGS.discard_tree_embeddings,
+                        discard_prepared_embeddings=FLAGS.discard_prepared_embeddings,)
