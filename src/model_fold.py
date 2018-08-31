@@ -891,7 +891,7 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
         ) >> td.Concat()
 
         if model.output_type is None:
-            model.set_output_type(tdt.TensorType(shape=(self.head_size * self.sequence_length,), dtype='float32'))
+            model.set_output_type(tdt.TensorType(shape=(self.head_size * self.sequence_length + 1,), dtype='float32'))
         return model
 
     def reduce_concatenated(self, concatenated_embeddings_with_length):
