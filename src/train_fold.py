@@ -1859,8 +1859,12 @@ if __name__ == '__main__':
                 config = Config(logdir=logdir)
                 config_dict = config.as_dict()
                 stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
-                                       test_files=FLAGS.test_files, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
-                                       precompile=FLAGS.precompile, debug=FLAGS.debug)
+                                       test_files=FLAGS.test_files, init_only=FLAGS.init_only,
+                                       test_only=FLAGS.test_only,
+                                       precompile=FLAGS.precompile, debug=FLAGS.debug,
+                                       discard_tree_embeddings=FLAGS.discard_tree_embeddings,
+                                       discard_prepared_embeddings=FLAGS.discard_prepared_embeddings,
+                                       )
 
                 add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
