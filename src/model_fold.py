@@ -1095,13 +1095,20 @@ class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
                 states_bw.append(state_bw)
 
         #states_concat = tf.concat((state_fw, state_bw), axis=-1)
-        return tf.add_n(inputs)
-        #return tf.concat(states_fw + states_bw + [tf.add_n(inputs)], axis=-1)
+        summed_outputs = tf.add_n(inputs)
+        # requires factor in output_size: 2
+        #return summed_outputs
+        # requires factor in output_size: 2 + 2 * self.n_layers
+        # because one output per direction + (one state per direction) * n_layers
+        return tf.concat(states_fw + states_bw + [summed_outputs], axis=-1)
 
     # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
     @property
     def output_size(self):
-        return self.state_size * 2
+        # factor: 2 (one output per direction) + 2 (one state per direction) * n_layers
+        return self.state_size * (2 + 2 * self.n_layers)
+        # factor: 2 (one output per direction)
+        #return self.state_size * 2
 
     @property
     def n_layers(self):
