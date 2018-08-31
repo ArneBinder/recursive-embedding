@@ -1064,32 +1064,48 @@ class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
 
 
 class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
-    def __init__(self, **kwargs):
+    def __init__(self, n_layers=3, **kwargs):
+        self._n_layers = n_layers
         TreeEmbedding_FLATconcat.__init__(self, name='BIGRU', **kwargs)
 
     def reduce_concatenated(self, concatenated_embeddings_with_length):
         concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
         length = concatenated_embeddings_with_length[:, -1]
         embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, self.sequence_length, self.head_size])
-        cell_fw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
-        cell_fw_dropout = tf.nn.rnn_cell.DropoutWrapper(
-            cell_fw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
-            variational_recurrent=True, dtype=embeddings_sequence.dtype, input_size=embeddings_sequence.shape[-1])
-        cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
-        cell_bw_dropout = tf.nn.rnn_cell.DropoutWrapper(
-            cell_bw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
-            variational_recurrent=True, dtype=embeddings_sequence.dtype, input_size=embeddings_sequence.shape[-1])
+        _dtype = embeddings_sequence.dtype
         inputs = tf.unstack(embeddings_sequence, axis=1)
-        outputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(
-            cell_fw_dropout, cell_bw_dropout, inputs, sequence_length=length, dtype=concatenated_embeddings.dtype)
-        states_concat = tf.concat((state_fw, state_bw), axis=-1)
-        # result = tf.contrib.layers.fully_connected(inputs=states_concat, num_outputs=self.output_size)
-        return states_concat
+
+        states_fw = []
+        states_bw = []
+        for i in range(self.n_layers):
+            with tf.variable_scope(self.name + '/layer_' + str(i)):
+                assert len(inputs) > 0, 'number of inputs (sequence_length) for (BI)GRU is zero'
+                input_size = inputs[0].shape[-1]
+                cell_fw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+                cell_fw_dropout = tf.nn.rnn_cell.DropoutWrapper(
+                    cell_fw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
+                    variational_recurrent=True, input_size=input_size, dtype=_dtype)
+                cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+                cell_bw_dropout = tf.nn.rnn_cell.DropoutWrapper(
+                    cell_bw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
+                    variational_recurrent=True, input_size=input_size, dtype=_dtype)
+                inputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(
+                    cell_fw_dropout, cell_bw_dropout, inputs, sequence_length=length, dtype=_dtype)
+                states_fw.append(state_fw)
+                states_bw.append(state_bw)
+
+        #states_concat = tf.concat((state_fw, state_bw), axis=-1)
+        return tf.add_n(inputs)
+        #return tf.concat(states_fw + states_bw + [tf.add_n(inputs)], axis=-1)
 
     # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
     @property
     def output_size(self):
         return self.state_size * 2
+
+    @property
+    def n_layers(self):
+        return self._n_layers
 
 ########################################################################################################################
 
