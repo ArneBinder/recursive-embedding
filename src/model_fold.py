@@ -225,9 +225,14 @@ class TreeEmbedding(object):
         else:
             self._keep_prob = 1.0
         if state_size:
-            self._state_size = state_size
+            if type(state_size) == str:
+                _parts = state_size.split(',')
+                self._state_sizes = [int(s.strip()) for s in _parts if int(s.strip()) != 0]
+            else:
+                self._state_sizes = [state_size]
         else:
-            self._state_size = self._dim_embeddings  # state_size
+            self._state_sizes = [self._dim_embeddings]
+
         self._name = VAR_PREFIX_TREE_EMBEDDING + '/' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
@@ -288,7 +293,11 @@ class TreeEmbedding(object):
 
     @property
     def state_size(self):
-        return self._state_size
+        return self._state_sizes[-1]
+
+    @property
+    def state_sizes(self):
+        return self._state_sizes
 
     @property
     def name(self):
@@ -1064,8 +1073,7 @@ class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
 
 
 class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
-    def __init__(self, n_layers=3, **kwargs):
-        self._n_layers = n_layers
+    def __init__(self, **kwargs):
         TreeEmbedding_FLATconcat.__init__(self, name='BIGRU', **kwargs)
 
     def reduce_concatenated(self, concatenated_embeddings_with_length):
@@ -1077,22 +1085,25 @@ class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
 
         states_fw = []
         states_bw = []
-        for i in range(self.n_layers):
-            with tf.variable_scope(self.name + '/layer_' + str(i)):
-                assert len(inputs) > 0, 'number of inputs (sequence_length) for (BI)GRU is zero'
-                input_size = inputs[0].shape[-1]
-                cell_fw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
-                cell_fw_dropout = tf.nn.rnn_cell.DropoutWrapper(
-                    cell_fw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
-                    variational_recurrent=True, input_size=input_size, dtype=_dtype)
-                cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
-                cell_bw_dropout = tf.nn.rnn_cell.DropoutWrapper(
-                    cell_bw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
-                    variational_recurrent=True, input_size=input_size, dtype=_dtype)
-                inputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(
-                    cell_fw_dropout, cell_bw_dropout, inputs, sequence_length=length, dtype=_dtype)
-                states_fw.append(state_fw)
-                states_bw.append(state_bw)
+        i = 0
+        for size in self.state_sizes:
+            if size > 0:
+                with tf.variable_scope(self.name + '/layer_' + str(i)):
+                    assert len(inputs) > 0, 'number of inputs (sequence_length) for (BI)GRU is zero'
+                    input_size = inputs[0].shape[-1]
+                    cell_fw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+                    cell_fw_dropout = tf.nn.rnn_cell.DropoutWrapper(
+                        cell_fw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
+                        variational_recurrent=True, input_size=input_size, dtype=_dtype)
+                    cell_bw = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
+                    cell_bw_dropout = tf.nn.rnn_cell.DropoutWrapper(
+                        cell_bw, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
+                        variational_recurrent=True, input_size=input_size, dtype=_dtype)
+                    inputs, state_fw, state_bw = tf.nn.static_bidirectional_rnn(
+                        cell_fw_dropout, cell_bw_dropout, inputs, sequence_length=length, dtype=_dtype)
+                    states_fw.append(state_fw)
+                    states_bw.append(state_bw)
+                i += 1
 
         #states_concat = tf.concat((state_fw, state_bw), axis=-1)
         summed_outputs = tf.add_n(inputs)
@@ -1100,19 +1111,22 @@ class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat):
         #return summed_outputs
         # requires factor in output_size: 2 + 2 * self.n_layers
         # because one output per direction + (one state per direction) * n_layers
-        return tf.concat(states_fw + states_bw + [summed_outputs], axis=-1)
+        res = tf.concat(states_fw + states_bw + [summed_outputs], axis=-1)
+        #self._output_size = int(res.shape[-1])
+        return res
 
     # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
-    @property
-    def output_size(self):
-        # factor: 2 (one output per direction) + 2 (one state per direction) * n_layers
-        return self.state_size * (2 + 2 * self.n_layers)
-        # factor: 2 (one output per direction)
-        #return self.state_size * 2
+    #@property
+    #def output_size(self):
+    #    # factor: 2 (one output per direction) + 2 (one state per direction) * n_layers
+    #    #return self.state_size * (2 + 2 * self.n_layers)
+    #    return self._output_size
+    #    # factor: 2 (one output per direction)
+    #    #return self.state_size * 2
 
-    @property
-    def n_layers(self):
-        return self._n_layers
+    #@property
+    #def n_layers(self):
+    #    return self._n_layers
 
 ########################################################################################################################
 
@@ -1242,11 +1256,16 @@ class SequenceTreeModel(TreeModel):
         self._compiler = td.Compiler.create(model)
         self._tree_embeddings_all, = self._compiler.output_tensors
 
+        # For FLATconcat models, the tree embedder just embedded the leafs and the composition takes place in
+        # reduce_concatenated. Furthermore, we take the embedding_size from that output.
         if isinstance(self._tree_embed, TreeEmbedding_FLATconcat):
             self._tree_embeddings_all = self.embedder.reduce_concatenated(self._tree_embeddings_all)
+            embeddings_size = int(self._tree_embeddings_all.shape[-1])
+        else:
+            embeddings_size = self.embedder.output_size
 
         super(SequenceTreeModel, self).__init__(
-            embeddings_plain=tf.reshape(self._tree_embeddings_all, shape=[-1, self.embedder.output_size]),
+            embeddings_plain=tf.reshape(self._tree_embeddings_all, shape=[-1, embeddings_size]),
             prepared_embeddings_plain=prepared_embeddings_plain,
             keep_prob_placeholder=keep_prob_placeholder,
             **kwargs)
