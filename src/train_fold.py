@@ -724,12 +724,18 @@ def csv_test_writer(logdir, mode='w'):
     return test_result_writer
 
 
-def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
+def get_parameter_count_from_shapes(shapes, shapes_neg=(), selector_prefix='', selector_suffix='',
+                                    selector_suffixes_not=()):
+    def valid_name(name):
+        return name.endswith(selector_suffix) and name.startswith(selector_prefix) \
+               and not any([name.endswith(suf_not) for suf_not in selector_suffixes_not])
+
+    filtered_shapes = {k: shapes[k] for k in shapes if valid_name(k) and k not in shapes_neg}
     count = 0
-    for tensor_name in shapes:
-        if tensor_name.endswith(selector_suffix):
+    for tensor_name in filtered_shapes:
+        if len(shapes[tensor_name]) > 0:
             count += reduce((lambda x, y: x * y), shapes[tensor_name])
-    return count
+    return count, filtered_shapes
 
 
 #def get_dataset_size(index_files=None):
@@ -738,6 +744,43 @@ def get_parameter_count_from_shapes(shapes, selector_suffix='/Adadelta'):
 #    ds = sum([len(numpy_load(ind_file, assert_exists=True)) for ind_file in index_files])
 #    logger.debug('dataset size: %i' % ds)
 #    return ds
+
+def log_shapes_info(reader, tree_embedder_prefix='TreeEmbedding/', optimizer_suffixes=('/Adam', '/Adam_1')):
+    saved_shapes = reader.get_variable_to_shape_map()
+
+    shapes_rev = {k: saved_shapes[k] for k in saved_shapes if '_reverse_' in k}
+    p_count, shapes_train_rev = get_parameter_count_from_shapes(shapes_rev,
+                                                                selector_suffix=optimizer_suffixes[0])
+    logger.debug('(trainable) reverse parameter count: %i' % p_count)
+    logger.debug(shapes_train_rev)
+    saved_shapes_wo_rev = {k: saved_shapes[k] for k in saved_shapes if k not in shapes_rev}
+    # logger.debug(saved_shapes)
+    p_count, shapes_te_trainable = get_parameter_count_from_shapes(saved_shapes_wo_rev,
+                                                                   selector_prefix=tree_embedder_prefix,
+                                                                   selector_suffix=optimizer_suffixes[0])
+    logger.debug('(trainable) tree embedder parameter count: %i' % p_count)
+    logger.debug(shapes_te_trainable)
+    p_count, shapes_te_total = get_parameter_count_from_shapes(saved_shapes_wo_rev,
+                                                               shapes_neg=['/'.join(k.split('/')[:-1]) for k in
+                                                                           shapes_te_trainable],
+                                                               selector_prefix=tree_embedder_prefix,
+                                                               selector_suffixes_not=optimizer_suffixes)
+    logger.debug('(not trainable) tree embedder parameter count: %i' % p_count)
+    logger.debug(shapes_te_total)
+    p_count, shapes_nte_trainable = get_parameter_count_from_shapes(saved_shapes_wo_rev,
+                                                                    shapes_neg=shapes_te_trainable.keys(),
+                                                                    selector_suffix=optimizer_suffixes[0])
+    logger.debug('(trainable) remaining parameter count: %i' % p_count)
+    logger.debug(shapes_nte_trainable)
+    p_count, shapes_nte_total = get_parameter_count_from_shapes(saved_shapes_wo_rev,
+                                                                shapes_neg=['/'.join(k.split('/')[:-1]) for k in
+                                                                            shapes_te_trainable] + shapes_te_total.keys() + [
+                                                                               '/'.join(k.split('/')[:-1]) for k in
+                                                                               shapes_nte_trainable],
+                                                                selector_suffixes_not=optimizer_suffixes)
+    logger.debug('(not trainable) remaining parameter count: %i' % p_count)
+    logger.debug(shapes_nte_total)
+
 
 def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False,
                 no_fixed_vecs=False, all_vecs_fixed=False, all_vecs_zero=False, additional_vecs_path=None):
@@ -754,9 +797,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         prev_config = Config(logdir=logdir)
         logger.info('read lex_size from model ...')
         reader = tf.train.NewCheckpointReader(checkpoint_fn)
-        saved_shapes = reader.get_variable_to_shape_map()
-        logger.debug(saved_shapes)
-        logger.debug('parameter count: %i' % get_parameter_count_from_shapes(saved_shapes))
+        log_shapes_info(reader)
 
         lexicon = Lexicon(filename=os.path.join(logdir, 'model'), checkpoint_reader=reader, add_vocab_manual=True,
                           load_ids_fixed=True)
