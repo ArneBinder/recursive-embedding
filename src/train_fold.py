@@ -492,6 +492,33 @@ def compile_batches_simple(_q_in, res_dict, _compiler, use_pool=True):
         _do()
 
 
+def prepare_batch(_forest_indices_batched_np, _probs_batched, _forest_indices_to_trees_indices, _dataset_trees,
+                  _dataset_embeddings, _tree_iter, _compiler):
+    embeddings = None
+    trees_compiled = None
+
+    assert len(_forest_indices_batched_np) > 0, 'empty batch (forest_indices_batched has length 0)'
+    # use pre-compiled trees, if available
+    if _dataset_trees is not None:
+        trees_compiled = [[_dataset_trees[_forest_indices_to_trees_indices[tree_idx]] for tree_idx in tree_indices] for
+                          tree_indices in _forest_indices_batched_np]
+    # otherwise compile (and create forests)
+    elif _compiler is not None and _tree_iter is not None:
+        # forest_indices_batched_np = np.array(_forest_indices_batched)
+        gen_trees_compiled = _compiler.build_loom_inputs(
+            ([t] for t in _tree_iter(indices=_forest_indices_batched_np.flatten())), ordered=True)
+        trees_compiled = list(chunks(gen_trees_compiled, n=_forest_indices_batched_np.shape[1]))
+    # add sparse embeddings if available
+    # TODO: check, if chunking is necessary
+    if _dataset_embeddings is not None:
+        # forest_indices_batched_np = np.array(_forest_indices_batched)
+        # convert forest_indices to tree_indices
+        embeddings = _dataset_embeddings[
+            [_forest_indices_to_trees_indices[idx] for idx in _forest_indices_batched_np.flatten()]]
+    return trees_compiled, embeddings, _probs_batched
+
+
+#unused
 def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dataset_trees, _dataset_embeddings,
                            _tree_iter, _compiler, use_pool=True, debug=False):
 
@@ -500,60 +527,191 @@ def prepare_batches_single(_q_in, _q_out, _forest_indices_to_trees_indices, _dat
             _i, _forest_indices_batched_np, _probs_batched = _q_in.get()
 
             t_start = datetime.now()
-
-            embeddings = None
-            trees_compiled = None
-
-            assert len(_forest_indices_batched_np) > 0, 'empty batch (forest_indices_batched has length 0)'
-            # use pre-compiled trees, if available
-            if _dataset_trees is not None:
-                trees_compiled = [[_dataset_trees[_forest_indices_to_trees_indices[tree_idx]] for tree_idx in tree_indices] for tree_indices in _forest_indices_batched_np]
-            # otherwise compile (and create forests)
-            elif _compiler is not None and _tree_iter is not None:
-                #forest_indices_batched_np = np.array(_forest_indices_batched)
-                gen_trees_compiled = _compiler.build_loom_inputs(([t] for t in _tree_iter(indices=_forest_indices_batched_np.flatten())), ordered=True)
-                trees_compiled = list(chunks(gen_trees_compiled, n=_forest_indices_batched_np.shape[1]))
-            # add sparse embeddings if available
-            # TODO: check, if chunking is necessary
-            if _dataset_embeddings is not None:
-                #forest_indices_batched_np = np.array(_forest_indices_batched)
-                # convert forest_indices to tree_indices
-                embeddings = _dataset_embeddings[[_forest_indices_to_trees_indices[idx] for idx in _forest_indices_batched_np.flatten()]]
-
+            trees_compiled, embeddings, _probs_batched = prepare_batch(
+                _forest_indices_batched_np, _probs_batched, _forest_indices_to_trees_indices, _dataset_trees,
+                _dataset_embeddings, _tree_iter, _compiler)
             t_delta = datetime.now() - t_start
             if debug:
                 logger.debug('prepared batch %i. time_prepare: %s' % (_i, str(t_delta)))
             _q_out.put((_i, trees_compiled, embeddings, _probs_batched, t_delta))
             _q_in.task_done()
 
-    if _dataset_trees is None and _compiler is not None and use_pool:
+    #if _dataset_trees is None and _compiler is not None and use_pool:
+    if _compiler is not None and use_pool:
         with _compiler.multiprocessing_pool():
             _do()
     else:
         _do()
 
 
+#unused
+class PrepareThread(Thread):
+    def __init__(self, _q_in, _q_out, _forest_indices_to_trees_indices, _dataset_trees, _dataset_embeddings,
+                           _tree_iter, _compiler, use_pool=True, debug=False):
+        super(PrepareThread, self).__init__()
+        self._q_in = _q_in
+        self._q_out = _q_out
+        self._forest_indices_to_trees_indices = _forest_indices_to_trees_indices
+        self._dataset_trees = _dataset_trees
+        self._dataset_embeddings = _dataset_embeddings
+        self._tree_iter = _tree_iter
+        self._compiler = _compiler
+        self._use_pool = use_pool
+        self._debug = debug
+        self.daemon = True
+
+    def _do(self):
+        while True:
+            item = self._q_in.get()
+            if item is None:
+                self._q_in.task_done()
+                break
+            _i, _forest_indices_batched_np, _probs_batched = item
+
+            t_start = datetime.now()
+            trees_compiled, embeddings, _probs_batched = prepare_batch(
+                _forest_indices_batched_np, _probs_batched, self._forest_indices_to_trees_indices, self._dataset_trees,
+                self._dataset_embeddings, self._tree_iter, self._compiler)
+            t_delta = datetime.now() - t_start
+            if self._debug:
+                logger.debug('prepared batch %i. time_prepare: %s' % (_i, str(t_delta)))
+            self._q_out.put((_i, trees_compiled, embeddings, _probs_batched, t_delta))
+            self._q_in.task_done()
+
+    def run(self):
+        if self._use_pool and self._compiler is not None:
+            with self._compiler.multiprocessing_pool():
+                self._do()
+        else:
+            self._do()
+
+    def join(self, timeout=None):
+        self._q_in.join()
+        self._q_in.put(None)
+        Thread.join(self, timeout)
+
+
+def process_batch(_trees_batched, _embeddings, _probs_batched, _vars, _feed_dict, _sess, _model,
+                  _use_sparse_probs, _use_sparse_embeddings):
+    if _trees_batched is not None:
+        _feed_dict[_model.tree_model.compiler.loom_input_tensor] = _trees_batched
+    if _embeddings is not None and _use_sparse_embeddings:
+        _embeddings = convert_sparse_matrix_to_sparse_tensor(_embeddings)
+    if _embeddings is not None:
+        _feed_dict[_model.tree_model.prepared_embeddings_placeholder] = _embeddings
+    # if values_gold expects a sparse tensor, convert probs_batched
+    if _use_sparse_probs:
+        _probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(_probs_batched))
+
+    _feed_dict[_model.values_gold] = _probs_batched
+    _res = _sess.run(_vars, _feed_dict)
+    return _res
+
+
+#unused
 def process_batches_single(_q, _vars, _feed_dict, _res_dict, _sess, _model, _use_sparse_probs, _use_sparse_embeddings, debug=False):
     while True:
         _i, _trees_batched, _embeddings, _probs_batched, _time_prepare = _q.get()
         t_start = datetime.now()
-        if _trees_batched is not None:
-            _feed_dict[_model.tree_model.compiler.loom_input_tensor] = _trees_batched
-        if _embeddings is not None and _use_sparse_embeddings:
-            _embeddings = convert_sparse_matrix_to_sparse_tensor(_embeddings)
-        if _embeddings is not None:
-            _feed_dict[_model.tree_model.prepared_embeddings_placeholder] = _embeddings
-        # if values_gold expects a sparse tensor, convert probs_batched
-        if _use_sparse_probs:
-            _probs_batched = convert_sparse_matrix_to_sparse_tensor(vstack(_probs_batched))
-
-        _feed_dict[_model.values_gold] = _probs_batched
-        _res = _sess.run(_vars, _feed_dict)
+        _res = process_batch(_trees_batched, _embeddings, _probs_batched, _vars, _feed_dict, _sess, _model,
+                             _use_sparse_probs, _use_sparse_embeddings)
         t_delta = datetime.now() - t_start
         _res_dict[_i] = (_res, _time_prepare, t_delta)
         if debug:
             logger.debug('finished batch %i. time_prepare: %s\ttime_train: %s' % (_i, str(_time_prepare), str(t_delta)))
         _q.task_done()
+
+
+#unused
+class TrainThread(Thread):
+    def __init__(self, _q, _vars, _feed_dict, _res_dict, _sess, _model, _use_sparse_probs, _use_sparse_embeddings, debug=False):
+        super(TrainThread, self).__init__()
+        self._q = _q
+        self._vars = _vars
+        self._feed_dict = _feed_dict
+        self._res_dict = _res_dict
+        self._sess = _sess
+        self._model = _model
+        self._use_sparse_probs = _use_sparse_probs
+        self._use_sparse_embeddings = _use_sparse_embeddings
+        self._debug = debug
+        self.daemon = True
+
+    def _do(self):
+        while True:
+            item = self._q.get()
+            if item is None:
+                self._q.task_done()
+                break
+            _i, _trees_batched, _embeddings, _probs_batched, _time_prepare = item
+            t_start = datetime.now()
+            _res = process_batch(_trees_batched, _embeddings, _probs_batched, self._vars, self._feed_dict, self._sess, self._model,
+                                 self._use_sparse_probs, self._use_sparse_embeddings)
+            t_delta = datetime.now() - t_start
+            self._res_dict[_i] = (_res, _time_prepare, t_delta)
+            if self._debug:
+                logger.debug(
+                    'finished batch %i. time_prepare: %s\ttime_train: %s' % (_i, str(_time_prepare), str(t_delta)))
+            self._q.task_done()
+
+    def run(self):
+        self._do()
+
+    def join(self, timeout=None):
+        self._q.join()
+        self._q.put(None)
+        Thread.join(self, timeout)
+
+
+class RunnerThread(Thread):
+    def __init__(self, q_in, q_out, func, args=None, kwargs=None, compiler=None, debug=False):
+        super(RunnerThread, self).__init__()
+        self._func = func
+        self._args = args or []
+        self._kwargs = kwargs or {}
+        self._q_in = q_in
+        self._q_out = q_out
+        self._compiler = compiler
+        self._debug = debug
+        self.daemon = True
+
+    def _do(self):
+        while True:
+            item = self._q_in.get()
+            if item is None:
+                self._q_in.task_done()
+                break
+            _i, _args, _kwargs, _times = item
+            t_start = datetime.now()
+            # use '+' instead of append to allow tuples
+            _current_args = _args + self._args
+            _kwargs.update(self._kwargs)
+            _res = self._func(*_current_args, **_kwargs)
+            del _args
+            del _kwargs
+            t_delta = datetime.now() - t_start
+            _times.append(t_delta)
+            if self._debug:
+                logger.debug('finished %s %i. time: %s' % (self._func.__name__, _i, str(t_delta)))
+            self._q_out.put((_i, _res, {}, _times))
+            self._q_in.task_done()
+
+    def run(self):
+        if self._compiler is not None:
+            with self._compiler.multiprocessing_pool():
+                self._do()
+        else:
+            self._do()
+
+    def join(self, timeout=None):
+        self._q_in.join()
+        self._q_in.put(None)
+        Thread.join(self, timeout)
+
+
+class PutList(list):
+    def put(self, item):
+        self.append(item)
 
 
 def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=None,
@@ -637,7 +795,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
                 _iter = batch_iter_naive
     logger.debug('use %s' % _iter.__name__)
     _batch_iter = _iter(*iter_args[_iter])
-    _result_all_dict = {}
+    #_result_all_dict = {}
 
     compilation_required = hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor')
     sparse_embeddings_required = hasattr(model.tree_model, 'prepared_embeddings_placeholder') \
@@ -645,31 +803,57 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
     sparse_probs_required = isinstance(model.values_gold, tf.SparseTensor)
 
     batch_queue = Queue.Queue()
-    train_worker = Thread(target=process_batches_single,
-                          args=(batch_queue, execute_vars, feed_dict, _result_all_dict, sess, model,
-                                sparse_probs_required, sparse_embeddings_required, debug))
-    train_worker.setDaemon(True)
+    result_list = PutList()
+    #train_worker = Thread(target=process_batches_single,
+    #                      args=(batch_queue, execute_vars, feed_dict, _result_all_dict, sess, model,
+    #                            sparse_probs_required, sparse_embeddings_required, debug))
+    #train_worker.setDaemon(True)
+    #train_thread = TrainThread(batch_queue, execute_vars, feed_dict, _result_all_dict, sess, model,
+    #                            sparse_probs_required, sparse_embeddings_required, debug)
+    train_thread = RunnerThread(q_in=batch_queue, q_out=result_list, func=process_batch,
+                                args=(execute_vars, feed_dict, sess, model, sparse_probs_required,
+                                      sparse_embeddings_required),
+                                debug=debug)
     logger.debug('start train thread (single)...')
-    train_worker.start()
+    #train_worker.start()
+    train_thread.start()
 
     prebatch_queue = Queue.Queue()
-    prepare_worker = Thread(target=prepare_batches_single,
-                            args=(prebatch_queue, batch_queue, indices_forest_to_tree, dataset_trees,
-                                  dataset_embeddings, tree_iter,
-                                  model.tree_model.compiler if compilation_required else None, True, debug))
-    prepare_worker.setDaemon(True)
+    #prepare_worker = Thread(target=prepare_batches_single,
+    #                        args=(prebatch_queue, batch_queue, indices_forest_to_tree, dataset_trees,
+    #                              dataset_embeddings, tree_iter,
+    #                              model.tree_model.compiler if compilation_required else None, False, debug))
+    #prepare_worker.setDaemon(True)
+    #prepare_thread = PrepareThread(prebatch_queue, batch_queue, indices_forest_to_tree, dataset_trees,
+    #                               dataset_embeddings, tree_iter,
+    #                               model.tree_model.compiler if compilation_required and dataset_trees is None else None,
+    #                               False, debug)
+    prepare_thread = RunnerThread(q_in=prebatch_queue, q_out=batch_queue, func=prepare_batch,
+                                  args=(indices_forest_to_tree, dataset_trees, dataset_embeddings, tree_iter,
+                                        model.tree_model.compiler if compilation_required and dataset_trees is None else None),
+                                  debug=debug)
     logger.debug('start prepare thread (single)...')
-    prepare_worker.start()
+    #prepare_worker.start()
+    prepare_thread.start()
 
     t_start = datetime.now()
     # for batch in td.group_by_batches(data_set, config.batch_size if train else len(test_set)):
     for i, batch in enumerate(td.group_by_batches(_batch_iter, config.batch_size)):
         forest_indices_batched, probs_batched = zip(*batch)
-        prebatch_queue.put((i, np.array(forest_indices_batched), probs_batched))
+        prebatch_queue.put((i, (np.array(forest_indices_batched), probs_batched), {}, []))
+        #trees_compiled, embeddings, _ = prepare_batch(
+        #    np.array(forest_indices_batched), None, indices_forest_to_tree, dataset_trees, dataset_embeddings,
+        #    tree_iter, model.tree_model.compiler if compilation_required else None)
+        #_res = process_batch(trees_compiled, embeddings, probs_batched, execute_vars, feed_dict, sess, model,
+        #                     sparse_probs_required, sparse_embeddings_required)
+        #_result_all_dict[i] = (_res, timedelta(), timedelta())
 
-    prebatch_queue.join()
-    batch_queue.join()
+    #prebatch_queue.join()
+    #batch_queue.join()
+    prepare_thread.join()
+    train_thread.join()
 
+    _result_all_dict = {_i: (_res, _times[0], _times[1]) for _i, _res, _, _times in result_list}
     # order results
     _result_all = [_result_all_dict[i][0] for i in range(len(_result_all_dict))]
     # time
@@ -908,7 +1092,7 @@ def init_model_type(config):
     #    discrete_model = True
     #    load_parents = (config.context is not None and config.context > 0)
     elif config.model_type == MT_REROOT:
-        if config.tree_embedder.strip() != 'HTU_reduceSUM_mapGRU':
+        if config.tree_embedder.strip() not in ['HTU_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapGRU']:
             raise NotImplementedError('reroot model only implemented for tree_embedder == '
                                       'HTU_reduceSUM_mapGRU, but it is: %s'
                                       % config.tree_embedder.strip())
@@ -1443,8 +1627,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 return stats_dict
 
         # clear vecs in lexicon to clean up memory
-        if cache is None or cache == {}:
-            lexicon.init_vecs()
+        #if cache is None or cache == {}:
+        lexicon.init_vecs()
 
         logger.info('training the model')
         model_for_metric = M_TEST if M_TEST in meta else M_TRAIN
@@ -1479,7 +1663,10 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                         _trees = compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
                                                indices={M_TRAIN: _indices},
                                                compiler=_compiler, use_pool=False)[M_TRAIN]
-                        train_tree_queue.put((_indices, _trees))
+                        # this check is important because we cold get the stop signal while compiling and the queue
+                        # would block forever if it is already full
+                        if not stop_event.is_set():
+                            train_tree_queue.put((_indices, _trees))
 
             stop_trees_worker = Event()
             train_trees_worker = Thread(target=_resample_and_recompile_train, args=(stop_trees_worker,))
@@ -1581,6 +1768,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
                 if stop_trees_worker is not None:
                     stop_trees_worker.set()
+                    train_trees_worker.join()
                 return stat_queue_sorted[0], cache
 
 
@@ -1610,8 +1798,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     ## get lexicon
-    lexicon, checkpoint_fn, prev_config, fine_tune = exec_cached(
-        cache, get_lexicon, discard_kwargs=('logdir'),
+    lexicon, checkpoint_fn, prev_config, fine_tune = get_lexicon(
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
         all_vecs_zero=config.all_vecs_zero,
