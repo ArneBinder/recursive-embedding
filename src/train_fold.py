@@ -1587,7 +1587,11 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files=None, init_only=None, test_only=None,
                 cache=None, precompile=True, debug=False, discard_tree_embeddings=False,
                 discard_prepared_embeddings=False):
-    config.set_run_description()
+    # config.set_run_description()
+    try:
+        config.run_description
+    except AttributeError:
+        config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
     logger.info('logdir: %s' % logdir)
