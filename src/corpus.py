@@ -412,6 +412,8 @@ def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root
     #logger.info('total number of indices: %i' % len(root_pos))
     if end_root <= 0:
         end_root = len(root_pos)
+    else:
+        assert end_root <= len(root_pos), 'end_root: %i is larger then available trees: %i' % (end_root, len(root_pos))
     logger.info('use trees [%i:%i] (total number of trees: %i)' % (start_root, end_root, len(root_pos)))
     indices = np.arange(start=start_root, stop=end_root, dtype=DTYPE_IDX)
     np.random.shuffle(indices)
