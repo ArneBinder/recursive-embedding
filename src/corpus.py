@@ -7,10 +7,11 @@ import plac
 import spacy
 from spacy.strings import hash_string
 
-from constants import DTYPE_HASH, DTYPE_COUNT, UNKNOWN_EMBEDDING, vocab_manual, LOGGING_FORMAT, OFFSET_SEEALSO_ROOT
+from constants import DTYPE_HASH, DTYPE_COUNT, UNKNOWN_EMBEDDING, vocab_manual, LOGGING_FORMAT, OFFSET_SEEALSO_ROOT, \
+    DTYPE_IDX
 from lexicon import Lexicon, FE_STRINGS
 from mytools import numpy_dump, numpy_load
-from sequence_trees import Forest, FE_ROOT_ID
+from sequence_trees import Forest, FE_ROOT_ID, FE_ROOT_POS
 
 #FE_RESOURCE_HASHES = 'resource.hash'
 FE_ROOT_ID_FAILED = 'root.id.failed'
@@ -391,3 +392,27 @@ def merge_batches(out_path, min_count=1, coverage=-1, use_see_also_counts=False)
     root_context_sizes = collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_counts)
 
     return forest_merged, out_path_merged
+
+
+@plac.annotations(
+    merged_forest_path=('path to merged forest', 'option', 'o', str),
+    split_count=('count of produced index files', 'option', 'c', int),
+    start_root=('path to merged forest', 'option', 'b', int),
+    end_root=('path to merged forest', 'option', 'e', int),
+)
+def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root=None):
+    logger_fh = logging.FileHandler(os.path.join(merged_forest_path, '../..', 'corpus-indices.log'))
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger.info('split_count=%i out_path=%s' % (split_count, merged_forest_path))
+
+    root_pos = numpy_load('%s.%s' % (merged_forest_path, FE_ROOT_POS), assert_exists=True)
+    logger.info('total number of indices: %i' % len(root_pos))
+    end_root = end_root or len(root_pos)
+    logger.info('use trees [%i:%i] (total number of trees: %i)' % (start_root, end_root, len(root_pos)))
+    indices = np.arange(start=start_root, stop=end_root, dtype=DTYPE_IDX)
+    np.random.shuffle(indices)
+    for i, split in enumerate(np.array_split(indices, split_count)):
+        numpy_dump('%s.idx.%i' % (merged_forest_path, i), split)

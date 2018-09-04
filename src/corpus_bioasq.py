@@ -12,14 +12,12 @@ from multiprocessing import Pool
 import plac
 import spacy
 
-from constants import TYPE_CONTEXT, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, DTYPE_IDX, \
-    TYPE_PMID, OFFSET_ID
+from constants import TYPE_CONTEXT, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, TYPE_PMID
 import preprocessing
 from lexicon import Lexicon
-from corpus import FE_UNIQUE_HASHES, FE_COUNTS
-from mytools import numpy_dump, numpy_exists, numpy_load
-from corpus import DIR_BATCHES, FE_CLASS_IDS, merge_batches
-from sequence_trees import Forest, FE_ROOT_POS
+from corpus import FE_UNIQUE_HASHES, FE_COUNTS, DIR_BATCHES, FE_CLASS_IDS, merge_batches, create_index_files
+from mytools import numpy_dump, numpy_exists
+from sequence_trees import Forest
 
 logger = logging.getLogger('corpus_bioasq')
 logger.setLevel(logging.DEBUG)
@@ -366,27 +364,6 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
         out_base_name = os.path.join(out_path, os.path.basename(in_file))
         process_records(records=read_file(os.path.join(in_path, in_file)), out_base_name=out_base_name, parser=parser,
                         n_threads=n_threads, batch_size=parser_batch_size)
-
-
-@plac.annotations(
-    merged_forest_path=('path to merged forest', 'option', 'o', str),
-    split_count=('count of produced index files', 'option', 'c', int)
-)
-def create_index_files(merged_forest_path, split_count=2):
-    logger_fh = logging.FileHandler(os.path.join(merged_forest_path, '../..', 'corpus-indices.log'))
-    logger_fh.setLevel(logging.INFO)
-    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
-    logger.addHandler(logger_fh)
-
-    logger.info('split_count=%i out_path=%s' % (split_count, merged_forest_path))
-
-    root_pos = numpy_load('%s.%s' % (merged_forest_path, FE_ROOT_POS), assert_exists=True)
-
-    logger.info('total number of indices: %i' % len(root_pos))
-    indices = np.arange(len(root_pos), dtype=DTYPE_IDX)
-    np.random.shuffle(indices)
-    for i, split in enumerate(np.array_split(indices, split_count)):
-        numpy_dump('%s.idx.%i' % (merged_forest_path, i), split)
 
 
 @plac.annotations(
