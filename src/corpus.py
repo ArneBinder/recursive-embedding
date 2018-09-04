@@ -400,7 +400,7 @@ def merge_batches(out_path, min_count=1, coverage=-1, use_see_also_counts=False)
     start_root=('path to merged forest', 'option', 'b', int),
     end_root=('path to merged forest', 'option', 'e', int),
 )
-def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root=None):
+def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root=-1):
     logger_fh = logging.FileHandler(os.path.join(merged_forest_path, '../..', 'corpus-indices.log'))
     logger_fh.setLevel(logging.INFO)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
@@ -410,7 +410,8 @@ def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root
 
     root_pos = numpy_load('%s.%s' % (merged_forest_path, FE_ROOT_POS), assert_exists=True)
     logger.info('total number of indices: %i' % len(root_pos))
-    end_root = end_root or len(root_pos)
+    if end_root <= 0:
+        end_root = len(root_pos)
     logger.info('use trees [%i:%i] (total number of trees: %i)' % (start_root, end_root, len(root_pos)))
     indices = np.arange(start=start_root, stop=end_root, dtype=DTYPE_IDX)
     np.random.shuffle(indices)

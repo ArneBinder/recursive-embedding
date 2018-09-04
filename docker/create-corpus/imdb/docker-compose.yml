@@ -1,0 +1,49 @@
+version: '2.3'
+services:
+  corpus-imdb-parse:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/imdb/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_imdb.py PARSE
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/IMDB
+                                  --n-threads ${NUM_THREADS_PARSE}
+                                  --parser-batch-size ${BATCH_SIZE_PARSE}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-imdb-merge:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/imdb/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_imdb.py MERGE
+                                  --out-path /root/corpora_out/IMDB
+                                  --min-count ${MIN_COUNT}
+                                  --coverage ${COVERAGE}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-imdb-indices:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/imdb/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_imdb.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/IMDB/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root ${START_ROOT}
+                                  --end-root ${END_ROOT}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}

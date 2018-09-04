@@ -7,12 +7,11 @@ from functools import partial
 import numpy as np
 
 from lexicon import Lexicon
-from sequence_trees import Forest, FE_ROOT_POS
+from sequence_trees import Forest
 import preprocessing
-from mytools import numpy_dump, numpy_load, numpy_exists, make_parent_dir
+from mytools import numpy_dump, numpy_exists, make_parent_dir
 from corpus import merge_batches, create_index_files, FE_UNIQUE_HASHES, FE_COUNTS, DIR_BATCHES, FE_CLASS_IDS
-from constants import TYPE_SECTION, SEPARATOR, LOGGING_FORMAT, TYPE_CONTEXT, TYPE_PARAGRAPH, DTYPE_IDX #,\
-   # TYPE_JOURNAL, TYPE_YEAR, PARAGRAPH_LABELS_UNIFORM, TYPE_MESH
+from constants import TYPE_SECTION, SEPARATOR, LOGGING_FORMAT, TYPE_CONTEXT, TYPE_PARAGRAPH
 
 
 TYPE_POLARITY = u"POLARITY"
@@ -162,26 +161,28 @@ def read_files(in_path, subdir, polarities=(u'pos', u'neg')):
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
     n_threads=('number of threads for replacement operations', 'option', 't', int),
+    parser_batch_size=('parser batch size', 'option', 'b', int)
 )
-def parse_dirs(in_path, out_path, n_threads=4):
+def parse_dirs(in_path, out_path, n_threads=4, parser_batch_size=1000):
     sub_dirs = ['train', 'test']
     for sub_dir in sub_dirs:
         logger.info('create forest for %s ...' % sub_dir)
         out_base_name = os.path.join(out_path, DIR_BATCHES, sub_dir)
         make_parent_dir(out_base_name)
-        process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, n_threads=n_threads)
+        process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, n_threads=n_threads,
+                        batch_size=parser_batch_size)
         logger.info('done.')
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE_BATCHES', 'CREATE_INDICES']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
         plac.call(parse_dummy, args)
     elif mode == 'PARSE':
         plac.call(parse_dirs, args)
-    elif mode == 'MERGE_BATCHES':
+    elif mode == 'MERGE':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
         #rating_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_RATING)
         #logger.info('number of ratings to predict: %i' % len(rating_ids))

@@ -63,7 +63,7 @@ This previous command creates batches of processed data. To merge the individual
 cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-merge
 ```
 
-Finally, we create (filtered, splitted and shuffled) index files with:
+Finally, we create (filtered, split and shuffled) index files with:
 ```bash
 cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-indices
 ```
