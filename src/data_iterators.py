@@ -18,7 +18,6 @@ RECURSION_LIMIT_ADD = 100
 
 CONTEXT_ROOT_OFFEST = 2
 SEEALSO_ROOT_OFFSET = 3
-MESH_ROOT_OFFSET = 3
 
 logger = logging.getLogger('data_iterators')
 logger.setLevel(logging.DEBUG)
@@ -584,7 +583,7 @@ def indices_to_sparse(indices, length, dtype=np.float32):
                       shape=(1, length))
 
 
-def indices_bioasq(index_files, forest, classes_ids, **unused):
+def indices_multiclass(index_files, forest, classes_ids, classes_root_offset, **unused):
 
     classes_mapping = {cd: i for i, cd in enumerate(classes_ids)}
 
@@ -595,18 +594,18 @@ def indices_bioasq(index_files, forest, classes_ids, **unused):
 
     # map to context and mesh indices
     indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
-                                                     offsets=(CONTEXT_ROOT_OFFEST, MESH_ROOT_OFFSET))
+                                                     offsets=(CONTEXT_ROOT_OFFEST, classes_root_offset))
     # unzip (produces lists)
     root_ids, indices_context_root, indices_mesh_root = zip(*indices_mapped)
 
     mesh_ids = []
     for i, mesh_root_idx in enumerate(indices_mesh_root):
-        mesh_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
+        classes_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
         # exclude mesh ids that occurs less then min_count (these were mapped to UNKNOWN in merge_batches)
-        current_mesh_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[mesh_indices] if m_id != unknown_id]
+        current_class_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[classes_indices] if m_id != unknown_id]
         # convert list of indices
-        mesh_csr = indices_to_sparse(current_mesh_ids_mapped, len(classes_ids))
-        mesh_ids.append(mesh_csr)
+        classes_csr = indices_to_sparse(current_class_ids_mapped, len(classes_ids))
+        mesh_ids.append(classes_csr)
 
     return np.array(indices_context_root), mesh_ids, [len(np.load(ind_f)) for ind_f in index_files]
 

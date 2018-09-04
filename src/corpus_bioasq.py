@@ -30,6 +30,8 @@ TYPE_MESH = u"http://id.nlm.nih.gov/mesh"
 TYPE_YEAR = u"http://id.nlm.nih.gov/pubmed/year"
 TYPE_JOURNAL = u"http://id.nlm.nih.gov/pubmed/journal"
 
+MESH_ROOT_OFFSET = 3
+
 KEY_MAPPING = {'journal': TYPE_JOURNAL,
                'meshMajor': TYPE_MESH,
                'year': TYPE_YEAR,

@@ -52,6 +52,7 @@ from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #    indices_dbpedianif
 import data_iterators as diters
 from corpus import FE_CLASS_IDS
+from corpus_bioasq import MESH_ROOT_OFFSET
 
 # non-saveable flags
 tf.flags.DEFINE_string('logdir',
@@ -1117,7 +1118,9 @@ def init_model_type(config):
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
         tree_iterator = diters.tree_iterator
-        indices_getter = partial(diters.indices_bioasq, classes_ids=classes_ids)
+        # TODO: parametrize MESH_ROOT_OFFSET
+        indices_getter = partial(diters.indices_multiclass, classes_ids=classes_ids,
+                                 classes_root_offset=MESH_ROOT_OFFSET)
         tree_count = 1
         load_parents = (tree_iterator_args['context'] > 0)
 
