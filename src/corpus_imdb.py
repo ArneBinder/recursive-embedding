@@ -188,8 +188,9 @@ def main(mode, *args):
         #logger.info('number of ratings to predict: %i' % len(rating_ids))
         #numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=rating_ids)
         polarity_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_POLARITY)
-        logger.info('number of polarities to predict: %i' % len(polarity_ids))
-        numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=polarity_ids)
+        logger.info('number of polarities to predict: %i. save only %i for prediction.'
+                    % (len(polarity_ids), len(polarity_ids)-1))
+        numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=polarity_ids[:-1])
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
     else:

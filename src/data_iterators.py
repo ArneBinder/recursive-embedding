@@ -602,7 +602,8 @@ def indices_multiclass(index_files, forest, classes_ids, classes_root_offset, **
     for i, mesh_root_idx in enumerate(indices_mesh_root):
         classes_indices = forest.get_children(mesh_root_idx) + mesh_root_idx
         # exclude mesh ids that occurs less then min_count (these were mapped to UNKNOWN in merge_batches)
-        current_class_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[classes_indices] if m_id != unknown_id]
+        current_class_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[classes_indices]
+                                    if m_id != unknown_id and m_id in classes_mapping]
         # convert list of indices
         classes_csr = indices_to_sparse(current_class_ids_mapped, len(classes_ids))
         mesh_ids.append(classes_csr)
