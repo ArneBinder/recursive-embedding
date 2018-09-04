@@ -39,14 +39,11 @@ def reader(records, key_text='content', root_string=TYPE_ACLIMDB_ID,
     """
 
     :param records: dicts containing the textual data and optional meta data
-    :param keys_text:
-    :param keys_text_structured:
+    :param key_text:
     :param root_string:
     :param keys_meta:
-    :param keys_mandatory:
     :param key_id:
     :param root_text_string:
-    :param allowed_paragraph_labels:
     :return:
     """
     count_finished = 0
@@ -71,11 +68,6 @@ def reader(records, key_text='content', root_string=TYPE_ACLIMDB_ID,
                 # ATTENTION: assumed to be string(s)!
                 v_meta = record[k_meta]
                 if not isinstance(v_meta, list):
-                    # skip None values
-                    #if v_meta is None:
-                    #    if k_meta in keys_mandatory:
-                    #        raise Warning('value for mandatory key=%s is None' % k_meta)
-                    #    continue
                     v_meta = [v_meta]
                 # replace spaces by underscores
                 prepend_data_strings.extend([k_meta + SEPARATOR + v.replace(' ', '_') for v in v_meta])
@@ -85,24 +77,10 @@ def reader(records, key_text='content', root_string=TYPE_ACLIMDB_ID,
             prepend_parents.append(text_root_offset - len(prepend_parents))
             text_root_offset = len(prepend_parents) - 1
 
-            #if None in prepend_data_strings:
-            #    print record
-
             prepend = (prepend_data_strings, prepend_parents)
             record_data = []
 
-            #for k_text in keys_text:
-            # debug
-            #if record[key_text] is None:
-            #    if key_id is not None:
-            #        logger.debug('entry with %s=%s contains None text (@k_text=%s)' % (key_id, record[key_id], k_text))
-            #    else:
-            #        logger.debug('entry contains None text (@k_text=%s): %s' % (k_text, str(record)))
-                #if k_text in keys_mandatory:
-                #    raise Warning('value for mandatory key=%s is None' % k_text)
-                #continue
             record_data.append((record[key_text], {'root_type': TYPE_PARAGRAPH, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
-            #prepend = None
 
             # has to be done in the end because the whole record should be discarded at once if an exception is raised
             for d in record_data:
@@ -119,27 +97,12 @@ def reader(records, key_text='content', root_string=TYPE_ACLIMDB_ID,
     logger.info('discarded %i of %i records' % (count_discarded, count_finished + count_discarded))
 
 
-#@plac.annotations(
-#    records=('dicts containing BioASQ data obtained from json', 'option', 'r', str),
-#    out_base_name=('corpora output base file name', 'option', 'o', str),
-#)
 def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=1000, n_threads=4):
     if not Lexicon.exist(out_base_name, types_only=True) \
             or not Forest.exist(out_base_name) \
             or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
             or not numpy_exists('%s.%s' % (out_base_name, FE_COUNTS)):
-        _reader = partial(reader,
-                          records=records, #(convert_record(r) for r in records),
-                          #key_id=TYPE_PMID,
-                          #keys_text=[TYPE_TITLE],
-                          #keys_text_structured=[TYPE_SECTION + SEPARATOR + u'abstract'],
-                          # ATTENTION: mesh has to be the first meta data because MESH_ROOT_OFFSET has to be fixed, but
-                          # journal and year are not mandatory
-                          #keys_meta=[TYPE_MESH, TYPE_JOURNAL, TYPE_YEAR],
-                          #keys_mandatory=[TYPE_MESH, TYPE_SECTION + SEPARATOR + u'abstract'],
-                          #allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM,
-                          #root_string=u'http://id.nlm.nih.gov/pubmed/resource'
-                          )
+        _reader = partial(reader, records=records)
         logger.debug('parse imdb records ...')
         # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
 
@@ -179,7 +142,6 @@ def parse_dummy(out_base_name):
 
 
 def read_files(in_path, subdir, polarities=(u'pos', u'neg')):
-    #polarity = in_path.split('/')[-1]
     for polarity in polarities:
         in_path_polarity = os.path.join(in_path, subdir, polarity)
         for fn in os.listdir(in_path_polarity):
@@ -192,8 +154,6 @@ def read_files(in_path, subdir, polarities=(u'pos', u'neg')):
             # simple cleaning of remaining html tags
             text = text.replace(u'<br /><br />', u' ').replace(u'<br />', u' ').replace(u'<i>', u'')\
                 .replace(u'</i>', u'').replace(u'<hr>', u'')
-            #if u'>' in text:
-            #    print(text)
             yield {TYPE_POLARITY: polarity, TYPE_ACLIMDB_ID: unicode(os.path.join(subdir, polarity, fn)),
                    TYPE_RATING: rating, u'content': text}
 
@@ -205,18 +165,16 @@ def read_files(in_path, subdir, polarities=(u'pos', u'neg')):
 )
 def parse_dirs(in_path, out_path, n_threads=4):
     sub_dirs = ['train', 'test']
-    make_parent_dir(out_path)
-    #records = []
     for sub_dir in sub_dirs:
         logger.info('create forest for %s ...' % sub_dir)
         out_base_name = os.path.join(out_path, DIR_BATCHES, sub_dir)
-        #records.append(list(read_files(in_path, sub_dir)))
+        make_parent_dir(out_base_name)
         process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, n_threads=n_threads)
         logger.info('done.')
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE_DUMMY', 'PARSE', 'MERGE_BATCHES', 'CREATE_INDICES']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE_BATCHES', 'CREATE_INDICES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
