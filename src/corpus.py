@@ -409,7 +409,7 @@ def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root
     logger.info('split_count=%i out_path=%s' % (split_count, merged_forest_path))
 
     root_pos = numpy_load('%s.%s' % (merged_forest_path, FE_ROOT_POS), assert_exists=True)
-    logger.info('total number of indices: %i' % len(root_pos))
+    #logger.info('total number of indices: %i' % len(root_pos))
     if end_root <= 0:
         end_root = len(root_pos)
     logger.info('use trees [%i:%i] (total number of trees: %i)' % (start_root, end_root, len(root_pos)))
