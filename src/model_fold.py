@@ -1606,8 +1606,11 @@ class TreeMultiClassModel(BaseTrainModel):
                        'recall:' + ','.join(map(map_ts, m_ts)): tf.metrics.recall_at_thresholds(
                            labels=labels_gold_dense, predictions=self.values_predicted, thresholds=m_ts),
                        }
+            for ts in m_ts:
+                metrics['accuracy_t%i' % (ts*100)] = tf.metrics.accuracy(
+                    labels=labels_gold_dense, predictions=tf.cast(self.values_predicted + 1.0 - ts, tf.int32))
             vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
-            reset_op = tf.variables_initializer(vars)
+        reset_op = tf.variables_initializer(vars)
         BaseTrainModel.__init__(
             self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), metrics=metrics, metric_reset_op=reset_op,
             **kwargs)
