@@ -2046,7 +2046,7 @@ def add_metrics(d, stats, metric_main=None, prefix=''):
         if metric_main in METRIC_KEYS_REGRESSION:
             metric_keys = METRIC_KEYS_REGRESSION
         elif metric_main in METRIC_KEYS_DISCRETE:
-            metric_keys = METRIC_DISCRETE
+            metric_keys = METRIC_KEYS_DISCRETE
         else:
             raise ValueError('metric_main=%s has to be in either %s or %s'
                              % (metric_main, ', '.join(METRIC_KEYS_REGRESSION), ', '.join(METRIC_DISCRETE)))
