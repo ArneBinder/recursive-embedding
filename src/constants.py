@@ -24,17 +24,21 @@ TYPE_NAMED_ENTITY = u'http://purl.org/olia/olia.owl#NamedEntity'
 TYPE_PHRASE = u'http://purl.org/olia/olia.owl#Phrase'
 TYPE_ID = u'http://www.w3.org/2005/11/its/rdf#id'
 TYPE_NIF = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#'
+# TODO: choose better!
+TYPE_RELATEDNESS_SCORE = u'RELATEDNESS_SCORE'
+TYPE_ENTAILMENT = u'ENTAILMENT'
 
 BASE_TYPES = [TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SECTION, TYPE_SECTION,
               TYPE_SENTENCE, TYPE_PMID, TYPE_LEXEME, TYPE_DEPENDENCY_RELATION, TYPE_LEMMA, TYPE_POS_TAG,
-              TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID, TYPE_NIF]
+              TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID, TYPE_NIF, TYPE_RELATEDNESS_SCORE, TYPE_ENTAILMENT]
 
 # CONSTRUCTED TYPES
 TYPE_REF_SEEALSO = TYPE_REF + SEPARATOR + u'seeAlso'
 TYPE_SECTION_SEEALSO = TYPE_SECTION + SEPARATOR + u'seeAlso'
 TYPE_SECTION_ABSTRACT = TYPE_SECTION + SEPARATOR + u'abstract'
+TYPE_REF_TUPLE = TYPE_REF + SEPARATOR + u'other'
 
-LINK_TYPES = [TYPE_REF, TYPE_REF_SEEALSO]
+LINK_TYPES = [TYPE_REF, TYPE_REF_SEEALSO, TYPE_REF_TUPLE]
 
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
@@ -81,6 +85,7 @@ KEY_CANDIDATES = 'ca'
 MT_MULTICLASS = 'multiclass'
 MT_REROOT = 'reroot'
 MT_TREETUPLE = 'tuple'
+MT_SIMTUPLE = 'sim_tuple'
 
 M_INDICES = 'indices'
 M_INDICES_SAMPLER = 'indices_sampler'

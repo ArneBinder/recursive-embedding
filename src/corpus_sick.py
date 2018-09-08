@@ -4,7 +4,8 @@ import os
 
 import plac
 
-from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_REF
+from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATEDNESS_SCORE, \
+    TYPE_ENTAILMENT, TYPE_REF_TUPLE
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES
 import preprocessing
@@ -16,10 +17,7 @@ logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
-TYPE_RELATEDNESS_SCORE = u'RELATEDNESS_SCORE'
-TYPE_ENTAILMENT = u'ENTAILMENT'
 TYPE_SICK_ID = u'http://clic.cimec.unitn.it/composes/sick'
-TYPE_REF_TUPLE = TYPE_REF + SEPARATOR + u'other'
 
 KEYS_SENTENCE = (u'sentence_A', u'sentence_B')
 
