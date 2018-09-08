@@ -5,11 +5,16 @@
 spacy>=2.0.0
 pprint
 six
-plac
+tensorflow
 
 # visualization
 svgutils
 pydot
 
+# misc
+#tqdm
+plac
+
 # from python:
 # csv json itertools functools errno math copy logging fnmatch os ntpath re random sys time math multiprocessing datetime
+

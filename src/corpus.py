@@ -434,10 +434,12 @@ def merge_batches(out_path, min_count=1, coverage=-1, use_see_also_counts=False)
 @plac.annotations(
     merged_forest_path=('path to merged forest', 'option', 'o', str),
     split_count=('count of produced index files', 'option', 'c', int),
-    start_root=('path to merged forest', 'option', 'b', int),
-    end_root=('path to merged forest', 'option', 'e', int),
+    start_root=('start root index', 'option', 'b', int),
+    end_root=('end root index', 'option', 'e', int),
+    step_root=('root step', 'option', 's', int),
+    suffix=('file name suffix', 'option', 'f', str),
 )
-def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root=-1):
+def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root=-1, step_root=1, suffix=''):
     logger_fh = logging.FileHandler(os.path.join(merged_forest_path, '../..', 'corpus-indices.log'))
     logger_fh.setLevel(logging.INFO)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
@@ -450,9 +452,14 @@ def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root
     if end_root <= 0:
         end_root = len(root_pos)
     else:
-        assert end_root <= len(root_pos), 'end_root: %i is larger then available trees: %i' % (end_root, len(root_pos))
-    logger.info('use trees [%i:%i] (total number of trees: %i)' % (start_root, end_root, len(root_pos)))
-    indices = np.arange(start=start_root, stop=end_root, dtype=DTYPE_IDX)
+        assert end_root * step_root <= len(root_pos), 'end_root * step_root: %i is larger then available trees: %i' \
+                                                      % (end_root * step_root, len(root_pos))
+        end_root = end_root * step_root
+    logger.info('use trees [%i:%i] (step: %i; total number of trees: %i)'
+                % (start_root, end_root, step_root, len(root_pos)))
+    indices = np.arange(start=start_root*step_root, stop=end_root, step=step_root, dtype=DTYPE_IDX)
     np.random.shuffle(indices)
+    if len(suffix) > 0:
+        suffix = suffix + '.'
     for i, split in enumerate(np.array_split(indices, split_count)):
-        numpy_dump('%s.idx.%i' % (merged_forest_path, i), split)
+        numpy_dump('%s.idx.%s%i' % (merged_forest_path, suffix, i), split)

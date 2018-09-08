@@ -1,9 +1,12 @@
+import csv
 import logging
+import os
+
 import plac
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_REF
 from mytools import make_parent_dir
-from corpus import process_records
+from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES
 import preprocessing
 
 logger = logging.getLogger('corpus_sick')
@@ -18,16 +21,18 @@ TYPE_ENTAILMENT = u'ENTAILMENT'
 TYPE_SICK_ID = u'http://clic.cimec.unitn.it/composes/sick'
 TYPE_REF_TUPLE = TYPE_REF + SEPARATOR + u'other'
 
+KEYS_SENTENCE = (u'sentence_A', u'sentence_B')
+
 DUMMY_RECORD = {
     TYPE_RELATEDNESS_SCORE: u"4.5",
     TYPE_ENTAILMENT: u"NEUTRAL",
-    u"sentence_1": u"A group of kids is playing in a yard and an old man is standing in the background",
-    u"sentence_2": u"A group of boys in a yard is playing and a man is standing in the background",
+    KEYS_SENTENCE[0]: u"A group of kids is playing in a yard and an old man is standing in the background",
+    KEYS_SENTENCE[1]: u"A group of boys in a yard is playing and a man is standing in the background",
     TYPE_SICK_ID: u"1"
 }
 
 
-def reader(records, keys_text=(u'sentence_1', u'sentence_2'), root_string=TYPE_SICK_ID,
+def reader(records, keys_text=KEYS_SENTENCE, root_string=TYPE_SICK_ID,
            keys_meta=(TYPE_RELATEDNESS_SCORE, TYPE_ENTAILMENT), key_id=TYPE_SICK_ID,
            root_text_string=TYPE_CONTEXT):
     """
@@ -106,27 +111,60 @@ def parse_dummy(out_base_name):
                     sentence_processor=preprocessing.process_sentence1, concat_mode=None)
 
 
+def convert_record(record):
+    # input format:
+    # pair_ID	sentence_A	sentence_B	relatedness_score	entailment_judgment
+    return {
+        TYPE_RELATEDNESS_SCORE: unicode(record['relatedness_score']),
+        TYPE_ENTAILMENT: unicode(record['entailment_judgment']),
+        KEYS_SENTENCE[0]: unicode(record['sentence_A']),
+        KEYS_SENTENCE[1]: unicode(record['sentence_B']),
+        TYPE_SICK_ID: unicode(record['pair_ID'])
+    }
+
+
+def read_file(file_name):
+    n = 0
+    with open(file_name) as tsvin:
+        tsv = csv.DictReader(tsvin, delimiter='\t')
+        for row in tsv:
+            yield convert_record(row)
+            n += 1
+    logger.info('read %i records from %s' % (n, file_name))
+
+
+@plac.annotations(
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+    n_threads=('number of threads for replacement operations', 'option', 't', int),
+    parser_batch_size=('parser batch size', 'option', 'b', int)
+)
+def parse(in_path, out_path, n_threads=4, parser_batch_size=1000):
+    file_names = ['sick_test_annotated/SICK_test_annotated.txt', 'sick_train/SICK_train.txt']
+    for fn in file_names:
+        logger.info('create forest for %s ...' % fn)
+        out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
+        make_parent_dir(out_base_name)
+        process_records(records=read_file(os.path.join(in_path, fn)), out_base_name=out_base_name, reader=reader,
+                        sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
+                        batch_size=parser_batch_size)
+        logger.info('done.')
+
+
 @plac.annotations(
     mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
         plac.call(parse_dummy, args)
-    #elif mode == 'PARSE':
-    #    plac.call(parse_dirs, args)
-    #elif mode == 'MERGE':
-    #    forest_merged, out_path_merged = plac.call(merge_batches, args)
-    #    #rating_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_RATING)
-    #    #logger.info('number of ratings to predict: %i' % len(rating_ids))
-    #    #numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=rating_ids)
-    #    polarity_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_POLARITY)
-    #    logger.info('number of polarities to predict: %i. save only %i for prediction.'
-    #                % (len(polarity_ids), len(polarity_ids)-1))
-    #    numpy_dump(filename='%s.%s' % (out_path_merged, FE_CLASS_IDS), ndarray=polarity_ids[:-1])
-    #elif mode == 'CREATE_INDICES':
-    #    plac.call(create_index_files, args)
+    elif mode == 'PARSE':
+        plac.call(parse, args)
+    elif mode == 'MERGE':
+        forest_merged, out_path_merged = plac.call(merge_batches, args)
+    elif mode == 'CREATE_INDICES':
+        plac.call(create_index_files, args + ('--step-root', '2'))
     else:
-        raise ValueError('unknown mode. use one of PROCESS_DUMMY or PROCESS_SINGLE.')
+        raise ValueError('unknown mode')
 
 
 if __name__ == '__main__':

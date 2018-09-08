@@ -29,7 +29,7 @@ RUN chmod +x /root/set-user-with-folder.sh
 
 ########################################################################################################################
 
-ARG OWN_LOCATION=docker/create-corpus/bioasq
+ARG OWN_LOCATION=docker/create-corpus/imdb
 #ARG TMP=/tmp/imdb
 #RUN mkdir "$TMP"
 

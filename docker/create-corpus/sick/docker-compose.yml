@@ -1,6 +1,23 @@
-version: '3'
+version: '2.3'
 services:
-  corpus-sick:
+  corpus-sick-parse:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/sick/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py PARSE
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/SICK
+                                  --n-threads ${NUM_THREADS_PARSE}
+                                  --parser-batch-size ${BATCH_SIZE_PARSE}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-sick-merge:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/sick/Dockerfile
@@ -8,9 +25,39 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh python corpus_sick.py
-                                            --corpora_target_root=/root/corpora_out
-                                            --corpora_source_root=/root/corpora_in
-                                            --sentence_processor=${PROCESS_SENTENCE}
-                                            --inner_concat_mode=${TOKEN_CONCAT_MODE}
-                                            --concat_mode=${SENTENCE_CONCAT_MODE}
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py MERGE
+                                  --out-path /root/corpora_out/SICK
+                                  --min-count ${MIN_COUNT}
+                                  --coverage ${COVERAGE}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-sick-indices-test:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/sick/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/SICK/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root 0
+                                  --end-root 4927
+                                  --suffix test
+
+  corpus-sick-indices-train:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/sick/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/SICK/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root 4927
+                                  --end-root 9427
+                                  --suffix train
