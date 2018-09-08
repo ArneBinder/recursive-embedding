@@ -1,16 +1,11 @@
 import os
 
 import plac
-import spacy
 import logging
-from functools import partial
-import numpy as np
 
-from lexicon import Lexicon
-from sequence_trees import Forest
 import preprocessing
-from mytools import numpy_dump, numpy_exists, make_parent_dir
-from corpus import merge_batches, create_index_files, FE_UNIQUE_HASHES, FE_COUNTS, DIR_BATCHES, FE_CLASS_IDS
+from mytools import numpy_dump, make_parent_dir
+from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS
 from constants import TYPE_SECTION, SEPARATOR, LOGGING_FORMAT, TYPE_CONTEXT, TYPE_PARAGRAPH
 
 
@@ -96,41 +91,6 @@ def reader(records, key_text='content', root_string=TYPE_ACLIMDB_ID,
     logger.info('discarded %i of %i records' % (count_discarded, count_finished + count_discarded))
 
 
-def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=1000, n_threads=4):
-    if not Lexicon.exist(out_base_name, types_only=True) \
-            or not Forest.exist(out_base_name) \
-            or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
-            or not numpy_exists('%s.%s' % (out_base_name, FE_COUNTS)):
-        _reader = partial(reader, records=records)
-        logger.debug('parse imdb records ...')
-        # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
-
-        lexicon = Lexicon()
-        forest = lexicon.read_data(reader=_reader, sentence_processor=preprocessing.process_sentence1,
-                                   parser=parser, batch_size=batch_size, concat_mode='sequence',
-                                   inner_concat_mode='tree', expand_dict=True, as_tuples=True,
-                                   return_hashes=True, n_threads=n_threads)
-
-        forest.set_children_with_parents()
-        #roots = forest.roots
-        # ids are at one position after roots
-        #root_ids = forest.data[roots + OFFSET_ID]
-        #forest.set_root_ids(root_ids=root_ids)
-        forest.set_root_data_by_offset()
-
-        #out_path = os.path.join(out_path, os.path.basename(in_file))
-        lexicon.dump(filename=out_base_name, strings_only=True)
-        forest.dump(filename=out_base_name)
-
-        unique, counts = np.unique(forest.data, return_counts=True)
-        # unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
-        # counts.dump('%s.%s' % (filename, FE_COUNTS))
-        numpy_dump('%s.%s' % (out_base_name, FE_UNIQUE_HASHES), unique)
-        numpy_dump('%s.%s' % (out_base_name, FE_COUNTS), counts)
-    else:
-        logger.debug('%s was already processed' % out_base_name)
-
-
 @plac.annotations(
     out_base_name=('corpora output base file name', 'option', 'o', str)
 )
@@ -169,7 +129,8 @@ def parse_dirs(in_path, out_path, n_threads=4, parser_batch_size=1000):
         logger.info('create forest for %s ...' % sub_dir)
         out_base_name = os.path.join(out_path, DIR_BATCHES, sub_dir)
         make_parent_dir(out_base_name)
-        process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, n_threads=n_threads,
+        process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, reader=reader,
+                        sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
                         batch_size=parser_batch_size)
         logger.info('done.')
 

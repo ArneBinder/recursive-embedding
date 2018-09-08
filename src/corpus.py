@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import datetime
+from functools import partial
 
 import numpy as np
 import plac
@@ -10,7 +11,7 @@ from spacy.strings import hash_string
 from constants import DTYPE_HASH, DTYPE_COUNT, UNKNOWN_EMBEDDING, vocab_manual, LOGGING_FORMAT, OFFSET_SEEALSO_ROOT, \
     DTYPE_IDX
 from lexicon import Lexicon, FE_STRINGS
-from mytools import numpy_dump, numpy_load
+from mytools import numpy_dump, numpy_load, numpy_exists
 from sequence_trees import Forest, FE_ROOT_ID, FE_ROOT_POS
 
 #FE_RESOURCE_HASHES = 'resource.hash'
@@ -36,9 +37,45 @@ PREFIX_FN = 'forest'
 logger = logging.getLogger('corpus')
 logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
-logger_streamhandler.setLevel(logging.INFO)
+logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
+
+
+def process_records(records, out_base_name, reader, sentence_processor, parser=spacy.load('en'), concat_mode='sequence',
+                    batch_size=1000, n_threads=4):
+    if not Lexicon.exist(out_base_name, types_only=True) \
+            or not Forest.exist(out_base_name) \
+            or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
+            or not numpy_exists('%s.%s' % (out_base_name, FE_COUNTS)):
+        _reader = partial(reader, records=records)
+        logger.debug('parse records ...')
+        # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
+
+        lexicon = Lexicon()
+        forest = lexicon.read_data(reader=_reader, sentence_processor=sentence_processor,
+                                   parser=parser, batch_size=batch_size, concat_mode=concat_mode,
+                                   inner_concat_mode='tree', expand_dict=True, as_tuples=True,
+                                   return_hashes=True, n_threads=n_threads)
+
+        forest.set_children_with_parents()
+        #roots = forest.roots
+        # ids are at one position after roots
+        #root_ids = forest.data[roots + OFFSET_ID]
+        #forest.set_root_ids(root_ids=root_ids)
+        forest.set_root_data_by_offset()
+
+        #out_path = os.path.join(out_path, os.path.basename(in_file))
+        lexicon.dump(filename=out_base_name, strings_only=True)
+        forest.dump(filename=out_base_name)
+
+        unique, counts = np.unique(forest.data, return_counts=True)
+        # unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
+        # counts.dump('%s.%s' % (filename, FE_COUNTS))
+        numpy_dump('%s.%s' % (out_base_name, FE_UNIQUE_HASHES), unique)
+        numpy_dump('%s.%s' % (out_base_name, FE_COUNTS), counts)
+    else:
+        logger.debug('%s was already processed' % out_base_name)
 
 
 def collect_file_names(out_path_batches):
