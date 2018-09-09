@@ -147,8 +147,8 @@ def parse(in_path, out_path, n_threads=4, parser_batch_size=1000):
         out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
         make_parent_dir(out_base_name)
         process_records(records=read_file(os.path.join(in_path, fn)), out_base_name=out_base_name, record_reader=reader,
-                        parser=parser, sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
-                        batch_size=parser_batch_size)
+                        parser=parser, sentence_processor=preprocessing.process_sentence1, concat_mode=None,
+                        n_threads=n_threads, batch_size=parser_batch_size)
         logger.info('done.')
 
 
