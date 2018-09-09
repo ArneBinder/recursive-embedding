@@ -29,8 +29,8 @@ MODEL_TYPE_DISCRETE = 'mt_discrete'
 MODEL_TYPE_REGRESSION = 'mt_regression'
 
 
-def dprint(x):
-    r = tf.Print(x, [tf.shape(x)])
+def dprint(x, message=None):
+    r = tf.Print(x, [tf.shape(x)], message=message)
     return r
 
 
@@ -1176,6 +1176,22 @@ def get_jaccard_sim(tree_tuple):
     return len(heads1 & heads2) / float(len(heads1 | heads2))
 
 
+def circular_correlation(a, b):
+    a_len = a.get_shape().as_list()[-1]
+    aa = tf.concat((a, a), axis=-1)
+    #i_end = i + a_len
+    # [0..a_len]
+    indices_simple = tf.range(a_len)
+    # [[0..a_len], .., [0..a_len]]    (a_len times)
+    indices_multi = tf.reshape(tf.tile(indices_simple, (a_len,)), (a_len, a_len))
+    # [[0..a_len], .., [i..(a_len + 1)], .. [a_len..a_len * 2]]
+    indices = indices_multi + tf.expand_dims(indices_simple, 1)
+    rolled = tf.gather(aa, indices, axis=-1)
+
+    y = tf.matmul(rolled, tf.expand_dims(b, -1))
+    return tf.squeeze(y, axis=-1)
+
+
 class TreeModel(object):
     def __init__(self, embeddings_plain, prepared_embeddings_plain=None, keep_prob_placeholder=None,
                  keep_prob_default=1.0, root_fc_sizes=0, discard_tree_embeddings=False,
@@ -1491,8 +1507,12 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                 fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
-        logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=1, activation_fn=None),
-                            shape=[batch_size, self.candidate_count])
+        # add circular self correlation
+        circ_cor = circular_correlation(final_vecs, final_vecs)
+        final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
+
+        _logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=1, activation_fn=None)
+        logits = tf.reshape(_logits, shape=[batch_size, self.candidate_count])
         labels_gold_normed = self._labels_gold / tf.reduce_sum(self._labels_gold, axis=-1, keep_dims=True)
         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_normed))
         self._probs = tf.nn.softmax(logits)
