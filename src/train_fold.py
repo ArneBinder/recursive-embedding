@@ -1444,14 +1444,14 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
 
         if precompile:
             compiled_trees = compile_trees(tree_iterators=tree_iterators, compiler=model_tree.compiler,
-                                           cache_dir=None if config.dont_dump_trees else cache_dir,
+                                           cache_dir=None if not config.dump_trees else cache_dir,
                                            index_file_names=index_file_names, index_file_sizes=index_file_sizes,
                                            indices=indices)
         elif M_TEST in tree_iterators:
             # TODO: check, if correct
             compiled_trees = compile_trees(tree_iterators={M_TEST: tree_iterators[M_TEST]},
                                            compiler=model_tree.compiler,
-                                           cache_dir=None if config.dont_dump_trees else cache_dir,
+                                           cache_dir=None if not config.dump_trees else cache_dir,
                                            index_file_names={M_TEST: index_file_names[M_TEST]},
                                            index_file_sizes={M_TEST: index_file_sizes[M_TEST]},
                                            indices={M_TEST: indices[M_TEST]})
