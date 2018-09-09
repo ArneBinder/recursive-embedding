@@ -43,6 +43,7 @@ services:
         --link_cost_ref=${LINK_COST}
         --neg_samples=${NEG_SAMPLES}
         --train_files=${TRAIN_FILES}
+        --test_files=${TEST_FILES}
         --no_fixed_vecs=${NO_FIXED_VECS}
         --all_vecs_fixed=${ALL_VECS_FIXED}
         --all_vecs_zero=${ALL_VECS_ZERO}

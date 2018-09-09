@@ -1120,7 +1120,7 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
     fnames_train = None
     fnames_test = None
     if FLAGS.train_files is not None and FLAGS.train_files.strip() != '':
-        logger.info('use train data index files: %s' % FLAGS.train_files)
+        #logger.info('use train data index files: %s' % FLAGS.train_files)
         fnames_train = [os.path.join(parent_dir, fn) for fn in FLAGS.train_files.split(',')]
     if test_files is not None and test_files.strip() != '':
         fnames_test = [os.path.join(parent_dir, fn) for fn in FLAGS.test_files.split(',')]
@@ -1134,8 +1134,10 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
         logger.info('found ' + str(len(fnames_train)) + ' train data files')
         if fnames_test is None:
             fnames_test = [fnames_train[config.dev_file_index]]
-            logger.info('use %s for testing' % str(fnames_test))
+            #logger.info('use %s for testing' % str(fnames_test))
             del fnames_train[config.dev_file_index]
+    logger.info('train with:\t%s' % ', '.join([str(fn) for fn in fnames_train]))
+    logger.info('test with:\t%s' % ', '.join([str(fn) for fn in fnames_test]))
     return fnames_train, fnames_test
 
 
