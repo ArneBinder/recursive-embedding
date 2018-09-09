@@ -1757,7 +1757,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
             if 0 < config.early_stopping_window < len(stat_queue):
-                logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
+                #logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
+                logger.info('last metrics (rank: %i): %s' % (rank, str(stat_queue[-1])))
+                logger.info('best metrics: %s' % str(stat_queue_sorted[0]))
                 if stop_trees_worker is not None:
                     stop_trees_worker.set()
                     train_trees_worker.join()
