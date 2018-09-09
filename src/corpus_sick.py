@@ -101,14 +101,19 @@ def reader(records, keys_text=KEYS_SENTENCE, root_string=TYPE_SICK_ID,
 
 
 @plac.annotations(
-    out_base_name=('corpora output base file name', 'option', 'o', str)
+    out_base_name=('corpora output base file name', 'option', 'o', str),
+    sentence_processor=('sentence processor', 'option', 'p', str),
 )
-def parse_dummy(out_base_name):
+def parse_dummy(out_base_name,sentence_processor=None):
     print(out_base_name)
     make_parent_dir(out_base_name)
+    if sentence_processor is not None and sentence_processor.strip() != '':
+        _sentence_processor = getattr(preprocessing, sentence_processor.strip())
+    else:
+        _sentence_processor = preprocessing.process_sentence1
     parser = spacy.load('en')
     process_records(records=[DUMMY_RECORD], out_base_name=out_base_name, record_reader=reader, parser=parser,
-                    sentence_processor=preprocessing.process_sentence1, concat_mode=None)
+                    sentence_processor=_sentence_processor, concat_mode=None)
 
 
 def convert_record(record):
