@@ -1047,6 +1047,8 @@ class Forest(object):
         #    self._root_data = np.arange(len(self.lexicon_roots), dtype=DTYPE_IDX)
         #if self._root_data is None:
         #    self.set_root_ids_with_data()
+        if self._root_data is None:
+            self.set_root_data_by_offset()
         return self._root_data
 
     @property
@@ -1093,16 +1095,16 @@ class Forest(object):
         """
         if self._root_id_pos is None:
             #assert self._root_data is not None, 'root_ids not set'
-            if self._root_data is not None:
-                logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self._root_data))
-                if len(self.roots) != len(self._root_data):
-                    logger.warning('number of roots (%d) does not match number of root_ids (%d). Set root_id_pos to {}.'
-                                   % (len(self.roots), len(self._root_data)))
-                    self._root_id_pos = {}
-                else:
-                    self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self._root_data)}
-            else:
+            #if self._root_data is not None:
+            logger.debug('forest: create root_id_pos from root_ids (%i)' % len(self.root_data))
+            if len(self.roots) != len(self.root_data):
+                logger.warning('number of roots (%d) does not match number of root_ids (%d). Set root_id_pos to {}.'
+                               % (len(self.roots), len(self.root_data)))
                 self._root_id_pos = {}
+            else:
+                self._root_id_pos = {v: self.roots[i] for i, v in enumerate(self.root_data)}
+            #else:
+            #    self._root_id_pos = {}
         return self._root_id_pos
 
     #not used
@@ -1113,13 +1115,12 @@ class Forest(object):
         :return: A set containing the values of root_data or an empty set, if no root_data is available
         """
         if self._root_id_set is None:
-            if self._root_data is not None:
-                logger.debug('forest: create root_id_set from root_ids (%i)' % len(self.root_data))
-                self._root_id_set = set(self.root_data)
-            else:
-                self._root_id_set = set()
+            #if self._root_data is not None:
+            logger.debug('forest: create root_id_set from root_ids (%i)' % len(self.root_data))
+            self._root_id_set = set(self.root_data)
+            #else:
+            #    self._root_id_set = set()
         return self._root_id_set
-
 
     @property
     def root_id_mapping(self):
@@ -1129,11 +1130,11 @@ class Forest(object):
         """
         if self._root_data_mapping is None:
             #assert self._root_data is not None, 'root_ids not set'
-            if self._root_data is not None:
-                logger.debug('forest: create root_id_mapping from root_ids (%i)' % len(self._root_data))
-                self._root_data_mapping = {v: i for i, v in enumerate(self._root_data)}
-            else:
-                self._root_data_mapping = {}
+            #if self._root_data is not None:
+            logger.debug('forest: create root_id_mapping from root_ids (%i)' % len(self.root_data))
+            self._root_data_mapping = {v: i for i, v in enumerate(self.root_data)}
+            #else:
+            #    self._root_data_mapping = {}
         return self._root_data_mapping
 
     @property
