@@ -199,7 +199,7 @@ def process_sentence3_dep(sentence, parsed_data, strings, dict_unknown=None, con
 
 
 # embeddings for:
-# word, edge (marked)
+# word, edge
 def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
     sen_data = []
     sen_parents = []
