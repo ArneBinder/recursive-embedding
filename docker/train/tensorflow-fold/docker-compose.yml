@@ -54,7 +54,7 @@ services:
         --additional_vecs=${ADDITIONAL_VECS}
         --grid_config_file=${GRID_CONFIG_FILE}
         --run_count=${RUN_COUNT}
-        --dont_dump_trees=${DONT_DUMP_TREES}
+        --dump_trees=${DUMP_TREES}
         --sequence_length=${SEQUENCE_LENGTH}
         --precompile=${PRECOMPILE}
         --debug=${DEBUG}
