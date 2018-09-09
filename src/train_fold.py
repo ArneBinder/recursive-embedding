@@ -1045,7 +1045,7 @@ def init_model_type(config):
 
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_sick
-        tree_count = 2
+        tree_count = 1
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_simtuple.__name__
     elif config.model_type == MT_TREETUPLE:
@@ -1368,7 +1368,6 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, indices, cache_dir=None,
     return prepared_embeddings, embedding_dim
 
 
-#TODO: check tree_count! is it used at all?
 def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tfidf, indices=None, data_dir=None,
                   use_inception_tree_model=False, index_file_names=None, index_file_sizes=None,
                   precompile=True, create_tfidf_embeddings=False, discard_tree_embeddings=False,
@@ -1430,14 +1429,12 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                   root_fc_sizes=[int(s) for s in
                                                                  ('0' + config.root_fc_sizes).split(',')],
                                                   keep_prob_default=config.keep_prob,
-                                                  #tree_count=tree_count,
-                                                  tree_count=1,
+                                                  tree_count=tree_count, # required for reroot model
                                                   prepared_embeddings_dim=prepared_embeddings_dim,
                                                   prepared_embeddings_sparse=True,
                                                   discard_tree_embeddings=discard_tree_embeddings,
                                                   discard_prepared_embeddings=discard_prepared_embeddings,
                                                   # data_transfomed=data_transformed
-                                                  # tree_count=1,
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                   **kwargs
                                                   )
