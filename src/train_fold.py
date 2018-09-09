@@ -46,7 +46,7 @@ from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS, \
-    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, MESH_ROOT_OFFSET
+    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, MESH_ROOT_OFFSET, MT_SIMTUPLE
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -198,41 +198,20 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
         csv_writer = test_result_writer
 
     emit_dict = {'loss': loss}
-    # if sim is not None and sim_gold is not None:
-    if model.model_type == MODEL_TYPE_REGRESSION:
-        if values is not None and values_gold is not None:
-            p_r = pearsonr(values, values_gold)
-            s_r = spearmanr(values, values_gold)
-            mse = np.mean(np.square(values - values_gold))
-            emit_dict.update({
-                'pearson_r': p_r[0],
-                'spearman_r': s_r[0],
-                'mse': mse
-            })
-        #info_string = 'epoch=%d step=%d: loss_%s=%f\tpearson_r_%s=%f\tavg=%f\tvar=%f\tgold_avg=%f\tgold_var=%f' \
-        #              % (epoch, step, suffix, loss, suffix, p_r[0], np.average(values), np.var(values),
-        #                 np.average(values_gold), np.var(values_gold))
+    ms = sess.run(model.metrics)
+    for k in ms.keys():
+        spl = k.split(':')
+        if len(spl) > 1:
+            spl_t = spl[1].split(',')
+            for i, v in enumerate(ms[k]):
+                emit_dict[spl[0] + '_t' + spl_t[i]] = v
+        else:
+            emit_dict[k] = ms[k]
 
+    if model.model_type == MODEL_TYPE_REGRESSION:
         stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k]) for k in METRIC_KEYS_REGRESSION if k in emit_dict])
         info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     elif model.model_type == MODEL_TYPE_DISCRETE:
-        #filtered = np.argwhere(values_gold[:, 0] == 1).flatten()
-        #if len(filtered) < len(values_gold):
-        #    logger.warning('discarded %i (of %i) values for evalution (roc)'
-        #                   % (len(values_gold) - len(filtered), len(values_gold)))
-        #roc = metrics.roc_auc_score(values_gold[filtered].flatten(), values[filtered].flatten())
-        #emit_dict['roc_micro'] = metrics.roc_auc_score(values_gold, values, average='micro')
-        #emit_dict['roc_micro'] = sess.run(model.auc, {model.eval_gold_placeholder: values_gold, model.eval_predictions_placeholder: values})
-        #roc_samples = metrics.roc_auc_score(values_gold, values, average='samples')
-        ms = sess.run(model.metrics)
-        for k in ms.keys():
-            spl = k.split(':')
-            if len(spl) > 1:
-                spl_t = spl[1].split(',')
-                for i, v in enumerate(ms[k]):
-                    emit_dict[spl[0] + '_t' + spl_t[i]] = v
-            else:
-                emit_dict[k] = ms[k]
 
         # for all precision values, add F1 scores (assuming that recall values exist)
         for k in emit_dict.keys():
@@ -243,22 +222,6 @@ def collect_metrics(supervisor, sess, epoch, step, loss, values, values_gold, mo
                     p = emit_dict[k]
                     f1 = 2 * p * r / (p + r)
                     emit_dict['f1' + suf] = f1
-
-
-
-        #emit_dict['ranking_loss_inv'] = 1.0 - metrics.label_ranking_loss(values_gold, values)
-
-        #emit_dict.update({
-        #    'roc_micro': roc_micro,
-        #    #'roc_samples': roc_samples,
-        #    'ranking_loss_inv': ranking_loss_inv,
-        #    'f1_t50': f1_t50,
-        #    'f1_t33': f1_t33,
-        #    'f1_t66': f1_t66,
-        #    'acc_t50': acc_t50,
-        #    'acc_t33': acc_t33,
-        #    'acc_t66': acc_t66,
-        #})
         stats_string = '\t'.join(['%s=%f' % (k, emit_dict[k]) for k in METRIC_KEYS_DISCRETE if k in emit_dict])
         info_string = 'epoch=%d step=%d %s: loss=%f\t%s' % (epoch, step, suffix, loss, stats_string)
     else:
@@ -431,6 +394,23 @@ def batch_iter_reroot(forest_indices, number_of_samples):
         #probs = np.zeros(shape=number_of_samples + 1, dtype=DT_PROBS)
         #probs[0] = 1
         yield [idx], probs
+
+
+def batch_iter_simtuple(forest_indices, indices_targets, shuffle=True):
+    """
+    For every index in forest_indices, yield it and the respective values of indices_targets
+    :param forest_indices: indices to the forest
+    :param indices_targets: a tuple containing (context_indices_targets, similarity_scores)
+    :param shuffle: if True, shuffle the indices
+    :return:
+    """
+    assert len(forest_indices) % 2 == 0, 'number of forest_indices is not a multiple of 2'
+    indices = np.arange(int(len(forest_indices) / 2))
+    if shuffle:
+        np.random.shuffle(indices)
+    for i in indices:
+        #yield [indices_forest_to_tree[forest_indices[i]]], indices_targets[i]
+        yield [forest_indices[i*2], forest_indices[i*2+1]], indices_targets[i]
 
 
 def prepare_batches_multi(_q_in, _q_out, _forest, dataset_trees, forest_indices):
@@ -779,7 +759,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, indices_targets=Non
                  #                     indices_forest_to_tree],
                  batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
                  batch_iter_reroot: [forest_indices, number_of_samples],
-                 batch_iter_multiclass: [forest_indices, indices_targets, not debug]}
+                 batch_iter_multiclass: [forest_indices, indices_targets, not debug],
+                 batch_iter_simtuple: [forest_indices, indices_targets, not debug]}
 
     if batch_iter is not None and batch_iter.strip() != '':
         _iter = globals()[batch_iter]
@@ -1058,14 +1039,15 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
 
 def init_model_type(config):
     ## set index and tree getter
-    if config.model_type == 'simtuple':
-        raise NotImplementedError('model_type=%s is deprecated' % config.model_type)
-        tree_iterator_args = {'root_idx': ROOT_idx, 'split': True, 'extensions': config.extensions.split(','),
-                              'max_depth': config.max_depth, 'context': config.context, 'transform': True}
-        tree_iterator = diters.data_tuple_iterator
+    if config.model_type == MT_SIMTUPLE:
+        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+                              'concat_mode': config.concat_mode}
 
-        tree_count = 2  # [1.0, <sim_value>]   # [first_sim_entry, second_sim_entry]
-        load_parents = False
+        tree_iterator = diters.tree_iterator
+        indices_getter = diters.indices_sick
+        tree_count = 2
+        load_parents = (tree_iterator_args['context'] > 0)
+        config.batch_iter = batch_iter_simtuple.__name__
     elif config.model_type == MT_TREETUPLE:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
@@ -1384,6 +1366,7 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, indices, cache_dir=None,
     return prepared_embeddings, embedding_dim
 
 
+#TODO: check tree_count! is it used at all?
 def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tfidf, indices=None, data_dir=None,
                   use_inception_tree_model=False, index_file_names=None, index_file_sizes=None,
                   precompile=True, create_tfidf_embeddings=False, discard_tree_embeddings=False,
@@ -1418,7 +1401,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                                                 index_file_sizes=index_file_sizes)
 
     if config.tree_embedder == 'tfidf':
-        model_tree = model_fold.DummyTreeModel(embeddings_dim=prepared_embeddings_dim, tree_count=tree_count,
+        model_tree = model_fold.DummyTreeModel(embeddings_dim=prepared_embeddings_dim, #tree_count=tree_count,
                                                keep_prob=config.keep_prob, sparse=True,
                                                root_fc_sizes=[int(s) for s in ('0' + config.root_fc_sizes).split(',')],
                                                discard_tree_embeddings=discard_tree_embeddings,
@@ -1445,7 +1428,8 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                   root_fc_sizes=[int(s) for s in
                                                                  ('0' + config.root_fc_sizes).split(',')],
                                                   keep_prob_default=config.keep_prob,
-                                                  tree_count=tree_count,
+                                                  #tree_count=tree_count,
+                                                  tree_count=1,
                                                   prepared_embeddings_dim=prepared_embeddings_dim,
                                                   prepared_embeddings_sparse=True,
                                                   discard_tree_embeddings=discard_tree_embeddings,
@@ -1475,16 +1459,12 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
 
     if use_inception_tree_model:
         inception_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size, sparse=False,
-                                                         tree_count=tree_count, keep_prob=config.keep_prob, root_fc_sizes=0)
+                                                         # TODO: check, if disabling this is correct
+                                                         #tree_count=tree_count,
+                                                         keep_prob=config.keep_prob, root_fc_sizes=0)
     else:
         inception_tree_model = model_tree
 
-    # if config.model_type == 'simtuple':
-    #    model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=model_tree,
-    #                                                        optimizer=optimizer,
-    #                                                        learning_rate=config.learning_rate,
-    #                                                        sim_measure=sim_measure,
-    #                                                        clipping_threshold=config.clipping)
     if config.model_type == MT_TREETUPLE:
         model = model_fold.TreeTupleModel_with_candidates(tree_model=inception_tree_model,
                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
@@ -1509,6 +1489,14 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                clipping_threshold=config.clipping,
                                                num_classes=len(classes_ids)
                                                )
+    elif config.model_type == MT_SIMTUPLE:
+        model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=inception_tree_model,
+                                                            #fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
+                                                            optimizer=optimizer,
+                                                            learning_rate=config.learning_rate,
+                                                            clipping_threshold=config.clipping,
+                                                            )
+
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 

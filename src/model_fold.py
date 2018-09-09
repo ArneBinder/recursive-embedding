@@ -1379,19 +1379,29 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
 
     def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
 
-        # unpack scores_gold. Every prob tuple has the format: [1.0, score_gold, ...]
-        self._scores_gold = tf.reshape(tree_model.values_gold_shaped, shape=[-1, 2])[:, 1]
+        self._labels_gold = tf.placeholder(dtype=tf.float32)
         # pack tree embeddings in pairs of two
         self._tree_embeddings_reshaped = tf.reshape(tree_model.embeddings_all, shape=[-1, 2, tree_model.tree_output_size])
         # apply sim measure
         self._scores = sim_measure(self._tree_embeddings_reshaped)
 
+        with tf.variable_scope("reset_metrics_scope") as scope:
+            metrics = {
+                'pearson_r': tf.contrib.metrics.streaming_pearson_correlation(
+                    labels=self.values_gold, predictions=self.values_predicted),
+                'mse': tf.contrib.metrics.streaming_mean_squared_error(
+                    labels=self.values_gold, predictions=self.values_predicted),
+            }
+            vars = tf.contrib.framework.get_variables(scope, collection=tf.GraphKeys.LOCAL_VARIABLES)
+            reset_op = tf.variables_initializer(vars)
+
         BaseTrainModel.__init__(self, tree_model=tree_model,
-                                loss=tf.reduce_mean(tf.square(self._scores - self._scores_gold)), **kwargs)
+                                loss=tf.reduce_mean(tf.square(self._scores - self._labels_gold)),
+                                metrics=metrics, metric_reset_op=reset_op, **kwargs)
 
     @property
     def values_gold(self):
-        return self._scores_gold
+        return self._labels_gold
 
     @property
     def values_predicted(self):

@@ -8,16 +8,18 @@ from scipy.sparse import csr_matrix
 
 from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_IDX, TYPE_REF_SEEALSO, \
     TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, \
-    TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, IDENTITY_EMBEDDING, CM_TREE, CM_AGGREGATE, \
-    CM_SEQUENCE, TYPE_PMID, TARGET_EMBEDDING, OFFSET_ID
+    TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, CM_TREE, CM_AGGREGATE, \
+    CM_SEQUENCE, TARGET_EMBEDDING, OFFSET_ID, TYPE_RELATEDNESS_SCORE, SEPARATOR
 from sequence_trees import Forest
 from mytools import numpy_load
 
 RECURSION_LIMIT_MIN = 1000
 RECURSION_LIMIT_ADD = 100
 
-CONTEXT_ROOT_OFFEST = 2
+CONTEXT_ROOT_OFFSET = 2
 SEEALSO_ROOT_OFFSET = 3
+RELATEDNESS_SCORE_ROOT_OFFSET = 3
+OTHER_ENTRY_ROOT_OFFSET = 7
 
 logger = logging.getLogger('data_iterators')
 logger.setLevel(logging.DEBUG)
@@ -353,7 +355,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             context_child_offset = forest.get_children(idx)[0]
             idx_start = idx + context_child_offset
 
-            root_pos = idx - CONTEXT_ROOT_OFFEST
+            root_pos = idx - CONTEXT_ROOT_OFFSET
             root_idx = forest.root_mapping[root_pos]
             # get position of next root or end of sequence data
             if root_idx == len(forest.roots) - 1:
@@ -521,7 +523,7 @@ def indices_dbpedianif(index_files, forest, **unused):
     # map to context and seealso indices
 
     indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
-                                                     offsets=np.array([CONTEXT_ROOT_OFFEST, SEEALSO_ROOT_OFFSET]))
+                                                     offsets=np.array([CONTEXT_ROOT_OFFSET, SEEALSO_ROOT_OFFSET]))
     # unzip (produces lists)
     root_ids, indices_context_root, indices_seealso_root = zip(*indices_mapped)
     root_ids_seealsos_iterator = link_root_ids_iterator(indices=indices_seealso_root, forest=forest,
@@ -549,7 +551,7 @@ def indices_dbpedianif(index_files, forest, **unused):
                 root_id_str = forest.lexicon_roots.get_s(root_ids[i], data_as_hashes=forest.data_as_hashes)
                 if root_id_str[:len(root_id_prefix_exclude)] != root_id_prefix_exclude:
                     #root_ids_seealsos_list.append(curren_root_ids_seealsos)
-                    indices_sealso_contexts_lists.append(forest.roots[curren_root_ids_seealsos] + CONTEXT_ROOT_OFFEST)
+                    indices_sealso_contexts_lists.append(forest.roots[curren_root_ids_seealsos] + CONTEXT_ROOT_OFFSET)
                     #root_ids_list.append(root_ids[i])
                     indices_context_root_list.append(indices_context_root[i])
 
@@ -578,6 +580,41 @@ def indices_dbpedianif(index_files, forest, **unused):
     return np.array(indices_context_root_list), indices_sealso_contexts_lists, [len(np.load(ind_f)) for ind_f in index_files]
 
 
+def indices_sick(index_files, forest, **unused):
+
+    # get root indices from files
+    indices = index_iterator(index_files)
+    # map to context, indices_score and indices_other
+    indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
+                                                     offsets=np.array([CONTEXT_ROOT_OFFSET,
+                                                                       RELATEDNESS_SCORE_ROOT_OFFSET + 1,
+                                                                       OTHER_ENTRY_ROOT_OFFSET + 1]))
+    # unzip (produces tuples)
+    root_ids, indices_context_root, indices_score, indices_other = zip(*indices_mapped)
+    relatedness_scores_ids = forest.data[list(indices_score)]
+    relatedness_scores = []
+    l = len(TYPE_RELATEDNESS_SCORE + SEPARATOR)
+    for rel_score_id in relatedness_scores_ids:
+        rel_score_str = forest.lexicon.get_s(rel_score_id, data_as_hashes=forest.data_as_hashes)
+        rel_score = float(rel_score_str[l:])
+        relatedness_scores.append(rel_score)
+    # shift original score range [1.0..5.0] into range [0.0..1.0]
+    relatedness_scores = (np.array(relatedness_scores, dtype=np.float32) - 1) / 4.0
+
+    other_root_ids = forest.data[list(indices_other)]
+    other_root_indices = []
+    for other_root_id in other_root_ids:
+        other_root_index = forest.root_id_pos.get(other_root_id, None)
+        assert other_root_index is not None, 'linked root: %i not found in root_id_pos' % other_root_id
+        other_root_indices.append(other_root_index)
+    other_indices_context_root = np.array(other_root_indices, dtype=DTYPE_IDX) + CONTEXT_ROOT_OFFSET
+    # re-pack indices: [..., sentence_A_index_i, ...], [..., sentence_A_index_i, ...]
+    #                  -> [..., sentence_A_index_i, sentence_B_index_i, ...]
+    all_indices = np.concatenate((np.array(indices_context_root).reshape((1, -1)),
+                                  other_indices_context_root.reshape((1, -1)))).T.reshape((-1))
+    return all_indices, relatedness_scores, [len(np.load(ind_f)) for ind_f in index_files]
+
+
 def indices_to_sparse(indices, length, dtype=np.float32):
     return csr_matrix((np.ones(len(indices), dtype=dtype), (np.zeros(len(indices), dtype=dtype), indices)),
                       shape=(1, length))
@@ -594,7 +631,7 @@ def indices_multiclass(index_files, forest, classes_ids, classes_root_offset, **
 
     # map to context and mesh indices
     indices_mapped = root_id_to_idx_offsets_iterator(indices, mapping=forest.roots,
-                                                     offsets=(CONTEXT_ROOT_OFFEST, classes_root_offset))
+                                                     offsets=(CONTEXT_ROOT_OFFSET, classes_root_offset))
     # unzip (produces lists)
     root_ids, indices_context_root, indices_mesh_root = zip(*indices_mapped)
 
@@ -626,7 +663,7 @@ def indices_dbpedianif_dummy(forest, **unused):
     ## unzip (produces lists)
     #root_ids, indices_context_root = zip(*indices_mapped)
     root_ids = np.arange(len(forest.roots))
-    indices_context_root = forest.roots + CONTEXT_ROOT_OFFEST
+    indices_context_root = forest.roots + CONTEXT_ROOT_OFFSET
     logger.debug('found %i root_ids' % len(root_ids))
     #return np.array(root_ids), np.array(indices_context_root), None
     #return root_ids, indices_context_root, None

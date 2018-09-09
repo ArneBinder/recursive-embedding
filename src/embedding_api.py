@@ -34,7 +34,7 @@ from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_O
     KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT, \
     vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, SEPARATOR, TYPE_LEXEME, MT_REROOT, OFFSET_ID
 import data_iterators
-from data_iterators import CONTEXT_ROOT_OFFEST
+from data_iterators import CONTEXT_ROOT_OFFSET
 import data_iterators as diter
 from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor
 
@@ -606,7 +606,7 @@ def calc_tuple_scores(root_id, root_ids_target, forest, concat_mode, model_tree,
 
     root_ids = np.concatenate(([root_id], root_ids_target))
     root_indices = forest.roots[root_ids]
-    scoring_indices = root_indices + CONTEXT_ROOT_OFFEST
+    scoring_indices = root_indices + CONTEXT_ROOT_OFFSET
 
     calc_missing_embeddings(indices=scoring_indices, forest=forest, concat_mode=concat_mode, model_tree=model_tree,
                             max_depth=max_depth, batch_size=batch_size)
@@ -1090,7 +1090,7 @@ def init_forest(data_path):
             d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
             forest.data[forest.roots + OFFSET_ID] = d_identity
         if tfidf_indices is not None:
-            tfidf_root_ids = np.array([forest.root_mapping[root_idx] for root_idx in (tfidf_indices - CONTEXT_ROOT_OFFEST)])
+            tfidf_root_ids = np.array([forest.root_mapping[root_idx] for root_idx in (tfidf_indices - CONTEXT_ROOT_OFFSET)])
         else:
             tfidf_root_ids = None
 
