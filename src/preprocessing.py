@@ -402,7 +402,7 @@ def process_sentence8(sentence, parsed_data, strings, dict_unknown=None, concat_
         sen_data.append(mytools.getOrAdd(strings, PREFIX_DEP + token.dep_, dict_unknown))
         sen_parents.append(root_offset - len(sen_parents))
         # add edge type type embedding
-        sen_data.append(mytools.getOrAdd(strings, vocab_manual[DEPENDENCY_EMBEDDING], dict_unknown))
+        sen_data.append(mytools.getOrAdd(strings, TYPE_DEPENDENCY_RELATION, dict_unknown))
         sen_parents.append(-1)
         # add pos-tag type embedding
         sen_data.append(mytools.getOrAdd(strings, PREFIX_POS + token.tag_, dict_unknown))
@@ -417,15 +417,14 @@ def process_sentence8(sentence, parsed_data, strings, dict_unknown=None, concat_
             sen_parents.append(root_offset - len(sen_parents))
             # add entity type type embedding
             sen_data.append(
-                mytools.getOrAdd(strings, vocab_manual[ENTITY_EMBEDDING], dict_unknown))
+                mytools.getOrAdd(strings, TYPE_NAMED_ENTITY, dict_unknown))
             sen_parents.append(-1)
         # add lemma type embedding
         if token.lemma != token.orth:
             sen_data.append(mytools.getOrAdd(strings, PREFIX_LEM + token.lemma_, dict_unknown))
             sen_parents.append(root_offset - len(sen_parents))
             # add lemma type type embedding
-            sen_data.append(
-                mytools.getOrAdd(strings, vocab_manual[LEMMA_EMBEDDING], dict_unknown))
+            sen_data.append(mytools.getOrAdd(strings, TYPE_LEMMA, dict_unknown))
             sen_parents.append(-1)
 
     new_root_id = mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown)
@@ -435,7 +434,7 @@ def process_sentence8(sentence, parsed_data, strings, dict_unknown=None, concat_
 
 
 # embeddings for:
-# word, edge (marked)
+# word, edge (reversed i.e. edge type links word to parent edge type)
 def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
     sen_data = []
     sen_parents = []
