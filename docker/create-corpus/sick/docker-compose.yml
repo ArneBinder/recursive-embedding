@@ -14,6 +14,7 @@ services:
                                   --out-path /root/corpora_out/SICK
                                   --n-threads ${NUM_THREADS_PARSE}
                                   --parser-batch-size ${BATCH_SIZE_PARSE}
+                                  --sentence-processor ${SENTENCE_PROCESSOR}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
