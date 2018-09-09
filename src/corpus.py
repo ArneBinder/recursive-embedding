@@ -42,13 +42,13 @@ logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
 
-def process_records(records, out_base_name, reader, sentence_processor, parser=spacy.load('en'), concat_mode='sequence',
+def process_records(records, out_base_name, record_reader, sentence_processor, parser, concat_mode='sequence',
                     batch_size=1000, n_threads=4):
     if not Lexicon.exist(out_base_name, types_only=True) \
             or not Forest.exist(out_base_name) \
             or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
             or not numpy_exists('%s.%s' % (out_base_name, FE_COUNTS)):
-        _reader = partial(reader, records=records)
+        _reader = partial(record_reader, records=records)
         logger.debug('parse records ...')
         # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
 

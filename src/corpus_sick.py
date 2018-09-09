@@ -1,6 +1,7 @@
 import csv
 import logging
 import os
+import spacy
 
 import plac
 
@@ -105,7 +106,8 @@ def reader(records, keys_text=KEYS_SENTENCE, root_string=TYPE_SICK_ID,
 def parse_dummy(out_base_name):
     print(out_base_name)
     make_parent_dir(out_base_name)
-    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name, reader=reader,
+    parser = spacy.load('en')
+    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name, record_reader=reader, parser=parser,
                     sentence_processor=preprocessing.process_sentence1, concat_mode=None)
 
 
@@ -139,12 +141,13 @@ def read_file(file_name):
 )
 def parse(in_path, out_path, n_threads=4, parser_batch_size=1000):
     file_names = ['sick_test_annotated/SICK_test_annotated.txt', 'sick_train/SICK_train.txt']
+    parser = spacy.load('en')
     for fn in file_names:
         logger.info('create forest for %s ...' % fn)
         out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
         make_parent_dir(out_base_name)
-        process_records(records=read_file(os.path.join(in_path, fn)), out_base_name=out_base_name, reader=reader,
-                        sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
+        process_records(records=read_file(os.path.join(in_path, fn)), out_base_name=out_base_name, record_reader=reader,
+                        parser=parser, sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
                         batch_size=parser_batch_size)
         logger.info('done.')
 

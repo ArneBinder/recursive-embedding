@@ -14,10 +14,8 @@ import spacy
 
 from constants import TYPE_CONTEXT, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, TYPE_PMID
 import preprocessing
-from lexicon import Lexicon
-from corpus import FE_UNIQUE_HASHES, FE_COUNTS, DIR_BATCHES, FE_CLASS_IDS, merge_batches, create_index_files
-from mytools import numpy_dump, numpy_exists
-from sequence_trees import Forest
+from corpus import DIR_BATCHES, FE_CLASS_IDS, process_records, merge_batches, create_index_files
+from mytools import numpy_dump
 
 logger = logging.getLogger('corpus_bioasq')
 logger.setLevel(logging.DEBUG)
@@ -83,7 +81,9 @@ def multisplit(text, sep, sep_postfix=u': ', unlabeled=None):
     return matches, rest
 
 
-def reader(records, keys_text, keys_text_structured, root_string, keys_meta=(), keys_mandatory=(), key_id=None,
+def reader(records, keys_text=(TYPE_TITLE,), keys_text_structured=(TYPE_SECTION + SEPARATOR + u'abstract',),
+           root_string=u'http://id.nlm.nih.gov/pubmed/resource', keys_meta=(TYPE_MESH, TYPE_JOURNAL, TYPE_YEAR),
+           keys_mandatory=(TYPE_MESH, TYPE_SECTION + SEPARATOR + u'abstract'), key_id=None,
            root_text_string=TYPE_CONTEXT, allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM):
     """
 
@@ -219,59 +219,12 @@ def convert_record(record, mapping=KEY_MAPPING):
 
 
 @plac.annotations(
-    records=('dicts containing BioASQ data obtained from json', 'option', 'r', str),
-    out_base_name=('corpora output base file name', 'option', 'o', str),
-)
-def process_records(records, out_base_name, parser=spacy.load('en'), batch_size=1000, n_threads=4):
-    if not Lexicon.exist(out_base_name, types_only=True) \
-            or not Forest.exist(out_base_name) \
-            or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
-            or not numpy_exists('%s.%s' % (out_base_name, FE_COUNTS)):
-        _reader = partial(reader,
-                          records=(convert_record(r) for r in records),
-                          key_id=TYPE_PMID,
-                          keys_text=[TYPE_TITLE],
-                          keys_text_structured=[TYPE_SECTION + SEPARATOR + u'abstract'],
-                          # ATTENTION: mesh has to be the first meta data because MESH_ROOT_OFFSET has to be fixed, but
-                          # journal and year are not mandatory
-                          keys_meta=[TYPE_MESH, TYPE_JOURNAL, TYPE_YEAR],
-                          keys_mandatory=[TYPE_MESH, TYPE_SECTION + SEPARATOR + u'abstract'],
-                          allowed_paragraph_labels=PARAGRAPH_LABELS_UNIFORM,
-                          root_string=u'http://id.nlm.nih.gov/pubmed/resource')
-        logger.debug('parse abstracts ...')
-        # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
-
-        lexicon = Lexicon()
-        forest = lexicon.read_data(reader=_reader, sentence_processor=preprocessing.process_sentence1,
-                                   parser=parser, batch_size=batch_size, concat_mode='sequence',
-                                   inner_concat_mode='tree', expand_dict=True, as_tuples=True,
-                                   return_hashes=True, n_threads=n_threads)
-
-        forest.set_children_with_parents()
-        #roots = forest.roots
-        # ids are at one position after roots
-        #root_ids = forest.data[roots + OFFSET_ID]
-        #forest.set_root_ids(root_ids=root_ids)
-        forest.set_root_data_by_offset()
-
-        #out_path = os.path.join(out_path, os.path.basename(in_file))
-        lexicon.dump(filename=out_base_name, strings_only=True)
-        forest.dump(filename=out_base_name)
-
-        unique, counts = np.unique(forest.data, return_counts=True)
-        # unique.dump('%s.%s' % (filename, FE_UNIQUE_HASHES))
-        # counts.dump('%s.%s' % (filename, FE_COUNTS))
-        numpy_dump('%s.%s' % (out_base_name, FE_UNIQUE_HASHES), unique)
-        numpy_dump('%s.%s' % (out_base_name, FE_COUNTS), counts)
-    else:
-        logger.debug('%s was already processed' % out_base_name)
-
-
-@plac.annotations(
     out_base_name=('corpora output base file name', 'option', 'o', str)
 )
 def parse_dummy(out_base_name):
-    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name)
+    parser = spacy.load('en')
+    process_records(records=[convert_record(DUMMY_RECORD)], out_base_name=out_base_name, record_reader=reader,
+                    parser=parser, sentence_processor=preprocessing.process_sentence1)
 
 
 @plac.annotations(
@@ -284,7 +237,8 @@ def parse_single(in_file, out_path):
     if not os.path.exists(out_path):
         os.mkdir(out_path)
     out_base_name = os.path.join(out_path, os.path.basename(in_file))
-    process_records(records=read_file(in_file), out_base_name=out_base_name, parser=parser)
+    process_records(records=(convert_record(r) for r in read_file(in_file)), out_base_name=out_base_name,
+                    record_reader=reader, parser=parser, sentence_processor=preprocessing.process_sentence1)
 
 
 def prepare_file(fn, in_path, out_path, mappings):
@@ -331,6 +285,7 @@ def prepare_batches(in_path, mapping_file, n_threads=4):
     p.map(partial(prepare_file, in_path=in_path, out_path=out_path, mappings=mappings), file_names)
 
 
+#TODO: check, if usage of corpus.process_records works correctly
 @plac.annotations(
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
@@ -363,7 +318,10 @@ def parse_batches(in_path, out_path, n_threads=4, parser_batch_size=1000):
     for in_file in os.listdir(in_path):
         logger.info('parse file: %s' % os.path.basename(in_file))
         out_base_name = os.path.join(out_path, os.path.basename(in_file))
-        process_records(records=read_file(os.path.join(in_path, in_file)), out_base_name=out_base_name, parser=parser,
+        process_records(records=(convert_record(r) for r in read_file(os.path.join(in_path, in_file))),
+                        record_reader=reader,
+                        sentence_processor=preprocessing.process_sentence1,
+                        out_base_name=out_base_name, parser=parser,
                         n_threads=n_threads, batch_size=parser_batch_size)
 
 

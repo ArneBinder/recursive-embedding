@@ -1,4 +1,5 @@
 import os
+import spacy
 
 import plac
 import logging
@@ -97,7 +98,9 @@ def reader(records, key_text='content', root_string=TYPE_ACLIMDB_ID,
 def parse_dummy(out_base_name):
     print(out_base_name)
     make_parent_dir(out_base_name)
-    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name)
+    parser = spacy.load('en')
+    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name, parser=parser,
+                    sentence_processor=preprocessing.process_sentence1, record_reader=reader)
 
 
 def read_files(in_path, subdir, polarities=(u'pos', u'neg')):
@@ -125,12 +128,13 @@ def read_files(in_path, subdir, polarities=(u'pos', u'neg')):
 )
 def parse_dirs(in_path, out_path, n_threads=4, parser_batch_size=1000):
     sub_dirs = ['train', 'test']
+    parser = spacy.load('en')
     for sub_dir in sub_dirs:
         logger.info('create forest for %s ...' % sub_dir)
         out_base_name = os.path.join(out_path, DIR_BATCHES, sub_dir)
         make_parent_dir(out_base_name)
-        process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, reader=reader,
-                        sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
+        process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, record_reader=reader,
+                        parser=parser, sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
                         batch_size=parser_batch_size)
         logger.info('done.')
 
