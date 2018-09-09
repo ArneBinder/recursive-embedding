@@ -1492,12 +1492,12 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                num_classes=len(classes_ids)
                                                )
     elif config.model_type == MT_SIMTUPLE:
-        model = model_fold.SimilaritySequenceTreeTupleModel(tree_model=inception_tree_model,
-                                                            #fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
-                                                            optimizer=optimizer,
-                                                            learning_rate=config.learning_rate,
-                                                            clipping_threshold=config.clipping,
-                                                            )
+        model = model_fold.TreeTupleModel(tree_model=inception_tree_model,
+                                          #fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
+                                          optimizer=optimizer,
+                                          learning_rate=config.learning_rate,
+                                          clipping_threshold=config.clipping,
+                                          )
 
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)

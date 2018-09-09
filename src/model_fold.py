@@ -1374,7 +1374,7 @@ class BaseTrainModel(object):
         return self._reset_metrics
 
 
-class SimilaritySequenceTreeTupleModel(BaseTrainModel):
+class TreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
     def __init__(self, tree_model, sim_measure=sim_cosine, **kwargs):
@@ -1412,6 +1412,7 @@ class SimilaritySequenceTreeTupleModel(BaseTrainModel):
         return MODEL_TYPE_REGRESSION
 
 
+# not used
 class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
@@ -1638,6 +1639,7 @@ class TreeMultiClassModel(BaseTrainModel):
         return MODEL_TYPE_DISCRETE
 
 
+# not used
 class ScoredSequenceTreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
