@@ -2175,7 +2175,7 @@ if __name__ == '__main__':
                         use_test_files = False
                         if FLAGS.test_files is not None and FLAGS.test_files.strip() != '':
                             for t_fn in FLAGS.test_files.strip().split(','):
-                                current_test_fname = os.path.join(train_data_dir, FLAGS.test_files.strip())
+                                current_test_fname = os.path.join(train_data_dir, t_fn)
                                 assert os.path.isfile(current_test_fname), 'could not find test file: %s' % current_test_fname
                                 use_test_files = True
 
