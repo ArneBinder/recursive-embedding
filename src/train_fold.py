@@ -19,7 +19,7 @@ import scipy
 from functools import reduce, partial
 import cPickle as pickle
 import Queue
-from threading import Thread, Event
+from threading import Thread, Lock
 
 import numpy as np
 import six
@@ -1561,6 +1561,55 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
     return cache[key]
 
 
+class RecompileThread(Thread):
+    def __init__(self, q, train_tree_iter, compiler, train_indices_sampler):
+        super(RecompileThread, self).__init__()
+        self._q = q
+        self._lock = Lock()
+        self._train_tree_iter = train_tree_iter
+        self._train_indices_sampler = train_indices_sampler
+        self._compiler = compiler
+        self.daemon = True
+
+    def run(self):
+        with self._compiler.multiprocessing_pool():
+            while True:
+                #logger.debug('wait for lock (run) ...')
+                self._lock.acquire()
+                try:
+                    _indices = self._train_indices_sampler()
+                finally:
+                    self._lock.release()
+                if _indices is None:
+                    break
+                #logger.debug('compile ...')
+                _trees = compile_trees(tree_iterators={M_TRAIN: self._train_tree_iter},
+                                       indices={M_TRAIN: _indices},
+                                       compiler=self._compiler, use_pool=False)[M_TRAIN]
+                #logger.debug('q.put() ...')
+                self._q.put((_indices, _trees))
+
+    def join(self, timeout=None):
+        # stopping
+        logger.debug('wait for lock (join) ...')
+        self._lock.acquire()
+        try:
+            self._train_indices_sampler = lambda: None
+        finally:
+            self._lock.release()
+        # remove element
+        try:
+            logger.debug('try task_done ...')
+            self._q.task_done()
+            logger.debug('q.get() ...')
+            self._q.get()
+        # throws value error if already empty
+        except ValueError:
+            logger.debug('queue was already empty')
+            pass
+        Thread.join(self, timeout)
+
+
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
                     test_result_writer, logdir, cache=None, debug=False, clean_train_trees=False):
     with supervisor.managed_session() as sess:
@@ -1636,36 +1685,18 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 raise ValueError('no metric defined for model_type=%s' % meta[model_for_metric][M_MODEL].model_type)
 
         if config.model_type == MT_REROOT:
-            # only one queue element is neccessary
+            # only one queue element is necessary
             train_tree_queue = Queue.Queue(1)
             if M_TREES in meta[M_TRAIN] and meta[M_TRAIN][M_TREES] is not None \
                     and M_INDICES in meta[M_TRAIN] and meta[M_TRAIN][M_INDICES] is not None:
                 train_tree_queue.put((meta[M_TRAIN][M_INDICES], meta[M_TRAIN][M_TREES]))
-
-            def _resample_and_recompile_train(stop_event):
-                _compiler = meta[M_TRAIN][M_MODEL].tree_model.compiler
-                assert M_INDICES_SAMPLER in meta[M_TRAIN], '%s not found in meta[train], but it is required to ' \
-                                                           're-sample indices' % M_INDICES_SAMPLER
-                with _compiler.multiprocessing_pool():
-                    while not stop_event.is_set():
-                        _indices = meta[M_TRAIN][M_INDICES_SAMPLER]()
-                        _trees = compile_trees(tree_iterators={M_TRAIN: meta[M_TRAIN][M_TREE_ITER]},
-                                               indices={M_TRAIN: _indices},
-                                               compiler=_compiler, use_pool=False)[M_TRAIN]
-                        # this check is important because we cold get the stop signal while compiling and the queue
-                        # would block forever if it is already full
-                        if not stop_event.is_set():
-                            train_tree_queue.put((_indices, _trees))
-
-            stop_trees_worker = Event()
-            train_trees_worker = Thread(target=_resample_and_recompile_train, args=(stop_trees_worker,))
-            train_trees_worker.setDaemon(True)
-            logger.debug('start re-compile thread (single)...')
-            train_trees_worker.start()
-
+            recompile_thread = RecompileThread(q=train_tree_queue, train_tree_iter=meta[M_TRAIN][M_TREE_ITER],
+                                               compiler=meta[M_TRAIN][M_MODEL].tree_model.compiler,
+                                               train_indices_sampler=meta[M_TRAIN][M_INDICES_SAMPLER])
+            recompile_thread.start()
         else:
             train_tree_queue = None
-            stop_trees_worker = None
+            recompile_thread = None
 
         # NOTE: this depends on metric (pearson/mse/roc/...)
         METRIC_MIN_INIT = -1
@@ -1757,9 +1788,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 #logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
                 logger.info('last metrics (rank: %i): %s' % (rank, str(stat_queue[-1])))
                 logger.info('best metrics: %s' % str(stat_queue_sorted[0]))
-                if stop_trees_worker is not None:
-                    stop_trees_worker.set()
-                    train_trees_worker.join()
+                if recompile_thread is not None:
+                    logger.debug('wait for recompile_thread ...')
+                    recompile_thread.join()
                 return stat_queue_sorted[0], cache
 
 
