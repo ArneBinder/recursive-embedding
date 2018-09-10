@@ -123,10 +123,15 @@ def read_files(in_path, subdir, polarities=(u'pos', u'neg')):
 @plac.annotations(
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
+    sentence_processor=('sentence processor', 'option', 'p', str),
     n_threads=('number of threads for replacement operations', 'option', 't', int),
     parser_batch_size=('parser batch size', 'option', 'b', int)
 )
-def parse_dirs(in_path, out_path, n_threads=4, parser_batch_size=1000):
+def parse_dirs(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_size=1000):
+    if sentence_processor is not None and sentence_processor.strip() != '':
+        _sentence_processor = getattr(preprocessing, sentence_processor.strip())
+    else:
+        _sentence_processor = preprocessing.process_sentence1
     sub_dirs = ['train', 'test']
     parser = spacy.load('en')
     for sub_dir in sub_dirs:
@@ -134,7 +139,7 @@ def parse_dirs(in_path, out_path, n_threads=4, parser_batch_size=1000):
         out_base_name = os.path.join(out_path, DIR_BATCHES, sub_dir)
         make_parent_dir(out_base_name)
         process_records(records=read_files(in_path, sub_dir), out_base_name=out_base_name, record_reader=reader,
-                        parser=parser, sentence_processor=preprocessing.process_sentence1, n_threads=n_threads,
+                        parser=parser, sentence_processor=_sentence_processor, n_threads=n_threads,
                         batch_size=parser_batch_size)
         logger.info('done.')
 
