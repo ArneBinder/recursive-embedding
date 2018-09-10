@@ -1,6 +1,8 @@
 #from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
+
+import logging
 # import google3
 import tensorflow as tf
 import tensorflow_fold.public.blocks as td
@@ -10,7 +12,7 @@ import numpy as np
 import math
 from scipy.sparse import csr_matrix
 
-from constants import KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES
+from constants import KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, LOGGING_FORMAT
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
@@ -27,6 +29,12 @@ VAR_PREFIX_SIM_MEASURE = 'sim_measure'
 
 MODEL_TYPE_DISCRETE = 'mt_discrete'
 MODEL_TYPE_REGRESSION = 'mt_regression'
+
+logger = logging.getLogger('model_fold')
+logger.setLevel(logging.DEBUG)
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.DEBUG)
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 
 
 def dprint(x, message=None):
@@ -1487,7 +1495,7 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 class TreeScoringModel_with_candidates(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
 
-    def __init__(self, tree_model, fc_sizes=1000, **kwargs):
+    def __init__(self, tree_model, fc_sizes=1000, use_circular_correlation=False, **kwargs):
         #self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
 
         self._labels_gold = tf.placeholder(dtype=tf.float32)
@@ -1508,8 +1516,10 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
         # add circular self correlation
-        circ_cor = circular_correlation(final_vecs, final_vecs)
-        final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
+        if use_circular_correlation:
+            logger.debug('add circular self correlation')
+            circ_cor = circular_correlation(final_vecs, final_vecs)
+            final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
 
         _logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=1, activation_fn=None)
         logits = tf.reshape(_logits, shape=[batch_size, self.candidate_count])

@@ -1470,6 +1470,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                           optimizer=optimizer,
                                                           learning_rate=config.learning_rate,
                                                           clipping_threshold=config.clipping,
+                                                          use_circular_correlation=config.use_circular_correlation
                                                           )
 
     elif config.model_type == MT_REROOT:
@@ -1478,6 +1479,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                            optimizer=optimizer,
                                                            learning_rate=config.learning_rate,
                                                            clipping_threshold=config.clipping,
+                                                           use_circular_correlation=config.use_circular_correlation
                                                            )
     elif config.model_type == MT_MULTICLASS:
         classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
