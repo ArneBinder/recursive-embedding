@@ -46,5 +46,32 @@ services:
                                   --split-count ${SPLIT_COUNT}
                                   --start-root ${START_ROOT}
                                   --end-root ${END_ROOT}
-    cpuset: ${CPU_SET}
-    mem_limit: ${MEM_LIMIT}
+
+  corpus-imdb-indices-test:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/imdb/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_imdb.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/IMDB/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root 0
+                                  --end-root 25000
+                                  --suffix test
+  corpus-imdb-indices-train:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/imdb/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_imdb.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/IMDB/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root 25000
+                                  --end-root -1
+                                  --suffix train
