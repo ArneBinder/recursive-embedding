@@ -47,7 +47,8 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
     M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_SINGLE_DISCRETE, MT_TUPLE_DISCRETE, \
     MT_SINGLE_DISCRETE_INDEPENDENT, MT_TUPLE_DISCRETE_DEPENDENT, \
-    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, MESH_ROOT_OFFSET, MT_TUPLE_CONTINOUES
+    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, MESH_ROOT_OFFSET, \
+    MT_TUPLE_CONTINOUES, TYPE_ENTAILMENT, TYPE_POLARITY, TASK_MESH_PREDICTION, TYPE_MESH_FN, TASK_ENTAILMENT_PREDICTION
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -1039,6 +1040,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
 
 
 def init_model_type(config):
+    num_classes = None
     ## set index and tree getter
     if config.model_type == MT_TUPLE_CONTINOUES:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -1093,16 +1095,25 @@ def init_model_type(config):
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_reroot
         load_parents = True
-    elif config.model_type == MT_SINGLE_DISCRETE_INDEPENDENT:
-        classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
-        logger.info('number of classes to predict: %i' % len(classes_ids))
-
+    elif config.model_type in [MT_SINGLE_DISCRETE_INDEPENDENT, MT_TUPLE_DISCRETE_DEPENDENT]:
+        if config.task == TASK_MESH_PREDICTION:
+            classes_ids = numpy_load(filename='%s.%s.%s' % (config.train_data_path, TYPE_MESH_FN, FE_CLASS_IDS))
+            num_classes = len(classes_ids)
+            logger.info('number of classes to predict: %i' % len(classes_ids))
+            classes_root_offset=MESH_ROOT_OFFSET
+        elif config.task == TASK_ENTAILMENT_PREDICTION:
+            classes_ids = numpy_load(filename='%s.%s.%s' % (config.train_data_path, TYPE_ENTAILMENT, FE_CLASS_IDS))
+            num_classes = len(classes_ids)
+            logger.info('number of classes to predict: %i' % len(classes_ids))
+            classes_root_offset = 5
+        else:
+            raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
         tree_iterator = diters.tree_iterator
         # TODO: parametrize MESH_ROOT_OFFSET
         indices_getter = partial(diters.indices_multiclass, classes_ids=classes_ids,
-                                 classes_root_offset=MESH_ROOT_OFFSET)
+                                 classes_root_offset=classes_root_offset)
         tree_count = 1
         load_parents = (tree_iterator_args['context'] > 0)
 
@@ -1110,7 +1121,7 @@ def init_model_type(config):
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-    return tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count
+    return tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count, num_classes
 
 
 def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
@@ -1372,7 +1383,7 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, indices, cache_dir=None,
 def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tfidf, indices=None, data_dir=None,
                   use_inception_tree_model=False, index_file_names=None, index_file_sizes=None,
                   precompile=True, create_tfidf_embeddings=False, discard_tree_embeddings=False,
-                  discard_prepared_embeddings=False):
+                  discard_prepared_embeddings=False, num_classes=None):
 
     if discard_tree_embeddings:
         logger.warning('discard tree embeddings')
@@ -1482,27 +1493,27 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                            clipping_threshold=config.clipping,
                                                            use_circular_correlation=config.use_circular_correlation
                                                            )
+    # BIOASQ MESH
     elif config.model_type == MT_SINGLE_DISCRETE_INDEPENDENT:
-        # TODO: load correct classes
-        classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
+        #classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
         model = model_fold.TreeMultiClassModel(tree_model=inception_tree_model,
                                                fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                optimizer=optimizer,
                                                learning_rate=config.learning_rate,
                                                clipping_threshold=config.clipping,
-                                               num_classes=len(classes_ids),
+                                               num_classes=num_classes,
                                                tree_count=1,
                                                independent_classes=True
                                                )
+    # SICK ENTAILMENT
     elif config.model_type == MT_TUPLE_DISCRETE_DEPENDENT:
-        # TODO: load correct classes
-        classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
+        #classes_ids = numpy_load(filename='%s.%s.%s' % (config.train_data_path, TYPE_ENTAILMENT, FE_CLASS_IDS))
         model = model_fold.TreeMultiClassModel(tree_model=inception_tree_model,
                                                fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                optimizer=optimizer,
                                                learning_rate=config.learning_rate,
                                                clipping_threshold=config.clipping,
-                                               num_classes=len(classes_ids),
+                                               num_classes=num_classes,
                                                tree_count=2,
                                                independent_classes=False
                                                )
@@ -1882,7 +1893,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
     if not (FLAGS.dont_test or fnames_test is None or len(fnames_test) == 0):
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
-    tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count = init_model_type(config)
+    tree_iterator, tree_iterator_args, indices_getter, load_parents, tree_count, num_classes = init_model_type(config)
     tree_iterator_args_tfidf = None
     if config.use_tfidf or config.tree_embedder == 'tfidf':
         tree_iterator_args_tfidf = tree_iterator_args.copy()
@@ -2004,6 +2015,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
                 create_tfidf_embeddings=config.use_tfidf,
                 discard_tree_embeddings=discard_tree_embeddings,
                 discard_prepared_embeddings=discard_prepared_embeddings,
+                num_classes=num_classes
             )
 
             #models_nearest = create_models_nearest(model_tree=model_tree,

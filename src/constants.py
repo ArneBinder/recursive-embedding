@@ -24,13 +24,10 @@ TYPE_NAMED_ENTITY = u'http://purl.org/olia/olia.owl#NamedEntity'
 TYPE_PHRASE = u'http://purl.org/olia/olia.owl#Phrase'
 TYPE_ID = u'http://www.w3.org/2005/11/its/rdf#id'
 TYPE_NIF = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#'
-# TODO: choose better!
-TYPE_RELATEDNESS_SCORE = u'RELATEDNESS_SCORE'
-TYPE_ENTAILMENT = u'ENTAILMENT'
 
 BASE_TYPES = [TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SECTION, TYPE_SECTION,
               TYPE_SENTENCE, TYPE_PMID, TYPE_LEXEME, TYPE_DEPENDENCY_RELATION, TYPE_LEMMA, TYPE_POS_TAG,
-              TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID, TYPE_NIF, TYPE_RELATEDNESS_SCORE, TYPE_ENTAILMENT]
+              TYPE_NAMED_ENTITY, TYPE_PHRASE, TYPE_ID, TYPE_NIF]
 
 # CONSTRUCTED TYPES
 TYPE_REF_SEEALSO = TYPE_REF + SEPARATOR + u'seeAlso'
@@ -39,6 +36,17 @@ TYPE_SECTION_ABSTRACT = TYPE_SECTION + SEPARATOR + u'abstract'
 TYPE_REF_TUPLE = TYPE_REF + SEPARATOR + u'other'
 
 LINK_TYPES = [TYPE_REF, TYPE_REF_SEEALSO, TYPE_REF_TUPLE]
+
+# TODO: choose better!
+# TASK SPECIFIC TYPES. ATTENTION: may be used in file names!
+# IMDB SENTIMENT
+TYPE_RELATEDNESS_SCORE = u'RELATEDNESS_SCORE'
+TYPE_ENTAILMENT = u'ENTAILMENT'
+# IMDB SENTIMENT
+TYPE_POLARITY = u"POLARITY"
+TYPE_RATING = u"RATING"
+# BIOASQ
+TYPE_MESH_FN = u'MESH'
 
 # special embeddings (have to be negative to get recognized during visualization #deprecated)
 UNKNOWN_EMBEDDING = 0
@@ -110,6 +118,11 @@ M_MODEL_NEAREST = 'model_nearest'
 M_INDEX_FILE_SIZES = 'index_file_sizes'
 
 FN_TREE_INDICES = 'tree_indices'
+
+
+# TASKS
+TASK_MESH_PREDICTION = 'mesh'
+TASK_ENTAILMENT_PREDICTION = 'entailment'
 
 # structural assumptions
 OFFSET_ID = 1
