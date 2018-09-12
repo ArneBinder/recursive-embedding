@@ -1493,7 +1493,7 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 
 
 class TreeScoringModel_with_candidates(BaseTrainModel):
-    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
+    """Predict the correct embeddings among multiple ones. The first embedding is assumed to be the correct one."""
 
     def __init__(self, tree_model, fc_sizes=1000, use_circular_correlation=False, **kwargs):
         #self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
@@ -1614,11 +1614,12 @@ class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
 
 
 class TreeMultiClassModel(BaseTrainModel):
-    def __init__(self, tree_model, num_classes, fc_sizes=1000, **kwargs):
+    def __init__(self, tree_model, num_classes, tree_count=1, independent_classes=True, fc_sizes=1000,
+                 use_circular_correlation=False, **kwargs):
 
         self._labels_gold = tf.sparse_placeholder(dtype=tf.float32)
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
-                                     shape=[-1, tree_model.tree_output_size])
+                                     shape=[-1, tree_model.tree_output_size * tree_count])
         final_vecs = tree_embeddings
 
         if not isinstance(fc_sizes, (list, tuple)):
@@ -1630,12 +1631,20 @@ class TreeMultiClassModel(BaseTrainModel):
                 fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
+        # add circular self correlation
+        if use_circular_correlation:
+            logger.debug('add circular self correlation')
+            circ_cor = circular_correlation(final_vecs, final_vecs)
+            final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
+
         logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None)
         labels_gold_dense = tf.sparse_tensor_to_dense(self._labels_gold)
-        cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
-        #BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
-
-        self._probs = tf.sigmoid(logits)
+        if independent_classes:
+            cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
+            self._probs = tf.sigmoid(logits)
+        else:
+            cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
+            self._probs = tf.nn.softmax(logits)
         #m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
         #m_ts = [0.5]
         m_ts = [0.33, 0.5, 0.66]

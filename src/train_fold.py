@@ -45,8 +45,9 @@ from mytools import numpy_load, chunks, flatten, numpy_dump, numpy_exists, loggi
 from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
     M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
-    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_REROOT, MT_TREETUPLE, MT_MULTICLASS, \
-    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, MESH_ROOT_OFFSET, MT_SIMTUPLE
+    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_SINGLE_DISCRETE, MT_TUPLE_DISCRETE, \
+    MT_SINGLE_DISCRETE_INDEPENDENT, MT_TUPLE_DISCRETE_DEPENDENT, \
+    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, MESH_ROOT_OFFSET, MT_TUPLE_CONTINOUES
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -1039,7 +1040,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
 
 def init_model_type(config):
     ## set index and tree getter
-    if config.model_type == MT_SIMTUPLE:
+    if config.model_type == MT_TUPLE_CONTINOUES:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode}
 
@@ -1048,7 +1049,7 @@ def init_model_type(config):
         tree_count = 1
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_simtuple.__name__
-    elif config.model_type == MT_TREETUPLE:
+    elif config.model_type == MT_TUPLE_DISCRETE:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
@@ -1073,7 +1074,7 @@ def init_model_type(config):
     #
     #    discrete_model = True
     #    load_parents = (config.context is not None and config.context > 0)
-    elif config.model_type == MT_REROOT:
+    elif config.model_type == MT_SINGLE_DISCRETE:
         if config.tree_embedder.strip() not in ['HTU_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapGRU']:
             raise NotImplementedError('reroot model only implemented for tree_embedder == '
                                       'HTU_reduceSUM_mapGRU, but it is: %s'
@@ -1092,7 +1093,7 @@ def init_model_type(config):
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_reroot
         load_parents = True
-    elif config.model_type == MT_MULTICLASS:
+    elif config.model_type == MT_SINGLE_DISCRETE_INDEPENDENT:
         classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
         logger.info('number of classes to predict: %i' % len(classes_ids))
 
@@ -1439,7 +1440,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                   **kwargs
                                                   )
         cache_dir = None
-        if config.model_type != MT_REROOT and data_dir is not None:
+        if config.model_type != MT_SINGLE_DISCRETE and data_dir is not None:
             cache_dir = os.path.join(data_dir, 'cache', config.get_serialization_for_compile_trees())
 
         if precompile:
@@ -1464,7 +1465,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
     else:
         inception_tree_model = model_tree
 
-    if config.model_type == MT_TREETUPLE:
+    if config.model_type == MT_TUPLE_DISCRETE:
         model = model_fold.TreeTupleModel_with_candidates(tree_model=inception_tree_model,
                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                           optimizer=optimizer,
@@ -1473,7 +1474,7 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                           use_circular_correlation=config.use_circular_correlation
                                                           )
 
-    elif config.model_type == MT_REROOT:
+    elif config.model_type == MT_SINGLE_DISCRETE:
         model = model_fold.TreeSingleModel_with_candidates(tree_model=inception_tree_model,
                                                            fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                            optimizer=optimizer,
@@ -1481,16 +1482,31 @@ def create_models(config, lexicon, tree_count, tree_iterators, tree_iterators_tf
                                                            clipping_threshold=config.clipping,
                                                            use_circular_correlation=config.use_circular_correlation
                                                            )
-    elif config.model_type == MT_MULTICLASS:
+    elif config.model_type == MT_SINGLE_DISCRETE_INDEPENDENT:
+        # TODO: load correct classes
         classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
         model = model_fold.TreeMultiClassModel(tree_model=inception_tree_model,
                                                fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                optimizer=optimizer,
                                                learning_rate=config.learning_rate,
                                                clipping_threshold=config.clipping,
-                                               num_classes=len(classes_ids)
+                                               num_classes=len(classes_ids),
+                                               tree_count=1,
+                                               independent_classes=True
                                                )
-    elif config.model_type == MT_SIMTUPLE:
+    elif config.model_type == MT_TUPLE_DISCRETE_DEPENDENT:
+        # TODO: load correct classes
+        classes_ids = numpy_load(filename='%s.%s' % (config.train_data_path, FE_CLASS_IDS))
+        model = model_fold.TreeMultiClassModel(tree_model=inception_tree_model,
+                                               fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
+                                               optimizer=optimizer,
+                                               learning_rate=config.learning_rate,
+                                               clipping_threshold=config.clipping,
+                                               num_classes=len(classes_ids),
+                                               tree_count=2,
+                                               independent_classes=False
+                                               )
+    elif config.model_type == MT_TUPLE_CONTINOUES:
         model = model_fold.TreeTupleModel(tree_model=inception_tree_model,
                                           #fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                           optimizer=optimizer,
@@ -1686,7 +1702,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             else:
                 raise ValueError('no metric defined for model_type=%s' % meta[model_for_metric][M_MODEL].model_type)
 
-        if config.model_type == MT_REROOT:
+        if config.model_type == MT_SINGLE_DISCRETE:
             # only one queue element is necessary
             train_tree_queue = Queue.Queue(1)
             if M_TREES in meta[M_TRAIN] and meta[M_TRAIN][M_TREES] is not None \
@@ -1907,7 +1923,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
         if not loaded_from_checkpoint:
             numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
 
-    if config.model_type == MT_TREETUPLE:
+    if config.model_type == MT_TUPLE_DISCRETE:
         if M_TEST in meta and M_TRAIN in meta \
                 and meta[M_TRAIN][M_INDICES_TARGETS] is not None and meta[M_TEST][M_INDICES_TARGETS] is not None:
             meta[M_TEST][M_INDICES_TARGETS] = check_train_test_overlap(forest_indices_train=meta[M_TRAIN][M_INDICES],
@@ -1925,7 +1941,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
 
     # set tree iterator
     for m in meta:
-        if config.model_type == MT_REROOT:
+        if config.model_type == MT_SINGLE_DISCRETE:
             nbr_indices = config.nbr_trees or 1000
             if m == M_TEST and config.nbr_trees_test:
                 nbr_indices = config.nbr_trees_test

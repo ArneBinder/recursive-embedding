@@ -82,10 +82,11 @@ KEY_CHILDREN = 'c'
 KEY_CANDIDATES = 'ca'
 
 # model types
-MT_MULTICLASS = 'multiclass'
-MT_REROOT = 'reroot'
-MT_TREETUPLE = 'tuple'
-MT_SIMTUPLE = 'sim_tuple'
+MT_SINGLE_DISCRETE_INDEPENDENT = 'multiclass'
+MT_TUPLE_DISCRETE_DEPENDENT = 'tuple_class'
+MT_SINGLE_DISCRETE = 'reroot'
+MT_TUPLE_DISCRETE = 'tuple'
+MT_TUPLE_CONTINOUES = 'sim_tuple'
 
 M_INDICES = 'indices'
 M_INDICES_SAMPLER = 'indices_sampler'
