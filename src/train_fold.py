@@ -1296,10 +1296,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
                 cache=None, precompile=True, debug=False, discard_tree_embeddings=False,
                 discard_prepared_embeddings=False):
     # config.set_run_description()
-    try:
-        config.run_description
-    except AttributeError:
-        config.set_run_description()
+    #try:
+    #    config.run_description
+    #except AttributeError:
+    #    config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
     logger.info('logdir: %s' % logdir)
@@ -1737,6 +1737,7 @@ if __name__ == '__main__':
 
         # default: execute single run
         else:
+            config.set_run_description()
             execute_run(config, logdir_continue=logdir_continue, logdir_pretrained=logdir_pretrained,
                         test_files=FLAGS.test_files, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
                         precompile=FLAGS.precompile, debug=FLAGS.debug,
