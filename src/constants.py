@@ -92,6 +92,7 @@ DTYPE_HASH = np.uint64
 DTYPE_VECS = np.float32
 DTYPE_COUNT = np.int32
 DTYPE_IDX = np.int64
+DTYPE_PROBS = np.float32
 
 KEY_HEAD = 'h'
 KEY_CHILDREN = 'c'
