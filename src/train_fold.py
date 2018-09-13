@@ -1104,9 +1104,6 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
     return cache[key]
 
 
-
-
-
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
                     test_result_writer, logdir, cache=None, debug=False, clean_train_trees=False):
     with supervisor.managed_session() as sess:
@@ -1131,27 +1128,27 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
         # do initial test epoch
         if M_TEST in meta:
-            if not loaded_from_checkpoint or M_TRAIN not in meta:
-                _, _, values_all, values_all_gold, stats_dict = do_epoch(
-                    supervisor,
-                    sess=sess,
-                    model=meta[M_TEST][M_MODEL],
-                    dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
-                    dataset_embeddings=meta[M_TEST][M_EMBEDDINGS],
-                    forest_indices=meta[M_TEST][M_INDICES],
-                    indices_targets=meta[M_TEST][M_INDICES_TARGETS],
-                    epoch=0,
-                    train=False,
-                    emit=True,
-                    test_writer=test_writer,
-                    test_result_writer=test_result_writer,
-                    number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
-                    # number_of_samples=None,
-                    #highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
-                    batch_iter=meta[M_TEST][M_BATCH_ITER],
-                    debug=debug,
-                    #work_forests=work_forests
-                )
+            #if not loaded_from_checkpoint or M_TRAIN not in meta:
+            _, _, values_all, values_all_gold, stats_dict = do_epoch(
+                supervisor,
+                sess=sess,
+                model=meta[M_TEST][M_MODEL],
+                dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
+                dataset_embeddings=meta[M_TEST][M_EMBEDDINGS],
+                forest_indices=meta[M_TEST][M_INDICES],
+                indices_targets=meta[M_TEST][M_INDICES_TARGETS],
+                epoch=0,
+                train=False,
+                emit=not loaded_from_checkpoint,
+                test_writer=test_writer,
+                test_result_writer=test_result_writer,
+                number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                # number_of_samples=None,
+                #highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
+                batch_iter=meta[M_TEST][M_BATCH_ITER],
+                debug=debug,
+                #work_forests=work_forests
+            )
             if M_TRAIN not in meta:
                 if values_all is None or values_all_gold is None:
                     logger.warning('Predicted and gold values are None. Passed return_values=False?')
@@ -1160,7 +1157,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
                 #lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
                 return stats_dict
-
+        else:
+            stats_dict = None
         # clear vecs in lexicon to clean up memory
         #if cache is None or cache == {}:
         lexicon.init_vecs()
@@ -1181,6 +1179,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             else:
                 raise ValueError('no metric defined for model_type=%s' % meta[model_for_metric][M_MODEL].model_type)
 
+        # init recompile for reroot model
         if config.model_type == MT_SINGLE_DISCRETE:
             # only one queue element is necessary
             train_tree_queue = Queue.Queue(1)
@@ -1196,9 +1195,12 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             train_tree_queue = None
             recompile_thread = None
 
-        # NOTE: this depends on metric (pearson/mse/roc/...)
-        METRIC_MIN_INIT = -1
-        stat_queue = [{metric: METRIC_MIN_INIT}]
+        if stats_dict is not None:
+            stat_queue = [stats_dict]
+        else:
+            # NOTE: this depends on metric (pearson/mse/roc/...)
+            METRIC_MIN_INIT = -1
+            stat_queue = [{metric: METRIC_MIN_INIT}]
         max_queue_length = 0
         for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
 
