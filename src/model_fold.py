@@ -233,7 +233,7 @@ class TreeEmbedding(object):
         else:
             self._keep_prob = 1.0
         if state_size:
-            if isinstance(state_size, str):
+            if type(state_size) == unicode or type(state_size) == str:
                 _parts = state_size.split(',')
                 self._state_sizes = [int(s.strip()) for s in _parts if int(s.strip()) != 0]
             else:
