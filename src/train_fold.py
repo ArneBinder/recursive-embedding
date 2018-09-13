@@ -512,6 +512,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                     checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
                     assert checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
                     reader_old = tf.train.NewCheckpointReader(checkpoint_fn)
+                    log_shapes_info(reader_old)
                     lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
                     lexicon_old.init_vecs(checkpoint_reader=reader_old)
                     logger.debug('merge old lexicon into new one...')
