@@ -56,11 +56,9 @@ from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 import data_iterators as diters
 from data_iterators import batch_iter_naive, batch_iter_all, batch_iter_reroot, batch_iter_multiclass, batch_iter_simtuple
 from corpus import FE_CLASS_IDS, load_class_ids
-from concurrency import RunnerThread, compile_batches_simple, create_trees_simple, prepare_batch, RecompileThread
+from concurrency import RunnerThread, compile_batches_simple, create_trees_simple, prepare_batch, RecompileThread, process_batch
 
 # non-saveable flags
-from src.concurrency import process_batch
-
 tf.flags.DEFINE_string('logdir',
                        # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                        #  '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
