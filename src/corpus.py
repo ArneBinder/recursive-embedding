@@ -40,6 +40,7 @@ logger_streamhandler = logging.StreamHandler()
 logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
+logger.propagate = False
 
 
 def load_class_ids(dir_path, prefix_type):
