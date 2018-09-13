@@ -8,7 +8,7 @@ import plac
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATEDNESS_SCORE, \
     TYPE_ENTAILMENT, TYPE_REF_TUPLE
 from mytools import make_parent_dir, numpy_dump
-from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS
+from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
 import preprocessing
 
 logger = logging.getLogger('corpus_sick')
@@ -173,8 +173,9 @@ def main(mode, *args):
     elif mode == 'MERGE':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
         entailment_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_ENTAILMENT)
-        logger.info('number of entailment types to predict: %i.' % len(entailment_ids))
-        numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_ENTAILMENT, FE_CLASS_IDS), ndarray=entailment_ids)
+        #logger.info('number of entailment types to predict: %i.' % len(entailment_ids))
+        #numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_ENTAILMENT, FE_CLASS_IDS), ndarray=entailment_ids)
+        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_ENTAILMENT, classes_ids=entailment_ids)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args + ('--step-root', '2'))
     else:

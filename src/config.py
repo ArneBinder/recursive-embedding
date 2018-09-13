@@ -225,8 +225,7 @@ TREE_MODEL_PARAMETERS = ['additional_vecs', 'leaf_fc_size', 'root_fc_sizes', 'st
 # used for compile trees
 TREE_STRUCTURE_PARAMETERS = ['max_depth', 'context', 'link_cost_ref', 'concat_mode', 'sequence_length',
                              'no_fixed_vecs', 'all_vecs_fixed']
-MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'use_tfidf', 'use_circular_correlation', 'model_type', 'task',
-                                            'batch_iter']
+MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'use_tfidf', 'use_circular_correlation', 'model_type', 'task']
 DESCRIPTION_PARAMETERS = MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS + ['dump_trees', 'all_vecs_zero']
 FLAGS_FN = 'flags.json'
 

@@ -7,7 +7,7 @@ import pydot
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
-    OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT, LINK_TYPES
+    OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT_ROOT, LINK_TYPES
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -492,7 +492,7 @@ class Forest(object):
         return self._dicts[idx]
 
     def get_tree_dict(self, idx, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
-                      link_content_offset=OFFSET_CONTEXT):
+                      link_content_offset=OFFSET_CONTEXT_ROOT):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.

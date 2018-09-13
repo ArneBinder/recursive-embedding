@@ -13,9 +13,9 @@ import plac
 import spacy
 
 from constants import TYPE_CONTEXT, TYPE_TITLE, TYPE_SECTION, LOGGING_FORMAT, TYPE_PARAGRAPH, SEPARATOR, TYPE_PMID, \
-    TYPE_MESH_FN
+    TYPE_MESH
 import preprocessing
-from corpus import DIR_BATCHES, FE_CLASS_IDS, process_records, merge_batches, create_index_files
+from corpus import DIR_BATCHES, process_records, merge_batches, create_index_files, save_class_ids
 from mytools import numpy_dump
 
 logger = logging.getLogger('corpus_bioasq')
@@ -25,7 +25,6 @@ logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
-TYPE_MESH = u"http://id.nlm.nih.gov/mesh"
 TYPE_YEAR = u"http://id.nlm.nih.gov/pubmed/year"
 TYPE_JOURNAL = u"http://id.nlm.nih.gov/pubmed/journal"
 
@@ -342,8 +341,9 @@ def main(mode, *args):
     elif mode == 'MERGE_BATCHES':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
         mesh_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_MESH)
-        logger.info('number of mesh terms to predict: %i' % len(mesh_ids))
-        numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_MESH_FN, FE_CLASS_IDS), ndarray=mesh_ids)
+        #logger.info('number of mesh terms to predict: %i' % len(mesh_ids))
+        #numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_MESH_FN, FE_CLASS_IDS), ndarray=mesh_ids)
+        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_MESH, classes_ids=mesh_ids)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
     else:

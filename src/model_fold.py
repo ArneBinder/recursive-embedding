@@ -1249,9 +1249,9 @@ class TreeModel(object):
 
 
 class SequenceTreeModel(TreeModel):
-    def __init__(self, tree_count, tree_embedder, keep_prob_default, state_size, prepared_embeddings_dim=-1,
+    def __init__(self, nbr_trees_out, tree_embedder, keep_prob_default, state_size, prepared_embeddings_dim=-1,
                  prepared_embeddings_sparse=False, **kwargs):
-
+        self._nbr_trees_out = nbr_trees_out or 1
         prepared_embeddings_plain = None
         if prepared_embeddings_dim > 0:
             if prepared_embeddings_sparse:
@@ -1272,9 +1272,9 @@ class SequenceTreeModel(TreeModel):
         if isinstance(embed_tree.output_type, tdt.SequenceType):
             # TODO: move td.GetItem(0) into BatchedHead model
             # input contains only one tree (with candidate heads)
-            model = td.GetItem(0) >> embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, tree_count) >> td.Concat()
+            model = td.GetItem(0) >> embed_tree >> SequenceToTuple(embed_tree.output_type.element_type, self.nbr_trees_out) >> td.Concat()
         else:
-            model = td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, tree_count) >> td.Concat()
+            model = td.Map(embed_tree) >> SequenceToTuple(embed_tree.output_type, self.nbr_trees_out) >> td.Concat()
 
         # fold model output
         self._compiler = td.Compiler.create(model)
@@ -1309,6 +1309,10 @@ class SequenceTreeModel(TreeModel):
     def prepared_embeddings_placeholder(self):
         return self._prepared_embeddings_placeholder
 
+    @property
+    def nbr_trees_out(self):
+        return self._nbr_trees_out
+
 
 class DummyTreeModel(TreeModel):
     def __init__(self, embeddings_dim, sparse=False, **kwargs):
@@ -1331,8 +1335,9 @@ class DummyTreeModel(TreeModel):
 
 class BaseTrainModel(object):
     def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0, metrics={},
-                 metric_reset_op=()):
+                 metric_reset_op=(), nbr_embeddings_in=None):
 
+        self._nbr_embeddings = nbr_embeddings_in
         self._loss = loss
         self._tree_model = tree_model
 
@@ -1397,6 +1402,10 @@ class BaseTrainModel(object):
     def reset_metrics(self):
         return self._reset_metrics
 
+    @property
+    def nbr_embeddings_in(self):
+        return self._nbr_embeddings
+
 
 class TreeTupleModel(BaseTrainModel):
     """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
@@ -1421,7 +1430,7 @@ class TreeTupleModel(BaseTrainModel):
 
         BaseTrainModel.__init__(self, tree_model=tree_model,
                                 loss=tf.reduce_mean(tf.square(self._scores - self._labels_gold)),
-                                metrics=metrics, metric_reset_op=reset_op, **kwargs)
+                                metrics=metrics, metric_reset_op=reset_op, nbr_embeddings_in=2, **kwargs)
 
     @property
     def values_gold(self):
@@ -1502,7 +1511,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         self._candidate_count = tf.shape(self._labels_gold)[-1]
 
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
-                                     shape=[-1, self.tree_count, tree_model.tree_output_size])
+                                     shape=[-1, self.nbr_embeddings_in, tree_model.tree_output_size])
         batch_size = tf.shape(tree_embeddings)[0]
         final_vecs = self._final_vecs(tree_embeddings, tree_model.tree_output_size)
 
@@ -1584,7 +1593,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         return self._candidate_count
 
     @property
-    def tree_count(self):
+    def nbr_embeddings_in(self):
         raise NotImplementedError('Implement this method')
 
 
@@ -1600,7 +1609,7 @@ class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):
         return concat
 
     @property
-    def tree_count(self):
+    def nbr_embeddings_in(self):
         return self.candidate_count + 1
 
 
@@ -1609,17 +1618,17 @@ class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
         return tf.reshape(tree_embeddings, shape=[-1, self.candidate_count, embedding_dim])
 
     @property
-    def tree_count(self):
+    def nbr_embeddings_in(self):
         return self.candidate_count
 
 
 class TreeMultiClassModel(BaseTrainModel):
-    def __init__(self, tree_model, num_classes, tree_count=1, independent_classes=True, fc_sizes=1000,
+    def __init__(self, tree_model, num_classes, nbr_embeddings_in=1, independent_classes=True, fc_sizes=1000,
                  use_circular_correlation=False, **kwargs):
 
         self._labels_gold = tf.sparse_placeholder(dtype=tf.float32)
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
-                                     shape=[-1, tree_model.tree_output_size * tree_count])
+                                     shape=[-1, tree_model.tree_output_size * nbr_embeddings_in])
         final_vecs = tree_embeddings
 
         if not isinstance(fc_sizes, (list, tuple)):
@@ -1663,6 +1672,7 @@ class TreeMultiClassModel(BaseTrainModel):
         reset_op = tf.variables_initializer(vars)
         BaseTrainModel.__init__(
             self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), metrics=metrics, metric_reset_op=reset_op,
+            nbr_embeddings_in=nbr_embeddings_in,
             **kwargs)
 
     @property
@@ -1726,7 +1736,8 @@ class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
         BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
 
 
-# TODO: test this!
+#not used
+# test this!
 class SequenceTreeRerootModel(BaseTrainModel):
 
     def __init__(self, tree_model, candidate_count, fc_sizes=1000, **kwargs):

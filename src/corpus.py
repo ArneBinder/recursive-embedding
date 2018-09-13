@@ -9,7 +9,7 @@ import spacy
 from spacy.strings import hash_string
 
 from constants import DTYPE_HASH, DTYPE_COUNT, UNKNOWN_EMBEDDING, vocab_manual, LOGGING_FORMAT, OFFSET_SEEALSO_ROOT, \
-    DTYPE_IDX
+    DTYPE_IDX, CLASSES_FNS
 from lexicon import Lexicon, FE_STRINGS
 from mytools import numpy_dump, numpy_load, numpy_exists
 from sequence_trees import Forest, FE_ROOT_ID, FE_ROOT_POS
@@ -40,6 +40,21 @@ logger_streamhandler = logging.StreamHandler()
 logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
+
+
+def load_class_ids(dir_path, prefix_type):
+    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS[prefix_type], FE_CLASS_IDS)
+    logger.debug('load class ids for %s from: %s' % (prefix_type, fn))
+    classes_ids = numpy_load(filename=fn)
+    logger.info('number of classes for %s to predict: %s' % (prefix_type, len(classes_ids)))
+    return classes_ids
+
+
+def save_class_ids(dir_path, prefix_type, classes_ids):
+    logger.info('number of classes for %s to predict: %i.' % (prefix_type, len(classes_ids)))
+    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS[prefix_type], FE_CLASS_IDS)
+    logger.debug('save class ids for %s to: %s' % (prefix_type, fn))
+    numpy_dump(filename=fn, ndarray=classes_ids)
 
 
 def process_records(records, out_base_name, record_reader, sentence_processor, parser, concat_mode='sequence',
