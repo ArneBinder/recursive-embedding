@@ -3,11 +3,10 @@ OPEN:
      * (-) check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
      * (-) training: restrict link targets to selected train/test data
      * (-) fix double assignment bug (0 can not be a fixed vec, see TreeEmbedding.embed and Lexicon.transform_idx)
-     * (+) training: implement TFIDF+HTU embeddings
     experiments:
      * GRID search/parameter selection
-        * try: bigger learning rate with multiple dense layers
-     * try to combine TF-IDF and rec-emb embeddings
+        * try: bigger learning rate with multiple dense layers (BioASQ)
+     *
     data:
      * re-parse:
         * general:
@@ -26,10 +25,7 @@ OPEN:
     writing:
      * create structure / table of contents
     orga:
-     * check "Halbkurse": what can be moved to "non-practical" (technical or theoretical)?
-        * courses by Burkhard ("Intelligente Roboter", "Einführung in die künstliche Intelligenz")
-        * "Einführung in Semantic Web" (Wandelt)
-     * enrol for diploma thesis
+
 
 DONE:
  * attention_SINGLE + identity - DONE
@@ -60,6 +56,11 @@ DONE:
  * training: create TFIDF vocabulary only from train data and use it without expansion for test data creation
  * training: tree-model: fix halting after "DEBUG create trees with concat_mode=tree" for large datasets
         -> NOT FIXED, but reason is lac of memory usage of swap
+ * training: implement TFIDF+HTU embeddings
+ * check "Halbkurse": what can be moved to "non-practical" (technical or theoretical)?
+    * courses by Burkhard ("Intelligente Roboter", "Einführung in die künstliche Intelligenz")
+    * "Einführung in Semantic Web" (Wandelt)
+ * enrol for diploma thesis
 
 
 

@@ -81,3 +81,10 @@ best TREE:
 
 
 best FLATGRU:
+
+
+
+==========================================
+
+# remove model checkpoint files in subfolders
+rm $(find . -regex ".*/model.ckpt.*")
