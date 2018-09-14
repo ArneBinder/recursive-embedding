@@ -547,6 +547,16 @@ class TreeEmbedding_mapFC(TreeEmbedding_map):
         return td.Concat() >> self._fc
 
 
+class TreeEmbedding_mapCCFC(TreeEmbedding_map):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_mapCCFC, self).__init__(name='mapCCFC_' + name, **kwargs)
+        self._fc = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
+
+    @property
+    def map(self):
+        return td.Function(circular_correlation) >> self._fc
+
+
 class TreeEmbedding_mapAVG(TreeEmbedding_map):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_mapAVG, self).__init__(name='mapAVG_' + name, **kwargs)
@@ -948,6 +958,11 @@ class TreeEmbedding_HTU_reduceSUM_mapLSTM(TreeEmbedding_reduceSUM, TreeEmbedding
 class TreeEmbedding_HTU_reduceSUM_mapFC(TreeEmbedding_reduceSUM, TreeEmbedding_mapFC, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapFC, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTU_reduceSUM_mapCCFC(TreeEmbedding_reduceSUM, TreeEmbedding_mapCCFC, TreeEmbedding_HTU):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_mapCCFC, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTUrev_reduceSUM_mapGRU(TreeEmbedding_mapGRU, TreeEmbedding_reduceSUM, TreeEmbedding_HTUrev):
