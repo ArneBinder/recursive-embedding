@@ -455,7 +455,8 @@ def log_shapes_info(reader, tree_embedder_prefix='TreeEmbedding/', optimizer_suf
 
 
 def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False,
-                no_fixed_vecs=False, all_vecs_fixed=False, all_vecs_zero=False, additional_vecs_path=None):
+                no_fixed_vecs=False, all_vecs_fixed=False, var_vecs_zero=False, var_vecs_random=False,
+                additional_vecs_path=None):
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
     if logdir_continue:
         raise NotImplementedError('usage of logdir_continue not implemented')
@@ -484,8 +485,8 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
             fine_tune = True
 
         if lexicon.has_vecs:
-            if not no_fixed_vecs and not all_vecs_fixed:
-                lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
+            #if not no_fixed_vecs and not all_vecs_fixed:
+            #    lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
 
             if additional_vecs_path:
                 logger.info('add embedding vecs from: %s' % additional_vecs_path)
@@ -526,8 +527,11 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
                 # Lexicon.transform_idx)
                 lexicon.init_ids_fixed(ids_fixed=np.arange(len(lexicon) - 1, dtype=DTYPE_IDX) + 1)
 
-            if all_vecs_zero:
-                lexicon.set_to_zero()
+            assert not (var_vecs_zero and var_vecs_random), 'use either var_vecs_zero OR (exclusive) var_vecs_random'
+            if var_vecs_zero:
+                lexicon.set_to_zero(indices=lexicon.ids_fixed, indices_as_blacklist=True)
+            elif var_vecs_random:
+                lexicon.set_to_random(indices=lexicon.ids_fixed, indices_as_blacklist=True)
 
             if not dont_dump:
                 logger.debug('dump lexicon to: %s ...' % os.path.join(logdir, 'model'))
@@ -1324,7 +1328,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
     lexicon, checkpoint_fn, prev_config, fine_tune = get_lexicon(
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
-        all_vecs_zero=config.all_vecs_zero,
+        var_vecs_zero=config.var_vecs_zero, var_vecs_random=config.var_vecs_random,
         additional_vecs_path=config.additional_vecs)
     # use previous tree model config values
     #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
