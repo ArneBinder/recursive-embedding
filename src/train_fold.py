@@ -981,7 +981,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
     if use_inception_tree_model:
         inception_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size, sparse=False,
                                                          # TODO: check, if disabling this is correct
-                                                         #tree_count=tree_count,
+                                                         #nbr_trees_out=nbr_trees_out,
                                                          keep_prob=config.keep_prob, root_fc_sizes=0)
     else:
         inception_tree_model = model_tree
@@ -989,6 +989,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
     # dbpedianif
     if config.model_type == MT_TUPLE_DISCRETE:
         model = model_fold.TreeTupleModel_with_candidates(tree_model=inception_tree_model,
+                                                          nbr_embeddings_in=config.neg_samples + 2,
                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                           optimizer=optimizer,
                                                           learning_rate=config.learning_rate,
@@ -999,6 +1000,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
     # reroot
     elif config.model_type == MT_SINGLE_DISCRETE:
         model = model_fold.TreeSingleModel_with_candidates(tree_model=inception_tree_model,
+                                                           nbr_embeddings_in=config.neg_samples + 1,
                                                            fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                            optimizer=optimizer,
                                                            learning_rate=config.learning_rate,

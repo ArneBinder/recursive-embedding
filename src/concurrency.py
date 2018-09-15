@@ -18,6 +18,7 @@ logger.addHandler(logger_streamhandler)
 logger.propagate = False
 
 
+# not used
 def prepare_batches_multi(_q_in, _q_out, _forest, dataset_trees, forest_indices):
     while True:
         _i, _tree_indices_batched, _probs_batched = _q_in.get()
@@ -43,6 +44,7 @@ def create_trees_simple(_q_in, _q_out, _iter, _forest):
         _q_in.task_done()
 
 
+# not used
 def compile_batches_single(_q_in, _q_out, _compiler, use_pool=True):
     def _do():
         while True:

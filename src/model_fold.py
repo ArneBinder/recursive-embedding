@@ -802,13 +802,14 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     def __init__(self, name, #tree_count, #data_transformed,
                  **kwargs):
         #assert root_fc_sizes == 0, 'no root_fc allowed for HTUBatchedHead'
+        #self._fc = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name=name, #root_fc_size=root_fc_sizes,
                                                            **kwargs)
         #self._batch_size = tree_count
         #self._data_transformed = data_transformed
         #self._neg_samples = tree_count
 
-    # TODO: implement this: feed prepared samples (transformed dats ids) via placeholder
+    # TODO: implement this: feed prepared samples (transformed data ids) via placeholder
     #def sample(self, head_ids):
     #    result = []
     #    for head_id in head_ids:
@@ -832,6 +833,9 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc)
         #print('heads_embedded: %s' % str(heads_embedded.output_type))
         batched = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
+
+        #batched = td.AllOf(reduced_children >> self._fc >> td.Broadcast(), heads_embedded) >> td.Zip() \
+        #          >> td.Map(td.Function(lambda x, y: tf.concat((x, y), axis=-1)))
         #print('batched: %s' % str(batched.output_type))
         return batched
 
@@ -1349,10 +1353,13 @@ class DummyTreeModel(TreeModel):
 
 
 class BaseTrainModel(object):
-    def __init__(self, tree_model, loss, optimizer=None, learning_rate=0.1, clipping_threshold=5.0, metrics={},
-                 metric_reset_op=(), nbr_embeddings_in=None):
-
-        self._nbr_embeddings = nbr_embeddings_in
+    def __init__(self, tree_model, loss, nbr_embeddings_in=1, optimizer=None, learning_rate=0.1, clipping_threshold=5.0, metrics={},
+                 metric_reset_op=()):
+        # _nbr_embeddings_in my be already set
+        try:
+            self.nbr_embeddings_in
+        except AttributeError:
+            self._nbr_embeddings_in = nbr_embeddings_in
         self._loss = loss
         self._tree_model = tree_model
 
@@ -1419,7 +1426,7 @@ class BaseTrainModel(object):
 
     @property
     def nbr_embeddings_in(self):
-        return self._nbr_embeddings
+        return self._nbr_embeddings_in
 
 
 class TreeTupleModel(BaseTrainModel):
@@ -1519,12 +1526,10 @@ class SimilaritySequenceTreeTupleModel_sample(BaseTrainModel):
 class TreeScoringModel_with_candidates(BaseTrainModel):
     """Predict the correct embeddings among multiple ones. The first embedding is assumed to be the correct one."""
 
-    def __init__(self, tree_model, fc_sizes=1000, use_circular_correlation=False, **kwargs):
-        #self._candidate_count = tf.placeholder(shape=(), dtype=tf.int32)
-
+    def __init__(self, tree_model, nbr_embeddings_in, fc_sizes=1000, use_circular_correlation=False, **kwargs):
         self._labels_gold = tf.placeholder(dtype=tf.float32)
-        self._candidate_count = tf.shape(self._labels_gold)[-1]
-
+        #self._candidate_count = tf.shape(self._labels_gold)[-1]
+        self._nbr_embeddings_in = nbr_embeddings_in
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
                                      shape=[-1, self.nbr_embeddings_in, tree_model.tree_output_size])
         batch_size = tf.shape(tree_embeddings)[0]
@@ -1605,10 +1610,6 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
 
     @property
     def candidate_count(self):
-        return self._candidate_count
-
-    @property
-    def nbr_embeddings_in(self):
         raise NotImplementedError('Implement this method')
 
 
@@ -1624,8 +1625,8 @@ class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):
         return concat
 
     @property
-    def nbr_embeddings_in(self):
-        return self.candidate_count + 1
+    def candidate_count(self):
+        return self.nbr_embeddings_in - 1
 
 
 class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
@@ -1633,8 +1634,8 @@ class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
         return tf.reshape(tree_embeddings, shape=[-1, self.candidate_count, embedding_dim])
 
     @property
-    def nbr_embeddings_in(self):
-        return self.candidate_count
+    def candidate_count(self):
+        return self.nbr_embeddings_in
 
 
 class TreeMultiClassModel(BaseTrainModel):
