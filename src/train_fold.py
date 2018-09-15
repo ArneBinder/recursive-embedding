@@ -1280,7 +1280,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
                 % (metric, len(stat_queue), rank, (stat - prev_max), max_queue_length))
 
-            if len(stat_queue) == 1 or not config.early_stopping_window:
+            if len(stat_queue) == 1 or not config.early_stopping_window or epoch == 0:
                 supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
 
             if 0 < config.early_stopping_window < len(stat_queue):
