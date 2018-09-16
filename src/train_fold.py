@@ -652,9 +652,12 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=False, d
         assert len(fnames_train) > 0, 'no matching train data files found for ' + config.train_data_path
         logger.info('found ' + str(len(fnames_train)) + ' train data files')
         if fnames_test is None and not dont_test:
-            fnames_test = [fnames_train[config.dev_file_index]]
+            df_indices = [int(idx.strip()) for idx in config.dev_file_indices.split(',')]
+            fnames_test = [fnames_train[idx] for idx in df_indices]
             #logger.info('use %s for testing' % str(fnames_test))
-            del fnames_train[config.dev_file_index]
+            # sort reverse to avoid index shift when deleting
+            for idx in sorted(df_indices, reverse=True):
+                del fnames_train[idx]
     logger.info('train with:\t%s' % ', '.join([str(fn) for fn in fnames_train or []]))
     logger.info('test with:\t%s' % ', '.join([str(fn) for fn in fnames_test or []]))
     return fnames_train, fnames_test

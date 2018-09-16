@@ -24,7 +24,7 @@ services:
         --logdir_pretrained=/root/train/${LOGDIR_PRETRAINED}
         --model_type=${MODEL_TYPE}
         --task=${TASK}
-        --dev_file_index=${DEV_FILE_INDEX}
+        --dev_file_indices=${DEV_FILE_INDICES}
         --batch_size=${BATCH_SIZE}
         --tree_embedder=${TREE_EMBEDDER}
         --use_tfidf=${USE_TFIDF}
