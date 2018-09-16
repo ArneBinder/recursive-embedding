@@ -655,8 +655,8 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=False, d
             fnames_test = [fnames_train[config.dev_file_index]]
             #logger.info('use %s for testing' % str(fnames_test))
             del fnames_train[config.dev_file_index]
-    logger.info('train with:\t%s' % ', '.join([str(fn) for fn in fnames_train]))
-    logger.info('test with:\t%s' % ', '.join([str(fn) for fn in fnames_test]))
+    logger.info('train with:\t%s' % ', '.join([str(fn) for fn in fnames_train or []]))
+    logger.info('test with:\t%s' % ', '.join([str(fn) for fn in fnames_test or []]))
     return fnames_train, fnames_test
 
 
