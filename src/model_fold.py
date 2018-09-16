@@ -801,7 +801,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name=name, **kwargs)
-        self._fc = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
+        self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
 
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
@@ -821,14 +821,13 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
                   >> td.Map(td.Function(lambda x, y: tf.concat((x, y), axis=-1)))
 
         if model.output_type is None:
-            print(self.head_size * 2)
             model.set_output_type(tdt.SequenceType(tdt.TensorType(shape=(self.output_size,), dtype='float32')))
 
         return model
 
     @property
     def output_size(self):
-        return self.head_size * 2
+        return self._fc.output_size * 2
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
