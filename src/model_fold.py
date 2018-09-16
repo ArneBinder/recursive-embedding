@@ -1550,9 +1550,10 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         final_vecs_split = tf.reshape(final_vecs, shape=(-1, 2, concat_embeddings_dim // 2))
         # use circular correlation
         if use_circular_correlation:
-            logger.debug('add circular self correlation')
+            logger.debug('add circular correlation')
             circ_cor = circular_correlation(final_vecs_split[:, 0, :], final_vecs_split[:, 1, :])
-            logits_single = tf.contrib.layers.fully_connected(inputs=circ_cor, num_outputs=1, activation_fn=None)
+            with tf.name_scope(name='logits') as sc:
+                logits_single = tf.contrib.layers.fully_connected(inputs=circ_cor, num_outputs=1, activation_fn=None, scope=sc)
             logits = tf.reshape(logits_single, shape=(-1, self.candidate_count))
         # use cosine similarity
         else:
@@ -1663,7 +1664,8 @@ class TreeMultiClassModel(BaseTrainModel):
         # add multiple fc layers
         for s in fc_sizes:
             if s > 0:
-                fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
+                with tf.name_scope(name='fc') as sc:
+                    fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s, scope=sc)
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
         # add circular self correlation
@@ -1672,7 +1674,8 @@ class TreeMultiClassModel(BaseTrainModel):
             circ_cor = circular_correlation(final_vecs, final_vecs)
             final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
 
-        logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None)
+        with tf.name_scope(name='logits') as sc:
+            logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None, scope=sc)
         labels_gold_dense = tf.sparse_tensor_to_dense(self._labels_gold)
         if independent_classes:
             cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
