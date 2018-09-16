@@ -631,17 +631,17 @@ def init_model_type(config):
     return tree_iterator, tree_iterator_args, indices_getter, load_parents, num_classes
 
 
-def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
+def get_index_file_names(config, parent_dir, test_files=None, test_only=False, dont_test=False):
 
     #if config.model_type == MT_REROOT:
     #    return [], []
 
     fnames_train = None
     fnames_test = None
-    if FLAGS.train_files is not None and FLAGS.train_files.strip() != '':
+    if FLAGS.train_files is not None and FLAGS.train_files.strip() != '' and not test_only:
         #logger.info('use train data index files: %s' % FLAGS.train_files)
         fnames_train = [os.path.join(parent_dir, fn) for fn in FLAGS.train_files.split(',')]
-    if test_files is not None and test_files.strip() != '':
+    if test_files is not None and test_files.strip() != '' and not dont_test:
         fnames_test = [os.path.join(parent_dir, fn) for fn in FLAGS.test_files.split(',')]
     if not test_only:
         if fnames_train is None:
@@ -651,7 +651,7 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=None):
             fnames_train = [os.path.join(parent_dir, fn) for fn in sorted(_train_fnames)]
         assert len(fnames_train) > 0, 'no matching train data files found for ' + config.train_data_path
         logger.info('found ' + str(len(fnames_train)) + ' train data files')
-        if fnames_test is None:
+        if fnames_test is None and not dont_test:
             fnames_test = [fnames_train[config.dev_file_index]]
             #logger.info('use %s for testing' % str(fnames_test))
             del fnames_train[config.dev_file_index]
@@ -1363,10 +1363,10 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
 
     ## handle train/test index files
     fnames_train, fnames_test = get_index_file_names(config=config, parent_dir=parent_dir, test_files=test_files,
-                                                     test_only=test_only)
-    if not (test_only or init_only or fnames_train is None or len(fnames_train) == 0):
+                                                     test_only=test_only, dont_test=FLAGS.dont_test)
+    if not (init_only or fnames_train is None or len(fnames_train) == 0):
         meta[M_TRAIN] = {M_FNAMES: fnames_train}
-    if not (FLAGS.dont_test or fnames_test is None or len(fnames_test) == 0):
+    if not (fnames_test is None or len(fnames_test) == 0):
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
     tree_iterator, tree_iterator_args, indices_getter, load_parents, num_classes = init_model_type(config)

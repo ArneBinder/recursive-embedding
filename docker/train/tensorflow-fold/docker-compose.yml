@@ -59,6 +59,7 @@ services:
         --dump_trees=${DUMP_TREES}
         --sequence_length=${SEQUENCE_LENGTH}
         --precompile=${PRECOMPILE}
+        --dont_test=${DONT_TEST}
         --debug=${DEBUG}
         --discard_tree_embeddings=${DISCARD_TREE_EMBEDDINGS}
         --discard_prepared_embeddings=${DISCARD_PREPARED_EMBEDDINGS}
