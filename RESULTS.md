@@ -4,6 +4,10 @@
 SICK/multi/TREE_ps10/avfFALSE_avzFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_ddtTRUE_fc_kp0.9_leaffc0_lr0.003_lc-1_dpth20_mtSIMTUPLE_nbrt10000_nbrtt1000_ns20_nfvFALSE_optADAMOPTIMIZER_rootfc300_sl-1_st150_dataMERGED_teHTUREDUCESUMMAPGRU_tfidfFALSE/0/test
 
 
+=== SICK ENTAILMENT ====================================================================================================
+## classification (tuple, discrete, exclusive)
+
+
 === IMDB SENTIMENT =====================================================================================================
 ## classification (single, discrete, binary)
 # f1_t33: 0.8947
@@ -14,12 +18,6 @@ IMDB/multi/TREE_ps1/avfFALSE_avzFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_
 
 === BIOASQ MULTICLASS ==================================================================================================
 ## classification (single, discrete, independent)
-
-
-
-=== SICK ENTAILMENT ====================================================================================================
-## classification (tuple, discrete, exclusive)
-
 
 
 
