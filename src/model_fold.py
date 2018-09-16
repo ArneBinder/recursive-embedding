@@ -88,10 +88,10 @@ class SequenceToTuple(td.Block):
 
 def fc_scoped(num_units, scope, name=None, activation_fn=tf.nn.relu, keep_prob=None):
     def fc_(inputs, scope):
-        if keep_prob is None:
-            return tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope)
-        else:
-            return tf.nn.dropout(tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope), keep_prob)
+        fc = tf.contrib.layers.fully_connected(inputs, num_units, activation_fn=activation_fn, scope=scope)
+        if keep_prob is not None:
+            fc = tf.nn.dropout(fc, keep_prob)
+        return fc
 
     if not name:
         name = 'FC_scoped_%d' % num_units
@@ -801,7 +801,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name=name, **kwargs)
-        self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_cell')
+        self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
 
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
