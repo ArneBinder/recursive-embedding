@@ -1536,6 +1536,19 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
             else:
                 pre_train_saver = None
 
+            #for var in tf.trainable_variables:  # or tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'your desired scope name'):
+            for var in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES):
+                tf.summary.histogram(var.name.replace(':', '/'), var)
+                with tf.name_scope(var.name.replace(':', '/')):
+                    with tf.name_scope('summaries'):
+                        mean = tf.reduce_mean(var)
+                        tf.summary.scalar('mean', mean)
+                    with tf.name_scope('stddev'):
+                        stddev = tf.sqrt(tf.reduce_mean(tf.square(var - mean)))
+                    tf.summary.scalar('stddev', stddev)
+                    tf.summary.scalar('max', tf.reduce_max(var))
+                    tf.summary.scalar('min', tf.reduce_min(var))
+
             def load_pretrain(sess):
                 pre_train_saver.restore(sess, checkpoint_fn)
 
