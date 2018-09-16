@@ -813,7 +813,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1)
         #print('reduced_children: %s' % str(reduced_children.output_type))
         #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
-        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.head() >> self._fc)
+        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc >> self._fc)
         #print('heads_embedded: %s' % str(heads_embedded.output_type))
         #model = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
 
