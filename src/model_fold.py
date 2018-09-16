@@ -1151,14 +1151,18 @@ def sim_cosine_DEP(e1, e2):
     return tf.reduce_sum(e1 * e2, axis=1)
 
 
-def sim_cosine(embeddings):
+def sim_cosine(embeddings, normalize=True, clip=True):
     """
     :param embeddings: paired embeddings with shape = [batch_count, 2, embedding_dimension]
     :return: clipped similarity scores with shape = [batch_count]
     """
-    es_norm = tf.nn.l2_normalize(embeddings, dim=-1)
-    cos = tf.reduce_sum(es_norm[:, 0, :] * es_norm[:, 1, :], axis=-1)
-    return tf.clip_by_value(cos, 0.0, 1.0)
+    if normalize:
+        embeddings = tf.nn.l2_normalize(embeddings, dim=-1)
+    cos = tf.reduce_sum(embeddings[:, 0, :] * embeddings[:, 1, :], axis=-1)
+    if clip:
+        return tf.clip_by_value(cos, 0.0, 1.0)
+    else:
+        return cos
 
 
 def sim_manhattan_DEP(e1, e2):
@@ -1527,21 +1531,33 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         # add multiple fc layers
         for s in fc_sizes:
             if s > 0:
+                # disabled, because it should be asymmetric
+                raise NotImplementedError('fc_sizes are currently not implemented')
                 fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
                 final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
         # add circular self correlation
+        #if use_circular_correlation:
+        #    logger.debug('add circular self correlation')
+        #    circ_cor = circular_correlation(final_vecs, final_vecs)
+        #    final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
+
+        # shape: batch_size, candidate_count, concat_embeddings_dim
+        _shape = final_vecs.get_shape().as_list()
+        concat_embeddings_dim = _shape[-1]
+        # split vecs into two
+        assert concat_embeddings_dim % 2 == 0, \
+            'dimension of concatenated embeddings has to be multiple of two, but it is: %i' % _shape[-1]
+        final_vecs_split = tf.reshape(final_vecs, shape=(-1, 2, concat_embeddings_dim // 2))
+        # use circular correlation
         if use_circular_correlation:
             logger.debug('add circular self correlation')
-            circ_cor = circular_correlation(final_vecs, final_vecs)
-            final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
-
+            circ_cor = circular_correlation(final_vecs_split[:, 0, :], final_vecs_split[:, 1, :])
+            logits_single = tf.contrib.layers.fully_connected(inputs=circ_cor, num_outputs=1, activation_fn=None)
+            logits = tf.reshape(logits_single, shape=(-1, self.candidate_count))
         # use cosine similarity
-        _shape = final_vecs.get_shape().as_list()
-        # split vecs into two
-        assert _shape[-1] % 2 == 0, 'dimension of embeddings has to be multiple of two, but is: %i' % _shape[-1]
-        final_vecs_split = tf.reshape(final_vecs, shape=(-1, 2, _shape[-1] // 2))
-        logits = tf.reshape(sim_cosine(final_vecs_split), shape=(-1, _shape[1]))
+        else:
+            logits = tf.reshape(sim_cosine(final_vecs_split), shape=(-1, self.candidate_count))
 
         # use fully connected layer
         #batch_size = tf.shape(tree_embeddings)[0]
