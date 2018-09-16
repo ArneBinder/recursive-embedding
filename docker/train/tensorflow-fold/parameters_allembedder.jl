@@ -1,7 +1,7 @@
 # best parameters settings so far
 
 # TREE (F1: 0.63)
-{"tree_embedder": "HTU_reduceSUM_mapGRU", "concat_mode": "tree", "leaf_fc_size": 0, "learning_rate": 0.001, "batch_size": 100}
+{"tree_embedder": "HTU_reduceSUM_mapGRU", "concat_mode": "tree", "leaf_fc_size": 0, "learning_rate": 0.0003, "batch_size": 100}
 # TFIDF (F1: 0.64)
 {"tree_embedder": "tfidf", "concat_mode": "aggregate", "learning_rate": 0.0001, "batch_size": 100}
 # GRU
