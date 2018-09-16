@@ -673,7 +673,7 @@ def indices_sick(index_files, forest, **unused):
     indices_context_root = get_context_roots(indices, forest)
     indices_other = forest.roots[indices] + OFFSET_OTHER_ENTRY_ROOT + 1
     all_indices = get_and_merge_other_context_roots(indices_context_root, indices_other, forest)
-    return all_indices, relatedness_scores, [len(indices) for indices in indices_per_file]
+    return all_indices, relatedness_scores, [len(indices) * 2 for indices in indices_per_file]
 
 
 def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset, other_offset=None, **unused):
@@ -690,7 +690,8 @@ def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset
         indices_context_root = get_and_merge_other_context_roots(indices_context_root=indices_context_root,
                                                                  indices_other=indices_other, forest=forest)
 
-    return indices_context_root, classes_ids, [len(indices) for indices in indices_per_file]
+    return indices_context_root, classes_ids, \
+           [len(indices) * (2 if other_offset is not None else 1) for indices in indices_per_file]
 
 
 def indices_reroot(index_files, **unused):
