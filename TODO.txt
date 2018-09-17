@@ -4,8 +4,8 @@ OPEN:
      * (-) training: restrict link *targets* to selected train/test data
      * (-) fix double assignment bug (0 can not be a fixed vec, see TreeEmbedding.embed and Lexicon.transform_idx)
     experiments:
-     * train language models on BioASQ with low depth and *cosine* sim measure; test on BioASQ MESH
-     * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task and CONTEXT=1
+     * test SICK_relatedness/SICK_entailment/IMDB mit process_sentence10 (i.e. with dependency edge types)
+     * restrict GRU: do not use summed, contextualized embeddings (ATTENTION: backup previous GRU results!)
     data:
      * re-parse:
         * general:
@@ -26,7 +26,8 @@ OPEN:
     orga:
 
 IN PROGRESS:
- * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task
+ * train language models on BioASQ with low depth (1) and *cosine* sim measure; test on BioASQ MESH
+ * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task and *CONTEXT=1* / *CONTEXT=2*
 
 
 DONE:
@@ -68,7 +69,8 @@ DONE:
     -> recall@1: ~0.51 (epoch=89 step=445000; 12h)
     reroot_paragraphs_TF13/avfFALSE_bs20_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.001_lc-1_dpth2_mtREROOT_ns20_nfvTRUE_optADAMOPTIMIZER_rootfc0_sl-1_st900_tk_dataMERGEDMIN100PARAGRAPHS_teHTUREDUCESUMMAPGRU_ccTRUE_tfidfFALSE_vvrTRUE_vvzFALSE
     -> recall@1: ~0.58 (epoch=85 step=425000; 12h)
-
+ * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task
+  -> bad (f1_t33: ~0.50)
 
 
 NOTES:
