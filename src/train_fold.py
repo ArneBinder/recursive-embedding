@@ -1186,6 +1186,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 metric = METRIC_REGRESSION
             else:
                 raise ValueError('no metric defined for model_type=%s' % meta[model_for_metric][M_MODEL].model_type)
+        logger.info('use %s as metric for early stopping with window size %i' % (metric, config.early_stopping_window))
 
         # init recompile for reroot model
         if config.model_type == MT_SINGLE_DISCRETE:
