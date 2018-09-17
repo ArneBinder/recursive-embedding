@@ -940,6 +940,12 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
                 tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
             _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
             kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
+        elif issubclass(tree_embedder, model_fold.TreeEmbedding_FLAT):
+            kwargs['sequence_length'] = 10000
+            for k in tree_iterators.keys():
+                tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
+            _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
+            kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
 
         # nbr_trees_out has to be defined for the reroot model because TreeEmbedding_HTUBatchedHead generates a
         # sequence of trees with unspecified length
