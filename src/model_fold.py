@@ -472,6 +472,27 @@ class TreeEmbedding_mapGRU(TreeEmbedding_map):
         return self._rnn_cell >> td.GetItem(1)
 
 
+class TreeEmbedding_mapGRU2(TreeEmbedding_map):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_mapGRU2, self).__init__(name='mapGRU2_' + name, **kwargs)
+        # self._rnn_cell reads (head, state) and returns (output, state)
+        self._rnn_cell = gru_cell(self.scope, self.state_size, self.keep_prob, self.head_size)
+
+    @property
+    def map(self):
+        # temp:  (head, [previous_summed_outputs, previous_state]) -> ((current_output, new_state), summed_outputs)
+        temp = td.AllOf(td.Function(lambda head, state: (head, state[:, self.state_size:])) >> self._rnn_cell,
+                        td.Function(lambda head, state: state[:, :self.state_size]))
+        res = temp >> td.AllOf(td.AllOf(td.GetItem(0) >> td.GetItem(0),
+                                        td.GetItem(1)
+                                        # sum current_output with previous_summed_outputs
+                                        ) >> td.Function(lambda x, y: x + y),
+                               # concatenate (summed_outputs, new_state)
+                               td.GetItem(0) >> td.GetItem(1)) >> td.Concat()
+        res.set_output_type(tdt.TensorType(shape=[self.state_size * 2], dtype='float32'))
+        return res
+
+
 class TreeEmbedding_reduceGRU(TreeEmbedding_reduce):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_reduceGRU, self).__init__(name='reduceGRU_' + name, **kwargs)
@@ -938,6 +959,11 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
 class TreeEmbedding_HTU_reduceSUM_mapGRU(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapGRU, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTU_reduceSUM_mapGRU2(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU2, TreeEmbedding_HTU):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_mapGRU2, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceSUM_mapLSTM(TreeEmbedding_reduceSUM, TreeEmbedding_mapLSTM, TreeEmbedding_HTU):
