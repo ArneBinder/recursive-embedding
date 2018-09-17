@@ -6,7 +6,7 @@ OPEN:
     experiments:
      * GRID search/parameter selection
         * try: bigger learning rate with multiple dense layers (BioASQ)
-     *
+     * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task
     data:
      * re-parse:
         * general:
@@ -61,7 +61,11 @@ DONE:
     * courses by Burkhard ("Intelligente Roboter", "Einführung in die künstliche Intelligenz")
     * "Einführung in Semantic Web" (Wandelt)
  * enrol for diploma thesis
-
+ * train language models on BioASQ with low depth and circular correlation sim measure:
+    reroot_paragraphs_TF13/avfFALSE_bs20_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.001_lc-1_dpth1_mtREROOT_ns20_nfvTRUE_optADAMOPTIMIZER_rootfc0_sl-1_st900_tk_dataMERGEDMIN100PARAGRAPHS_teHTUREDUCESUMMAPGRU_ccTRUE_tfidfFALSE_vvrTRUE_vvzFALSE
+    -> recall@1: ~0.51
+    reroot_paragraphs_TF13/avfFALSE_bs20_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.001_lc-1_dpth2_mtREROOT_ns20_nfvTRUE_optADAMOPTIMIZER_rootfc0_sl-1_st900_tk_dataMERGEDMIN100PARAGRAPHS_teHTUREDUCESUMMAPGRU_ccTRUE_tfidfFALSE_vvrTRUE_vvzFALSE
+    -> recall@1: ~0.58
 
 
 
