@@ -4,8 +4,8 @@ OPEN:
      * (-) training: restrict link *targets* to selected train/test data
      * (-) fix double assignment bug (0 can not be a fixed vec, see TreeEmbedding.embed and Lexicon.transform_idx)
     experiments:
-     * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task
      * train language models on BioASQ with low depth and *cosine* sim measure; test on BioASQ MESH
+     * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task and CONTEXT=1
     data:
      * re-parse:
         * general:
@@ -24,6 +24,9 @@ OPEN:
     writing:
      * create structure / table of contents
     orga:
+
+IN PROGRESS:
+ * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task
 
 
 DONE:
