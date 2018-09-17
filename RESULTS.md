@@ -36,7 +36,7 @@ IMDB/multi/TREE_ps1/avfFALSE_avzFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_
 avfFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0-1_dtFALSE_fc400_kp0.9_leaffc0_lr0.0003_lc-1_dpth20_mtMULTICLASS_ns20_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl500_st350_tkSENTIMENT_dataMERGED_teHTUREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/1
 # TFIDF: 0:03h; accuracy_50: ~0.884 (3 runs), 0.8850
 avfFALSE_bs100_clp5.0_cmAGGREGATE_cntxt0_dfidx0-1_dtFALSE_fc400_kp0.9_leaffc300_lr0.0001_lc-1_dpth20_mtMULTICLASS_ns20_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl500_st350_tkSENTIMENT_dataMERGED_teTFIDF_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/0
-# GRU: 3:30h; accuracy_50: ~... (3 runs), 0.8981
+# GRU: 3:30h; accuracy_50: ~0.8977 (3 runs), 0.8981
 avfFALSE_bs100_clp5.0_cmAGGREGATE_cntxt0_dfidx0-1_dtFALSE_fc400_kp0.9_leaffc0_lr0.0003_lc-1_dpth20_mtMULTICLASS_ns20_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl500_st350_tkSENTIMENT_dataMERGED_teFLATCONCATGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/2
 
 
