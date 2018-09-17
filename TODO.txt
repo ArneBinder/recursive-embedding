@@ -1,12 +1,11 @@
 OPEN:
     coding:
      * (-) check "load lexicon_roots from /root/corpora_out/DBPEDIANIF/1000/merged_min100/forest.root.id" when continue training from checkpoint
-     * (-) training: restrict link targets to selected train/test data
+     * (-) training: restrict link *targets* to selected train/test data
      * (-) fix double assignment bug (0 can not be a fixed vec, see TreeEmbedding.embed and Lexicon.transform_idx)
     experiments:
-     * GRID search/parameter selection
-        * try: bigger learning rate with multiple dense layers (BioASQ)
      * use language models on BioASQ with low depth (1 and 2) and circular correlation sim measure for MESH task
+     * train language models on BioASQ with low depth and *cosine* sim measure; test on BioASQ MESH
     data:
      * re-parse:
         * general:
@@ -63,9 +62,9 @@ DONE:
  * enrol for diploma thesis
  * train language models on BioASQ with low depth and circular correlation sim measure:
     reroot_paragraphs_TF13/avfFALSE_bs20_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.001_lc-1_dpth1_mtREROOT_ns20_nfvTRUE_optADAMOPTIMIZER_rootfc0_sl-1_st900_tk_dataMERGEDMIN100PARAGRAPHS_teHTUREDUCESUMMAPGRU_ccTRUE_tfidfFALSE_vvrTRUE_vvzFALSE
-    -> recall@1: ~0.51
+    -> recall@1: ~0.51 (epoch=89 step=445000; 12h)
     reroot_paragraphs_TF13/avfFALSE_bs20_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.001_lc-1_dpth2_mtREROOT_ns20_nfvTRUE_optADAMOPTIMIZER_rootfc0_sl-1_st900_tk_dataMERGEDMIN100PARAGRAPHS_teHTUREDUCESUMMAPGRU_ccTRUE_tfidfFALSE_vvrTRUE_vvzFALSE
-    -> recall@1: ~0.58
+    -> recall@1: ~0.58 (epoch=85 step=425000; 12h)
 
 
 
