@@ -1,6 +1,6 @@
 === SICK RELATEDNESS ===================================================================================================
 ## similarity (tuple, continuous)
-# TREE: pearsons_r: 0.8532 (*one* test file)
+# TREE: 0:16h; pearsons_r: 0.8532 (*one* test file)
 SICK/multi/TREE_ps10/avfFALSE_avzFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_ddtTRUE_fc_kp0.9_leaffc0_lr0.003_lc-1_dpth20_mtSIMTUPLE_nbrt10000_nbrtt1000_ns20_nfvFALSE_optADAMOPTIMIZER_rootfc300_sl-1_st150_dataMERGED_teHTUREDUCESUMMAPGRU_tfidfFALSE/0/test
 # TREE: pearsons_r: ~0.8472 (3 runs), 0.8497
 avfFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0-1_dtFALSE_fc_kp0.9_leaffc0_lr0.001_lc-1_dpth20_mtSIMTUPLE_ns20_nfvFALSE_optADAMOPTIMIZER_rootfc300_sl50_st150_tk_dataMERGED_teHTUREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/2

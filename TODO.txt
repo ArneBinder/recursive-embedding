@@ -4,8 +4,8 @@ OPEN:
      * (-) training: restrict link *targets* to selected train/test data
      * (-) fix double assignment bug (0 can not be a fixed vec, see TreeEmbedding.embed and Lexicon.transform_idx)
     experiments:
-     * test SICK_relatedness/SICK_entailment/IMDB mit process_sentence10 (i.e. with dependency edge types)
-     * test mapGRU2 on SICK_relatedness/SICK_entailment/IMDB
+     * test SICK_relatedness/SICK_entailment/IMDB with process_sentence3 (i.e. with dependency edge types)
+     * test mapGRU2 on SICK_entailment/IMDB
 
     data:
      * re-parse:
@@ -29,6 +29,7 @@ OPEN:
 IN PROGRESS:
  * use language models on BioASQ with low depth (1) and circular correlation sim measure for MESH task and *CONTEXT=1*
  * use language models on BioASQ with low depth (1) and *cosine* sim measure for MESH task
+ * test SICK_relatedness with process_sentence3 (i.e. with dependency edge types)
 
 DONE:
  * attention_SINGLE + identity - DONE
@@ -75,6 +76,10 @@ DONE:
     unsupervised/BIOASQ/split10000/reroot_paragraphs_TF13/avfFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.001_lc-1_dpth1_mtREROOT_ns20_nfvTRUE_optADAMOPTIMIZER_rootfc0_sl-1_st900_tk_dataMERGEDMIN100PARAGRAPHS_teHTUREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrTRUE_vvzFALSE
  * restrict GRU: do not use summed, contextualized embeddings (ATTENTION: backup previous GRU results!)
     NO: use summed outputs at TREE model (see mapGRU2)
+ * test mapGRU2 on SICK_relatedness
+  -> minor improvement, but still worse then flat GRU
+ * test SICK_relatedness with with process_sentence10
+  -> performance drop
 
 NOTES:
  * possible Zweitbetreuer: Manfred Stede (NO), Roland (OK)
