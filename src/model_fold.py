@@ -1679,7 +1679,7 @@ class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
 
 
 class TreeMultiClassModel(BaseTrainModel):
-    def __init__(self, tree_model, num_classes, nbr_embeddings_in=1, independent_classes=True, fc_sizes=1000,
+    def __init__(self, tree_model, num_classes, nbr_embeddings_in=1, exclusive_classes=True, fc_sizes=1000,
                  use_circular_correlation=False, **kwargs):
 
         self._labels_gold = tf.sparse_placeholder(dtype=tf.float32)
@@ -1706,12 +1706,14 @@ class TreeMultiClassModel(BaseTrainModel):
         with tf.name_scope(name='logits') as sc:
             logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None, scope=sc)
         labels_gold_dense = tf.sparse_tensor_to_dense(self._labels_gold)
-        if independent_classes:
-            cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
-            self._probs = tf.sigmoid(logits)
-        else:
-            cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels_gold_dense))
+        if exclusive_classes:
+            cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits,
+                                                                                   labels=labels_gold_dense))
             self._probs = tf.nn.softmax(logits)
+        else:
+            cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits,
+                                                                                   labels=labels_gold_dense))
+            self._probs = tf.sigmoid(logits)
         #m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
         #m_ts = [0.5]
         m_ts = [0.33, 0.5, 0.66]

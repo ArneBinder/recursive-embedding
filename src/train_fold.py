@@ -1030,7 +1030,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
                                                clipping_threshold=config.clipping,
                                                num_classes=num_classes,
                                                nbr_embeddings_in=1,
-                                               independent_classes=True
+                                               exclusive_classes=False
                                                )
     # SICK ENTAILMENT
     elif config.model_type == MT_TUPLE_DISCRETE_DEPENDENT:
@@ -1042,7 +1042,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
                                                clipping_threshold=config.clipping,
                                                num_classes=num_classes,
                                                nbr_embeddings_in=2,
-                                               independent_classes=False
+                                               exclusive_classes=True
                                                )
     # sim tuple
     elif config.model_type == MT_TUPLE_CONTINOUES:
