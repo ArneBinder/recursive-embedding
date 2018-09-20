@@ -1755,6 +1755,9 @@ if __name__ == '__main__':
                             continue
 
                         # train
+                        if FLAGS.reuse_embeddings and previous_logdir:
+                            c.var_vecs_zero = False
+                            c.var_vecs_random = False
                         metrics_dev, cache_dev = execute_run(c, #cache=cache_dev if USE_CACHE else None,
                                                              load_embeddings=previous_logdir if FLAGS.reuse_embeddings else None,
                                                              precompile=FLAGS.precompile,
