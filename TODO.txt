@@ -7,7 +7,7 @@ OPEN:
      * test IMDB with process_sentence3 (i.e. with dependency edge types)
      * test mapGRU2 on IMDB
      * test FLAT GRU on SICK_relatedness/SICK_relatedness/IMDB with process_sentence3 (i.e. with dependency edge types)
-
+     * test REUSE_EMBEDDINGS
     data:
      * re-parse:
         * general:
@@ -82,10 +82,12 @@ DONE:
   -> performance drop
  * test mapGRU2 on SICK_entailment
   -> improvement, beats FLATGRU!
- * test SICK_relatedness with process_sentence3 (i.e. with dependency edge types)
+ * test SICK_relatedness with process_sentence3(i.e. with dependency edge types)
   -> improves TREE (minor), decreases TREE2 (minor)
  * test SICK_entailment with process_sentence3 (i.e. with dependency edge types)
   -> improves TREE (major), improves TREE2 (minor)
+ * test SICK_relatedness with process_sentence10 (i.e. with dependency edge types)
+ * test SICK_entailment with process_sentence10 (i.e. with dependency edge types)
 
 NOTES:
  * possible Zweitbetreuer: Manfred Stede (NO), Roland (OK)
