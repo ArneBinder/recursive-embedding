@@ -13,6 +13,7 @@ from lexicon import Lexicon
 import preprocessing
 from sequence_trees import Forest
 import mytools
+from concurrency import parallel_process_simple
 
 
 tf.flags.DEFINE_string('corpora_source_root',
@@ -408,7 +409,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
                 sims_correct = None
 
             logging.info('start sampling with sample_count=%i ...' % FLAGS.sample_count)
-            _sampled_root_indices = mytools.parallel_process_simple(range(n), partial(sample_indices,
+            _sampled_root_indices = parallel_process_simple(range(n), partial(sample_indices,
                                                                                       trees=trees,
                                                                                       unique_root_data=unique_root_data,
                                                                                       sims_correct=sims_correct,

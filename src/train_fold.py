@@ -98,8 +98,11 @@ tf.flags.DEFINE_string('early_stopping_metric',
                        '',
                        'If set and early_stopping_window != 0, use this metric to estimate when to cancel training')
 tf.flags.DEFINE_integer('run_count',
-                        1,
+                        0,
                         'repeat each run this often')
+tf.flags.DEFINE_boolean('reuse_embeddings',
+                        False,
+                        'Iff enabled and run_count > 1, load embeddings from previous run of same setting')
 tf.flags.DEFINE_boolean('debug',
                         False,
                         'enable debug mode (additional output, but slow)')
@@ -462,7 +465,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
         raise NotImplementedError('usage of logdir_continue not implemented')
         assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
     #old_checkpoint_fn = None
-    fine_tune = False
+    #fine_tune = False
     prev_config = None
     if checkpoint_fn is not None:
         if not checkpoint_fn.startswith(logdir):
@@ -482,7 +485,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
             prev_config = Config(logdir=logdir_pretrained)
             no_fixed_vecs = prev_config.no_fixed_vecs
             additional_vecs_path = prev_config.additional_vecs
-            fine_tune = True
+            #fine_tune = True
 
         if lexicon.has_vecs:
             #if not no_fixed_vecs and not all_vecs_fixed:
@@ -546,7 +549,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
     logger.info('lexicon size: %i' % len(lexicon))
     #logger.debug('IDENTITY_idx: %i' % IDENTITY_idx)
     #logger.debug('ROOT_idx: %i' % ROOT_idx)
-    return lexicon, checkpoint_fn, prev_config, fine_tune
+    return lexicon, checkpoint_fn, prev_config#, fine_tune
 
 
 def init_model_type(config):
@@ -1309,7 +1312,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 return stat_queue_sorted[0], cache
 
 
-def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files=None, init_only=None, test_only=None,
+def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embeddings=None, test_files=None, init_only=None, test_only=None,
                 cache=None, precompile=True, debug=False, discard_tree_embeddings=False,
                 discard_prepared_embeddings=False):
     # config.set_run_description()
@@ -1335,8 +1338,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
     # GET CHECKPOINT or PREPARE LEXICON ################################################################################
 
     ## get lexicon
-    lexicon, checkpoint_fn, prev_config, fine_tune = get_lexicon(
-        logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=logdir_pretrained,
+    lexicon, checkpoint_fn, prev_config = get_lexicon(
+        logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=load_embeddings or logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
         var_vecs_zero=config.var_vecs_zero, var_vecs_random=config.var_vecs_random,
         additional_vecs_path=config.additional_vecs)
@@ -1354,6 +1357,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, test_files
         #    v = prev_config.__getattr__(p)
         #    config.__setattr__(p, v)
 
+    fine_tune = bool(logdir_pretrained)
     loaded_from_checkpoint = checkpoint_fn is not None and not fine_tune
     if loaded_from_checkpoint:
         # create test result writer
@@ -1654,7 +1658,7 @@ if __name__ == '__main__':
                 csvfile.flush()
     else:
         config = Config(logdir=logdir_continue, logdir_pretrained=logdir_pretrained)
-        USE_CACHE = False
+        #USE_CACHE = False
         # get default config (or load from logdir_continue/logdir_pretrained)
         config.init_flags()
         # pylint: disable=protected-access
@@ -1662,7 +1666,10 @@ if __name__ == '__main__':
         # pylint: enable=protected-access
         # keep (TREE_)MODEL_PARAMETERS
         config.update_with_flags(FLAGS, keep_model_parameters=logdir_continue or logdir_pretrained)
-        if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
+        #if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
+        if FLAGS.run_count >= 1:
+            if not os.path.exists(FLAGS.logdir):
+                os.makedirs(FLAGS.logdir)
 
             scores_fn = os.path.join(FLAGS.logdir, 'scores.tsv')
             fieldnames_loaded = None
@@ -1681,23 +1688,26 @@ if __name__ == '__main__':
 
             logger.info('write scores to: %s' % scores_fn)
 
-            parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
-            f_ext = os.path.splitext(parameters_fn)[1]
-            if f_ext == '.json':
-                logger.info('load grid parameters from json: %s' % parameters_fn)
-                with open(parameters_fn, 'r') as infile:
-                    grid_parameters = json.load(infile)
-                parameters_keys, settings = config.explode(grid_parameters, fieldnames_loaded)
-            elif f_ext in ['.jl', '.jsonl']:
-                logger.info('load parameter settings from json lines: %s' % parameters_fn)
-                with open(parameters_fn, 'r') as infile:
-                    list_parameters = [json.loads(line) for line in infile.readlines() if line.strip() != "" and line.strip()[0] != '#']
-                assert len(list_parameters) > 0, 'parameters file does not contain any setting'
-                parameters_keys, settings = config.create_new_configs(list_parameters, fieldnames_loaded)
+            if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
+                parameters_fn = os.path.join(FLAGS.logdir, FLAGS.grid_config_file)
+                f_ext = os.path.splitext(parameters_fn)[1]
+                if f_ext == '.json':
+                    logger.info('load grid parameters from json: %s' % parameters_fn)
+                    with open(parameters_fn, 'r') as infile:
+                        grid_parameters = json.load(infile)
+                    parameters_keys, settings = config.explode(grid_parameters, fieldnames_loaded)
+                elif f_ext in ['.jl', '.jsonl']:
+                    logger.info('load parameter settings from json lines: %s' % parameters_fn)
+                    with open(parameters_fn, 'r') as infile:
+                        list_parameters = [json.loads(line) for line in infile.readlines() if line.strip() != "" and line.strip()[0] != '#']
+                    assert len(list_parameters) > 0, 'parameters file does not contain any setting'
+                    parameters_keys, settings = config.create_new_configs(list_parameters, fieldnames_loaded)
+                else:
+                    raise ValueError('Unknown parameters file extension: %s. Use ".json" for json files (indicates grid '
+                                     'search) and ".jsonl" or ".jl" for json line files (indicates individual settings per '
+                                     'line)' % f_ext)
             else:
-                raise ValueError('Unknown parameters file extension: %s. Use ".json" for json files (indicates grid '
-                                 'search) and ".jsonl" or ".jl" for json line files (indicates individual settings per '
-                                 'line)' % f_ext)
+                parameters_keys, settings = config.create_new_configs([{}], fieldnames_loaded)
 
             stats_prefix_dev = 'dev_best_'
             stats_prefix_test = 'test_'
@@ -1716,8 +1726,9 @@ if __name__ == '__main__':
                 logger.info('execute %i different settings, repeat each %i times' % (len(settings), FLAGS.run_count))
                 for c, d in settings:
                     assert c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'
-                    cache_dev = {}
-                    cache_test = {}
+                    #cache_dev = {}
+                    #cache_test = {}
+                    previous_logdir = None
                     for i in range(FLAGS.run_count):
                         c.set_run_description()
                         run_desc_backup = c.run_description
@@ -1739,11 +1750,13 @@ if __name__ == '__main__':
                         # skip already processed
                         if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
                             logger.debug('skip config for logdir: %s' % logdir)
+                            previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
                             c.run_description = run_desc_backup
                             continue
 
                         # train
-                        metrics_dev, cache_dev = execute_run(c, cache=cache_dev if USE_CACHE else None,
+                        metrics_dev, cache_dev = execute_run(c, #cache=cache_dev if USE_CACHE else None,
+                                                             load_embeddings=previous_logdir if FLAGS.reuse_embeddings else None,
                                                              precompile=FLAGS.precompile,
                                                              debug=FLAGS.debug)
                         main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
@@ -1754,13 +1767,14 @@ if __name__ == '__main__':
                             metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
                                                                    precompile=FLAGS.precompile,
                                                                    test_files=FLAGS.test_files,
-                                                                   cache=cache_test if USE_CACHE else None,
+                                                                   #cache=cache_test if USE_CACHE else None,
                                                                    debug=FLAGS.debug)
                             main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
                                                       prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
                         d['run_description'] = c.run_description
 
+                        previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
                         c.run_description = run_desc_backup
                         score_writer.writerow(d)
                         csvfile.flush()
