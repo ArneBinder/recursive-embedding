@@ -1358,7 +1358,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         #    config.__setattr__(p, v)
 
     fine_tune = bool(logdir_pretrained)
-    loaded_from_checkpoint = checkpoint_fn is not None and not fine_tune
+    loaded_from_checkpoint = checkpoint_fn is not None and not fine_tune and not load_embeddings
     if loaded_from_checkpoint:
         # create test result writer
         test_result_writer = csv_test_writer(os.path.join(logdir, 'test'), mode='a')
