@@ -1730,6 +1730,10 @@ if __name__ == '__main__':
                     #cache_test = {}
                     previous_logdir = None
                     for i in range(FLAGS.run_count):
+                        if FLAGS.reuse_embeddings and previous_logdir:
+                            c.var_vecs_zero = False
+                            c.var_vecs_random = False
+
                         c.set_run_description()
                         run_desc_backup = c.run_description
 
@@ -1755,9 +1759,6 @@ if __name__ == '__main__':
                             continue
 
                         # train
-                        if FLAGS.reuse_embeddings and previous_logdir:
-                            c.var_vecs_zero = False
-                            c.var_vecs_random = False
                         metrics_dev, cache_dev = execute_run(c, #cache=cache_dev if USE_CACHE else None,
                                                              load_embeddings=previous_logdir if FLAGS.reuse_embeddings else None,
                                                              precompile=FLAGS.precompile,
@@ -1777,7 +1778,7 @@ if __name__ == '__main__':
                             logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
                         d['run_description'] = c.run_description
 
-                        previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
+                        previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
                         c.run_description = run_desc_backup
                         score_writer.writerow(d)
                         csvfile.flush()
