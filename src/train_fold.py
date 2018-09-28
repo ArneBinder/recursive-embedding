@@ -1593,7 +1593,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             return res
 
 
-def add_metrics(d, stats, metric_main=None, prefix=''):
+def get_metrics_and_main_metric(stats, metric_main=None):
     if metric_main is not None and metric_main.strip() != '':
         assert metric_main in stats, 'manually defined metric_main=%s not found in stats keys: %s' % (metric_main, ', '.join(stats.keys()))
         if metric_main in METRIC_KEYS_REGRESSION:
@@ -1612,10 +1612,13 @@ def add_metrics(d, stats, metric_main=None, prefix=''):
             metric_main = METRIC_DISCRETE
         else:
             raise ValueError('stats has to contain either %s or %s' % (METRIC_REGRESSION, METRIC_DISCRETE))
+    return metric_keys, metric_main
+
+
+def add_metrics(d, stats, metric_keys, prefix=''):
     for k in metric_keys:
         if k in stats:
             d[prefix + k] = stats[k]
-    return metric_main
 
 
 if __name__ == '__main__':
@@ -1652,8 +1655,8 @@ if __name__ == '__main__':
                                        discard_tree_embeddings=FLAGS.discard_tree_embeddings,
                                        discard_prepared_embeddings=FLAGS.discard_prepared_embeddings,
                                        )
-
-                add_metrics(config_dict, stats, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix)
+                metrics, metric_main = get_metrics_and_main_metric(stats, metric_main=FLAGS.early_stopping_metric)
+                add_metrics(config_dict, stats, metric_keys=metrics, prefix=stats_prefix)
                 score_writer.writerow(config_dict)
                 csvfile.flush()
     else:
@@ -1681,7 +1684,7 @@ if __name__ == '__main__':
                     scores_done_reader = csv.DictReader(csvfile, delimiter='\t')
                     fieldnames_loaded = scores_done_reader.fieldnames
                     scores_done = list(scores_done_reader)
-                run_descriptions_done = [s_d['run_description'] for s_d in scores_done]
+                run_descriptions_done = {s_d['run_description']: s_d for s_d in scores_done}
                 logger.debug('already finished: %s' % ', '.join(run_descriptions_done))
             #else:
                 #file_mode = 'w'
@@ -1728,9 +1731,10 @@ if __name__ == '__main__':
                     assert c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'
                     #cache_dev = {}
                     #cache_test = {}
-                    previous_logdir = None
+                    best_previous_logdir = None
+                    best_previous_metric = None
                     for i in range(FLAGS.run_count):
-                        if FLAGS.reuse_embeddings and previous_logdir:
+                        if FLAGS.reuse_embeddings and best_previous_logdir:
                             c.var_vecs_zero = False
                             c.var_vecs_random = False
 
@@ -1754,31 +1758,51 @@ if __name__ == '__main__':
                         # skip already processed
                         if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
                             logger.debug('skip config for logdir: %s' % logdir)
-                            previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
+                            if FLAGS.reuse_embeddings:
+                                assert FLAGS.early_stopping_metric, 'If reuse_embeddings, an early_stopping_metric has to be set'
+                                if best_previous_metric is None \
+                                        or (FLAGS.early_stopping_metric in run_descriptions_done[c.run_description]
+                                            and run_descriptions_done[c.run_description][FLAGS.early_stopping_metric] >= best_previous_metric):
+                                    logging.info(
+                                        'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
+                                        % (c.run_description,
+                                           run_descriptions_done[c.run_description][FLAGS.early_stopping_metric],
+                                           best_previous_logdir, best_previous_metric or -1))
+                                    best_previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
+                                    best_previous_metric = run_descriptions_done[c.run_description][FLAGS.early_stopping_metric]
                             c.run_description = run_desc_backup
                             continue
 
                         # train
-                        metrics_dev, cache_dev = execute_run(c, #cache=cache_dev if USE_CACHE else None,
-                                                             load_embeddings=previous_logdir if FLAGS.reuse_embeddings else None,
+                        metrics_dev, cache_dev = execute_run(c,  #cache=cache_dev if USE_CACHE else None,
+                                                             load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
                                                              precompile=FLAGS.precompile,
                                                              debug=FLAGS.debug)
-                        main_metric = add_metrics(d, metrics_dev, metric_main=FLAGS.early_stopping_metric, prefix=stats_prefix_dev)
-                        logger.info('best dev score (%s): %f' % (main_metric, metrics_dev[main_metric]))
+                        metrics, metric_main = get_metrics_and_main_metric(metrics_dev, metric_main=FLAGS.early_stopping_metric)
+                        add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
+                        logger.info('best dev score (%s): %f' % (metric_main, metrics_dev[metric_main]))
+
+                        d['run_description'] = c.run_description
+
+                        if FLAGS.reuse_embeddings and (best_previous_metric is None or d[metric_main] >= best_previous_metric):
+                            logging.info(
+                                'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
+                                % (c.run_description, d[metric_main], best_previous_logdir, best_previous_metric or -1))
+                            best_previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
+                            best_previous_metric = d[metric_main]
 
                         # test
                         if use_test_files:
                             metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
                                                                    precompile=FLAGS.precompile,
                                                                    test_files=FLAGS.test_files,
-                                                                   #cache=cache_test if USE_CACHE else None,
+                                                                   # cache=cache_test if USE_CACHE else None,
                                                                    debug=FLAGS.debug)
-                            main_metric = add_metrics(d, metrics_test, metric_main=FLAGS.early_stopping_metric,
-                                                      prefix=stats_prefix_test)
-                            logger.info('test score (%s): %f' % (main_metric, metrics_test[main_metric]))
-                        d['run_description'] = c.run_description
+                            metrics, metric_main = get_metrics_and_main_metric(metrics_test,
+                                                                               metric_main=FLAGS.early_stopping_metric)
+                            add_metrics(d, metrics_test, metric_keys=metrics, prefix=stats_prefix_test)
+                            logger.info('test score (%s): %f' % (metric_main, metrics_test[metric_main]))
 
-                        previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
                         c.run_description = run_desc_backup
                         score_writer.writerow(d)
                         csvfile.flush()
