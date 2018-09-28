@@ -1779,17 +1779,18 @@ if __name__ == '__main__':
                                                              precompile=FLAGS.precompile,
                                                              debug=FLAGS.debug)
                         metrics, metric_main = get_metrics_and_main_metric(metrics_dev, metric_main=FLAGS.early_stopping_metric)
+                        metric_main_value = metrics_dev[metric_main]
                         add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
                         logger.info('best dev score (%s): %f' % (metric_main, metrics_dev[metric_main]))
 
                         d['run_description'] = c.run_description
 
-                        if FLAGS.reuse_embeddings and (best_previous_metric is None or d[metric_main] >= best_previous_metric):
+                        if FLAGS.reuse_embeddings and (best_previous_metric is None or metric_main_value >= best_previous_metric):
                             logging.info(
                                 'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
-                                % (c.run_description, d[metric_main], best_previous_logdir, best_previous_metric or -1))
+                                % (c.run_description, metric_main_value, best_previous_logdir, best_previous_metric or -1))
                             best_previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
-                            best_previous_metric = d[metric_main]
+                            best_previous_metric = metric_main_value
 
                         # test
                         if use_test_files:
