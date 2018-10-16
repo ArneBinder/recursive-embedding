@@ -65,6 +65,7 @@ services:
         --discard_tree_embeddings=${DISCARD_TREE_EMBEDDINGS}
         --discard_prepared_embeddings=${DISCARD_PREPARED_EMBEDDINGS}
         --use_circular_correlation=${USE_CIRCULAR_CORRELATION}
+        --merge_factor=${MERGE_FACTOR}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 

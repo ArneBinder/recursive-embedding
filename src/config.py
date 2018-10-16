@@ -219,7 +219,11 @@ default_config = {'train_data_path': ['DEFINE_string',
                       'DEFINE_boolean',
                       False,
                       'If enabled, use circular self correlation in TreeTuple- and TreeSingle models.',
-                      'cc']
+                      'cc'],
+                  'merge_factor': ['DEFINE_integer',
+                                   1,
+                                   'merge multiple embeddings (only for FLAT models), depends on used sentence_processor',
+                                   None],
                   }
 
 ALLOWED_TYPES = ['string', 'float', 'integer', 'boolean']

@@ -1112,13 +1112,15 @@ class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
 
 
 class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
-    def __init__(self, name=None, **kwargs):
+    def __init__(self, name=None, merge_factor=1, **kwargs):
+        self._merge_factor = merge_factor
         TreeEmbedding_FLATconcat.__init__(self, name=name or 'GRU', **kwargs)
 
     def reduce_concatenated(self, concatenated_embeddings_with_length):
         concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
         length = concatenated_embeddings_with_length[:, -1]
-        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, self.sequence_length, self.head_size])
+        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, int(self.sequence_length / self._merge_factor),
+                                                                         self.head_size * self._merge_factor])
         _dtype = embeddings_sequence.dtype
         inputs = tf.unstack(embeddings_sequence, axis=1)
 
