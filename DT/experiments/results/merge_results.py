@@ -59,6 +59,12 @@ def load_and_merge_scores(out, fn='scores.tsv', *paths):
             d['run_desc'] = rd[0] + '_sp' + dir_name.split('_')[-1].upper()
             data.append({k: d[k] for k in d if d[k] != ''})
 
+    fieldnames = sorted(list(set([item for sublist in data for item in sublist])))
+    with open('%s.tsv' % out, 'w') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
+        writer.writeheader()
+        writer.writerows(data)
+
     data_arranged = {}
     for d in data:
         data_arranged.setdefault(d['run_desc'], []).append(d)
@@ -82,7 +88,7 @@ def load_and_merge_scores(out, fn='scores.tsv', *paths):
         stats[run_desc].update(new_entries)
 
     fieldnames = sorted(list(set([item for sublist in stats.values() for item in sublist])))
-    with open(out, 'w') as f:
+    with open('%s.merged.tsv' % out, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
         writer.writeheader()
         writer.writerows(stats.values())
