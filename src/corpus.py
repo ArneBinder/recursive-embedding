@@ -53,7 +53,7 @@ def load_class_ids(dir_path, prefix_type):
 
 def save_class_ids(dir_path, prefix_type, classes_ids):
     logger.info('number of classes for %s to predict: %i.' % (prefix_type, len(classes_ids)))
-    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS[prefix_type], FE_CLASS_IDS)
+    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type), FE_CLASS_IDS)
     logger.debug('save class ids for %s to: %s' % (prefix_type, fn))
     numpy_dump(filename=fn, ndarray=classes_ids)
 
