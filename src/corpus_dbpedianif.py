@@ -20,6 +20,7 @@ from rdflib.term import URIRef
 
 import corpus
 import preprocessing
+from preprocessing import KEY_ANNOTATIONS
 from constants import TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, \
     TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH, TYPE_TITLE, TYPE_REF_SEEALSO, DTYPE_IDX, LOGGING_FORMAT, OFFSET_ID
 from lexicon import Lexicon, FE_STRINGS
@@ -334,7 +335,7 @@ def create_context_forest_DEP(nif_context_data, nlp, lexicon, n_threads=1):
         prepend = (tree_context_data, tree_context_parents)
         for i in range(len(terminal_strings)):
             yield (terminal_strings[i], {'root_type': terminal_types[i],
-                                         'annotations': refs.get(terminal_uri_strings[i], None),
+                                         KEY_ANNOTATIONS: refs.get(terminal_uri_strings[i], None),
                                          'prepend_tree': prepend,
                                          'parent_prepend_offset': terminal_parent_positions[terminal_uri_strings[i]]})
             prepend = None
@@ -360,7 +361,7 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1, batch_s
                 prepend = (tree_context_data, tree_context_parents)
                 for i in range(len(terminal_strings)):
                     yield (terminal_strings[i], {'root_type': terminal_types[i],
-                                                 'annotations': refs.get(terminal_uri_strings[i], None),
+                                                 KEY_ANNOTATIONS: refs.get(terminal_uri_strings[i], None),
                                                  'prepend_tree': prepend,
                                                  'parent_prepend_offset': terminal_parent_positions[
                                                      terminal_uri_strings[i]]})

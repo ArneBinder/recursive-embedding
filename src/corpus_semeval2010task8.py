@@ -6,10 +6,11 @@ import spacy
 import plac
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATEDNESS_SCORE, \
-    TYPE_ENTAILMENT, TYPE_REF_TUPLE, TYPE_RELATION
+    TYPE_ENTAILMENT, TYPE_REF_TUPLE, TYPE_RELATION, TYPE_NAMED_ENTITY
 from mytools import make_parent_dir, numpy_dump
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
 import preprocessing
+from preprocessing import KEY_ANNOTATIONS
 
 logger = logging.getLogger('corpus_semeval2010task8')
 logger.setLevel(logging.DEBUG)
@@ -36,9 +37,10 @@ KEY_POSITIONS = 'positions'
 DUMMY_RECORD_ORIG = '1	"The system as described above has its greatest application in an arrayed <e1>configuration</e1> of antenna <e2>elements</e2>."\nComponent-Whole(e2,e1)\nComment: Not a collection: there is structure here, organisation.'
 
 DUMMY_RECORD = {
-    u'http://semeval2.fbk.eu/semeval2.php/task8': '1',
-    'positions': [73, 86, 98, 106],
+    u'http://semeval2.fbk.eu/semeval2.php/task8': u'1',
     u'RELATION': u'Component-Whole(e2,e1)',
+    'annotations': [(73, 86, [u'http://purl.org/olia/olia.owl#NamedEntity/e1'], [0]),
+                    (98, 106, [u'http://purl.org/olia/olia.owl#NamedEntity/e2'], [0])],
     'text': u'The system as described above has its greatest application in an arrayed configuration of antenna elements.'
 }
 
@@ -65,7 +67,7 @@ def reader(records, keys_text=(KEY_TEXT,), root_string=TYPE_SEMEVAL2010TASK8_ID,
                 prepend_data_strings = [root_string]
                 prepend_parents = [0]
                 if key_id is not None:
-                    prepend_data_strings.append(key_id + SEPARATOR + record[key_id] + SEPARATOR + str(i))
+                    prepend_data_strings.append(key_id + SEPARATOR + record[key_id])# + SEPARATOR + str(i))
                     prepend_parents.append(-1)
 
                 prepend_data_strings.append(root_text_string)
@@ -85,11 +87,11 @@ def reader(records, keys_text=(KEY_TEXT,), root_string=TYPE_SEMEVAL2010TASK8_ID,
                     prepend_data_strings.extend([k_meta + SEPARATOR + v.replace(' ', '_') for v in v_meta])
                     prepend_parents.extend([-j - 1 for j in range(len(v_meta))])
 
-                prepend_data_strings.append(TYPE_REF_TUPLE)
-                prepend_parents.append(-len(prepend_parents))
+                #prepend_data_strings.append(TYPE_REF_TUPLE)
+                #prepend_parents.append(-len(prepend_parents))
 
-                prepend_data_strings.append(key_id + SEPARATOR + record[key_id] + SEPARATOR + str(1-i))
-                prepend_parents.append(-1)
+                #prepend_data_strings.append(key_id + SEPARATOR + record[key_id] + SEPARATOR + str(1-i))
+                #prepend_parents.append(-1)
 
                 prepend_data_strings.append(TYPE_PARAGRAPH)
                 prepend_parents.append(text_root_offset - len(prepend_parents))
@@ -97,9 +99,9 @@ def reader(records, keys_text=(KEY_TEXT,), root_string=TYPE_SEMEVAL2010TASK8_ID,
 
                 prepend = (prepend_data_strings, prepend_parents)
 
-                record_data.append((record[key_text], {'root_type': TYPE_PARAGRAPH, 'prepend_tree': prepend, 'parent_prepend_offset': text_root_offset}))
-
-                # TODO: add e1, e2 with positions
+                record_data.append((record[key_text], {'root_type': TYPE_PARAGRAPH, 'prepend_tree': prepend,
+                                                       'parent_prepend_offset': text_root_offset,
+                                                       KEY_ANNOTATIONS: record[KEY_ANNOTATIONS]}))
 
 
             # has to be done in the end because the whole record should be discarded at once if an exception is raised
@@ -131,7 +133,7 @@ def parse_dummy(out_base_name, sentence_processor=None):
                     sentence_processor=_sentence_processor, concat_mode=None)
 
 
-def get_positions(text, tags):
+def extract_positions(text, tags):
     res = []
     for t in tags:
         res.append(text.find(t))
@@ -144,16 +146,17 @@ def read_file(file_name):
         lines = f.readlines()
     n = 0
     for i in range(0, len(lines) - 3, 4):
-        id_w_text = lines[0].split('\t')
+        id_w_text = lines[i].split('\t')
         text = id_w_text[1].strip()[1:-1]
-        text, positions = get_positions(text, ('<e1>', '</e1>', '<e2>', '</e2>'))
+        text, positions = extract_positions(text, ('<e1>', '</e1>', '<e2>', '</e2>'))
 
         record = {
             TYPE_SEMEVAL2010TASK8_ID: unicode(id_w_text[0]),
             KEY_TEXT: unicode(text),
             TYPE_RELATION: unicode(lines[i + 1].strip()),
             # ommit comment field
-            KEY_POSITIONS: positions
+            KEY_ANNOTATIONS: [(positions[0], positions[1], [TYPE_NAMED_ENTITY + SEPARATOR + u'E1'], [0]),
+                              (positions[2], positions[3], [TYPE_NAMED_ENTITY + SEPARATOR + u'E2'], [0])],
         }
         yield record
         n += 1
@@ -173,7 +176,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         _sentence_processor = getattr(preprocessing, sentence_processor.strip())
     else:
         _sentence_processor = preprocessing.process_sentence1
-    file_names = ['sick_test_annotated/SICK_test_annotated.txt', 'sick_train/SICK_train.txt']
+    file_names = ['SemEval2010_task8_training/TRAIN_FILE.TXT']
     parser = spacy.load('en')
     for fn in file_names:
         logger.info('create forest for %s ...' % fn)

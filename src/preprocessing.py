@@ -15,6 +15,8 @@ PREFIX_ENT = TYPE_NAMED_ENTITY + SEPARATOR
 PREFIX_POS = TYPE_POS_TAG + SEPARATOR
 PREFIX_LEM = TYPE_LEMMA + SEPARATOR
 
+KEY_ANNOTATIONS = 'annotations'
+
 
 # unused
 def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
@@ -82,7 +84,7 @@ def concat_roots(data, parents, root_offsets, root_parents=None, concat_mode='tr
     return data, parents, new_roots
 
 
-def get_annotations_for_token(annotations, token):
+def get_annotations_for_token(annotations, token, offset=1):
     # add annotations after respective token (if its parent isn't a match, too)
     j = 0
     data = []
@@ -93,7 +95,7 @@ def get_annotations_for_token(annotations, token):
                 and (token.head == token or not ((token.head.idx <= annot[0] <= token.head.idx + len(token.head))
                                                  or (token.head.idx <= annot[1] <= token.head.idx + len(token.head)))):
             data.extend(annot[2])
-            annot[3][0] = -len(parents) - 1
+            annot[3][0] = -len(parents) - offset
             parents.extend(annot[3])
             del annotations[j]
     return data, parents
@@ -113,7 +115,7 @@ def without_prefix(s, prefix=PREFIX_LEX):
 # embeddings for:
 # word
 def process_sentence1(sentence, parsed_data, strings, dict_unknown=None,
-                      concat_mode=default_inner_concat_mode, annotations=[], **kwargs):
+                      concat_mode=default_inner_concat_mode, annotations=(), **kwargs):
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -200,7 +202,7 @@ def process_sentence3_dep(sentence, parsed_data, strings, dict_unknown=None, con
 
 # embeddings for:
 # word, edge
-def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, annotations=(), **kwargs):
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -218,6 +220,10 @@ def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_
         # add edge type embedding
         sen_data.append(mytools.getOrAdd(strings, PREFIX_DEP + token.dep_, dict_unknown))
         sen_parents.append(-1)
+        # check and append annotations, eventually. Append to token -> offset=2
+        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, offset=2)
+        sen_data.extend([mytools.getOrAdd(strings, s, dict_unknown) for s in annot_data])
+        sen_parents.extend(annot_parents)
 
     new_root_id = mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown)
     sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
@@ -435,7 +441,7 @@ def process_sentence8(sentence, parsed_data, strings, dict_unknown=None, concat_
 
 # embeddings for:
 # word, edge (reversed i.e. edge type links word to parent edge type)
-def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, annotations=(), **kwargs):
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -447,12 +453,16 @@ def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat
         root_parents.append(parent_offset)
         # save root offset
         root_offsets.append(len(sen_parents))
-        # add word embedding
+        # add edge type embedding
         sen_data.append(mytools.getOrAdd(strings, PREFIX_DEP + token.dep_, dict_unknown))
         sen_parents.append(0)
-        # add edge type embedding
+        # add word embedding
         sen_data.append(mytools.getOrAdd(strings, PREFIX_LEX + token.orth_, dict_unknown))
         sen_parents.append(-1)
+        # check and append annotations, eventually. Append to edge type -> offset=2
+        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, offset=2)
+        sen_data.extend([mytools.getOrAdd(strings, s, dict_unknown) for s in annot_data])
+        sen_parents.extend(annot_parents)
 
     new_root_id = mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown)
     sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
@@ -570,7 +580,7 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
                 last_prepend_offset = len(seq_data)
                 seq_data.extend([mytools.getOrAdd(strings, s) for s in prepend[0]])
                 seq_parents.extend(prepend[1])
-            annotations = context.get('annotations', None)
+            annotations = context.get(KEY_ANNOTATIONS, None)
             root_type = context.get('root_type', _reader_root.next())
             parent_prepend_offset = context.get('parent_prepend_offset', None)
             parent_root_pos = last_prepend_offset + parent_prepend_offset

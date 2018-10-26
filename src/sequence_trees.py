@@ -278,7 +278,7 @@ class Forest(object):
         self._children = children
         self._children_pos = children_pos
         if root_data is not None:
-            if not isinstance(root_data, np.ndarray):
+            if not isinstance(root_data, np.ndarray) or not root_data.dtype == data_dtype:
                 root_data = np.array(root_data, dtype=data_dtype)
             else:
                 assert root_data.dtype == data_dtype, 'root_ids has wrong dtype (%s), expected: %s' \
