@@ -5,10 +5,9 @@ import spacy
 
 import plac
 
-from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATEDNESS_SCORE, \
-    TYPE_ENTAILMENT, TYPE_REF_TUPLE, TYPE_RELATION, TYPE_NAMED_ENTITY
-from mytools import make_parent_dir, numpy_dump
-from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
+from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY
+from mytools import make_parent_dir
+from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
 from preprocessing import KEY_ANNOTATIONS
 
@@ -19,29 +18,18 @@ logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
-#TYPE_SICK_ID = u'http://clic.cimec.unitn.it/composes/sick'
 TYPE_SEMEVAL2010TASK8_ID = u'http://semeval2.fbk.eu/semeval2.php/task8'
 
-#KEYS_SENTENCE = (u'sentence_A', u'sentence_B')
 KEY_TEXT = 'text'
-KEY_POSITIONS = 'positions'
-
-#DUMMY_RECORD = {
-#    TYPE_RELATEDNESS_SCORE: u"4.5",
-#    TYPE_ENTAILMENT: u"NEUTRAL",
-#    KEYS_SENTENCE[0]: u"A group of kids is playing in a yard and an old man is standing in the background",
-#    KEYS_SENTENCE[1]: u"A group of boys in a yard is playing and a man is standing in the background",
-#    TYPE_SICK_ID: u"1"
-#}
 
 DUMMY_RECORD_ORIG = '1	"The system as described above has its greatest application in an arrayed <e1>configuration</e1> of antenna <e2>elements</e2>."\nComponent-Whole(e2,e1)\nComment: Not a collection: there is structure here, organisation.'
 
 DUMMY_RECORD = {
     u'http://semeval2.fbk.eu/semeval2.php/task8': u'1',
     u'RELATION': u'Component-Whole(e2,e1)',
-    'annotations': [(73, 86, [u'http://purl.org/olia/olia.owl#NamedEntity/e1'], [0]),
+    KEY_ANNOTATIONS: [(73, 86, [u'http://purl.org/olia/olia.owl#NamedEntity/e1'], [0]),
                     (98, 106, [u'http://purl.org/olia/olia.owl#NamedEntity/e2'], [0])],
-    'text': u'The system as described above has its greatest application in an arrayed configuration of antenna elements.'
+    KEY_TEXT: u'The system as described above has its greatest application in an arrayed configuration of antenna elements.'
 }
 
 
@@ -176,7 +164,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         _sentence_processor = getattr(preprocessing, sentence_processor.strip())
     else:
         _sentence_processor = preprocessing.process_sentence1
-    file_names = ['SemEval2010_task8_training/TRAIN_FILE.TXT']
+    file_names = ['SemEval2010_task8_training/TRAIN_FILE.TXT', 'SemEval2010_task8_testing_keys/TEST_FILE_FULL.TXT']
     parser = spacy.load('en')
     for fn in file_names:
         logger.info('create forest for %s ...' % fn)
@@ -205,7 +193,7 @@ def main(mode, *args):
         #numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_ENTAILMENT, FE_CLASS_IDS), ndarray=entailment_ids)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids)
     elif mode == 'CREATE_INDICES':
-        plac.call(create_index_files, args + ('--step-root', '2'))
+        plac.call(create_index_files, args)
     else:
         raise ValueError('unknown mode')
     print('done')
