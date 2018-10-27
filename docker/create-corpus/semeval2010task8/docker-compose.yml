@@ -1,6 +1,6 @@
 version: '2.3'
 services:
-  corpus-semeval2010task8-parse:
+  corpus-parse:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
@@ -18,7 +18,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-semeval2010task8-merge:
+  corpus-merge:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
@@ -33,7 +33,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-semeval2010task8-indices-test:
+  corpus-indices-test:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
@@ -48,7 +48,7 @@ services:
                                   --end-root 2717
                                   --suffix test
 
-  corpus-semeval2010task8-indices-train:
+  corpus-indices-train:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/semeval2010task8/Dockerfile

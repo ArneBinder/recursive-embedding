@@ -1,6 +1,6 @@
 version: '2.3'
 services:
-  corpus-bioasq-prepare:
+  corpus-prepare:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/bioasq/Dockerfile
@@ -16,7 +16,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-bioasq-parse:
+  corpus-parse:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/bioasq/Dockerfile
@@ -33,7 +33,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-bioasq-merge:
+  corpus-merge:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/bioasq/Dockerfile
@@ -48,7 +48,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-bioasq-indices:
+  corpus-indices:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/bioasq/Dockerfile

@@ -1,6 +1,6 @@
 version: '2.3'
 services:
-  corpus-sick-parse:
+  corpus-parse:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/sick/Dockerfile
@@ -18,7 +18,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-sick-merge:
+  corpus-merge:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/sick/Dockerfile
@@ -33,7 +33,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-sick-indices-test:
+  corpus-indices-test:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/sick/Dockerfile
@@ -48,7 +48,7 @@ services:
                                   --end-root 4927
                                   --suffix test
 
-  corpus-sick-indices-train:
+  corpus-indices-train:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/sick/Dockerfile

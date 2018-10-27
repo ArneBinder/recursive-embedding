@@ -28,7 +28,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-dbpedia-nif-batches:
+  corpus-parse:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/dbpedia-nif/Dockerfile
@@ -48,7 +48,7 @@ services:
     #cpus: ${LIMIT_CPUS}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
-  corpus-dbpedia-nif-merge:
+  corpus-merge:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/dbpedia-nif/Dockerfile
@@ -65,7 +65,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-dbpedia-nif-indices:
+  corpus-indices:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/dbpedia-nif/Dockerfile

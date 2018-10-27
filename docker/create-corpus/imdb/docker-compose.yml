@@ -1,6 +1,6 @@
 version: '2.3'
 services:
-  corpus-imdb-parse:
+  corpus-parse:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/imdb/Dockerfile
@@ -18,7 +18,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-imdb-merge:
+  corpus-merge:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/imdb/Dockerfile
@@ -33,7 +33,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-imdb-indices:
+  corpus-indices:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/imdb/Dockerfile
@@ -47,7 +47,7 @@ services:
                                   --start-root ${START_ROOT}
                                   --end-root ${END_ROOT}
 
-  corpus-imdb-indices-test:
+  corpus-indices-test:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/imdb/Dockerfile
@@ -61,7 +61,7 @@ services:
                                   --start-root 0
                                   --end-root 25000
                                   --suffix test
-  corpus-imdb-indices-train:
+  corpus-indices-train:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/imdb/Dockerfile

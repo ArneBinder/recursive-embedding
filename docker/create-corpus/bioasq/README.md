@@ -48,23 +48,23 @@ Rename [`docker/create-corpus/bioasq/.env.dev`](.env.dev) (or copy) to `.env` an
 
 To prepare the data (uniform abstract labels with mappings from https://structuredabstracts.nlm.nih.gov/downloads.shtml), execute from repository root:
 ```bash
-cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-prepare
+cd docker/create-corpus/bioasq && docker-compose up corpus-prepare
 ```
 
 To start the (batched) parsing, execute from repository root:
 
 ```bash
-cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-parse
+cd docker/create-corpus/bioasq && docker-compose up corpus-parse
 ```
 NOTE: The processing can be interrupted any time, restarting continues from the latest position.
 
 This previous command creates batches of processed data. To merge the individual lexica into a final one, convert the string hashes to lexicon indices and finally concatenate all data, execute:
 ```bash
-cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-merge
+cd docker/create-corpus/bioasq && docker-compose up corpus-merge
 ```
 
 Finally, we create (filtered, split and shuffled) index files with:
 ```bash
-cd docker/create-corpus/bioasq && docker-compose up corpus-bioasq-indices
+cd docker/create-corpus/bioasq && docker-compose up corpus-indices
 ```
 The created files (extension: .idx.[id].npy) contain just the shuffled positions of the roots in the merged corpus.

@@ -30,16 +30,18 @@ Rename [`docker/create-corpus/imdb/.env.dev`](.env.dev) (or copy) to `.env` and 
 To start the (batched) parsing, execute from repository root:
 
 ```bash
-cd docker/create-corpus/imdb && docker-compose up corpus-imdb-parse
+cd docker/create-corpus/imdb && docker-compose up corpus-parse
 ```
 
 This previous command creates one batch for the train data and one for the test data. To merge the individual lexica into a final one, convert the string hashes to lexicon indices and finally concatenate all data, execute:
 ```bash
-cd docker/create-corpus/imdb && docker-compose up corpus-imdb-merge
+cd docker/create-corpus/imdb && docker-compose up corpus-merge
 ```
 
 Finally, we create (filtered, split and shuffled) index files with:
 ```bash
-cd docker/create-corpus/imdb && docker-compose up corpus-imdb-indices
+cd docker/create-corpus/imdb
+docker-compose up corpus-indices-test
+docker-compose up corpus-indices-train
 ```
 The created files (extension: .idx.[id].npy) contain just the shuffled positions of the roots in the merged corpus.

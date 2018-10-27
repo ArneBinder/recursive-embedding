@@ -117,18 +117,18 @@ Rename [`docker/create-corpus/dbpedia-nif/.env.dev`](.env.dev) (or copy) to `.en
 To start the (batched) processing, execute from repository root:
 
 ```bash
-cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif-batches
+cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-parse
 ```
 NOTE: The processing can be interrupted any time, restarting continues from the latest position.
 
 This previous command creates batches of processed data. To merge the individual lexica into a final one, convert the string hashes to lexicon indices and finally concatenate all data, execute:
 ```bash
-cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif-merge
+cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-merge
 ```
 
 Finally, we create (filtered, split and shuffled) index files with:
 ```bash
-cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-dbpedia-nif-indices
+cd docker/create-corpus/dbpedia-nif && docker-compose up corpus-indices
 ```
 The created files (extension: .idx.[id].npy) contain just the shuffled positions of the roots in the merged corpus. But they roots are filtered according to the number of see also references in this article/tree (see parameters SEEALSO_MIN_COUNT and SEEALSO_MAX_COUNT in the .env file for the actual values).
 
