@@ -605,7 +605,7 @@ def init_model_type(config):
         model_kwargs['nbr_embeddings_in'] = 1
 
         # MESH prediction
-        # works well: avfFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc500_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtMULTICLASS_ns10_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st250_tkSENTIMENT_dataMERGED_teHTUREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzTRUE
+        # works well (?): avfFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc500_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtMULTICLASS_ns10_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st250_tkSENTIMENT_dataMERGED_teHTUREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzTRUE
         if config.task == TASK_MESH_PREDICTION:
             type_class = TYPE_MESH
             model_kwargs['exclusive_classes'] = False
@@ -1763,10 +1763,12 @@ if __name__ == '__main__':
                             continue
 
                         # train
+                        t_start = datetime.now()
                         metrics_dev, cache_dev = execute_run(c,  #cache=cache_dev if USE_CACHE else None,
                                                              load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
                                                              precompile=FLAGS.precompile,
                                                              debug=FLAGS.debug)
+                        d['time'] = datetime.now() - t_start
                         metrics, metric_main = get_metrics_and_main_metric(metrics_dev, metric_main=FLAGS.early_stopping_metric)
                         metric_main_value = metrics_dev[metric_main]
                         add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
