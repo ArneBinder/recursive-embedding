@@ -32,7 +32,7 @@ from sequence_trees import Forest
 from config import Config
 from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, \
     KEY_CANDIDATES, M_TREES, M_TRAIN, M_TEST, M_INDICES, FN_TREE_INDICES, LOGGING_FORMAT, \
-    vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, SEPARATOR, TYPE_LEXEME, MT_SINGLE_DISCRETE, OFFSET_ID
+    vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, SEPARATOR, TYPE_LEXEME, MT_CANDIDATES, OFFSET_ID
 import data_iterators
 from data_iterators import OFFSET_CONTEXT_ROOT
 import data_iterators as diter
@@ -1085,7 +1085,7 @@ def init_forest(data_path):
         else:
             lexicon_roots = None
         forest = Forest(filename=data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
-        if model_config is not None and model_config.model_type == MT_SINGLE_DISCRETE:
+        if model_config is not None and model_config.model_type == MT_CANDIDATES:
             logger.warning('set (root) ids to IDENTITY')
             d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
             forest.data[forest.roots + OFFSET_ID] = d_identity

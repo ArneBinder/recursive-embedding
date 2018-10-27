@@ -1375,7 +1375,7 @@ class DummyTreeModel(TreeModel):
 
 class BaseTrainModel(object):
     def __init__(self, tree_model, loss, nbr_embeddings_in=1, optimizer=None, learning_rate=0.1, clipping_threshold=5.0, metrics={},
-                 metric_reset_op=()):
+                 metric_reset_op=(), **unused):
         # _nbr_embeddings_in my be already set
         try:
             self.nbr_embeddings_in
@@ -1681,7 +1681,7 @@ class TreeSingleModel_with_candidates(TreeScoringModel_with_candidates):
 
 
 class TreeMultiClassModel(BaseTrainModel):
-    def __init__(self, tree_model, num_classes, nbr_embeddings_in=1, exclusive_classes=True, fc_sizes=1000,
+    def __init__(self, tree_model, nbr_classes, nbr_embeddings_in=1, exclusive_classes=True, fc_sizes=1000,
                  use_circular_correlation=False, **kwargs):
 
         self._labels_gold = tf.sparse_placeholder(dtype=tf.float32)
@@ -1706,7 +1706,7 @@ class TreeMultiClassModel(BaseTrainModel):
             final_vecs = tf.concat((final_vecs, circ_cor), axis=-1)
 
         with tf.name_scope(name='logits') as sc:
-            logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=num_classes, activation_fn=None, scope=sc)
+            logits = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=nbr_classes, activation_fn=None, scope=sc)
         labels_gold_dense = tf.sparse_tensor_to_dense(self._labels_gold)
         if exclusive_classes:
             cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=logits,

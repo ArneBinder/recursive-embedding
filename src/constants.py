@@ -54,7 +54,8 @@ LINK_TYPES = [TYPE_REF, TYPE_REF_SEEALSO, TYPE_REF_TUPLE]
 # for saved class ids
 CLASSES_FNS = {TYPE_MESH: u'MESH',
                TYPE_ENTAILMENT: u'ENTAILMENT',
-               TYPE_POLARITY: u"POLARITY"}
+               TYPE_POLARITY: u"POLARITY",
+               TYPE_RELATION: u"RELATION"}
 
 FN_TREE_INDICES = 'tree_indices'
 
@@ -101,10 +102,10 @@ KEY_CHILDREN = 'c'
 KEY_CANDIDATES = 'ca'
 
 # model types
-MT_SINGLE_DISCRETE_INDEPENDENT = 'multiclass'
-MT_TUPLE_DISCRETE_DEPENDENT = 'tuple_class'
-MT_SINGLE_DISCRETE = 'reroot'
-MT_TUPLE_DISCRETE = 'tuple'
+MT_MULTICLASS = 'multiclass'
+#MT_TUPLE_DISCRETE_DEPENDENT = 'tuple_class' ### TODO: use 'multiclass' in .env files!
+MT_CANDIDATES = 'reroot'
+MT_CANDIDATES_W_REF = 'tuple'
 MT_TUPLE_CONTINOUES = 'sim_tuple'
 
 M_INDICES = 'indices'
@@ -132,6 +133,8 @@ M_INDEX_FILE_SIZES = 'index_file_sizes'
 TASK_MESH_PREDICTION = 'mesh'
 TASK_SENTIMENT_PREDICTION = 'sentiment'
 TASK_ENTAILMENT_PREDICTION = 'entailment'
+TASK_RELATION_EXTRACTION = 'relation'
+TASK_LANGUAGE = 'language'
 
 # structural assumptions
 # general
@@ -146,6 +149,15 @@ OFFSET_OTHER_ENTRY_ROOT = 7
 # bioasq
 OFFSET_MESH_ROOT = 3
 OFFSET_POLARITY_ROOT = 3
+# semeval2010task8
+OFFSET_RELATION_ROOT = 3
+
+OFFSET_CLASS_ROOTS = {
+    TYPE_MESH: OFFSET_MESH_ROOT,
+    TYPE_ENTAILMENT: OFFSET_ENTAILMENT_ROOT,
+    TYPE_POLARITY: OFFSET_POLARITY_ROOT,
+    TYPE_RELATION: OFFSET_RELATION_ROOT
+}
 
 #DEPRECATED
 
