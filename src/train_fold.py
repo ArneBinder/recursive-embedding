@@ -1564,6 +1564,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             supervisor = tf.train.Supervisor(
                 # saver=None,# my_saver,
                 logdir=logdir,
+                saver=tf.train.Saver(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES), max_to_keep=1),
                 #is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
                 save_model_secs=0,
