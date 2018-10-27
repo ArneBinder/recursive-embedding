@@ -1202,11 +1202,14 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             train_tree_queue = None
             recompile_thread = None
 
-        if stats_dict is not None:
+        # NOTE: this depends on metric (pearson/mse/roc/...)
+        METRIC_MIN_INIT = -1
+        # if stats_dict is available and stats_dict[metric] is not NaN...
+        if stats_dict is not None and stats_dict[metric] == stats_dict[metric]:
             stat_queue = [stats_dict]
         else:
-            # NOTE: this depends on metric (pearson/mse/roc/...)
-            METRIC_MIN_INIT = -1
+            logger.warning('no initial test result available, init previous result (metric: %s) with METRIC_MIN_INIT=%f'
+                           % (metric, METRIC_MIN_INIT))
             stat_queue = [{metric: METRIC_MIN_INIT}]
         max_queue_length = 0
         for epoch, shuffled in enumerate(td.epochs(items=range(len(meta[M_TRAIN][M_INDICES])), n=config.epochs, shuffle=True), 1):
@@ -1277,6 +1280,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             else:
                 if len(stat_queue) >= max_queue_length:
                     max_queue_length = len(stat_queue) + 1
+            if stats_test[metric] != stats_test[metric]:
+                logger.warning('metric (%s) was NaN, replace by METRIC_MIN_INIT=%f' % (metric, METRIC_MIN_INIT))
+                stats_test[metric] = METRIC_MIN_INIT
             stat_queue.append(stats_test)
             stat_queue_sorted = sorted(stat_queue, reverse=True, key=lambda t: t[metric])
             rank = stat_queue_sorted.index(stats_test)
