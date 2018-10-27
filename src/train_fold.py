@@ -606,7 +606,7 @@ def init_model_type(config):
         # IMDB SENTIMENT prediction
         elif config.task == TASK_SENTIMENT_PREDICTION:
             type_class = TYPE_POLARITY
-            model_kwargs['exclusive_classes'] = True
+            model_kwargs['exclusive_classes'] = False
             model_kwargs['nbr_embeddings_in'] = 1
         # SICK ENTAILMENT prediction
         elif config.task == TASK_ENTAILMENT_PREDICTION:
