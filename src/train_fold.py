@@ -605,7 +605,6 @@ def init_model_type(config):
         model_kwargs['nbr_embeddings_in'] = 1
 
         # MESH prediction
-        # works well (?): avfFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc500_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtMULTICLASS_ns10_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st250_tkSENTIMENT_dataMERGED_teHTUREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzTRUE
         if config.task == TASK_MESH_PREDICTION:
             type_class = TYPE_MESH
             model_kwargs['exclusive_classes'] = False
