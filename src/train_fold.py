@@ -1159,8 +1159,10 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 if values_all is None or values_all_gold is None:
                     logger.warning('Predicted and gold values are None. Passed return_values=False?')
                 else:
-                    values_all.dump(os.path.join(logdir, 'sims.np'))
-                    values_all_gold.dump(os.path.join(logdir, 'sims_gold.np'))
+                    logger.info('dump values_predicted...')
+                    values_all.dump(os.path.join(logdir, 'values_predicted.np'))
+                    logger.info('dump values_gold...')
+                    values_all_gold.dump(os.path.join(logdir, 'values_gold.np'))
                 #lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
                 return stats_dict
         else:
