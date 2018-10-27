@@ -172,7 +172,7 @@ def main(mode, *args):
         plac.call(parse, args)
     elif mode == 'MERGE':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
-        entailment_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_ENTAILMENT)
+        entailment_ids, entailment_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_ENTAILMENT)
         #logger.info('number of entailment types to predict: %i.' % len(entailment_ids))
         #numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_ENTAILMENT, FE_CLASS_IDS), ndarray=entailment_ids)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_ENTAILMENT, classes_ids=entailment_ids)

@@ -26,6 +26,7 @@ FE_UNIQUE_COUNTS_DISCARDED = 'count.hash.discarded'
 FE_ROOT_SEEALSO_COUNT = 'root.seealso.count'
 FE_ROOT_CONTEXT_SIZE = 'root.context.size'
 FE_CLASS_IDS = 'classes.id'
+FE_CLASS_STRINGS = 'classes.strings'
 
 DIR_BATCHES = 'batches'
 DIR_BATCHES_CONVERTED = 'batches_converted'
@@ -51,11 +52,16 @@ def load_class_ids(dir_path, prefix_type):
     return classes_ids
 
 
-def save_class_ids(dir_path, prefix_type, classes_ids):
+def save_class_ids(dir_path, prefix_type, classes_ids, class_strings=None):
     logger.info('number of classes for %s to predict: %i.' % (prefix_type, len(classes_ids)))
     fn = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type), FE_CLASS_IDS)
     logger.debug('save class ids for %s to: %s' % (prefix_type, fn))
     numpy_dump(filename=fn, ndarray=classes_ids)
+    if class_strings is not None:
+        fn_strings = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type), FE_CLASS_STRINGS)
+        logger.debug('save class strings for %s to: %s' % (prefix_type, fn_strings))
+        with open(fn_strings, 'w') as f:
+            f.writelines(map(lambda s: s+'\n', class_strings))
 
 
 def process_records(records, out_base_name, record_reader, sentence_processor, parser, concat_mode='sequence',

@@ -340,7 +340,7 @@ def main(mode, *args):
         plac.call(parse_batches, args)
     elif mode == 'MERGE_BATCHES':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
-        mesh_ids = forest_merged.lexicon.get_ids_for_prefix(TYPE_MESH)
+        mesh_ids, mesh_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_MESH)
         #logger.info('number of mesh terms to predict: %i' % len(mesh_ids))
         #numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_MESH_FN, FE_CLASS_IDS), ndarray=mesh_ids)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_MESH, classes_ids=mesh_ids)
