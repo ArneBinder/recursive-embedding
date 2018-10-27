@@ -1,0 +1,64 @@
+version: '2.3'
+services:
+  corpus-semeval2010task8-parse:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_semeval2010task8.py PARSE
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/SEMEVAL2010T8
+                                  --n-threads ${NUM_THREADS_PARSE}
+                                  --parser-batch-size ${BATCH_SIZE_PARSE}
+                                  --sentence-processor ${SENTENCE_PROCESSOR}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-semeval2010task8-merge:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_semeval2010task8.py MERGE
+                                  --out-path /root/corpora_out/SEMEVAL2010T8
+                                  --min-count ${MIN_COUNT}
+                                  --coverage ${COVERAGE}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-semeval2010task8-indices-test:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_semeval2010task8.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/SEMEVAL2010T8/merged/forest
+                                  --split-count 1
+                                  --start-root 0
+                                  --end-root 2717
+                                  --suffix test
+
+  corpus-semeval2010task8-indices-train:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_semeval2010task8.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/SEMEVAL2010T8/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root 2717
+                                  --end-root -1
+                                  --suffix train
