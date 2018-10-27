@@ -556,7 +556,6 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
 def init_model_type(config):
     ## set index and tree getter
 
-    #num_classes = None
     model_kwargs = {}
 
     # relatedness prediction (SICK)
@@ -597,17 +596,23 @@ def init_model_type(config):
         load_parents = True
     # discrete classification
     elif config.model_type == MT_MULTICLASS:
+        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
+                              'concat_mode': config.concat_mode, 'link_cost_ref': -1}
+        tree_iterator = diters.tree_iterator
+        load_parents = (tree_iterator_args['context'] > 0)
+        config.batch_iter = batch_iter_multiclass.__name__
         other_offset = None
+        model_kwargs['nbr_embeddings_in'] = 1
+
         # MESH prediction
+        # works well: avfFALSE_bs100_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc500_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtMULTICLASS_ns10_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st250_tkSENTIMENT_dataMERGED_teHTUREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzTRUE
         if config.task == TASK_MESH_PREDICTION:
             type_class = TYPE_MESH
             model_kwargs['exclusive_classes'] = False
-            model_kwargs['nbr_embeddings_in'] = 1
         # IMDB SENTIMENT prediction
         elif config.task == TASK_SENTIMENT_PREDICTION:
             type_class = TYPE_POLARITY
             model_kwargs['exclusive_classes'] = False
-            model_kwargs['nbr_embeddings_in'] = 1
         # SICK ENTAILMENT prediction
         elif config.task == TASK_ENTAILMENT_PREDICTION:
             type_class = TYPE_ENTAILMENT
@@ -618,26 +623,18 @@ def init_model_type(config):
         elif config.task == TASK_RELATION_EXTRACTION:
             type_class = TYPE_RELATION
             model_kwargs['exclusive_classes'] = True
-            model_kwargs['nbr_embeddings_in'] = 1
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
         classes_ids = load_class_ids(config.train_data_path, prefix_type=type_class)
         model_kwargs['nbr_classes'] = len(classes_ids)
         classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
 
-        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode, 'link_cost_ref': -1}
-        tree_iterator = diters.tree_iterator
         indices_getter = partial(diters.indices_multiclass, classes_all_ids=classes_ids,
                                  classes_root_offset=classes_root_offset, other_offset=other_offset)
-
-        load_parents = (tree_iterator_args['context'] > 0)
-
-        config.batch_iter = batch_iter_multiclass.__name__
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-    return tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs#, num_classes, num_embeddings_in, exclusive_classes
+    return tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs
 
 
 def get_index_file_names(config, parent_dir, test_files=None, test_only=False, dont_test=False):
