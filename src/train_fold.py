@@ -1269,6 +1269,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 )
             else:
                 step_test, loss_test, stats_test = step_train, loss_train, stats_train
+            stats_test['steps'] = step_test
 
             # EARLY STOPPING ###############################################################################
 
@@ -1713,7 +1714,7 @@ if __name__ == '__main__':
             stats_prefix_test = 'test_'
 
             fieldnames_expected = sorted(list(parameters_keys)) + [stats_prefix_dev + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] \
-                                  + [stats_prefix_test + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] + ['run_description']
+                                  + [stats_prefix_test + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] + ['time', 'steps', 'run_description']
             #assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
             #fieldnames = fieldnames_loaded or fieldnames_expected
             with open(scores_fn, 'w') as csvfile:
