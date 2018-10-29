@@ -406,6 +406,25 @@ class Forest(object):
                 leafs.extend(self.get_descendant_indices(c + root, show_links=show_links))
         return leafs
 
+    def get_slice(self, root, root_exclude=None):
+        indices = np.sort(self.get_descendant_indices(root))
+        if root_exclude is not None:
+            assert root != root_exclude, 'root==root_exclude (%i)' % root
+            assert root_exclude in indices, 'root_exclude=%i is not in indices' % root_exclude
+            indices_exclude = np.sort(self.get_descendant_indices(root_exclude))
+            mask = np.isin(indices, indices_exclude, invert=True)
+            indices = indices[mask]
+        new_parents = np.zeros_like(self.parents[indices])
+        new_positions = {idx: i for i, idx in enumerate(indices)}
+        for i, idx in enumerate(indices):
+            if idx == root:
+                new_parents[i] = 0
+            else:
+                new_parents[i] = new_positions[self.parents[idx] + idx] - i
+
+        return Forest(data=self.data[indices].copy(), parents=new_parents, lexicon=self.lexicon,
+                      data_as_hashes=self.data_as_hashes)
+
     # TODO: fix this!
     # show_links==True does not show http://www.w3.org/2005/11/its/rdf#taIdentRef/SeeAlso links and
     # show_links==False does not adapt parents correctly (see ID:http://dbpedia.org/resource/14.5mm_JDJ)
@@ -1002,6 +1021,14 @@ class Forest(object):
     #    self.data[identity_positions] = d_identity
     #    self.data[link_parent_positions] = d_identity
 
+    def get_path_indices(self, start, end=None):
+        res = []
+        idx = start
+        while self.parents[idx] != 0 and idx != end:
+            idx += self.parents[idx]
+            res.append(idx)
+        return res
+
     def __str__(self):
         return self._data.__str__()
 
@@ -1030,7 +1057,7 @@ class Forest(object):
         :return: a plain numpy array containing all root positions
         """
         if self._root_pos is None:
-            logger.debug('forest: create roots from parents (%i)' % len(self.parents))
+            #logger.debug('forest: create roots from parents (%i)' % len(self.parents))
             self._root_pos = np.where(self.parents == 0)[0].astype(DTYPE_IDX)
         return self._root_pos
 
