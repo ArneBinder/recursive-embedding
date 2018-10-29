@@ -11,7 +11,7 @@ from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
 from preprocessing import KEY_ANNOTATIONS
-from src.sequence_trees import Forest
+from sequence_trees import Forest
 
 logger = logging.getLogger('corpus_semeval2010task8')
 logger.setLevel(logging.DEBUG)
