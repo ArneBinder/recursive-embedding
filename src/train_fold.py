@@ -1714,7 +1714,7 @@ if __name__ == '__main__':
             stats_prefix_test = 'test_'
 
             fieldnames_expected = sorted(list(parameters_keys)) + [stats_prefix_dev + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] \
-                                  + [stats_prefix_test + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] + ['time', 'steps', 'run_description']
+                                  + [stats_prefix_test + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] + ['time_s', 'steps_train', 'run_description']
             #assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
             #fieldnames = fieldnames_loaded or fieldnames_expected
             with open(scores_fn, 'w') as csvfile:
@@ -1777,7 +1777,8 @@ if __name__ == '__main__':
                                                              load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
                                                              precompile=FLAGS.precompile,
                                                              debug=FLAGS.debug)
-                        d['time'] = datetime.now() - t_start
+                        d['steps_train'] = metrics_dev['steps']
+                        d['time_s'] = (datetime.now() - t_start).total_seconds()
                         metrics, metric_main = get_metrics_and_main_metric(metrics_dev, metric_main=FLAGS.early_stopping_metric)
                         metric_main_value = metrics_dev[metric_main]
                         add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
