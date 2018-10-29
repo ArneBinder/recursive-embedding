@@ -65,7 +65,7 @@ def save_class_ids(dir_path, prefix_type, classes_ids, class_strings=None):
 
 
 def process_records(records, out_base_name, record_reader, sentence_processor, parser, concat_mode='sequence',
-                    batch_size=1000, n_threads=4):
+                    batch_size=1000, n_threads=4, adjust_forest_func=None):
     if not Lexicon.exist(out_base_name, types_only=True) \
             or not Forest.exist(out_base_name) \
             or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
@@ -79,6 +79,8 @@ def process_records(records, out_base_name, record_reader, sentence_processor, p
                                    parser=parser, batch_size=batch_size, concat_mode=concat_mode,
                                    inner_concat_mode='tree', expand_dict=True, as_tuples=True,
                                    return_hashes=True, n_threads=n_threads)
+        if adjust_forest_func is not None:
+            forest = adjust_forest_func(forest)
 
         forest.set_children_with_parents()
         #roots = forest.roots
