@@ -1,15 +1,17 @@
-import csv
 import logging
 import os
 import spacy
 
 import plac
+import numpy as np
 
-from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY
+from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY, \
+    TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
 from preprocessing import KEY_ANNOTATIONS
+from src.sequence_trees import Forest
 
 logger = logging.getLogger('corpus_semeval2010task8')
 logger.setLevel(logging.DEBUG)
@@ -19,6 +21,8 @@ logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
 TYPE_SEMEVAL2010TASK8_ID = u'http://semeval2.fbk.eu/semeval2.php/task8'
+TYPE_E1 = TYPE_NAMED_ENTITY + SEPARATOR + u'E1'
+TYPE_E2 = TYPE_NAMED_ENTITY + SEPARATOR + u'E2'
 
 KEY_TEXT = 'text'
 
@@ -129,7 +133,7 @@ def extract_positions(text, tags):
     return text, res
 
 
-def read_file(file_name):
+def read_file(file_name, annotations):
     with open(file_name) as f:
         lines = f.readlines()
     n = 0
@@ -142,14 +146,65 @@ def read_file(file_name):
             TYPE_SEMEVAL2010TASK8_ID: unicode(id_w_text[0]),
             KEY_TEXT: unicode(text),
             TYPE_RELATION: unicode(lines[i + 1].strip()),
-            # ommit comment field
-            KEY_ANNOTATIONS: [(positions[0], positions[1], [TYPE_NAMED_ENTITY + SEPARATOR + u'E1'], [0]),
-                              (positions[2], positions[3], [TYPE_NAMED_ENTITY + SEPARATOR + u'E2'], [0])],
+            # omit comment field
+
+            KEY_ANNOTATIONS: [(positions[0], positions[1], annotations[0], annotations[2]),
+                              (positions[2], positions[3], annotations[1], annotations[2])],
         }
         yield record
         n += 1
 
     logger.info('read %i records from %s' % (n, file_name))
+
+
+def extract_relation_subtree(forest):
+
+    e1_hash = forest.lexicon.get_d(s=TYPE_E1, data_as_hashes=True)
+    e2_hash = forest.lexicon.get_d(s=TYPE_E2, data_as_hashes=True)
+    nlp_root_hash = forest.lexicon.get_d(s=TYPE_PARAGRAPH, data_as_hashes=True)
+    e1_indices = np.argwhere(forest.data == e1_hash).flatten()
+    e2_indices = np.argwhere(forest.data == e2_hash).flatten()
+    nlp_root_indices = np.argwhere(forest.data == nlp_root_hash).flatten()
+
+    new_data = []
+    new_parents = []
+
+    assert len(e1_indices) == len(e2_indices) == len(nlp_root_indices), \
+        'number of indices does not match: len(e1_indices)=%s, len(e2_indices)=%i, len(nlp_root_indices)=%i' \
+        % (len(e1_indices), len(e2_indices), len(nlp_root_indices))
+    for i, nlp_root in enumerate(nlp_root_indices):
+        try:
+            nlp_root_data = forest.data[nlp_root]
+            nlp_root_parent = forest.parents[nlp_root]
+            current_tree = forest.get_slice(root=forest.roots[i], root_exclude=nlp_root)
+
+            p1 = forest.get_path_indices(e1_indices[i], nlp_root)
+            p2 = forest.get_path_indices(e2_indices[i], nlp_root)
+            j = 0
+            for _ in range(min(len(p1), len(p2))):
+                j += 1
+                if p1[-j] != p2[-j]:
+                    j -= 1
+                    break
+
+            root_common = p1[-j]
+
+            subtree = forest.get_slice(root=root_common)
+
+            subtree_root = subtree.roots[0]
+            subtree.parents[subtree_root] = -(subtree_root + 1)
+
+            new_data.extend([current_tree.data, [nlp_root_data], subtree.data])
+            new_parents.extend([current_tree.parents, [nlp_root_parent], subtree.parents])
+
+        except AssertionError as e:
+            logger.error('failed to adjust tree with ID: %s'
+                         % forest.lexicon.get_s(forest.data[forest.roots[i] + OFFSET_ID], data_as_hashes=forest.data_as_hashes))
+            raise e
+    new_forest = Forest(data=np.concatenate(new_data), parents=np.concatenate(new_parents),
+                        data_as_hashes=forest.data_as_hashes, lexicon=forest.lexicon, lexicon_roots=forest.lexicon_roots)
+
+    return new_forest
 
 
 @plac.annotations(
@@ -164,15 +219,29 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         _sentence_processor = getattr(preprocessing, sentence_processor.strip())
     else:
         _sentence_processor = preprocessing.process_sentence1
+
+    if _sentence_processor == preprocessing.process_sentence1:
+        annots = ([TYPE_E1], [TYPE_E2], [0])
+    elif _sentence_processor == preprocessing.process_sentence3:
+        annots = ([TYPE_E1, TYPE_DEPENDENCY_RELATION + SEPARATOR + TYPE_ARTIFICIAL],
+                  [TYPE_E2, TYPE_DEPENDENCY_RELATION + SEPARATOR + TYPE_ARTIFICIAL],
+                  [0, -1])
+    elif _sentence_processor == preprocessing.process_sentence10:
+        annots = ([TYPE_E1, TYPE_DEPENDENCY_RELATION + SEPARATOR + TYPE_ARTIFICIAL],
+                  [TYPE_E2, TYPE_DEPENDENCY_RELATION + SEPARATOR + TYPE_ARTIFICIAL],
+                  [0, -1])
+    else:
+        raise NotImplementedError('not implemented for sentence_processor=%s' % str(sentence_processor))
+
     file_names = ['SemEval2010_task8_training/TRAIN_FILE.TXT', 'SemEval2010_task8_testing_keys/TEST_FILE_FULL.TXT']
     parser = spacy.load('en')
     for fn in file_names:
         logger.info('create forest for %s ...' % fn)
         out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
         make_parent_dir(out_base_name)
-        process_records(records=read_file(os.path.join(in_path, fn)), out_base_name=out_base_name, record_reader=reader,
-                        parser=parser, sentence_processor=_sentence_processor, concat_mode=None,
-                        n_threads=n_threads, batch_size=parser_batch_size)
+        process_records(records=read_file(os.path.join(in_path, fn), annots), out_base_name=out_base_name,
+                        record_reader=reader, parser=parser, sentence_processor=_sentence_processor, concat_mode=None,
+                        n_threads=n_threads, batch_size=parser_batch_size, adjust_forest_func=extract_relation_subtree)
         logger.info('done.')
 
 
