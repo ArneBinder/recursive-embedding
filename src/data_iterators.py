@@ -374,13 +374,14 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             #    logger.debug('%i%%' % progress)
 
     elif concat_mode == CM_AGGREGATE:
-        # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFEST behind the root and leafs are
+        # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFSET behind the root and leafs are
         # sequential and in order, especially root_ids occur in data only directly after link_types
         #sizes = []
         for idx in indices:
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
-            idx_start = idx + context_child_offset
+            # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1
+            idx_start = idx + context_child_offset + 1
 
             root_pos = idx - OFFSET_CONTEXT_ROOT
             root_idx = forest.root_mapping[root_pos]

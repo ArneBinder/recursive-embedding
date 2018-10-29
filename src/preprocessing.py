@@ -5,9 +5,9 @@ import logging
 import numpy as np
 
 import mytools
-from constants import DTYPE_HASH, default_concat_mode, default_inner_concat_mode, concat_modes,vocab_manual, \
+from constants import DTYPE_HASH, default_concat_mode, default_inner_concat_mode, concat_modes, vocab_manual, \
     TYPE_DEPENDENCY_RELATION, SEPARATOR, TYPE_SENTENCE, TYPE_POS_TAG, \
-    TYPE_LEMMA, UNKNOWN_EMBEDDING, AGGREGATOR_EMBEDDING, TYPE_LEXEME, TYPE_NAMED_ENTITY
+    TYPE_LEMMA, UNKNOWN_EMBEDDING, AGGREGATOR_EMBEDDING, TYPE_LEXEME, TYPE_NAMED_ENTITY, TYPE_ARTIFICIAL
 
 PREFIX_LEX = TYPE_LEXEME + SEPARATOR
 PREFIX_DEP = TYPE_DEPENDENCY_RELATION + SEPARATOR
@@ -44,11 +44,14 @@ def merge_sentence_data(sen_data, sen_parents, sen_offsets, sen_a):
     return result_data, result_parents, [root_offset]
 
 
-def concat_roots(data, parents, root_offsets, root_parents=None, concat_mode='tree', new_root_id=None):
+def concat_roots(data, parents, root_offsets, root_parents=None, concat_mode='tree', new_root_id=None,
+                 new_root_annots=((), ())):
     if concat_mode is None:
         return data, parents, root_offsets
 
     if concat_mode == 'aggregate':
+        if len(new_root_annots[0]) > 0:
+            raise NotImplementedError('handling of new_root_annots not implemented for concat_mode==aggregate')
         assert new_root_id is not None, 'concat_mode=aggregate requires an aggregation root, but new_root_id is None.'
         root_offsets.append(len(data))
         parents.append(0)
@@ -81,10 +84,12 @@ def concat_roots(data, parents, root_offsets, root_parents=None, concat_mode='tr
         data.append(new_root_id)
         parents[new_roots[0]] = len(parents) - new_roots[0] - 1
         new_roots = [len(data)-1]
+        data.extend(new_root_annots[0])
+        parents.extend(new_root_annots[1])
     return data, parents, new_roots
 
 
-def get_annotations_for_token(annotations, token, offset=1):
+def get_annotations_for_token(annotations, token, parent_offset=1):
     # add annotations after respective token (if its parent isn't a match, too)
     j = 0
     data = []
@@ -95,7 +100,7 @@ def get_annotations_for_token(annotations, token, offset=1):
                 and (token.head == token or not ((token.head.idx <= annot[0] <= token.head.idx + len(token.head))
                                                  or (token.head.idx <= annot[1] <= token.head.idx + len(token.head)))):
             data.extend(annot[2])
-            annot[3][0] = -len(parents) - offset
+            annot[3][0] = -len(parents) - parent_offset
             parents.extend(annot[3])
             del annotations[j]
     return data, parents
@@ -148,6 +153,7 @@ def process_sentence1(sentence, parsed_data, strings, dict_unknown=None,
 # word, word embedding
 def process_sentence2(sentence, parsed_data, strings, dict_unknown=None,
                       concat_mode=default_inner_concat_mode, **kwargs):
+    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -221,19 +227,21 @@ def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_
         sen_data.append(mytools.getOrAdd(strings, PREFIX_DEP + token.dep_, dict_unknown))
         sen_parents.append(-1)
         # check and append annotations, eventually. Append to token -> offset=2
-        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, offset=2)
+        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, parent_offset=2)
         sen_data.extend([mytools.getOrAdd(strings, s, dict_unknown) for s in annot_data])
         sen_parents.extend(annot_parents)
 
-    new_root_id = mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown)
-    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
-                                                       new_root_id=new_root_id)
+    sen_data, sen_parents, root_offsets = concat_roots(
+        sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+        new_root_id=mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown),
+        new_root_annots=([mytools.getOrAdd(strings, PREFIX_DEP + TYPE_ARTIFICIAL, dict_unknown)], [-1]))
     return sen_data, sen_parents, root_offsets
 
 
 # embeddings for:
 # word, word embedding, edge, edge embedding
 def process_sentence4(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -267,6 +275,7 @@ def process_sentence4(sentence, parsed_data, strings, dict_unknown=None, concat_
 # embeddings for:
 # words, edges, entity type (if !=0)
 def process_sentence5(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -299,6 +308,7 @@ def process_sentence5(sentence, parsed_data, strings, dict_unknown=None, concat_
 # embeddings for:
 # words, word type, edges, edge type, entity type (if !=0), entity type type
 def process_sentence6(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -341,6 +351,7 @@ def process_sentence6(sentence, parsed_data, strings, dict_unknown=None, concat_
 # words, edges, entity type (if !=0),
 # lemma (if different), pos-tag
 def process_sentence7(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -384,6 +395,7 @@ def process_sentence7(sentence, parsed_data, strings, dict_unknown=None, concat_
 # words, word type, edges, edge type, entity type (if !=0), entity type type,
 # lemma (if different), lemma type, pos-tag, pos-tag type
 def process_sentence8(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
     sen_data = []
     sen_parents = []
     root_offsets = []
@@ -460,13 +472,14 @@ def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat
         sen_data.append(mytools.getOrAdd(strings, PREFIX_LEX + token.orth_, dict_unknown))
         sen_parents.append(-1)
         # check and append annotations, eventually. Append to edge type -> offset=2
-        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, offset=2)
+        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, parent_offset=2)
         sen_data.extend([mytools.getOrAdd(strings, s, dict_unknown) for s in annot_data])
         sen_parents.extend(annot_parents)
 
-    new_root_id = mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown)
-    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
-                                                       new_root_id=new_root_id)
+    sen_data, sen_parents, root_offsets = concat_roots(
+        sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+        new_root_id=mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown),
+        new_root_annots=([mytools.getOrAdd(strings, PREFIX_DEP + TYPE_ARTIFICIAL, dict_unknown)], [-1]))
 
     return sen_data, sen_parents, root_offsets
 
@@ -474,6 +487,7 @@ def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat
 # embeddings for:
 # lemma, pos (filtered!)
 def process_sentence9(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
+    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
     sen_data = []
     sen_parents = []
     root_offsets = []
