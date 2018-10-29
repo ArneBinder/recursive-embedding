@@ -607,7 +607,7 @@ def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch
             sent_annots = []
             if annotations is not None:
                 for annot in annotations:
-                    if (sent_start <= annot[0] <= sent_end) or (sent_start <= annot[1] <= sent_end):
+                    if (sent_start <= annot[0] < sent_end) or (sent_start < annot[1] <= sent_end):
                         sent_annots.append(annot)
             processed_sen = sentence_processor(sentence, parsed_data, strings, idx_unknown, inner_concat_mode,
                                                annotations=sent_annots)
