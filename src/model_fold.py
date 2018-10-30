@@ -1111,8 +1111,9 @@ class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
 
 
 class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
-    def __init__(self, name=None, merge_factor=1, **kwargs):
+    def __init__(self, name=None, merge_factor=1, use_summed_outputs=True, **kwargs):
         self._merge_factor = merge_factor
+        self._use_summed_outputs = use_summed_outputs
         TreeEmbedding_FLATconcat.__init__(self, name=name or 'GRU', **kwargs)
 
     def reduce_concatenated(self, concatenated_embeddings_with_length):
@@ -1143,8 +1144,10 @@ class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
                     states.extend(current_states)
                 i += 1
 
-        summed_outputs = tf.add_n(inputs)
-        res = tf.concat(states + [summed_outputs], axis=-1)
+        if self._use_summed_outputs:
+            summed_outputs = tf.add_n(inputs)
+            states.append(summed_outputs)
+        res = tf.concat(states, axis=-1)
         return res
 
     @property
@@ -1170,6 +1173,17 @@ class TreeEmbedding_FLATconcat_BIGRU(TreeEmbedding_FLATconcat_GRU):
     @property
     def nbr_cells(self):
         return 2
+
+
+class TreeEmbedding_FLATconcat_GRU0(TreeEmbedding_FLATconcat_GRU):
+    def __init__(self, name=None, **kwargs):
+        TreeEmbedding_FLATconcat_GRU.__init__(self, name=name or 'GRU0', use_summed_outputs=False, **kwargs)
+
+
+class TreeEmbedding_FLATconcat_BIGRU0(TreeEmbedding_FLATconcat_BIGRU):
+    def __init__(self, name=None, **kwargs):
+        TreeEmbedding_FLATconcat_BIGRU.__init__(self, name=name or 'BIGRU0', use_summed_outputs=False, **kwargs)
+
 
 ########################################################################################################################
 
