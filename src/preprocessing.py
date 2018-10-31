@@ -7,7 +7,7 @@ import numpy as np
 import mytools
 from constants import DTYPE_HASH, default_concat_mode, default_inner_concat_mode, concat_modes, vocab_manual, \
     TYPE_DEPENDENCY_RELATION, SEPARATOR, TYPE_SENTENCE, TYPE_POS_TAG, \
-    TYPE_LEMMA, UNKNOWN_EMBEDDING, AGGREGATOR_EMBEDDING, TYPE_LEXEME, TYPE_NAMED_ENTITY, TYPE_ARTIFICIAL
+    TYPE_LEMMA, UNKNOWN_EMBEDDING, AGGREGATOR_EMBEDDING, TYPE_LEXEME, TYPE_NAMED_ENTITY
 
 PREFIX_LEX = TYPE_LEXEME + SEPARATOR
 PREFIX_DEP = TYPE_DEPENDENCY_RELATION + SEPARATOR
@@ -234,7 +234,8 @@ def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_
     sen_data, sen_parents, root_offsets = concat_roots(
         sen_data, sen_parents, root_offsets, root_parents, concat_mode,
         new_root_id=mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown),
-        new_root_annots=([mytools.getOrAdd(strings, PREFIX_DEP + TYPE_ARTIFICIAL, dict_unknown)], [-1]))
+        #new_root_annots=([mytools.getOrAdd(strings, PREFIX_DEP + TYPE_ARTIFICIAL, dict_unknown)], [-1])
+    )
     return sen_data, sen_parents, root_offsets
 
 
@@ -479,7 +480,8 @@ def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat
     sen_data, sen_parents, root_offsets = concat_roots(
         sen_data, sen_parents, root_offsets, root_parents, concat_mode,
         new_root_id=mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown),
-        new_root_annots=([mytools.getOrAdd(strings, PREFIX_DEP + TYPE_ARTIFICIAL, dict_unknown)], [-1]))
+        #new_root_annots=([mytools.getOrAdd(strings, PREFIX_DEP + TYPE_ARTIFICIAL, dict_unknown)], [-1])
+    )
 
     return sen_data, sen_parents, root_offsets
 

@@ -380,8 +380,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         for idx in indices:
             # follow to first element of sequential data
             context_child_offset = forest.get_children(idx)[0]
-            # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1
-            idx_start = idx + context_child_offset + 1
+            # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1. NOT NECESSARY: gets cleaned by
+            idx_start = idx + context_child_offset #+ 1
 
             root_pos = idx - OFFSET_CONTEXT_ROOT
             root_idx = forest.root_mapping[root_pos]
@@ -390,14 +390,20 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 idx_end = len(forest)
             else:
                 idx_end = forest.roots[root_idx+1]
-
+            #debug
+            data_string = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1]
+                           for d in forest.data[idx_start:idx_end]]
             data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
                                                              link_types=link_types,
                                                              remove_types=remove_types_naive, transform=transform)
+            #debug
+            data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1] for d in
+                                   data_span_cleaned]
+            #logger.debug(' '.join(data_string_cleaned))
             if max_size_plain > 0:
                 if len(data_span_cleaned) > max_size_plain:
-                    logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
-                                   % (len(data_span_cleaned), max_size_plain))
+                    logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
+                                   % (len(data_span_cleaned), max_size_plain, root_idx))
                 #sizes.append([root_idx, len(data_span_cleaned)])
                 data_span_cleaned = data_span_cleaned[:max_size_plain]
             tree_context = {KEY_HEAD: data_nif_context_transformed,
