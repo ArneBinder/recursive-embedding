@@ -907,10 +907,11 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
         returns the concatenation of the embeddings and the amount of real token ids
         i.e. the result shape is (batch_size, sequence_length * embedding_size + 1).
     """
-    def __init__(self, name, sequence_length, padding_id, **kwargs):
-        super(TreeEmbedding_FLATconcat, self).__init__(name='FLATconcat_' + name, **kwargs)
+    def __init__(self, name, sequence_length, padding_id, merge_factor=1, **kwargs):
+        self._merge_factor = merge_factor
         self._sequence_length = sequence_length
         self._padding_element = {KEY_HEAD: padding_id, KEY_CHILDREN: []}
+        super(TreeEmbedding_FLATconcat, self).__init__(name='FLATconcat_' + name, **kwargs)
 
     def __call__(self):
         def adjust_length(l):
@@ -932,6 +933,13 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
         return model
 
     def reduce_concatenated(self, concatenated_embeddings_with_length):
+        concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
+        length = concatenated_embeddings_with_length[:, -1]
+        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, int(self.sequence_length / self.merge_factor),
+                                                                         self.head_size * self.merge_factor])
+        return self.reduce_flat(embeddings_sequence, length / self.merge_factor)
+
+    def reduce_flat(self, embeddings, actual_length):
         raise NotImplementedError('Implement this')
 
     # This is not the actual output size, but the output is adapted to this
@@ -944,6 +952,9 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
     def sequence_length(self):
         return self._sequence_length
 
+    @property
+    def merge_factor(self):
+        return self._merge_factor
 
     @property
     def padding_element(self):
@@ -1090,18 +1101,14 @@ class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
     def __init__(self, **kwargs):
         TreeEmbedding_FLATconcat.__init__(self, name='GRU', **kwargs)
 
-    def reduce_concatenated(self, concatenated_embeddings_with_length):
-        concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
-        length = concatenated_embeddings_with_length[:, -1]
-        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, self.sequence_length, self.head_size])
-        #batch_size = tf.shape(embeddings_sequence)[0]
+    def reduce_flat(self, embeddings, actual_length):
         cell = tf.nn.rnn_cell.GRUCell(num_units=self.state_size)
         cell_dropout = tf.nn.rnn_cell.DropoutWrapper(
             cell, input_keep_prob=self.keep_prob, output_keep_prob=self.keep_prob, state_keep_prob=self.keep_prob,
-            variational_recurrent=True, dtype=embeddings_sequence.dtype, input_size=embeddings_sequence.shape[-1])
-        inputs = tf.unstack(embeddings_sequence, axis=1)
-        outputs, state = tf.nn.static_rnn(cell_dropout, inputs, sequence_length=length,
-                                          dtype=concatenated_embeddings.dtype)
+            variational_recurrent=True, dtype=embeddings.dtype, input_size=embeddings.shape[-1])
+        inputs = tf.unstack(embeddings, axis=1)
+        outputs, state = tf.nn.static_rnn(cell_dropout, inputs, sequence_length=actual_length,
+                                          dtype=embeddings.dtype)
         return state
 
     # This is not the actual output size, but the output is adapted to this in SequenceTreeModel.__init__
@@ -1111,18 +1118,14 @@ class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
 
 
 class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
-    def __init__(self, name=None, merge_factor=1, use_summed_outputs=True, **kwargs):
-        self._merge_factor = merge_factor
+    def __init__(self, name=None, use_summed_outputs=True, **kwargs):
         self._use_summed_outputs = use_summed_outputs
         TreeEmbedding_FLATconcat.__init__(self, name=name or 'GRU', **kwargs)
 
-    def reduce_concatenated(self, concatenated_embeddings_with_length):
-        concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
-        length = concatenated_embeddings_with_length[:, -1]
-        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, int(self.sequence_length / self._merge_factor),
-                                                                         self.head_size * self._merge_factor])
-        _dtype = embeddings_sequence.dtype
-        inputs = tf.unstack(embeddings_sequence, axis=1)
+    def reduce_flat(self, embeddings, actual_length):
+
+        _dtype = embeddings.dtype
+        inputs = tf.unstack(embeddings, axis=1)
 
         states = []
         i = 0
@@ -1139,8 +1142,8 @@ class TreeEmbedding_FLATconcat_GRU(TreeEmbedding_FLATconcat):
                             state_keep_prob=self.keep_prob, variational_recurrent=True, input_size=input_size,
                             dtype=_dtype)
                         cells.append(cell_dropout)
-                    inputs, current_states = self.create_rnn_layer(cells=cells, inputs=inputs, sequence_length=length,
-                                                                   dtype=_dtype)
+                    inputs, current_states = self.create_rnn_layer(cells=cells, inputs=inputs,
+                                                                   sequence_length=actual_length, dtype=_dtype)
                     states.extend(current_states)
                 i += 1
 
