@@ -1188,6 +1188,25 @@ class TreeEmbedding_FLATconcat_BIGRU0(TreeEmbedding_FLATconcat_BIGRU):
         TreeEmbedding_FLATconcat_BIGRU.__init__(self, name=name or 'BIGRU0', use_summed_outputs=False, **kwargs)
 
 
+# should be equivalent to FLAT_SUM if merge_factor == 1
+class TreeEmbedding_FLATconcat_SUM(TreeEmbedding_FLATconcat):
+    def __init__(self, name=None, **kwargs):
+        TreeEmbedding_FLATconcat.__init__(self, name=name or 'SUM', **kwargs)
+
+    def reduce_flat(self, embeddings, actual_length):
+        return tf.reduce_sum(embeddings, axis=1)
+
+
+class TreeEmbedding_FLATconcat_AVG(TreeEmbedding_FLATconcat):
+    def __init__(self, name=None, **kwargs):
+        TreeEmbedding_FLATconcat.__init__(self, name=name or 'AVG', **kwargs)
+
+    def reduce_flat(self, embeddings, actual_length):
+        embedded_size = int(embeddings.get_shape().as_list()[-1])
+        length_tiled = tf.tile(tf.expand_dims(actual_length, 1), multiples=(1, embedded_size))
+        return tf.reduce_sum(embeddings, axis=1) / length_tiled
+
+
 ########################################################################################################################
 
 
