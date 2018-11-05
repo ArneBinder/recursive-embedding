@@ -92,7 +92,7 @@ def load_and_merge_scores(out, fn='scores.tsv', *paths):
         stats[run_desc].update(new_entries)
 
     fieldnames = sorted(list(set([item for sublist in stats.values() for item in sublist])))
-    score_fields = move_to_front([f for f in fieldnames if f.endswith('_mean') or f.endswith('_std')], ['steps_train_std', 'steps_train_mean', 'time_s_mean', 'time_s_std'])
+    score_fields = move_to_front([f for f in fieldnames if f.endswith('_mean') or f.endswith('_std')], ['steps_train_mean', 'steps_train_std', 'time_s_mean', 'time_s_std'])
     other_fields = [f for f in fieldnames if not (f.endswith('_mean') or f.endswith('_std'))]
     fieldnames = move_to_front(score_fields + other_fields, ['te', 'sp'])
     with open('%s.merged.tsv' % out, 'w') as f:
