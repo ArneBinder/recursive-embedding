@@ -39,6 +39,10 @@ def stddev(data, ddof=0):
     return pvar**0.5
 
 
+def move_to_front(l, entries):
+    return entries + [e for e in l if e not in entries]
+
+
 @plac.annotations(
     out=('output file name', 'option', 'o', str),
     fn=('input file name', 'option', 'f', str),
@@ -88,6 +92,9 @@ def load_and_merge_scores(out, fn='scores.tsv', *paths):
         stats[run_desc].update(new_entries)
 
     fieldnames = sorted(list(set([item for sublist in stats.values() for item in sublist])))
+    score_fields = move_to_front([f for f in fieldnames if f.endswith('_mean') or f.endswith('_std')], ['steps_train_std', 'steps_train_mean', 'time_s_mean', 'time_s_std'])
+    other_fields = [f for f in fieldnames if not (f.endswith('_mean') or f.endswith('_std'))]
+    fieldnames = move_to_front(score_fields + other_fields, ['sp', 'te'])
     with open('%s.merged.tsv' % out, 'w') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='\t')
         writer.writeheader()
