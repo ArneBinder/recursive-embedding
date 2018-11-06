@@ -822,7 +822,8 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name=name, **kwargs)
-        self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
+        #self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
+        self._fc = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
 
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
@@ -831,10 +832,11 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
         #print('trees_children: %s' % str(trees_children.output_type))
         dummy_head = td.Zeros(output_type=_htu_model.output_type)
-        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1)
+        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1) >> self._fc
         #print('reduced_children: %s' % str(reduced_children.output_type))
         #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
-        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc >> self._fc)
+        #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc >> self._fc)
+        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc)
         #print('heads_embedded: %s' % str(heads_embedded.output_type))
         #model = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
 
