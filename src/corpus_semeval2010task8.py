@@ -212,9 +212,10 @@ def extract_relation_subtree(forest):
     out_path=('corpora output folder', 'option', 'o', str),
     sentence_processor=('sentence processor', 'option', 'p', str),
     n_threads=('number of threads for replacement operations', 'option', 't', int),
-    parser_batch_size=('parser batch size', 'option', 'b', int)
+    parser_batch_size=('parser batch size', 'option', 'b', int),
+    unused='not used parameters'
 )
-def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_size=1000):
+def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_size=1000, *unused):
     if sentence_processor is not None and sentence_processor.strip() != '':
         _sentence_processor = getattr(preprocessing, sentence_processor.strip())
     else:
@@ -246,7 +247,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -264,6 +265,11 @@ def main(mode, *args):
                        class_strings=relation_strings)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
+    elif mode == 'ALL':
+        plac.call(main, ('PARSE',) + args)
+        plac.call(main, ('MERGE',) + args)
+        plac.call(main, ('CREATE_INDICES', '--end-root', '2717', '--split-count', '1', '--suffix', 'test') + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '2717', '--split-count', '4', '--suffix', 'train') + args)
     else:
         raise ValueError('unknown mode')
 
