@@ -837,7 +837,7 @@ class Lexicon(object):
         if idx_trans is not None:
             if revert:
                 idx_trans += len(self)
-            return -idx_trans
+            return -idx_trans - 1
         idx_trans = self.ids_var_dict.get(idx, None)
         if idx_trans is not None:
             if revert:
@@ -866,7 +866,7 @@ class Lexicon(object):
         :return: the lexicon index, True iff idx was reverted else False
         """
         if idx < 0:
-            idx = -idx
+            idx = -idx - 1
             reverted = (idx // len(self) == 1)
             idx = idx % len(self)
             return self.ids_fixed[idx], reverted

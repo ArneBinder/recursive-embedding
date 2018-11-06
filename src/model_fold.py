@@ -275,21 +275,21 @@ class TreeEmbedding(object):
     def embed(self):
         # get the head embedding from id
         #if self._lex_size_fix > 0 and self._lex_size_var > 0:
-        return td.OneOf(key_fn=(lambda x: (x >= 0, abs(x) // (self._lex_size_fix + self._lex_size_var))),
+        return td.OneOf(key_fn=(lambda x: (x >= 0, (-x-1 if x < 0 else x) // (self._lex_size_fix + self._lex_size_var))),
                         case_blocks={
                             # trainable embedding
                             (True, 0):  td.Scalar(dtype='int32')
                                         >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size))),
                             # fixed embedding
                             (False, 0): td.Scalar(dtype='int32')
-                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x), self.lexicon_size))),
+                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x) - 1, self.lexicon_size))),
                             # trainable embedding for "reverted" edge
                             (True, 1):  td.Scalar(dtype='int32')
                                         >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size)))
                                         >> self._reverse_fc,
                             # fixed embedding for "reverted" edge
                             (False, 1): td.Scalar(dtype='int32')
-                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x), self.lexicon_size)))
+                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x) - 1, self.lexicon_size)))
                                         >> self._reverse_fc,
                         })
 
