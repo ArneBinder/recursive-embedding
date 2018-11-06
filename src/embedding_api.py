@@ -36,7 +36,7 @@ from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_HASH, DTYPE_IDX, DTYPE_O
 import data_iterators
 from data_iterators import OFFSET_CONTEXT_ROOT
 import data_iterators as diter
-from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor
+from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor, init_model_type
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -1132,12 +1132,18 @@ def main(data_source):
                 logging.debug('trainable lexicon entries: %i' % lexicon.len_var)
                 logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
-                #assert model_config.model_type == 'tuple', 'only model_type=tuple implemented'
-                #model_tree, model_tuple, prepared_embeddings, tree_indices = create_models(
                 model_config.keep_prob = 1.0
+                model_config.neg_samples = 0
+
+                tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(model_config)
                 model_tree, model_main, prepared_embeddings, compiled_trees = create_models(
-                    config=model_config, lexicon=lexicon, tree_count=1, tree_iterators={},
-                    use_inception_tree_model=True)
+                    config=model_config, lexicon=lexicon,
+                    tree_iterators={},
+                    tree_iterators_tfidf={},
+                    indices={},
+                    precompile=False,
+                    model_kwargs=model_kwargs
+                )
 
                 if model_config.tree_embedder == 'tfidf':
                     raise NotImplementedError('tfidf model not implemented for embedding_api')
