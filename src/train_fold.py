@@ -248,7 +248,7 @@ class PutList(list):
 
 def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices_targets=None,
              tree_iter=None, dataset_trees=None, dataset_embeddings=None,
-             train=True, emit=True, test_step=0, test_writer=None, test_result_writer=None,
+             train=True, emit=True, test_writer=None, test_result_writer=None,
              highest_sims_model=None, number_of_samples=None, return_values=True, debug=False):
     """
     Execute one training or testing epoch. Use precompield trees or prepared embeddings, if available. Otherwise,
@@ -281,9 +281,9 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
     #np.random.shuffle(dataset_indices)
     logger.debug('reset metrics...')
     sess.run(model.reset_metrics)
-    step = test_step
+    #step = test_step
     feed_dict = {}
-    execute_vars = {'loss': model.loss, 'update_metrics': model.update_metrics}
+    execute_vars = {'loss': model.loss, 'update_metrics': model.update_metrics, 'step': model.global_step}
     if return_values:
         execute_vars['values'] = model.values_predicted
         execute_vars['values_gold'] = model.values_gold
@@ -292,7 +292,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
         assert test_writer is None, 'test_writer should be None for training'
         assert test_result_writer is None, 'test_result_writer should be None for training'
         execute_vars['train_op'] = model.train_op
-        execute_vars['step'] = model.global_step
+        #execute_vars['step'] = model.global_step
     else:
         assert test_writer is not None, 'test_writer should not be None for testing'
         assert test_result_writer is not None, 'test_result_writer not should be None for testing'
@@ -369,8 +369,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
         result_all = {k: [] for k in execute_vars.keys()}
 
     # if train, set step to last executed step
-    if train and len(_result_all) > 0:
-        step = result_all['step'][-1]
+    #if train and len(_result_all) > 0:
+    step = result_all['step'][-1]
 
     if return_values:
         sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
@@ -391,7 +391,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
     metrics_dict = collect_metrics(supervisor, sess, epoch, step, loss_all, values_all_, values_all_gold_,
                                    model=model, emit=emit,
                                    test_writer=test_writer, test_result_writer=test_result_writer)
-    return step, loss_all, values_all_, values_all_gold_, metrics_dict
+    metrics_dict['step'] = step
+    return loss_all, values_all_, values_all_gold_, metrics_dict
 
 
 def checkpoint_path(logdir, step):
@@ -1136,7 +1137,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
         # do initial test epoch
         if M_TEST in meta:
             #if not loaded_from_checkpoint or M_TRAIN not in meta:
-            _, _, values_all, values_all_gold, stats_dict = do_epoch(
+            _, values_all, values_all_gold, stats_dict = do_epoch(
                 supervisor,
                 sess=sess,
                 model=meta[M_TEST][M_MODEL],
@@ -1225,7 +1226,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 meta[M_TRAIN][M_INDICES], meta[M_TRAIN][M_TREES] = train_tree_queue.get()
                 train_tree_queue.task_done()
 
-            step_train, loss_train, _, _, stats_train = do_epoch(
+            loss_train, _, _, stats_train = do_epoch(
                 supervisor, sess,
                 model=meta[M_TRAIN][M_MODEL],
                 dataset_trees=meta[M_TRAIN][M_TREES] if M_TREES in meta[M_TRAIN] else None,
@@ -1249,7 +1250,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             # TEST
 
             if M_TEST in meta:
-                step_test, loss_test, _, _, stats_test = do_epoch(
+                loss_test, _, _, stats_test = do_epoch(
                     supervisor, sess,
                     model=meta[M_TEST][M_MODEL],
                     dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
@@ -1259,7 +1260,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
                     epoch=epoch,
                     train=False,
-                    test_step=step_train,
                     test_writer=test_writer,
                     test_result_writer=test_result_writer,
                     highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
@@ -1269,8 +1269,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     #work_forests=work_forests
                 )
             else:
-                step_test, loss_test, stats_test = step_train, loss_train, stats_train
-            stats_test['steps'] = step_test
+                loss_test, stats_test = loss_train, stats_train
+            step_test = stats_test['step']
 
             # EARLY STOPPING ###############################################################################
 
@@ -1299,7 +1299,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 % (metric, len(stat_queue), rank, (stat - prev_max), max_queue_length))
 
             if len(stat_queue) == 1 or not config.early_stopping_window or epoch == 0:
-                supervisor.saver.save(sess, checkpoint_path(logdir, step_train))
+                supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
             if 0 < config.early_stopping_window < len(stat_queue):
                 #logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
@@ -1778,7 +1778,7 @@ if __name__ == '__main__':
                                                              load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
                                                              precompile=FLAGS.precompile,
                                                              debug=FLAGS.debug)
-                        d['steps_train'] = metrics_dev['steps']
+                        d['steps_train'] = metrics_dev['step']
                         d['time_s'] = (datetime.now() - t_start).total_seconds()
                         metrics, metric_main = get_metrics_and_main_metric(metrics_dev, metric_main=FLAGS.early_stopping_metric)
                         metric_main_value = metrics_dev[metric_main]
