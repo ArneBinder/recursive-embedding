@@ -72,6 +72,7 @@ services:
     mem_limit: ${MEM_LIMIT}
 
 #  tensorboard:
+#    network_mode: "bridge"
 #    image: tensorflow/tensorflow:1.4.1
 #    volumes:
 #      - ${HOST_TRAIN}:/root/train
