@@ -6,7 +6,7 @@ import plac
 import numpy as np
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY, \
-    TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID
+    TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
@@ -156,18 +156,13 @@ def read_file(file_name, annotations):
 
     logger.info('read %i records from %s' % (n, file_name))
 
-
-def extract_relation_subtree(forest):
-
+def iterate_relation_trees(forest):
     e1_hash = forest.lexicon.get_d(s=TYPE_E1, data_as_hashes=True)
     e2_hash = forest.lexicon.get_d(s=TYPE_E2, data_as_hashes=True)
     nlp_root_hash = forest.lexicon.get_d(s=TYPE_PARAGRAPH, data_as_hashes=True)
     e1_indices = np.argwhere(forest.data == e1_hash).flatten()
     e2_indices = np.argwhere(forest.data == e2_hash).flatten()
     nlp_root_indices = np.argwhere(forest.data == nlp_root_hash).flatten()
-
-    new_data = []
-    new_parents = []
 
     assert len(e1_indices) == len(e2_indices) == len(nlp_root_indices), \
         'number of indices does not match: len(e1_indices)=%s, len(e2_indices)=%i, len(nlp_root_indices)=%i' \
@@ -176,7 +171,6 @@ def extract_relation_subtree(forest):
         try:
             nlp_root_data = forest.data[nlp_root]
             nlp_root_parent = forest.parents[nlp_root]
-            current_tree = forest.get_slice(root=forest.roots[i], root_exclude=nlp_root)
 
             p1 = forest.get_path_indices(e1_indices[i], nlp_root)
             p2 = forest.get_path_indices(e2_indices[i], nlp_root)
@@ -188,19 +182,51 @@ def extract_relation_subtree(forest):
                     break
 
             root_common = p1[-j]
-
-            subtree = forest.get_slice(root=root_common)
-
-            subtree_root = subtree.roots[0]
-            subtree.parents[subtree_root] = -(subtree_root + 1)
-
-            new_data.extend([current_tree.data, [nlp_root_data], subtree.data])
-            new_parents.extend([current_tree.parents, [nlp_root_parent], subtree.parents])
+            yield nlp_root, nlp_root_data, nlp_root_parent, root_common
 
         except AssertionError as e:
             logger.error('failed to adjust tree with ID: %s'
-                         % forest.lexicon.get_s(forest.data[forest.roots[i] + OFFSET_ID], data_as_hashes=forest.data_as_hashes))
+                         % forest.lexicon.get_s(forest.data[forest.roots[i] + OFFSET_ID],
+                                                data_as_hashes=forest.data_as_hashes))
             raise e
+
+
+def move_relation_annotation_to_annotation_subtree(forest):
+
+    new_data = []
+    new_parents = []
+
+    for i, (nlp_root, nlp_root_data, nlp_root_parent, root_common) in enumerate(iterate_relation_trees(forest)):
+        relation_root = forest.roots[i] + OFFSET_RELATION_ROOT
+        relation_data = forest.data[relation_root + 1]
+        subtree = forest.get_slice(root=forest.roots[i], root_exclude=relation_root)
+        tree_size = (forest.roots[i+1] if i+1 < len(forest.roots) else len(forest)) - forest.roots[i]
+        root_common_offset = forest.roots[i] + tree_size - root_common
+        new_data.extend([subtree.data, [relation_data]])
+        new_parents.extend([subtree.parents, [-root_common_offset]])
+
+    new_forest = Forest(data=np.concatenate(new_data), parents=np.concatenate(new_parents),
+                        data_as_hashes=forest.data_as_hashes, lexicon=forest.lexicon,
+                        lexicon_roots=forest.lexicon_roots)
+
+    return new_forest
+
+
+def extract_relation_subtree(forest):
+
+    new_data = []
+    new_parents = []
+
+    for i, (nlp_root, nlp_root_data, nlp_root_parent, root_common) in enumerate(iterate_relation_trees(forest)):
+        current_tree = forest.get_slice(root=forest.roots[i], root_exclude=nlp_root)
+        subtree = forest.get_slice(root=root_common)
+
+        subtree_root = subtree.roots[0]
+        subtree.parents[subtree_root] = -(subtree_root + 1)
+
+        new_data.extend([current_tree.data, [nlp_root_data], subtree.data])
+        new_parents.extend([current_tree.parents, [nlp_root_parent], subtree.parents])
+
     new_forest = Forest(data=np.concatenate(new_data), parents=np.concatenate(new_parents),
                         data_as_hashes=forest.data_as_hashes, lexicon=forest.lexicon, lexicon_roots=forest.lexicon_roots)
 
@@ -242,7 +268,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         make_parent_dir(out_base_name)
         process_records(records=read_file(os.path.join(in_path, fn), annots), out_base_name=out_base_name,
                         record_reader=reader, parser=parser, sentence_processor=_sentence_processor, concat_mode=None,
-                        n_threads=n_threads, batch_size=parser_batch_size, adjust_forest_func=extract_relation_subtree)
+                        n_threads=n_threads, batch_size=parser_batch_size, adjust_forest_func=move_relation_annotation_to_annotation_subtree)#adjust_forest_func=extract_relation_subtree)
         logger.info('done.')
 
 
