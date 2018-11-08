@@ -1349,7 +1349,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=load_embeddings or logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
         var_vecs_zero=config.var_vecs_zero, var_vecs_random=config.var_vecs_random,
-        additional_vecs_path=config.additional_vecs)
+        additional_vecs_path=config.additional_vecs, dont_dump=test_only)
     # use previous tree model config values
     #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
     #if prev_config is not None and config.model_type != prev_config.model_type:
@@ -1575,9 +1575,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             if fine_tune:
                 logger.info('restore from old_checkpoint (except lexicon, step and optimizer vars): %s ...'
                             % checkpoint_fn)
-                optimizer_vars = meta[M_TRAIN][M_MODEL].optimizer_vars() + [meta[M_TRAIN][M_MODEL].global_step] \
-                                 + ((meta[M_TEST][M_MODEL].optimizer_vars() + [
-                    meta[M_TEST][M_MODEL].global_step]) if M_TEST in meta and meta[M_TEST][M_MODEL] != meta[M_TRAIN][M_MODEL] else [])
+
+                optimizer_vars = []
+                for m in meta:
+                    optimizer_vars.extend(meta[m][M_MODEL].optimizer_vars())
+                    optimizer_vars.extend([meta[m][M_MODEL].global_step])
+                optimizer_vars = list(set(optimizer_vars))
 
                 lexicon_vars = [v for v in set(model_fold.get_lexicon_vars()) if v not in optimizer_vars]
                 tree_embedder_vars = [v for v in set(model_fold.get_tree_embedder_vars()) if v not in optimizer_vars]
