@@ -50,7 +50,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, OFFSET_MESH_ROOT, \
     MT_TUPLE_CONTINOUES, TYPE_ENTAILMENT, TYPE_POLARITY, TASK_MESH_PREDICTION, TASK_ENTAILMENT_PREDICTION, TYPE_MESH, \
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
-    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION
+    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -595,6 +595,16 @@ def init_model_type(config):
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_reroot
         load_parents = True
+
+        # if task is not None or empty
+        if config.task and config.task.strip():
+            classes_ids_list = []
+            for c in config.task.split(','):
+                type_class = TYPE_FOR_TASK[c.strip()]
+                classes_ids = load_class_ids(config.train_data_path, prefix_type=type_class)
+                classes_ids_list.append(classes_ids)
+            tree_iterator_args['classes_ids'] = classes_ids_list
+
     # discrete classification
     elif config.model_type == MT_MULTICLASS:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -607,24 +617,21 @@ def init_model_type(config):
 
         # MESH prediction
         if config.task == TASK_MESH_PREDICTION:
-            type_class = TYPE_MESH
             model_kwargs['exclusive_classes'] = False
         # IMDB SENTIMENT prediction
         elif config.task == TASK_SENTIMENT_PREDICTION:
-            type_class = TYPE_POLARITY
             model_kwargs['exclusive_classes'] = False
         # SICK ENTAILMENT prediction
         elif config.task == TASK_ENTAILMENT_PREDICTION:
-            type_class = TYPE_ENTAILMENT
             model_kwargs['exclusive_classes'] = True
             model_kwargs['nbr_embeddings_in'] = 2
             other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
         # SEMEVAL2010TASK8 RELATION prediction
         elif config.task == TASK_RELATION_EXTRACTION:
-            type_class = TYPE_RELATION
             model_kwargs['exclusive_classes'] = True
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
+        type_class = TYPE_FOR_TASK[config.task]
         classes_ids = load_class_ids(config.train_data_path, prefix_type=type_class)
         model_kwargs['nbr_classes'] = len(classes_ids)
         classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
@@ -958,8 +965,9 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
 
         # nbr_trees_out has to be defined for the reroot model because TreeEmbedding_HTUBatchedHead generates a
         # sequence of trees with unspecified length
+        neg_samples = int('0' + config.neg_samples)
         if config.model_type == MT_CANDIDATES:
-            nbr_trees_out = config.neg_samples + 1
+            nbr_trees_out = neg_samples + 1
         else:
             nbr_trees_out = None
 
@@ -1011,7 +1019,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
     # dbpedianif
     if config.model_type == MT_CANDIDATES_W_REF:
         model = model_fold.TreeTupleModel_with_candidates(tree_model=inception_tree_model,
-                                                          nbr_embeddings_in=config.neg_samples + 2,
+                                                          nbr_embeddings_in=neg_samples + 2,
                                                           fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                           optimizer=optimizer,
                                                           learning_rate=config.learning_rate,
@@ -1022,7 +1030,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
     # reroot
     elif config.model_type == MT_CANDIDATES:
         model = model_fold.TreeSingleModel_with_candidates(tree_model=inception_tree_model,
-                                                           nbr_embeddings_in=config.neg_samples + 1,
+                                                           nbr_embeddings_in=neg_samples + 1,
                                                            fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                                            optimizer=optimizer,
                                                            learning_rate=config.learning_rate,
@@ -1113,7 +1121,7 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
 
 
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                    test_result_writer, logdir, cache=None, debug=False, clean_train_trees=False):
+                    test_result_writer, logdir, neg_samples, cache=None, debug=False, clean_train_trees=False):
     with supervisor.managed_session() as sess:
         if lexicon.is_filled:
             logger.info('init embeddings with external vectors...')
@@ -1150,7 +1158,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 emit=not loaded_from_checkpoint,
                 test_writer=test_writer,
                 test_result_writer=test_result_writer,
-                number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                number_of_samples=neg_samples,
                 # number_of_samples=None,
                 #highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                 batch_iter=meta[M_TEST][M_BATCH_ITER],
@@ -1191,7 +1199,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
         logger.info('use %s as metric for early stopping with window size %i' % (metric, config.early_stopping_window))
 
         # init recompile for reroot model
-        if config.model_type == MT_CANDIDATES:
+        if config.model_type == MT_CANDIDATES and M_INDICES_SAMPLER in meta[M_TRAIN]:
             # only one queue element is necessary
             train_tree_queue = Queue.Queue(1)
             if M_TREES in meta[M_TRAIN] and meta[M_TRAIN][M_TREES] is not None \
@@ -1235,7 +1243,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 tree_iter=meta[M_TRAIN][M_TREE_ITER],
                 indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
                 epoch=epoch,
-                number_of_samples=meta[M_TRAIN][M_NEG_SAMPLES],
+                number_of_samples=neg_samples,
                 #highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
                 batch_iter=meta[M_TRAIN][M_BATCH_ITER],
                 return_values=False,
@@ -1257,7 +1265,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     dataset_embeddings=meta[M_TEST][M_EMBEDDINGS],
                     forest_indices=meta[M_TEST][M_INDICES],
                     indices_targets=meta[M_TEST][M_INDICES_TARGETS],
-                    number_of_samples=meta[M_TEST][M_NEG_SAMPLES],
+                    number_of_samples=neg_samples,
                     epoch=epoch,
                     train=False,
                     test_writer=test_writer,
@@ -1434,10 +1442,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     # set batch iterators and numbers of negative samples
     if M_TEST in meta:
         meta[M_TEST][M_BATCH_ITER] = config.batch_iter
-        meta[M_TEST][M_NEG_SAMPLES] = config.neg_samples
     if M_TRAIN in meta:
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
-        meta[M_TRAIN][M_NEG_SAMPLES] = config.neg_samples
 
     # set tree iterator
     for m in meta:
@@ -1449,30 +1455,60 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
 
             root_indices = meta[m][M_INDICES]
             # create a mapping to all data that will be used in training
-            indices_mapping = np.concatenate([np.arange(forest.roots[root_idx],
+            indices_mapping_full_trees = np.concatenate([np.arange(forest.roots[root_idx],
                                                         forest.roots[root_idx + 1] if root_idx + 1 < len(
                                                             forest.roots) else len(forest)) for root_idx in
                                               root_indices])
+            classes_ids_list = tree_iterator_args.get('classes_ids', None)
+
+            indices_mapping_dict = {}
+            # filter indices_mapping by class ids
+            if classes_ids_list is not None:
+                indices_mapping_list = []
+                for cids in classes_ids_list:
+                    mask = np.isin(forest.data[indices_mapping_full_trees], cids)
+                    logger.debug('take %i indices from indices_mapping_all (len=%i)'
+                                 % (np.count_nonzero(mask), len(indices_mapping_full_trees)))
+                    #indices_mapping_list.append((cids, indices_mapping_full_trees[mask]))
+                    current_mapping = indices_mapping_full_trees[mask]
+                    indices_mapping_list.append(current_mapping)
+                    for cid in cids:
+                        indices_mapping_dict[cid] = (current_mapping, cids)
+                indices_mapping_all = np.sort(np.concatenate(indices_mapping_list))
+                if len(classes_ids_list) == 1:
+                    config.neg_samples = str(len(classes_ids_list[0]) - 1)
+                    logger.debug('set neg_samples = %s (nbr_of_classes -1) for exhaustive sampling' % config.neg_samples)
+            else:
+                #indices_mapping_list = [(None, indices_mapping_full_trees)]
+                indices_mapping_dict[None] = indices_mapping_full_trees
+                indices_mapping_all = indices_mapping_full_trees
+
+            #indices_mapping_all = np.sort(np.concatenate(map(lambda x: x[1], indices_mapping_list)))
+            nbr_indices = min(nbr_indices, len(indices_mapping_all))
 
             def _sample_indices():
-                logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping)))
+                logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping_all)))
                 if debug:
                     logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
-                    assert nbr_indices <= len(indices_mapping), 'nbr_indices (%i) is higher then selected data size (%i)' \
-                                                                % (nbr_indices, len(indices_mapping))
+                    assert nbr_indices <= len(indices_mapping_all), 'nbr_indices (%i) is higher then selected data size (%i)' \
+                                                                % (nbr_indices, len(indices_mapping_all))
                     _indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
                 else:
-                    _indices = np.random.randint(len(indices_mapping), size=nbr_indices)
-                return indices_mapping[_indices]
+                    _indices = np.random.randint(len(indices_mapping_all), size=nbr_indices)
+                return indices_mapping_all[_indices]
 
-            # overwrite root indices with index sampler
-            #meta[m][M_INDICES] = np.zeros(nbr_indices)
-            meta[m][M_INDICES_SAMPLER] = _sample_indices
+            # re-sample only if not exhaustive sampling
+            if nbr_indices != len(indices_mapping_all):
+                meta[m][M_INDICES_SAMPLER] = _sample_indices
+            else:
+                logger.debug(
+                    'disable re-sampling because all available indices (nbr: %i) are sampled at once' % nbr_indices)
             meta[m][M_INDICES] = _sample_indices()
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
-                                           neg_samples=meta[m][M_NEG_SAMPLES], #nbr_indices=nbr_indices,
-                                           indices_mapping=indices_mapping, **tree_iterator_args)
+                                           neg_samples=int('0' + config.neg_samples), #nbr_indices=nbr_indices,
+                                           indices_mappings=indices_mapping_dict,
+                                           **tree_iterator_args)
         else:
             #if precompile:
             meta[m][M_TREE_ITER] = partial(tree_iterator, forest=forest, **tree_iterator_args)
@@ -1585,7 +1621,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             #if precompile:
             #    work_forests = None
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                                  test_result_writer, logdir, cache, debug, clean_train_trees=not precompile)
+                                  test_result_writer, logdir, neg_samples=int('0' + config.neg_samples), cache=cache,
+                                  debug=debug, clean_train_trees=not precompile)
             logger.removeHandler(fh_info)
             logger.removeHandler(fh_debug)
             supervisor.stop()

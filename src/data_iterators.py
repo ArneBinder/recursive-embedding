@@ -460,22 +460,45 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #logger.debug('created %i trees' % n)
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, indices_mapping, indices, transform=True, debug=False, **kwargs):
+def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, transform=True, debug=False, **kwargs):
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
         #samples = np.random.choice(forest.data, size=neg_samples + 1)
-        # sample only from selected data
-        sample_indices = np.random.choice(indices_mapping, size=neg_samples + 1)
-        samples = forest.data[sample_indices]
-        # replace samples that equal the head/root
-        rep = np.random.randint(len(forest.lexicon) - 1)
-        if rep == tree[KEY_HEAD]:
-            rep = len(forest.lexicon) - 1
-        samples[samples == tree[KEY_HEAD]] = rep
-        # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
-        # replaced by IDENTITY in train_fold.execute_run.
-        samples[samples < 0] = d_target
+        head_transformed_back, was_reverted = forest.lexicon.transform_idx_back(tree[KEY_HEAD])
+        # get selected data
+        if None in indices_mappings:
+            indices_mapping = indices_mappings[None]
+            nbr_classes = len(forest.lexicon)
+            class_ids = None
+        else:
+            indices_mapping, class_ids = indices_mappings[head_transformed_back]
+            nbr_classes = len(class_ids)
+
+        # use all class_ids as samples (exhaustive sampling without repetitions), if its number matches neg_samples
+        if class_ids is not None and neg_samples + 1 == nbr_classes:
+            samples = class_ids.copy()
+            # swap head to front
+            samples[samples == head_transformed_back] = samples[0]
+        else:
+            # sample only from selected data
+            sample_indices = np.random.choice(indices_mapping, size=neg_samples + 1)
+            samples = forest.data[sample_indices]
+            # replace samples that equal the head/root: sample replacement element
+            rep = np.random.randint(nbr_classes - 1)
+            # map replacement element from class index to lexicon index, if class_ids are given
+            if class_ids is not None:
+                if class_ids[rep] == head_transformed_back:
+                    rep = class_ids[-1]
+            else:
+                # otherwise just use as index to lexicon
+                if rep == head_transformed_back:
+                    rep = nbr_classes - 1
+
+            samples[samples == head_transformed_back] = rep
+            # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
+            # replaced by IDENTITY in train_fold.execute_run.
+            samples[samples < 0] = d_target
 
         samples = forest.lexicon.transform_indices(samples)
         samples[0] = tree[KEY_HEAD]
