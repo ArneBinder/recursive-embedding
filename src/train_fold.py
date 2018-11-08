@@ -1450,6 +1450,19 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         logging.info('set %i indices to %s' % (np.count_nonzero(mask), vocab_manual[UNKNOWN_EMBEDDING]))
         forest.data[mask] = d_blanked
 
+    ## DEBUG
+    #ids_new = np.load('/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT/relation_toendsplit_ps1_TEST.bk/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtREROOT_ns8_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/values_max_indices.np')
+    #ids_gold = np.load('/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT/relation_toendsplit_ps1_TEST.bk/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtREROOT_ns8_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/values_gold_indices.np')
+    #pos_after = forest.roots[len(ids_new)]
+    #prefix = u'RELATION/TYPE'
+    #ids, id_strings = lexicon.get_ids_for_prefix(prefix)
+    #mask = np.isin(forest.data, ids)
+    #mask[pos_after:] = False
+    #print(np.count_nonzero(mask))
+    #assert np.array_equal(forest.data[mask], ids_gold), 'gold values do not match'
+    #forest.data[mask] = ids_new
+    #print('ids overwritten for prefix: %s' % prefix)
+
     # TODO: use this?
     #if config.model_type == MT_REROOT:
     #    logger.info('transform data ...')
