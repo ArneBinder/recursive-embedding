@@ -206,20 +206,20 @@ def move_relation_annotation_to_annotation_subtree(forest):
         # split into relation type and direction
         relation_str = forest.lexicon.get_s(relation_data, data_as_hashes=True)
         relation_str_split = relation_str[len(TYPE_RELATION + SEPARATOR):].split("(")
+        relation_str_type = TYPE_RELATION_TYPE + SEPARATOR + relation_str_split[0]
+        forest.lexicon.add(relation_str_type)
+        relation_data_type = forest.lexicon.get_d(relation_str_type, data_as_hashes=True)
+        data_append = [relation_data_type]
+        parents_append = [-root_common_offset]
+        # relation-type "other" has not direction
         if len(relation_str_split) > 1:
-            relation_str_type = TYPE_RELATION_TYPE + SEPARATOR + relation_str_split[0]
             relation_str_direction = TYPE_RELATION_DIRECTION + SEPARATOR + relation_str_split[1][:-1]
-            forest.lexicon.add(relation_str_type)
             forest.lexicon.add(relation_str_direction)
-            relation_data_type = forest.lexicon.get_d(relation_str_type, data_as_hashes=True)
             relation_data_direction = forest.lexicon.get_d(relation_str_direction, data_as_hashes=True)
-            data_append = np.array([relation_data_type, relation_data_direction], dtype=DTYPE_HASH)
-            parents_append = np.array([-root_common_offset, -1], dtype=DTYPE_OFFSET)
-        else:
-            data_append = [relation_data]
-            parents_append = [-root_common_offset]
-        new_data.extend([subtree.data, data_append])
-        new_parents.extend([subtree.parents, parents_append])
+            data_append.append(relation_data_direction)
+            parents_append.append(-1)
+        new_data.extend([subtree.data, np.array(data_append, dtype=DTYPE_HASH)])
+        new_parents.extend([subtree.parents, np.array(parents_append, dtype=DTYPE_OFFSET)])
 
     new_forest = Forest(data=np.concatenate(new_data), parents=np.concatenate(new_parents),
                         data_as_hashes=forest.data_as_hashes, lexicon=forest.lexicon,

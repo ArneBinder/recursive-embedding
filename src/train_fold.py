@@ -1477,7 +1477,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 indices_mapping_all = np.sort(np.concatenate(indices_mapping_list))
                 if len(classes_ids_list) == 1:
                     config.neg_samples = str(len(classes_ids_list[0]) - 1)
-                    logger.debug('set neg_samples = %s (nbr_of_classes -1) for exhaustive sampling' % config.neg_samples)
+                    logger.debug('set neg_samples = %s (== nbr_of_classes -1) for exhaustive sampling' % config.neg_samples)
             else:
                 #indices_mapping_list = [(None, indices_mapping_full_trees)]
                 indices_mapping_dict[None] = indices_mapping_full_trees
