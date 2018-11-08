@@ -1475,9 +1475,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                     for cid in cids:
                         indices_mapping_dict[cid] = (current_mapping, cids)
                 indices_mapping_all = np.sort(np.concatenate(indices_mapping_list))
-                if len(classes_ids_list) == 1:
-                    config.neg_samples = str(len(classes_ids_list[0]) - 1)
-                    logger.debug('set neg_samples = %s (== nbr_of_classes -1) for exhaustive sampling' % config.neg_samples)
+                config.neg_samples = str(max(map(len, classes_ids_list)) - 1)
+                #if len(classes_ids_list) == 1:
+                #    config.neg_samples = str(len(classes_ids_list[0]) - 1)
+                logger.debug('set neg_samples = %s (== max(nbr_of_classes -1) over all sets of classes) for exhaustive sampling'
+                             % config.neg_samples)
             else:
                 #indices_mapping_list = [(None, indices_mapping_full_trees)]
                 indices_mapping_dict[None] = indices_mapping_full_trees
@@ -1497,12 +1499,13 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                     _indices = np.random.randint(len(indices_mapping_all), size=nbr_indices)
                 return indices_mapping_all[_indices]
 
+            # TODO: check, why still enabled
             # re-sample only if not exhaustive sampling
             if nbr_indices != len(indices_mapping_all):
                 meta[m][M_INDICES_SAMPLER] = _sample_indices
             else:
                 logger.debug(
-                    'disable re-sampling because all available indices (nbr: %i) are sampled at once' % nbr_indices)
+                    '%s: disable re-sampling because all available indices (nbr: %i) are sampled at once' % (m, nbr_indices))
             meta[m][M_INDICES] = _sample_indices()
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
