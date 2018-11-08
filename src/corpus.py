@@ -45,7 +45,7 @@ logger.propagate = False
 
 
 def load_class_ids(dir_path, prefix_type):
-    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS[prefix_type], FE_CLASS_IDS)
+    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type.replace('/', '-')), FE_CLASS_IDS)
     logger.debug('load class ids for %s from: %s' % (prefix_type, fn))
     classes_ids = numpy_load(filename=fn)
     logger.info('number of classes for %s to predict: %s' % (prefix_type, len(classes_ids)))
@@ -54,11 +54,11 @@ def load_class_ids(dir_path, prefix_type):
 
 def save_class_ids(dir_path, prefix_type, classes_ids, class_strings=None):
     logger.info('number of classes for %s to predict: %i.' % (prefix_type, len(classes_ids)))
-    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type), FE_CLASS_IDS)
+    fn = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type.replace('/', '-')), FE_CLASS_IDS)
     logger.debug('save class ids for %s to: %s' % (prefix_type, fn))
     numpy_dump(filename=fn, ndarray=classes_ids)
     if class_strings is not None:
-        fn_strings = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type), FE_CLASS_STRINGS)
+        fn_strings = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type.replace('/', '-')), FE_CLASS_STRINGS)
         logger.debug('save class strings for %s to: %s' % (prefix_type, fn_strings))
         with open(fn_strings, 'w') as f:
             f.writelines(map(lambda s: s+'\n', class_strings))

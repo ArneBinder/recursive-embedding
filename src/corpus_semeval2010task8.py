@@ -6,7 +6,8 @@ import plac
 import numpy as np
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY, \
-    TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT
+    TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_HASH, \
+    TYPE_RELATION_TYPE, TYPE_RELATION_DIRECTION
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
@@ -202,8 +203,23 @@ def move_relation_annotation_to_annotation_subtree(forest):
         subtree = forest.get_slice(root=forest.roots[i], root_exclude=relation_root)
         tree_size = (forest.roots[i+1] if i+1 < len(forest.roots) else len(forest)) - forest.roots[i]
         root_common_offset = forest.roots[i] + tree_size - root_common
-        new_data.extend([subtree.data, [relation_data]])
-        new_parents.extend([subtree.parents, [-root_common_offset]])
+        # split into relation type and direction
+        relation_str = forest.lexicon.get_s(relation_data, data_as_hashes=True)
+        relation_str_split = relation_str[len(TYPE_RELATION + SEPARATOR):].split("(")
+        if len(relation_str_split) > 1:
+            relation_str_type = TYPE_RELATION_TYPE + SEPARATOR + relation_str_split[0]
+            relation_str_direction = TYPE_RELATION_DIRECTION + SEPARATOR + relation_str_split[1][:-1]
+            forest.lexicon.add(relation_str_type)
+            forest.lexicon.add(relation_str_direction)
+            relation_data_type = forest.lexicon.get_d(relation_str_type, data_as_hashes=True)
+            relation_data_direction = forest.lexicon.get_d(relation_str_direction, data_as_hashes=True)
+            data_append = np.array([relation_data_type, relation_data_direction], dtype=DTYPE_HASH)
+            parents_append = np.array([-root_common_offset, -1], dtype=DTYPE_OFFSET)
+        else:
+            data_append = [relation_data]
+            parents_append = [-root_common_offset]
+        new_data.extend([subtree.data, data_append])
+        new_parents.extend([subtree.parents, parents_append])
 
     new_forest = Forest(data=np.concatenate(new_data), parents=np.concatenate(new_parents),
                         data_as_hashes=forest.data_as_hashes, lexicon=forest.lexicon,
@@ -284,10 +300,12 @@ def main(mode, *args):
         plac.call(parse, args)
     elif mode == 'MERGE':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
-        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION)
-        #logger.info('number of entailment types to predict: %i.' % len(entailment_ids))
-        #numpy_dump(filename='%s.%s.%s' % (out_path_merged, TYPE_ENTAILMENT, FE_CLASS_IDS), ndarray=entailment_ids)
-        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids,
+        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_TYPE)
+        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_TYPE, classes_ids=relation_ids,
+                       class_strings=relation_strings)
+
+        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_DIRECTION)
+        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_DIRECTION, classes_ids=relation_ids,
                        class_strings=relation_strings)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)

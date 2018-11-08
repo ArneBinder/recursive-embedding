@@ -600,8 +600,8 @@ def init_model_type(config):
         if config.task and config.task.strip():
             classes_ids_list = []
             for c in config.task.split(','):
-                type_class = TYPE_FOR_TASK[c.strip()]
-                classes_ids = load_class_ids(config.train_data_path, prefix_type=type_class)
+                #type_class = TYPE_FOR_TASK[c.strip()]
+                classes_ids = load_class_ids(config.train_data_path, prefix_type=c.strip())
                 classes_ids_list.append(classes_ids)
             tree_iterator_args['classes_ids'] = classes_ids_list
 
