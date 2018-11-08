@@ -836,7 +836,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         #print('reduced_children: %s' % str(reduced_children.output_type))
         #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
         #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc >> self._fc)
-        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc)
+        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(td.AllOf(self.embed() >> self.leaf_fc, td.InputTransform(lambda x: [x]) >> td.Vector(size=1)) >> td.Concat())
         #print('heads_embedded: %s' % str(heads_embedded.output_type))
         #model = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
 
@@ -850,7 +850,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     @property
     def output_size(self):
-        return self._fc.output_size * 2
+        return self._fc.output_size * 2 + 1
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
@@ -1590,7 +1590,9 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         self._nbr_embeddings_in = nbr_embeddings_in
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
                                      shape=[-1, self.nbr_embeddings_in, tree_model.tree_output_size])
-        final_vecs = self._final_vecs(tree_embeddings, tree_model.tree_output_size)
+        # last entry of every embedding contains the candidate id (see TreeEmbedding_HTUBatchedHead)
+        self._candidate_indices = tf.reshape(tree_embeddings[:,:,-1], shape=[-1, self.nbr_embeddings_in])
+        final_vecs = self._final_vecs(tree_embeddings[:,:,:-1], tree_model.tree_output_size - 1)
 
         if not isinstance(fc_sizes, (list, tuple)):
             fc_sizes = [fc_sizes]
@@ -1680,6 +1682,10 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
     @property
     def candidate_count(self):
         raise NotImplementedError('Implement this method')
+
+    @property
+    def candidate_indices(self):
+        return self._candidate_indices
 
 
 class TreeTupleModel_with_candidates(TreeScoringModel_with_candidates):

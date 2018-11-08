@@ -288,6 +288,11 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
         execute_vars['values'] = model.values_predicted
         execute_vars['values_gold'] = model.values_gold
 
+    try:
+        execute_vars['candidate_indices'] = model.candidate_indices
+    except AttributeError:
+        pass
+
     if train:
         assert test_writer is None, 'test_writer should be None for training'
         assert test_result_writer is None, 'test_result_writer should be None for training'
@@ -372,6 +377,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
     #if train and len(_result_all) > 0:
     step = result_all['step'][-1]
 
+    candidate_indices_all = None
     if return_values:
         sizes = [len(result_all['values'][i]) for i in range(len(_result_all))]
         values_all_ = np.concatenate(result_all['values'])
@@ -379,7 +385,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
             values_all_gold_ = vstack((convert_sparse_tensor_to_sparse_matrix(sm) for sm in result_all['values_gold'])).toarray()
         else:
             values_all_gold_ = np.concatenate(result_all['values_gold'])
-
+        if 'candidate_indices' in result_all:
+            candidate_indices_all = np.concatenate(result_all['candidate_indices']).astype(dtype=DTYPE_IDX)
         # sum batch losses weighted by individual batch size (can vary at last batch)
         loss_all = sum([result_all['loss'][i] * sizes[i] for i in range(len(_result_all))])
         loss_all /= sum(sizes)
@@ -392,7 +399,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
                                    model=model, emit=emit,
                                    test_writer=test_writer, test_result_writer=test_result_writer)
     metrics_dict['step'] = step
-    return loss_all, values_all_, values_all_gold_, metrics_dict
+    return loss_all, values_all_, values_all_gold_, candidate_indices_all, metrics_dict
 
 
 def checkpoint_path(logdir, step):
@@ -917,6 +924,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
     if optimizer is not None:
         optimizer = getattr(tf.train, optimizer)
 
+    neg_samples = int('0' + config.neg_samples)
     compiled_trees = None
     prepared_embeddings = None
     prepared_embeddings_dim = -1
@@ -965,7 +973,6 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
 
         # nbr_trees_out has to be defined for the reroot model because TreeEmbedding_HTUBatchedHead generates a
         # sequence of trees with unspecified length
-        neg_samples = int('0' + config.neg_samples)
         if config.model_type == MT_CANDIDATES:
             nbr_trees_out = neg_samples + 1
         else:
@@ -1145,7 +1152,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
         # do initial test epoch
         if M_TEST in meta:
             #if not loaded_from_checkpoint or M_TRAIN not in meta:
-            _, values_all, values_all_gold, stats_dict = do_epoch(
+            _, values_all, values_all_gold, candidate_indices_all, stats_dict = do_epoch(
                 supervisor,
                 sess=sess,
                 model=meta[M_TEST][M_MODEL],
@@ -1173,6 +1180,25 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     values_all.dump(os.path.join(logdir, 'values_predicted.np'))
                     logger.info('dump values_gold...')
                     values_all_gold.dump(os.path.join(logdir, 'values_gold.np'))
+                    if candidate_indices_all is not None:
+                        rev_back = np.vectorize(lexicon.transform_idx_back)
+                        candidate_indices_all_transformed_back, _ = rev_back(candidate_indices_all)
+                        logger.info('dump candidate_indices...')
+                        candidate_indices_all_transformed_back.dump(os.path.join(logdir, 'values_candidate_indices.np'))
+
+                        # calc max ids
+                        ind = np.argmax(values_all, axis=1)
+                        v_i_max = candidate_indices_all_transformed_back[np.arange(candidate_indices_all_transformed_back.shape[0]), ind]
+                        v_i_gold = candidate_indices_all_transformed_back[:, 0]
+                        v_i_max.dump(os.path.join(logdir, 'values_max_indices.np'))
+                        v_i_gold.dump(os.path.join(logdir, 'values_gold_indices.np'))
+                        get_max_strings = np.vectorize(lambda d: lexicon.get_s(d=d, data_as_hashes=False))
+                        max_strings = get_max_strings(v_i_max)
+                        gold_strings = get_max_strings(v_i_gold)
+                        with open(os.path.join(logdir, 'values_max_strings.txt'), 'w') as f:
+                            f.writelines((s+'\n' for s in max_strings.tolist()))
+                        with open(os.path.join(logdir, 'values_gold_strings.txt'), 'w') as f:
+                            f.writelines((s+'\n' for s in gold_strings.tolist()))
                 #lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
                 return stats_dict
         else:
@@ -1234,7 +1260,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 meta[M_TRAIN][M_INDICES], meta[M_TRAIN][M_TREES] = train_tree_queue.get()
                 train_tree_queue.task_done()
 
-            loss_train, _, _, stats_train = do_epoch(
+            loss_train, _, _, _, stats_train = do_epoch(
                 supervisor, sess,
                 model=meta[M_TRAIN][M_MODEL],
                 dataset_trees=meta[M_TRAIN][M_TREES] if M_TREES in meta[M_TRAIN] else None,
@@ -1258,7 +1284,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             # TEST
 
             if M_TEST in meta:
-                loss_test, _, _, stats_test = do_epoch(
+                loss_test, _, _, _, stats_test = do_epoch(
                     supervisor, sess,
                     model=meta[M_TEST][M_MODEL],
                     dataset_trees=meta[M_TEST][M_TREES] if M_TREES in meta[M_TEST] else None,
@@ -1349,7 +1375,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=load_embeddings or logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
         var_vecs_zero=config.var_vecs_zero, var_vecs_random=config.var_vecs_random,
-        additional_vecs_path=config.additional_vecs, dont_dump=test_only)
+        additional_vecs_path=config.additional_vecs)
     # use previous tree model config values
     #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
     #if prev_config is not None and config.model_type != prev_config.model_type:
@@ -1494,7 +1520,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 nbr_indices = min(nbr_indices, len(indices_mapping_all))
             logger.info('%s: use %i indices per epoch (forest size: %i)' % (m, nbr_indices, len(forest)))
 
-            def _sample_indices():
+            def _sample_indices(shuffle=True):
                 logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping_all)))
                 if debug:
                     logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
@@ -1502,7 +1528,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                                                                 % (nbr_indices, len(indices_mapping_all))
                     _indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
                 else:
-                    _indices = np.random.randint(len(indices_mapping_all), size=nbr_indices)
+                    _indices = np.random.randint(len(indices_mapping_all), size=nbr_indices) if shuffle else np.arange(nbr_indices, dtype=DTYPE_IDX)
                 return indices_mapping_all[_indices]
 
             # re-sample only if not exhaustive sampling
@@ -1511,7 +1537,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             else:
                 logger.debug(
                     '%s: disable re-sampling because all available indices (nbr: %i) are sampled at once' % (m, nbr_indices))
-            meta[m][M_INDICES] = _sample_indices()
+            # dont shuffle TEST set
+            meta[m][M_INDICES] = _sample_indices(shuffle=(m != M_TEST))
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
                                            neg_samples=int('0' + config.neg_samples), #nbr_indices=nbr_indices,
