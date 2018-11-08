@@ -1134,7 +1134,7 @@ def main(data_source):
                 logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
                 model_config.keep_prob = 1.0
-                model_config.neg_samples = 0
+                model_config.neg_samples = "0"
 
                 tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(model_config)
                 model_tree, model_main, prepared_embeddings, compiled_trees = create_models(
