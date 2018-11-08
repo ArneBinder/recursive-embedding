@@ -1414,6 +1414,15 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     logger.debug('set ids to IDENTITY')
     d_identity = lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
     forest.data[forest.roots + OFFSET_ID] = d_identity
+    if config.blank and config.blank.strip():
+        logger.info('blank tokens with prefixes: %s' % config.blank)
+        d_blanked = lexicon.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+        mask = np.zeros_like(forest.data, dtype=bool)
+        for prefix in config.blank.strip().split(','):
+            ids, id_strings = lexicon.get_ids_for_prefix(prefix)
+            mask |= np.isin(forest.data, ids)
+        logging.info('set %i indices to %s' % (np.count_nonzero(mask), vocab_manual[UNKNOWN_EMBEDDING]))
+        forest.data[mask] = d_blanked
 
     # TODO: use this?
     #if config.model_type == MT_REROOT:
