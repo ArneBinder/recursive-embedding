@@ -1448,11 +1448,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     # set tree iterator
     for m in meta:
         if config.model_type == MT_CANDIDATES:
-            nbr_indices = config.nbr_trees or 1000
-            if m == M_TEST and config.nbr_trees_test:
-                nbr_indices = config.nbr_trees_test
-            logger.info('%s: use %i indices per epoch (forest size: %i)' % (m, nbr_indices, len(forest)))
-
             root_indices = meta[m][M_INDICES]
             # create a mapping to all data that will be used in training
             indices_mapping_full_trees = np.concatenate([np.arange(forest.roots[root_idx],
@@ -1469,24 +1464,26 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                     mask = np.isin(forest.data[indices_mapping_full_trees], cids)
                     logger.debug('take %i indices from indices_mapping_all (len=%i)'
                                  % (np.count_nonzero(mask), len(indices_mapping_full_trees)))
-                    #indices_mapping_list.append((cids, indices_mapping_full_trees[mask]))
                     current_mapping = indices_mapping_full_trees[mask]
                     indices_mapping_list.append(current_mapping)
                     for cid in cids:
                         indices_mapping_dict[cid] = (current_mapping, cids)
                 indices_mapping_all = np.sort(np.concatenate(indices_mapping_list))
                 config.neg_samples = str(max(map(len, classes_ids_list)) - 1)
-                #if len(classes_ids_list) == 1:
-                #    config.neg_samples = str(len(classes_ids_list[0]) - 1)
                 logger.debug('set neg_samples = %s (== max(nbr_of_classes -1) over all sets of classes) for exhaustive sampling'
                              % config.neg_samples)
             else:
-                #indices_mapping_list = [(None, indices_mapping_full_trees)]
                 indices_mapping_dict[None] = indices_mapping_full_trees
                 indices_mapping_all = indices_mapping_full_trees
 
-            #indices_mapping_all = np.sort(np.concatenate(map(lambda x: x[1], indices_mapping_list)))
-            nbr_indices = min(nbr_indices, len(indices_mapping_all))
+            nbr_indices = int(config.nbr_trees or 0)
+            if m == M_TEST and config.nbr_trees_test:
+                nbr_indices = int(config.nbr_trees_test or 0)
+            if nbr_indices <= 0:
+                nbr_indices = len(indices_mapping_all)
+            else:
+                nbr_indices = min(nbr_indices, len(indices_mapping_all))
+            logger.info('%s: use %i indices per epoch (forest size: %i)' % (m, nbr_indices, len(forest)))
 
             def _sample_indices():
                 logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping_all)))
@@ -1499,7 +1496,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                     _indices = np.random.randint(len(indices_mapping_all), size=nbr_indices)
                 return indices_mapping_all[_indices]
 
-            # TODO: check, why still enabled
             # re-sample only if not exhaustive sampling
             if nbr_indices != len(indices_mapping_all):
                 meta[m][M_INDICES_SAMPLER] = _sample_indices
