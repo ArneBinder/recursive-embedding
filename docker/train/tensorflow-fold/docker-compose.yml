@@ -47,6 +47,7 @@ services:
         --neg_samples=${NEG_SAMPLES}
         --train_files=${TRAIN_FILES}
         --test_files=${TEST_FILES}
+        --test_only=${TEST_ONLY}
         --no_fixed_vecs=${NO_FIXED_VECS}
         --all_vecs_fixed=${ALL_VECS_FIXED}
         --var_vecs_zero=${VAR_VECS_ZERO}
