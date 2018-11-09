@@ -1864,6 +1864,7 @@ if __name__ == '__main__':
                             c.run_description = run_desc_backup
                             continue
 
+                        d['run_description'] = c.run_description
                         # train
                         if not FLAGS.test_only:
                             t_start = datetime.now()
@@ -1876,8 +1877,6 @@ if __name__ == '__main__':
                             metric_main_value = metrics_dev[metric_main]
                             add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
                             logger.info('best dev score (%s): %f' % (metric_main, metrics_dev[metric_main]))
-
-                            d['run_description'] = c.run_description
 
                             if FLAGS.reuse_embeddings and (best_previous_metric is None or metric_main_value >= best_previous_metric):
                                 logging.info(
@@ -1894,8 +1893,6 @@ if __name__ == '__main__':
                             metrics_test = execute_run(c, test_only=True, precompile=FLAGS.precompile,
                                                        test_files=FLAGS.test_files, debug=FLAGS.debug)
                             d['time_test_s'] = (datetime.now() - t_start).total_seconds()
-                            # set run description, if not already done
-                            d['run_description'] = d.get('run_description', c.run_description)
                             metrics, metric_main = get_metrics_and_main_metric(metrics_test,
                                                                                metric_main=FLAGS.early_stopping_metric)
                             add_metrics(d, metrics_test, metric_keys=metrics, prefix=stats_prefix_test)
