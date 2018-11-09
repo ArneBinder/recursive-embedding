@@ -1136,7 +1136,7 @@ def main(data_source):
                 model_config.keep_prob = 1.0
                 model_config.neg_samples = "0"
 
-                tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(model_config)
+                tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(model_config, logdir=data_source)
                 model_tree, model_main, prepared_embeddings, compiled_trees = create_models(
                     config=model_config, lexicon=lexicon,
                     tree_iterators={},

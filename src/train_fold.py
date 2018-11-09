@@ -561,7 +561,7 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
     return lexicon, checkpoint_fn, prev_config#, fine_tune
 
 
-def init_model_type(config):
+def init_model_type(config, logdir):
     ## set index and tree getter
 
     model_kwargs = {}
@@ -609,7 +609,7 @@ def init_model_type(config):
             for c in config.task.split(','):
                 #type_class = TYPE_FOR_TASK[c.strip()]
                 classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
-                save_class_ids(dir_path=config.logdir, prefix_type=c.strip(), classes_ids=classes_ids,
+                save_class_ids(dir_path=logdir, prefix_type=c.strip(), classes_ids=classes_ids,
                                classes_strings=classes_strings)
                 classes_ids_list.append(classes_ids)
             tree_iterator_args['classes_ids'] = classes_ids_list
@@ -642,7 +642,7 @@ def init_model_type(config):
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
         type_class = TYPE_FOR_TASK[config.task]
         classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class)
-        save_class_ids(dir_path=config.logdir, prefix_type=type_class, classes_ids=classes_ids, classes_strings=classes_strings)
+        save_class_ids(dir_path=logdir, prefix_type=type_class, classes_ids=classes_ids, classes_strings=classes_strings)
         model_kwargs['nbr_classes'] = len(classes_ids)
         classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
 
@@ -1419,7 +1419,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     if not (fnames_test is None or len(fnames_test) == 0):
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
-    tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(config)
+    tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(config, logdir=logdir)
     tree_iterator_args_tfidf = None
     if config.use_tfidf or config.tree_embedder == 'tfidf':
         tree_iterator_args_tfidf = tree_iterator_args.copy()
