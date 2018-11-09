@@ -1345,8 +1345,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 return stat_queue_sorted[0]
 
 
-def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embeddings=None, test_files=None, init_only=None, test_only=None,
-                cache=None, precompile=True, debug=False, discard_tree_embeddings=False,
+def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embeddings=None, test_files=None,
+                init_only=None, test_only=None, precompile=True, debug=False, discard_tree_embeddings=False,
                 discard_prepared_embeddings=False):
     # config.set_run_description()
     #try:
@@ -1672,7 +1672,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             #if precompile:
             #    work_forests = None
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                                  test_result_writer, logdir, neg_samples=int('0' + config.neg_samples), cache=cache,
+                                  test_result_writer, logdir, neg_samples=int('0' + config.neg_samples),
                                   debug=debug, clean_train_trees=not precompile)
             logger.removeHandler(fh_info)
             logger.removeHandler(fh_debug)
