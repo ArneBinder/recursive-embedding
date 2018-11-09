@@ -3,6 +3,7 @@ import os
 import re
 
 import plac
+from eval_semeval2010t8 import eval
 
 
 def to_number(s):
@@ -46,9 +47,10 @@ def move_to_front(l, entries):
 @plac.annotations(
     out=('output file name', 'option', 'o', str),
     fn=('input file name', 'option', 'f', str),
+    semeval=('output file name', 'option', 'e', bool),
     paths=('paths to folders', 'positional', None, str, None, 'p')
 )
-def load_and_merge_scores(out, fn='scores.tsv', *paths):
+def load_and_merge_scores(out, fn='scores.tsv', semeval=False, *paths):
     data = []
     assert len(paths) > 0, 'no folders given'
     for path in paths:
@@ -57,6 +59,10 @@ def load_and_merge_scores(out, fn='scores.tsv', *paths):
         new_data = list(csv.DictReader(open(os.path.join(path, fn)), delimiter='\t'))
         for d in new_data:
             d['dir'] = dir_name
+            if semeval:
+                run_dir = os.path.join(dir_name, d['run_description'])
+                assert os.path.exists(run_dir), 'path not found: %s' % run_dir
+                d['f1_semeval'] = eval(path_dir=run_dir)
             rd = d['run_description'].split('/')
             # ATTENTION: assume that dir_name is of format: something_SENTENCEPROCESSOR
             # the sentence processor is added to the run_desc used for arranging same settings
