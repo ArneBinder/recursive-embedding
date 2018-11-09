@@ -53,7 +53,7 @@ def load_class_ids(dir_path, prefix_type):
     classes_strings = None
     if os.path.exists(fn_strings):
         logger.debug('load class strings for %s to: %s' % (prefix_type, fn_strings))
-        classes_strings = list((s[:-1] for s in open(fn_strings, 'w').readlines()))
+        classes_strings = list((s[:-1] for s in open(fn_strings).readlines()))
     return classes_ids, classes_strings
 
 
