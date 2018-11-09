@@ -609,7 +609,7 @@ def init_model_type(config, logdir):
             for c in config.task.split(','):
                 #type_class = TYPE_FOR_TASK[c.strip()]
                 classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
-                save_class_ids(dir_path=logdir, prefix_type=c.strip(), classes_ids=classes_ids,
+                save_class_ids(dir_path=os.path.join(logdir, 'classes'), prefix_type=c.strip(), classes_ids=classes_ids,
                                classes_strings=classes_strings)
                 classes_ids_list.append(classes_ids)
             tree_iterator_args['classes_ids'] = classes_ids_list
@@ -642,7 +642,8 @@ def init_model_type(config, logdir):
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
         type_class = TYPE_FOR_TASK[config.task]
         classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class)
-        save_class_ids(dir_path=logdir, prefix_type=type_class, classes_ids=classes_ids, classes_strings=classes_strings)
+        save_class_ids(dir_path=os.path.join(logdir, 'classes'), prefix_type=type_class, classes_ids=classes_ids,
+                       classes_strings=classes_strings)
         model_kwargs['nbr_classes'] = len(classes_ids)
         classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
 
