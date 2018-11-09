@@ -56,7 +56,7 @@ from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #    indices_dbpedianif
 import data_iterators as diters
 from data_iterators import batch_iter_naive, batch_iter_all, batch_iter_reroot, batch_iter_multiclass, batch_iter_simtuple
-from corpus import FE_CLASS_IDS, load_class_ids
+from corpus import FE_CLASS_IDS, load_class_ids, save_class_ids
 from concurrency import RunnerThread, compile_batches_simple, create_trees_simple, prepare_batch, RecompileThread, process_batch
 
 # non-saveable flags
@@ -608,7 +608,9 @@ def init_model_type(config):
             classes_ids_list = []
             for c in config.task.split(','):
                 #type_class = TYPE_FOR_TASK[c.strip()]
-                classes_ids = load_class_ids(config.train_data_path, prefix_type=c.strip())
+                classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
+                save_class_ids(dir_path=config.logdir, prefix_type=c.strip(), classes_ids=classes_ids,
+                               classes_strings=classes_strings)
                 classes_ids_list.append(classes_ids)
             tree_iterator_args['classes_ids'] = classes_ids_list
 
@@ -639,7 +641,8 @@ def init_model_type(config):
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
         type_class = TYPE_FOR_TASK[config.task]
-        classes_ids = load_class_ids(config.train_data_path, prefix_type=type_class)
+        classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class)
+        save_class_ids(dir_path=config.logdir, prefix_type=type_class, classes_ids=classes_ids, classes_strings=classes_strings)
         model_kwargs['nbr_classes'] = len(classes_ids)
         classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
 

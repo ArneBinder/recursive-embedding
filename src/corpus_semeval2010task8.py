@@ -302,11 +302,11 @@ def main(mode, *args):
         forest_merged, out_path_merged = plac.call(merge_batches, args)
         relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_TYPE)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_TYPE, classes_ids=relation_ids,
-                       class_strings=relation_strings)
+                       classes_strings=relation_strings)
 
         relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_DIRECTION)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_DIRECTION, classes_ids=relation_ids,
-                       class_strings=relation_strings)
+                       classes_strings=relation_strings)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
     elif mode == 'ALL':
