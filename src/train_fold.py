@@ -1861,34 +1861,43 @@ if __name__ == '__main__':
                             continue
 
                         # train
-                        t_start = datetime.now()
-                        metrics_dev, cache_dev = execute_run(c,  #cache=cache_dev if USE_CACHE else None,
-                                                             load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
-                                                             precompile=FLAGS.precompile,
-                                                             debug=FLAGS.debug)
-                        d['steps_train'] = metrics_dev['step']
-                        d['time_s'] = (datetime.now() - t_start).total_seconds()
-                        metrics, metric_main = get_metrics_and_main_metric(metrics_dev, metric_main=FLAGS.early_stopping_metric)
-                        metric_main_value = metrics_dev[metric_main]
-                        add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
-                        logger.info('best dev score (%s): %f' % (metric_main, metrics_dev[metric_main]))
+                        if not FLAGS.test_only:
+                            t_start = datetime.now()
+                            metrics_dev, cache_dev = execute_run(c,  #cache=cache_dev if USE_CACHE else None,
+                                                                 load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
+                                                                 precompile=FLAGS.precompile,
+                                                                 debug=FLAGS.debug)
+                            d['steps_train'] = metrics_dev['step']
+                            d['time_s'] = (datetime.now() - t_start).total_seconds()
+                            metrics, metric_main = get_metrics_and_main_metric(metrics_dev,
+                                                                               metric_main=FLAGS.early_stopping_metric)
+                            metric_main_value = metrics_dev[metric_main]
+                            add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
+                            logger.info('best dev score (%s): %f' % (metric_main, metrics_dev[metric_main]))
 
-                        d['run_description'] = c.run_description
+                            d['run_description'] = c.run_description
 
-                        if FLAGS.reuse_embeddings and (best_previous_metric is None or metric_main_value >= best_previous_metric):
-                            logging.info(
-                                'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
-                                % (c.run_description, metric_main_value, best_previous_logdir, best_previous_metric or -1))
-                            best_previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
-                            best_previous_metric = metric_main_value
+                            if FLAGS.reuse_embeddings and (best_previous_metric is None or metric_main_value >= best_previous_metric):
+                                logging.info(
+                                    'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
+                                    % (c.run_description, metric_main_value, best_previous_logdir, best_previous_metric or -1))
+                                best_previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
+                                best_previous_metric = metric_main_value
+                        else:
+                            logger.info('skip training because test_only==True')
 
                         # test
                         if use_test_files:
-                            metrics_test, cache_test = execute_run(c, logdir_continue=logdir, test_only=True,
+                            t_start = datetime.now()
+                            metrics_test, cache_test = execute_run(c, #logdir_continue=logdir,
+                                                                   test_only=True,
                                                                    precompile=FLAGS.precompile,
                                                                    test_files=FLAGS.test_files,
                                                                    # cache=cache_test if USE_CACHE else None,
                                                                    debug=FLAGS.debug)
+                            d['time_test_s'] = (datetime.now() - t_start).total_seconds()
+                            # set run description, if not already done
+                            d['run_description'] = d.get('run_description', c.run_description)
                             metrics, metric_main = get_metrics_and_main_metric(metrics_test,
                                                                                metric_main=FLAGS.early_stopping_metric)
                             add_metrics(d, metrics_test, metric_keys=metrics, prefix=stats_prefix_test)
