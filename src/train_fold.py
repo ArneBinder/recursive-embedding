@@ -1128,7 +1128,7 @@ def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs
 
 
 def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
-                    test_result_writer, logdir, neg_samples, cache=None, debug=False, clean_train_trees=False):
+                    test_result_writer, logdir, neg_samples, debug=False, clean_train_trees=False):
     with supervisor.managed_session() as sess:
         if lexicon.is_filled:
             logger.info('init embeddings with external vectors...')
@@ -1342,7 +1342,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 if recompile_thread is not None:
                     logger.debug('wait for recompile_thread ...')
                     recompile_thread.join()
-                return stat_queue_sorted[0], cache
+                return stat_queue_sorted[0]
 
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embeddings=None, test_files=None, init_only=None, test_only=None,
@@ -1735,7 +1735,7 @@ if __name__ == '__main__':
                 logger.info('START RUN %i of %i' % (i, len(logdirs)))
                 config = Config(logdir=logdir)
                 config_dict = config.as_dict()
-                stats, _ = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
+                stats = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
                                        test_files=FLAGS.test_files, init_only=FLAGS.init_only,
                                        test_only=FLAGS.test_only,
                                        precompile=FLAGS.precompile, debug=FLAGS.debug,
@@ -1863,10 +1863,8 @@ if __name__ == '__main__':
                         # train
                         if not FLAGS.test_only:
                             t_start = datetime.now()
-                            metrics_dev, cache_dev = execute_run(c,  #cache=cache_dev if USE_CACHE else None,
-                                                                 load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
-                                                                 precompile=FLAGS.precompile,
-                                                                 debug=FLAGS.debug)
+                            metrics_dev = execute_run(c, load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
+                                                      precompile=FLAGS.precompile, debug=FLAGS.debug)
                             d['steps_train'] = metrics_dev['step']
                             d['time_s'] = (datetime.now() - t_start).total_seconds()
                             metrics, metric_main = get_metrics_and_main_metric(metrics_dev,
@@ -1889,12 +1887,8 @@ if __name__ == '__main__':
                         # test
                         if use_test_files:
                             t_start = datetime.now()
-                            metrics_test, cache_test = execute_run(c, #logdir_continue=logdir,
-                                                                   test_only=True,
-                                                                   precompile=FLAGS.precompile,
-                                                                   test_files=FLAGS.test_files,
-                                                                   # cache=cache_test if USE_CACHE else None,
-                                                                   debug=FLAGS.debug)
+                            metrics_test = execute_run(c, test_only=True, precompile=FLAGS.precompile,
+                                                       test_files=FLAGS.test_files, debug=FLAGS.debug)
                             d['time_test_s'] = (datetime.now() - t_start).total_seconds()
                             # set run description, if not already done
                             d['run_description'] = d.get('run_description', c.run_description)
