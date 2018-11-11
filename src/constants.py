@@ -75,6 +75,7 @@ BACK_EMBEDDING = -13
 TARGET_EMBEDDING = -15
 ANCHOR_EMBEDDING = -16
 PADDING_EMBEDDING = -17
+BLANKED_EMBEDDING = -18
 
 vocab_manual = {UNKNOWN_EMBEDDING: u'UNKNOWN',
                 AGGREGATOR_EMBEDDING: u'AGGREGATOR',
@@ -83,6 +84,8 @@ vocab_manual = {UNKNOWN_EMBEDDING: u'UNKNOWN',
                 PADDING_EMBEDDING: u'PADDING',
                 TARGET_EMBEDDING: u'TARGET',
                 }
+# TODO: consider using distinct embedding for blanked  nodes ('BLANKED' instead of 'UNKNOWN')
+vocab_manual[BLANKED_EMBEDDING] = vocab_manual[UNKNOWN_EMBEDDING]
 
 CM_TREE = 'tree'
 CM_SEQUENCE = 'sequence'

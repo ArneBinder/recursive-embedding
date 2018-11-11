@@ -239,25 +239,24 @@ def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
 
 
 def get_dict_from_vocab(vocab):
-    manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
-    size = len(vocab) + len(constants.vocab_manual)
+    #manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
+    #manual_vocab_reverted = {constants.vocab_manual[k]: k for k in constants.vocab_manual}
+    manual_vocab_values = set(constants.vocab_manual.values())
+    size = len(vocab) + len(manual_vocab_values)
     # vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
     vecs = np.random.standard_normal(size=(size, vocab.vectors_length)) * 0.1
-    # types_unknown = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-    # types = [types_unknown]
 
     # add manual vocab at first
-    # the vecs remain zeros
-    types = constants.vocab_manual.values()
-    # i = 1
-    i = len(constants.vocab_manual)
+    # the vecs remain standard_normal samples (see above)
+    types = list(manual_vocab_values)
+    i = len(types)
     for lexeme in vocab:
         l = constants.TYPE_LEXEME + constants.SEPARATOR + lexeme.orth_
         # exclude entities which are in vocab_manual to avoid collisions
-        if l in manual_vocab_reverted:
+        if l in manual_vocab_values:
             logger.warn(
                 'found token in parser vocab with orth_="' + l + '", which was already added from manual vocab: "' + ', '.join(
-                    manual_vocab_reverted) + '", skip!')
+                    manual_vocab_values) + '", skip!')
             continue
         vecs[i] = lexeme.vector
         types.append(l)

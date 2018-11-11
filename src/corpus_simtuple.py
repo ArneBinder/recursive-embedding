@@ -291,7 +291,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
         lexicon.add_all(constants.vocab_manual.values())
 
         logging.info('sort and cut lexicon ... ')
-        keep_hash_values = [lexicon.strings[s] for s in constants.vocab_manual.values()]
+        keep_hash_values = [lexicon.strings[s] for s in set(constants.vocab_manual.values())]
         lexicon.sort_and_cut_and_fill_dict(data=forest.data, keep_values=keep_hash_values, count_threshold=FLAGS.count_threshold)
 
         logging.info('init vecs: use nlp vocab and fill missing ...')
