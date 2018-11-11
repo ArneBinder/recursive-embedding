@@ -511,7 +511,7 @@ class Forest(object):
         return self._dicts[idx]
 
     def get_tree_dict(self, idx, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
-                      link_content_offset=OFFSET_CONTEXT_ROOT):
+                      link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -547,13 +547,19 @@ class Forest(object):
         cost = costs.get(data_head, 1)
 
         if transform:
-            seq_node = {KEY_HEAD: self.lexicon.transform_idx(data_head), KEY_CHILDREN: []}
-        else:
-            seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
+            data_head = self.lexicon.transform_idx(data_head)
+        # blank node dropout
+        if keep_prob_blank < 1.0 and data_head not in link_types and keep_prob_blank < np.random.uniform():
+            data_head = self.lexicon.transform_idx(data_blank) if transform else data_blank
 
+        seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         # ATTENTION: allows cost of 0!
         if self.has_children(idx) and 0 <= cost <= max_depth:
             for child_offset in self.get_children(idx):
+                # full node dropout
+                if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
+                    continue
+
                 child_idx = idx + child_offset
                 # if the child is a link ...
                 if data_head in link_types:
@@ -572,37 +578,52 @@ class Forest(object):
                                                                  max_depth=max_depth - cost,
                                                                  context=context, transform=transform or context > 0,
                                                                  costs=costs,
-                                                                 link_types=link_types))
+                                                                 link_types=link_types,
+                                                                 data_blank=data_blank, keep_prob_blank=keep_prob_blank,
+                                                                 keep_prob_node=keep_prob_node))
         if context > 0 and self.parents[idx] != 0:
-            seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-cost,
-                                                                    #transform=transform,
-                                                                    costs=costs,
-                                                                    link_types=link_types))
+            # full node dropout
+            if not(keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
+                seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-cost,
+                                                                        #transform=transform,
+                                                                        costs=costs,
+                                                                        link_types=link_types,
+                                                                        data_blank=data_blank,
+                                                                        keep_prob_blank=keep_prob_blank,
+                                                                        keep_prob_node=keep_prob_node))
         # caching
         #if self._dicts is not None:
         #    depth = min(self.depths[idx], max_depth)
         #    self._dicts[(idx, depth)] = seq_node
         return seq_node
 
-    def get_tree_dict_rooted(self, idx, max_depth=9999, costs={}, link_types=[]):
-        result = None
+    def get_tree_dict_rooted(self, idx, max_depth=9999, costs={}, link_types=[], data_blank=None, keep_prob_blank=1.0,
+                             keep_prob_node=1.0):
+        #result = None
         # if current data is a link, start at parent NOT NECESSARY (will be transformed to IDENTITY entry)
-        if self.parents[idx] != 0:
-            parent_idx = idx + self.parents[idx]
-            if self.data[parent_idx] in link_types:
-                d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
-                result = {KEY_HEAD: self.lexicon.transform_idx(d_target), KEY_CHILDREN: []}
+        #if self.parents[idx] != 0:
+        #    parent_idx = idx + self.parents[idx]
+        #    if self.data[parent_idx] in link_types:
+        #        d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
+        #        result = {KEY_HEAD: self.lexicon.transform_idx(d_target), KEY_CHILDREN: []}
 
-        if result is None:
-            result = self.get_tree_dict(idx, max_depth=max_depth, transform=True, costs=costs, link_types=link_types)
+        #if result is None:
+        result = self.get_tree_dict(idx, max_depth=max_depth, transform=True, costs=costs, link_types=link_types,
+                                    data_blank=data_blank, keep_prob_blank=keep_prob_blank,
+                                    keep_prob_node=keep_prob_node)
         #cost = costs.get(self.data[idx], 1)
         cost = 1
         if self.parents[idx] != 0 and max_depth > 0:
-            parent_tree = self.get_tree_dict_parent(idx, max_depth-cost, costs=costs, link_types=link_types)
-            result[KEY_CHILDREN].append(parent_tree)
+            # full node dropout
+            if not (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
+                parent_tree = self.get_tree_dict_parent(idx, max_depth-cost, costs=costs, link_types=link_types,
+                                                        data_blank=data_blank, keep_prob_blank=keep_prob_blank,
+                                                        keep_prob_node=keep_prob_node)
+                result[KEY_CHILDREN].append(parent_tree)
         return result
 
-    def get_tree_dict_parent(self, idx, max_depth=9999, costs={}, link_types=[]):
+    def get_tree_dict_parent(self, idx, max_depth=9999, costs={}, link_types=[], data_blank=None, keep_prob_blank=1.0,
+                             keep_prob_node=1.0):
         assert self.lexicon is not None, 'lexicon is not set'
 
         if self.parents[idx] == 0:
@@ -611,10 +632,15 @@ class Forest(object):
         current_id = idx + self.parents[idx]
         #data_head = self.lexicon.reverse_idx(self.data[current_id])
         #if transform:
-        data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
+        # blank node dropout
+        if keep_prob_blank < 1.0 and keep_prob_blank < np.random.uniform():
+            data_head = self.lexicon.transform_idx(data_blank, revert=True)
+        else:
+            data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
         result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         current_dict_tree = result
         while max_depth > 0:
+            # TODO: respect blanked node for costs?
             current_d = self.data[current_id]
             current_cost_down = costs.get(current_d, 1)
 
@@ -624,16 +650,25 @@ class Forest(object):
                 for c in self.get_children(current_id):
                     c_id = current_id + c
                     if c_id != previous_id:
-                        current_dict_tree[KEY_CHILDREN].append(
-                            self.get_tree_dict(c_id, max_depth=max_depth - current_cost_down, transform=True, costs=costs,
-                                               link_types=link_types))
+                        # full node dropout
+                        if not (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
+                            current_dict_tree[KEY_CHILDREN].append(
+                                self.get_tree_dict(c_id, max_depth=max_depth - current_cost_down, transform=True, costs=costs,
+                                                   link_types=link_types))
             # go up
             if self.parents[current_id] != 0:
+                # full node dropout
+                if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
+                    break
                 previous_id = current_id
                 current_id = current_id + self.parents[current_id]
                 #data_head = self.lexicon.reverse_idx(self.data[current_id])
                 #if transform:
-                data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
+                # blank node dropout
+                if keep_prob_blank < 1.0 and keep_prob_blank < np.random.uniform():
+                    data_head = self.lexicon.transform_idx(data_blank, revert=True)
+                else:
+                    data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
                 new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
                 current_dict_tree[KEY_CHILDREN].append(new_parent_child)
                 current_dict_tree = new_parent_child

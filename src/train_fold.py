@@ -50,7 +50,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, OFFSET_MESH_ROOT, \
     MT_TUPLE_CONTINOUES, TYPE_ENTAILMENT, TYPE_POLARITY, TASK_MESH_PREDICTION, TASK_ENTAILMENT_PREDICTION, TYPE_MESH, \
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
-    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK
+    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -249,7 +249,7 @@ class PutList(list):
 def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices_targets=None,
              tree_iter=None, dataset_trees=None, dataset_embeddings=None,
              train=True, emit=True, test_writer=None, test_result_writer=None,
-             highest_sims_model=None, number_of_samples=None, return_values=True, debug=False):
+             number_of_samples=None, return_values=True, debug=False):
     """
     Execute one training or testing epoch. Use precompield trees or prepared embeddings, if available. Otherwise,
     create and compile trees batch wise on the run while training (or predicting).
@@ -1171,7 +1171,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 test_result_writer=test_result_writer,
                 number_of_samples=neg_samples,
                 # number_of_samples=None,
-                #highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                 batch_iter=meta[M_TEST][M_BATCH_ITER],
                 debug=debug,
                 #work_forests=work_forests
@@ -1274,7 +1273,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 indices_targets=meta[M_TRAIN][M_INDICES_TARGETS],
                 epoch=epoch,
                 number_of_samples=neg_samples,
-                #highest_sims_model=meta[M_TRAIN][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TRAIN] else None,
                 batch_iter=meta[M_TRAIN][M_BATCH_ITER],
                 return_values=False,
                 debug=debug,
@@ -1300,7 +1298,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     train=False,
                     test_writer=test_writer,
                     test_result_writer=test_result_writer,
-                    highest_sims_model=meta[M_TEST][M_MODEL_NEAREST] if M_MODEL_NEAREST in meta[M_TEST] else None,
                     batch_iter=meta[M_TEST][M_BATCH_ITER],
                     return_values=False,
                     debug=debug,
@@ -1446,12 +1443,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     forest.data[forest.roots + OFFSET_ID] = d_identity
     if config.blank and config.blank.strip():
         logger.info('blank tokens with prefixes: %s' % config.blank)
-        d_blanked = lexicon.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
+        d_blanked = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=False)
         mask = np.zeros_like(forest.data, dtype=bool)
         for prefix in config.blank.strip().split(','):
             ids, id_strings = lexicon.get_ids_for_prefix(prefix)
             mask |= np.isin(forest.data, ids)
-        logging.info('set %i indices to %s' % (np.count_nonzero(mask), vocab_manual[UNKNOWN_EMBEDDING]))
+        logging.info('set %i indices to %s' % (np.count_nonzero(mask), vocab_manual[BLANKED_EMBEDDING]))
         forest.data[mask] = d_blanked
 
     ## DEBUG
@@ -1521,6 +1518,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                     for cid in cids:
                         indices_mapping_dict[cid] = (current_mapping, cids)
                 indices_mapping_all = np.sort(np.concatenate(indices_mapping_list))
+                # blanked should select all
+                data_blanked = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=False)
+                if data_blanked not in indices_mapping_dict:
+                    indices_mapping_dict[data_blanked] = (indices_mapping_all, np.concatenate(classes_ids_list))
+
                 config.neg_samples = str(max(map(len, classes_ids_list)) - 1)
                 logger.debug('set neg_samples = %s (== max(nbr_of_classes -1) over all sets of classes) for exhaustive sampling'
                              % config.neg_samples)
@@ -1549,21 +1551,31 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 return indices_mapping_all[_indices]
 
             # re-sample only if not exhaustive sampling
-            if nbr_indices != len(indices_mapping_all):
+            if nbr_indices != len(indices_mapping_all) or (m == M_TRAIN and (config.keep_prob_blank < 1.0 or config.keep_prob_node < 1.0)):
                 meta[m][M_INDICES_SAMPLER] = _sample_indices
             else:
                 logger.debug(
                     '%s: disable re-sampling because all available indices (nbr: %i) are sampled at once' % (m, nbr_indices))
             # dont shuffle TEST set
             meta[m][M_INDICES] = _sample_indices(shuffle=(m != M_TEST))
+            if m == M_TRAIN:
+                _tree_iterator_args = {'keep_prob_blank': config.keep_prob_blank, 'keep_prob_node': config.keep_prob_node}
+                _tree_iterator_args.update(tree_iterator_args)
+            else:
+                _tree_iterator_args = tree_iterator_args
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
                                            neg_samples=int('0' + config.neg_samples), #nbr_indices=nbr_indices,
                                            indices_mappings=indices_mapping_dict,
-                                           **tree_iterator_args)
+                                           **_tree_iterator_args)
         else:
             #if precompile:
-            meta[m][M_TREE_ITER] = partial(tree_iterator, forest=forest, **tree_iterator_args)
+            if m == M_TRAIN:
+                _tree_iterator_args = {'keep_prob_blank': config.keep_prob_blank, 'keep_prob_node': config.keep_prob_node}
+                _tree_iterator_args.update(tree_iterator_args)
+            else:
+                _tree_iterator_args = tree_iterator_args
+            meta[m][M_TREE_ITER] = partial(tree_iterator, forest=forest, **_tree_iterator_args)
             if tree_iterator_args_tfidf is not None:
                 meta[m][M_TREE_ITER_TFIDF] = partial(tree_iterator, forest=forest, **tree_iterator_args_tfidf)
             #else:

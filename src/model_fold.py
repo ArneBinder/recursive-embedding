@@ -272,6 +272,22 @@ class TreeEmbedding(object):
                            case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
                                         False: td.Void() >> td.Zeros(self._dim_embeddings)})
 
+    def dropout_blanking(self):
+        # if dropout is enabled, return id_blanking (eventually shifted to negative range) if sample was in range
+        #return td.InputTransform(lambda x: x if (self._keep_dropout_blanking == 1.0 or np.random.uniform() < self._keep_dropout_blanking) else (self._id_blanking if x >= 0 else -x-1))
+        def _do(x):
+            #x if (self._keep_dropout_blanking == 1.0 or np.random.uniform() < self._keep_dropout_blanking) else (
+            #    self._id_blanking if x >= 0 else -x - 1)
+            if (self._keep_dropout_blanking == 1.0 or np.random.uniform() < self._keep_prob):
+                print('dont blank')#: %f' % self._keep_dropout_blanking)
+                return x
+            else:
+                res = self._id_blanking if x >= 0 else -x - 1
+                print('blank')#: %f' % self._keep_dropout_blanking)
+                return res
+
+        return td.InputTransform(_do)
+
     def embed(self):
         # get the head embedding from id
         #if self._lex_size_fix > 0 and self._lex_size_var > 0:
@@ -280,13 +296,13 @@ class TreeEmbedding(object):
                             # trainable embedding
                             (True, 0):  td.Scalar(dtype='int32')
                                         >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size))),
-                            # fixed embedding
-                            (False, 0): td.Scalar(dtype='int32')
-                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x) - 1, self.lexicon_size))),
                             # trainable embedding for "reverted" edge
                             (True, 1):  td.Scalar(dtype='int32')
                                         >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size)))
                                         >> self._reverse_fc,
+                            # fixed embedding
+                            (False, 0): td.Scalar(dtype='int32')
+                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x) - 1, self.lexicon_size))),
                             # fixed embedding for "reverted" edge
                             (False, 1): td.Scalar(dtype='int32')
                                         >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x) - 1, self.lexicon_size)))

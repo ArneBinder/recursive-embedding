@@ -39,6 +39,8 @@ services:
         --fc_sizes=${FC_SIZES}
         --state_size=${STATE_SIZE}
         --keep_prob=${KEEP_PROB}
+        --keep_prob_blank=${KEEP_PROB_BLANK}
+        --keep_prob_node=${KEEP_PROB_NODE}
         --init_only=${INIT_ONLY}
         --concat_mode=${CONCAT_MODE}
         --max_depth=${MAX_DEPTH}

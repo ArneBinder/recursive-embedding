@@ -127,6 +127,16 @@ default_config = {'train_data_path': ['DEFINE_string',
                                 'Keep probability for dropout layer',
                                 'kp'
                                 ],
+                  'keep_prob_blank': ['DEFINE_float',
+                                     1.0,
+                                     'Keep probability for full node dropout (blanking)',
+                                     'kpb'
+                                     ],
+                  'keep_prob_node': ['DEFINE_float',
+                                1.0,
+                                'Keep probability for full node dropout (subtree dropping)',
+                                'kpn'
+                                ],
                   #'auto_restore': ['DEFINE_boolean',
                   #                 False,
                   #                 #   True,

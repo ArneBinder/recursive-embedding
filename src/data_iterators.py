@@ -10,7 +10,7 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, \
     TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, CM_TREE, CM_AGGREGATE, \
     CM_SEQUENCE, TARGET_EMBEDDING, OFFSET_ID, TYPE_RELATEDNESS_SCORE, SEPARATOR, OFFSET_CONTEXT_ROOT, \
-    OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS
+    OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -290,6 +290,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
                   link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000,
+                  keep_prob_blank=1.0, keep_prob_node=1.0,
                   **unused):
     """
     create trees rooted at indices
@@ -322,6 +323,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     costs = {}
     link_types = []
     #root_types = []
+    # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
+    data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
 
     # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
     if TYPE_REF in lexicon.strings:
@@ -362,10 +365,12 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         for idx in indices:
             if reroot:
                 tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
-                                                           costs=costs, link_types=link_types)
+                                                           costs=costs, link_types=link_types, data_blank=data_blanking,
+                                                           keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node)
             else:
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
-                                                    costs=costs, link_types=link_types)
+                                                    costs=costs, link_types=link_types, data_blank=data_blanking,
+                                                    keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node)
             yield tree_context
             n += 1
             # measure progress in percent
