@@ -307,7 +307,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
 
         # convert and set children arrays
         #forest.children_dict_to_arrays()
-        forest.set_children_with_parents()
+        #forest.set_children_with_parents()
 
         forest.dump(out_path)
         scores.dump(out_path + '.score')

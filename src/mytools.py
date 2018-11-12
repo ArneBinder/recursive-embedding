@@ -1,3 +1,4 @@
+import scipy.sparse as sparse
 import time
 from functools import wraps
 import errno
@@ -135,6 +136,8 @@ def numpy_load(filename, assert_exists=True):
         return np.load(filename)
     elif os.path.exists('%s.npy' % filename):
         return np.load('%s.npy' % filename)
+    elif os.path.exists('%s.npz' % filename):
+        return sparse.load_npz('%s.npz' % filename)
     else:
         if assert_exists:
             raise IOError('file %s or %s.npy does not exist' % (filename, filename))
@@ -142,11 +145,14 @@ def numpy_load(filename, assert_exists=True):
 
 
 def numpy_dump(filename, ndarray):
-    np.save('%s.npy' % filename, ndarray)
+    if isinstance(ndarray, sparse.csr_matrix) or isinstance(ndarray, sparse.csc_matrix):
+        sparse.save_npz('%s.npz' % filename, ndarray)
+    else:
+        np.save('%s.npy' % filename, ndarray)
 
 
 def numpy_exists(filename):
-    return os.path.exists(filename) or os.path.exists('%s.npy' % filename)
+    return os.path.exists(filename) or os.path.exists('%s.npy' % filename) or os.path.exists('%s.npz' % filename)
 
 
 def chunks(g, n, cut=False):

@@ -173,8 +173,9 @@ def iterate_relation_trees(forest):
             nlp_root_data = forest.data[nlp_root]
             nlp_root_parent = forest.parents[nlp_root]
 
-            p1 = forest.get_path_indices(e1_indices[i], nlp_root)
-            p2 = forest.get_path_indices(e2_indices[i], nlp_root)
+            raise NotImplementedError('forest.get_path_indices does not work with graph structure anymore')
+            #p1 = forest.get_path_indices(e1_indices[i], nlp_root)
+            #p2 = forest.get_path_indices(e2_indices[i], nlp_root)
             j = 0
             for _ in range(min(len(p1), len(p2))):
                 j += 1
@@ -284,7 +285,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         make_parent_dir(out_base_name)
         process_records(records=read_file(os.path.join(in_path, fn), annots), out_base_name=out_base_name,
                         record_reader=reader, parser=parser, sentence_processor=_sentence_processor, concat_mode=None,
-                        n_threads=n_threads, batch_size=parser_batch_size, adjust_forest_func=move_relation_annotation_to_annotation_subtree)#adjust_forest_func=extract_relation_subtree)
+                        n_threads=n_threads, batch_size=parser_batch_size)#, adjust_forest_func=move_relation_annotation_to_annotation_subtree)#adjust_forest_func=extract_relation_subtree)
         logger.info('done.')
 
 

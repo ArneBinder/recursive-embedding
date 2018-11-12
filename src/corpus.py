@@ -87,7 +87,7 @@ def process_records(records, out_base_name, record_reader, sentence_processor, p
         if adjust_forest_func is not None:
             forest = adjust_forest_func(forest)
 
-        forest.set_children_with_parents()
+        #forest.set_children_with_parents()
         #roots = forest.roots
         # ids are at one position after roots
         #root_ids = forest.data[roots + OFFSET_ID]
@@ -392,7 +392,7 @@ def collect_root_context_sizes(forest_merged, out_path_merged, root_seealso_coun
         root_context_sizes = (root_length - (root_seealso_counts * 2 + 1)) - OFFSET_SEEALSO_ROOT
     else:
         # otherwise: last child of root points to first textual data node
-        last_root_child_offsets = np.array([forest_merged.get_children(root)[-1] for root in forest_merged.roots])
+        last_root_child_offsets = np.array([forest_merged.get_children(root)[-1] - root for root in forest_merged.roots])
         root_context_sizes = root_length - last_root_child_offsets
 
     numpy_dump(fn_root_context_sizes, root_context_sizes)

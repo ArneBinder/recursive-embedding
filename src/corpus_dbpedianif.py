@@ -373,7 +373,7 @@ def create_contexts_forest(nif_context_datas, nlp, lexicon, n_threads=1, batch_s
                                parser=nlp, batch_size=batch_size, concat_mode='sequence',
                                inner_concat_mode='tree', expand_dict=True, as_tuples=True,
                                return_hashes=True, n_threads=n_threads)
-    forest.set_children_with_parents()
+    #forest.set_children_with_parents()
     #roots = forest.roots
     # ids are at one position after roots
     #root_ids = forest.data[roots + OFFSET_ID]

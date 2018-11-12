@@ -19,6 +19,8 @@ FE_CHILDREN_POS = 'child.pos'
 #FE_ROOTS = 'root'
 FE_ROOT_ID = 'root.id'
 FE_ROOT_POS = 'root.pos'
+FE_GRAPH_IN = 'graph.in'
+FE_GRAPH_OUT = 'graph.out'
 
 MAX_DEPTH = 9999
 
@@ -35,29 +37,15 @@ def targets(g, idx):
     return g.indices[g.indptr[idx]:g.indptr[idx + 1]]
 
 
-def _get_root(parents, idx):
-    i = idx
-    while parents[i] != 0:
-        i += parents[i]
-    return i
-
-
-def _children_and_roots(seq_parents):
-    # assume, all parents are inside this array!
-    # collect children
-    # children = [[] for _ in xrange(len(seq_parents))]
-    children = {}
-    roots = []
-    for i, p in enumerate(seq_parents):
-        if p == 0:  # is it a root?
-            roots.append(i)
-            continue
-        p_idx = i + p
-        chs = children.get(p_idx, [])
-        chs.append(-p)
-        children[p_idx] = chs
-    return children, roots
-
+def graph_in_from_parents(parents):
+    logger.debug('create graph_in from parents')
+    mask = (parents != 0)
+    indices = (parents + np.arange(len(parents), dtype=DTYPE_IDX))[mask]
+    # indptr = np.arange(len(indices) + 1, dtype=DTYPE_IDX)
+    indptr = np.concatenate(([0], np.add.accumulate(mask, dtype=DTYPE_IDX)))
+    data = np.ones(shape=len(indices), dtype=bool)
+    graph = csr_matrix((data, indices, indptr), shape=(len(parents), len(parents)))
+    return graph
 
 # unused
 def _calc_depth(children, parents, depth, start):
@@ -102,6 +90,7 @@ def _calc_depth(children, parents, depth, start):
 
 
 def _sequence_node_to_sequence_trees(seq_tree):
+    raise NotImplementedError('Not implemented for graph structrue')
     current_data = []
     current_parents = []
     children_roots = []
@@ -148,31 +137,59 @@ def _compare_tree_dicts(tree1, tree2):
     return 0
 
 
+def _concatenate_graphs(graphs):
+    m_type = None
+    datas = []
+    indices = []
+    indptrs = []
+    offset_shape = 0
+    offset_data = 0
+    for g in graphs:
+        assert m_type is None or m_type == type(g), 'type of previous sparse matrix does not match current: %s != %s' % (str(m_type), str(type(g)))
+        m_type = type(g)
+        datas.append(g.data)
+        indices.append(g.indices + offset_shape)
+        offset_shape += g.shape[0]
+        indptrs.append(g.indptr[1:] + offset_data)
+        offset_data += len(g.data)
+    assert m_type is not None, 'can not concatenate empty list of graphs'
+    _indptr = np.concatenate([[0]] + indptrs)
+    _indices = np.concatenate(indices)
+    _data = np.concatenate(datas)
+
+    if m_type == csr_matrix:
+        return csr_matrix((_data, _indices, _indptr), shape=(offset_shape, offset_shape))
+    elif m_type == csc_matrix:
+        return csc_matrix((_data, _indices, _indptr), shape=(offset_shape, offset_shape))
+    else:
+        raise NotImplementedError('concatenation for matrix type "%s" not implemented' % m_type)
+
+
+def _slice_graph(graph, indices):
+    return graph[indices].transpose()[indices].transpose()
+
+
 class Forest(object):
-    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None, children=None,
-                 children_pos=None, data_as_hashes=False, root_ids=None, root_pos=None,
-                 load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True, lexicon_roots=None,
-                 transformed_indices=False):
+    def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None,
+                 data_as_hashes=False, root_ids=None, root_pos=None, load_root_ids=True, load_root_pos=True,
+                 lexicon_roots=None, transformed_indices=False, graph_in=None, graph_out=None):
         self.reset_cache_values()
         self._as_hashes = data_as_hashes
         self._lexicon = lexicon
         self._lexicon_roots = lexicon_roots
         self._data = None
-        self._parents = None
-        self._children = None
-        self._children_pos = None
         self._root_pos = None
         self._root_data = None
-        self._g_out = None
-        self._g_in = None
+        self._graph_in = None
+        self._graph_out = None
+        self._nbr_out = None
+        self._nbr_in = None
 
         if filename is not None:
-            self.load(filename=filename, load_parents=load_parents, load_children=load_children,
-                      load_root_ids=load_root_ids, load_root_pos=load_root_pos)
-        elif (data is not None and parents is not None ) \
-                or (data is not None and children is not None and children_pos is not None)\
+            self.load(filename=filename, load_root_ids=load_root_ids, load_root_pos=load_root_pos)
+        elif (data is not None and (graph_in is not None or graph_out is not None or parents is not None)) \
                 or forest is not None:
-            self.set_forest(data=data, parents=parents, forest=forest, children=children, children_pos=children_pos,
+            self.set_forest(data=data, parents=parents, forest=forest, graph_in=graph_in, graph_out=graph_out, #children=children, children_pos=children_pos,
                             data_as_hashes=data_as_hashes, root_data=root_ids, root_pos=root_pos)
         elif tree_dict is not None:
             _data, _parents = _sequence_node_to_sequence_trees(tree_dict)
@@ -185,21 +202,19 @@ class Forest(object):
             raise ValueError(
                 'Not enouth arguments to instantiate Forest object. Please provide a filename or data and (parents or children) arrays.')
 
-    def copy(self, copy_parents=True, copy_children=True, copy_lexicon=True, copy_root_pos=True,
+    def copy(self, copy_lexicon=True, copy_root_pos=True, copy_graph_in=True, copy_graph_out=True,
              copy_lexicon_roots=True, copy_root_data=True, lexicon_copy_vecs=True, lexicon_copy_ids_fixed=True):
         logger.debug('copy forest ...')
         return Forest(data=self.data.copy(),
-                      parents=self._parents.copy() if copy_parents and self._parents is not None else None,
-                      children=self._children.copy() if copy_children and self._children is not None else None,
-                      children_pos=self._children_pos.copy() if copy_children and self._children_pos is not None else None,
                       root_pos=self._root_pos.copy() if copy_root_pos and self._root_pos is not None else None,
                       root_ids=self._root_data.copy() if copy_root_data and self._root_data is not None else None,
                       lexicon=self.lexicon.copy(copy_vecs=lexicon_copy_vecs, copy_ids_fixed=lexicon_copy_ids_fixed) if copy_lexicon else None,
-                      lexicon_roots=self.lexicon_roots.copy() if copy_lexicon_roots else None
+                      lexicon_roots=self.lexicon_roots.copy() if copy_lexicon_roots else None,
+                      graph_in=self._graph_in.copy() if (copy_graph_in and self._graph_in is not None) else None,
+                      graph_out=self._graph_out.copy() if (copy_graph_out and self._graph_out is not None) else None,
                       )
 
     def reset_cache_values(self):
-        self._children_dict = None
         self._depths = None
         self._depths_collected = None
         self._dicts = None
@@ -207,10 +222,12 @@ class Forest(object):
         self._root_data_mapping = None
         self._root_mapping = None
         self._root_id_set = None
+        self._nbr_in = None
+        self._nbr_out = None
 
-    def load(self, filename, load_parents=True, load_children=True, load_root_ids=True, load_root_pos=True):
+    def load(self, filename, load_root_ids=True, load_root_pos=True,
+             load_graph_in=True, load_graph_out=True):
         logger.debug('load data and parents from %s ...' % filename)
-        #if os.path.exists('%s.%s' % (filename, FE_DATA)):
         self._data = numpy_load('%s.%s' % (filename, FE_DATA), assert_exists=False)
         self._as_hashes = False
         if self._data is None:
@@ -218,37 +235,34 @@ class Forest(object):
             self._as_hashes = True
         if self._data is None:
             raise IOError('data file (%s.%s or %s.%s) not found' % (filename, FE_DATA, filename, FE_DATA_HASHES))
-        if load_parents:
-            #self._parents = np.load('%s.%s' % (filename, FE_PARENTS))
-            self._parents = numpy_load('%s.%s' % (filename, FE_PARENTS), assert_exists=False)
+        if load_graph_in:
+            self._graph_in = numpy_load('%s.%s' % (filename, FE_GRAPH_IN), assert_exists=False)
+            if self._graph_in is None:
+                logger.warning('no graph-in data found')
         else:
-            self._parents = None
-        #if load_children and os.path.exists('%s.%s' % (filename, FE_CHILDREN)) and os.path.exists(
-        #        '%s.%s' % (filename, FE_CHILDREN_POS)):
-        if load_children:
-            #self._children = np.load('%s.%s' % (filename, FE_CHILDREN))
-            #self._children_pos = np.load('%s.%s' % (filename, FE_CHILDREN_POS))
-            self._children = numpy_load('%s.%s' % (filename, FE_CHILDREN), assert_exists=False)
-            self._children_pos = numpy_load('%s.%s' % (filename, FE_CHILDREN_POS), assert_exists=False)
+            self._graph_in = None
+        if load_graph_out:
+            self._graph_out = numpy_load('%s.%s' % (filename, FE_GRAPH_OUT), assert_exists=False)
+            if self._graph_out is None:
+                logger.warning('no graph-out data found')
         else:
-            self._children = None
-            self._children_pos = None
-        assert self._parents is not None or (self._children is not None and self._children_pos is not None), \
-            'no structure data (parents or children) loaded'
-        #if load_root_ids and os.path.exists('%s.%s' % (filename, FE_ROOT_ID)):
+            self._graph_out = None
+        if self._graph_out is None and self._graph_in is None:
+            parents = numpy_load('%s.%s' % (filename, FE_PARENTS), assert_exists=False)
+            self._graph_in = graph_in_from_parents(parents)
+
+        assert self._graph_in is not None or self._graph_out is not None, \
+            'no structure data (graph_in or graph_out) found'
         if load_root_ids:
-            #self._root_data = np.load('%s.%s' % (filename, FE_ROOT_ID))
             self._root_data = numpy_load('%s.%s' % (filename, FE_ROOT_ID), assert_exists=False)
         else:
             self._root_data = None
-        #if load_root_pos and os.path.exists('%s.%s' % (filename, FE_ROOT_POS)):
         if load_root_pos:
-            #self._root_pos = np.load('%s.%s' % (filename, FE_ROOT_POS))
             self._root_pos = numpy_load('%s.%s' % (filename, FE_ROOT_POS), assert_exists=False)
         else:
             self._root_pos = None
 
-    def set_forest(self, data=None, parents=None, forest=None, children=None, children_pos=None,
+    def set_forest(self, data=None, parents=None, forest=None, graph_in=None, graph_out=None,
                    data_as_hashes=False, root_data=None, root_pos=None):
         self._as_hashes = data_as_hashes
         if self.data_as_hashes:
@@ -259,31 +273,23 @@ class Forest(object):
             assert len(forest) == 2, 'Wrong array count: %i. Trees array has to contain exactly the parents and data ' \
                                      'arrays: len=2' % str(len(forest))
             data = forest[0]
-            parents = forest[1]
+            graph_out = forest[1]
         if not isinstance(data, np.ndarray) or not data.dtype == data_dtype:
             data = np.array(data, dtype=data_dtype)
         self._data = data
-        if parents is not None:
-            assert len(data) == len(parents), \
-                'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
-            if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_OFFSET:
-                parents = np.array(parents, dtype=DTYPE_OFFSET)
-        self._parents = parents
-        if children_pos is not None:
-            assert children is not None, 'children_pos is given, but children is None'
-            assert len(data) == len(children_pos), \
-                'sizes of data and children_pos arrays differ: len(data)==%i != len(children_pos)==%i' % (
-                len(data), len(children_pos))
+        self._graph_in = graph_in
+        self._graph_out = graph_out
+        if self._graph_in is None and self._graph_out is None:
+            if parents is not None:
+                assert len(data) == len(parents), \
+                    'sizes of data and parents arrays differ: len(data)==%i != len(parents)==%i' % (len(data), len(parents))
+                if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_OFFSET:
+                    parents = np.array(parents, dtype=DTYPE_OFFSET)
+                self._graph_in = graph_in_from_parents(parents)
+        assert self._graph_in is not None or self._graph_out is not None, \
+            'either graph_in (%s) or graph_out (%s) have to be set (True iff array is set, in brackets)' \
+            % (str(self._graph_in is not None), str(self._graph_out is not None))
 
-            if not isinstance(children_pos, np.ndarray) or not children_pos.dtype == DTYPE_IDX:
-                children_pos = np.array(children_pos, dtype=DTYPE_IDX)
-        if children is not None:
-            assert children_pos is not None, 'children is given, but children_pos is None'
-            if not isinstance(children, np.ndarray) or not children.dtype == DTYPE_OFFSET:
-                children = np.array(children, dtype=DTYPE_OFFSET)
-
-        self._children = children
-        self._children_pos = children_pos
         if root_data is not None:
             if not isinstance(root_data, np.ndarray) or not root_data.dtype == data_dtype:
                 root_data = np.array(root_data, dtype=data_dtype)
@@ -292,12 +298,6 @@ class Forest(object):
                                                       % (root_data.dtype, data_dtype)
         self._root_data = root_data
         self._root_pos = root_pos
-        assert self._parents is not None or \
-               (self._children_pos is not None and self._children is not None and self._root_pos is not None), \
-            'either parents (%s) or (children (%s), children positions (%s) and root positions (%s)) have to be set ' \
-            '(True iff array is set, in brackets)' \
-            % (str(self._parents is not None), str(self._children_pos is not None),
-               str(self._children is not None), str(self._root_pos is not None))
 
     def set_lexicon(self, lexicon):
         self._lexicon = lexicon
@@ -323,46 +323,29 @@ class Forest(object):
         #else:
         #    self._root_data = -self.data[self.roots + OFFSET_ID] - 1
 
-    def dump(self, filename, save_parents=True, save_children=True, save_root_ids=True, save_root_pos=True):
+    def dump(self, filename, save_root_ids=True, save_root_pos=True, save_graph_in=True, save_graph_out=True):
         logger.debug('dump data ...')
         if self.data_as_hashes:
-            #self.data.dump('%s.%s' % (filename, FE_DATA_HASHES))
             numpy_dump('%s.%s' % (filename, FE_DATA_HASHES), self.data)
         else:
-            #self.data.dump('%s.%s' % (filename, FE_DATA))
             numpy_dump('%s.%s' % (filename, FE_DATA), self.data)
-        logger.debug('dump parents ...')
-        if save_parents and self.parents is not None:
-            #self.parents.dump('%s.%s' % (filename, FE_PARENTS))
-            numpy_dump('%s.%s' % (filename, FE_PARENTS), self.parents)
-
-        if save_children and self._children is not None and self._children_pos is not None:
-            #self._children.dump('%s.%s' % (filename, FE_CHILDREN))
-            #self._children_pos.dump('%s.%s' % (filename, FE_CHILDREN_POS))
-            numpy_dump('%s.%s' % (filename, FE_CHILDREN), self._children)
-            numpy_dump('%s.%s' % (filename, FE_CHILDREN_POS), self._children_pos)
-
         if save_root_ids and self._root_data is not None:
-            #self._root_data.dump('%s.%s' % (filename, FE_ROOT_ID))
             numpy_dump('%s.%s' % (filename, FE_ROOT_ID), self._root_data)
-
         if save_root_pos and self._root_pos is not None:
-            #self._root_pos.dump('%s.%s' % (filename, FE_ROOT_POS))
             numpy_dump('%s.%s' % (filename, FE_ROOT_POS), self._root_pos)
+        logger.debug('dump structure ...')
+        if save_graph_in and self._graph_in is not None:
+            numpy_dump('%s.%s' % (filename, FE_GRAPH_IN), self._graph_in)
+        if save_graph_out and self._graph_out is not None:
+            numpy_dump('%s.%s' % (filename, FE_GRAPH_OUT), self._graph_out)
 
     @staticmethod
     def exist(filename):
-        #data_exist = os.path.exists('%s.%s' % (filename, FE_DATA)) \
-        #             or os.path.exists('%s.%s' % (filename, FE_DATA_HASHES))
         data_exist = numpy_exists('%s.%s' % (filename, FE_DATA)) \
                      or numpy_exists('%s.%s' % (filename, FE_DATA_HASHES))
-
-        #structure_exist = os.path.exists('%s.%s' % (filename, FE_PARENTS)) \
-        #                  or (os.path.exists('%s.%s' % (filename, FE_CHILDREN))
-        #                      and os.path.exists('%s.%s' % (filename, FE_CHILDREN_POS)))
         structure_exist = numpy_exists('%s.%s' % (filename, FE_PARENTS)) \
-                          or (numpy_exists('%s.%s' % (filename, FE_CHILDREN))
-                              and numpy_exists('%s.%s' % (filename, FE_CHILDREN_POS)))
+                          or numpy_exists('%s.%s' % (filename, FE_GRAPH_IN)) \
+                          or numpy_exists('%s.%s' % (filename, FE_GRAPH_OUT))
 
         return data_exist and structure_exist
 
@@ -405,37 +388,39 @@ class Forest(object):
         _convert_data(data=self.data, converter=converter, lex_size=len(self.lexicon), new_idx_unknown=new_idx_unknown)
         self._dicts = None
 
-    def get_descendant_indices(self, root, show_links=True):
+    def get_descendant_indices(self, root, seen=None, show_links=True):
+        if seen is None:
+            seen = set()
         leafs = [root]
+        seen.add(root)
         # do not follow links
         if self.has_children(root) and (show_links or (self.data[root] not in self.link_types)):
             for c in self.get_children(root):
-                leafs.extend(self.get_descendant_indices(c + root, show_links=show_links))
-        return leafs
+                if c not in seen:
+                    leafs.extend(self.get_descendant_indices(c, seen=seen, show_links=show_links))
+        # because of graph structure indices could double
+        return np.unique(leafs)
 
-    def get_slice(self, root, root_exclude=None):
-        indices = np.sort(self.get_descendant_indices(root))
+    def get_slice(self, root=None, indices=None, root_exclude=None, show_links=True):
+        if indices is None:
+            indices = np.sort(self.get_descendant_indices(root, show_links=show_links))
         if root_exclude is not None:
             assert root != root_exclude, 'root==root_exclude (%i)' % root
             assert root_exclude in indices, 'root_exclude=%i is not in indices' % root_exclude
             indices_exclude = np.sort(self.get_descendant_indices(root_exclude))
             mask = np.isin(indices, indices_exclude, invert=True)
             indices = indices[mask]
-        new_parents = np.zeros_like(self.parents[indices])
-        new_positions = {idx: i for i, idx in enumerate(indices)}
-        for i, idx in enumerate(indices):
-            if idx == root:
-                new_parents[i] = 0
-            else:
-                new_parents[i] = new_positions[self.parents[idx] + idx] - i
-
-        return Forest(data=self.data[indices].copy(), parents=new_parents, lexicon=self.lexicon,
+        return Forest(data=self.data[indices].copy(), graph_out=_slice_graph(self.graph_out, indices).copy(),
+                      lexicon=self.lexicon,
+                      lexicon_roots=self.lexicon_roots,
                       data_as_hashes=self.data_as_hashes)
 
+    # DEPRECATED
     # TODO: fix this!
     # show_links==True does not show http://www.w3.org/2005/11/its/rdf#taIdentRef/SeeAlso links and
     # show_links==False does not adapt parents correctly (see ID:http://dbpedia.org/resource/14.5mm_JDJ)
     def trees(self, root_indices=None, show_links=True):
+        raise NotImplementedError('forest.trees is not implemented for graph. use forest.splice')
         if root_indices is None:
             root_indices = self.roots
         for i in root_indices:
@@ -458,10 +443,12 @@ class Forest(object):
         if len(child_positions) > 0:
             self._set_depths(child_positions, current_depth + 1)
 
+    # not used
     def trees_equal(self, root1, root2):
         _cmp = _compare_tree_dicts(self.get_tree_dict_cached(root1), self.get_tree_dict_cached(root2))
         return _cmp == 0
 
+    # not used
     # TODO: check!
     def sample_all(self, sample_count=1, retry_count=10):
         if self.data_as_hashes:
@@ -497,6 +484,7 @@ class Forest(object):
                     sampled_sim_tuples.append(current_sampled_indices)
         return sampled_sim_tuples
 
+    # not used
     def get_tree_dict_cached(self, idx):
         """
         DOES NOT WORK WITH max_depth!
@@ -510,13 +498,14 @@ class Forest(object):
             return self._dicts[idx]
         seq_node = {KEY_HEAD: self.data[idx], KEY_CHILDREN: []}
         if self.has_children(idx):
-            for child_offset in self.get_children(idx):
-                seq_node[KEY_CHILDREN].append(self.get_tree_dict_cached(idx + child_offset))
+            for child_idx in self.get_children(idx):
+                seq_node[KEY_CHILDREN].append(self.get_tree_dict_cached(child_idx))
         seq_node[KEY_CHILDREN].sort(cmp=_compare_tree_dicts)
 
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
+    # TODO(graph)
     def get_tree_dict(self, idx, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0):
         """
@@ -562,12 +551,11 @@ class Forest(object):
         seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         # ATTENTION: allows cost of 0!
         if self.has_children(idx) and 0 <= cost <= max_depth:
-            for child_offset in self.get_children(idx):
+            for child_idx in self.get_children(idx):
                 # full node dropout
                 if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
                     continue
 
-                child_idx = idx + child_offset
                 # if the child is a link ...
                 if data_head in link_types:
                     # ... and the target tree exists: jump to target root, ...
@@ -604,6 +592,7 @@ class Forest(object):
         #    self._dicts[(idx, depth)] = seq_node
         return seq_node
 
+    # TODO(graph)
     def get_tree_dict_rooted(self, idx, max_depth=9999, costs={}, link_types=[], data_blank=None, keep_prob_blank=1.0,
                              keep_prob_node=1.0):
         #result = None
@@ -629,6 +618,7 @@ class Forest(object):
                 result[KEY_CHILDREN].append(parent_tree)
         return result
 
+    # TODO(graph)
     def get_tree_dict_parent(self, idx, max_depth=9999, costs={}, link_types=[], data_blank=None, keep_prob_blank=1.0,
                              keep_prob_node=1.0):
         assert self.lexicon is not None, 'lexicon is not set'
@@ -654,13 +644,12 @@ class Forest(object):
             # if link is not disabled (cost < 0) ...
             if current_cost_down >= 0:
                 # ... add other children
-                for c in self.get_children(current_id):
-                    c_id = current_id + c
-                    if c_id != previous_id:
+                for child_idx in self.get_children(current_id):
+                    if child_idx != previous_id:
                         # full node dropout
                         if not (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
                             current_dict_tree[KEY_CHILDREN].append(
-                                self.get_tree_dict(c_id, max_depth=max_depth - current_cost_down, transform=True, costs=costs,
+                                self.get_tree_dict(child_idx, max_depth=max_depth - current_cost_down, transform=True, costs=costs,
                                                    link_types=link_types))
             # go up
             if self.parents[current_id] != 0:
@@ -706,16 +695,13 @@ class Forest(object):
     def meta_matches(a, b, operation):
         assert a.lexicon == b.lexicon or b.lexicon is None, 'lexica do not match, can not %s.' % operation
         assert a.data.dtype == b.data.dtype, 'dtype of data arrays do not match, can not %s.' % operation
-        assert a.parents.dtype == b.parents.dtype, 'dtype of parent arrays do not match, can not %s.' % operation
         assert a.data_as_hashes == b.data_as_hashes, 'data_as_hash do not match, can not %s.' % operation
-        if a._children is not None and a._children_pos is not None:
-            assert b._children is not None and b._children_pos is not None, 'if children arrays of first forest ' \
-                                                                                'are set, the children arrays of second ' \
-                                                                                'forest have to be set, too, can not ' \
-                                                                                '%s.' % operation
-        if a._parents is not None:
-            assert b._parents is not None, 'parent array of first forest is set, but not of second, can not %s.' \
-                                           % operation
+        if a._graph_in is not None:
+            assert b._graph_in is not None, 'if graph_in array of first forest is set, graph_in of second forest ' \
+                                        'have to be set, too, can not %s.' % operation
+        if a._graph_out is not None:
+            assert b._graph_out is not None, 'if graph_out array of first forest is set, graph_out of second forest ' \
+                                        'have to be set, too, can not %s.' % operation
         if a._root_data is not None:
             assert b._root_data is not None, 'root_ids of first forest is set, but not of the second, can not %s.' \
                                             % operation
@@ -726,7 +712,9 @@ class Forest(object):
             assert b._lexicon_roots is not None, 'lexicon_roots of first forest are set, but not of the second, can not %s.' \
                                             % operation
 
+    # TODO(graph): remove! (use Forest.concatenate instead)
     def extend(self, others):
+        raise NotImplementedError('forest.extend is deprecated. use concat.')
         if type(others) != list:
             others = [others]
         for other in others:
@@ -782,26 +770,20 @@ class Forest(object):
         assert len(forests) > 0, 'can not concatenate empty list of forests'
         for f in forests[1:]:
             Forest.meta_matches(forests[0], f, 'concatenate')
-        if forests[0]._children is not None and forests[0]._children_pos is not None:
-            new_children = np.concatenate([f._children for f in forests])
-            new_children_pos_list = []
-            offset = 0
-            for forest in forests:
-                new_children_pos_list.append(forest._children_pos + offset)
-                offset += len(forest._children)
-            new_children_pos = np.concatenate(new_children_pos_list)
+        if forests[0]._graph_in is not None:
+            new_graph_in = _concatenate_graphs((f._graph_in for f in forests))
         else:
-            new_children = None
-            new_children_pos = None
+            new_graph_in = None
+        if forests[0]._graph_out is not None:
+            new_graph_out = _concatenate_graphs((f._graph_out for f in forests))
+        else:
+            new_graph_out = None
 
-        if forests[0]._root_data is not None:
-            new_root_data = np.concatenate([f._root_data for f in forests])
-        else:
-            new_root_data = None
-        if forests[0]._parents is not None:
-            new_parents = np.concatenate([f.parents for f in forests])
-        else:
-            new_parents = None
+        # should _not_ work if lexicon_roots are merged!
+        #if forests[0]._root_data is not None:
+        #    new_root_data = np.concatenate([f._root_data for f in forests])
+        #else:
+        #    new_root_data = None
         if forests[0]._root_pos is not None:
             new_root_pos_list = []
             offset = 0
@@ -823,14 +805,13 @@ class Forest(object):
             forests[0]._lexicon_roots.clear_cached_values()
 
         return Forest(data=np.concatenate([f.data for f in forests]),
-                      parents=new_parents,
-                      children=new_children,
-                      children_pos=new_children_pos,
                       data_as_hashes=forests[0].data_as_hashes,
                       #lexicon=forests[0].lexicon,
                       lexicon_roots=forests[0]._lexicon_roots,
-                      root_ids=new_root_data,
-                      root_pos=new_root_pos)
+                      #root_ids=new_root_data,
+                      root_pos=new_root_pos,
+                      graph_in=new_graph_in,
+                      graph_out=new_graph_out)
 
     def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None, color_by_rank=False):
         if end is None:
@@ -904,12 +885,11 @@ class Forest(object):
                 last_node = node
 
             for i in range(len(nodes)):
-                target_indices = targets(self.g_in, i)
+                target_indices = targets(self.graph_in, i)
                 for target_index in target_indices:
                     if target_index < 0 or target_index >= len(nodes):
                         target_index = i
-                    if target_index != i:
-                        graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
+                    graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
 
         logger.debug('graph created. write to file: %s ...' % filename)
         # print(graph.to_string())
@@ -971,50 +951,23 @@ class Forest(object):
         return result
 
     def has_children(self, idx):
-        try:
-            c_pos = self._children_pos[idx]
-        except TypeError:
-            # self._children_pos is None
-            self.set_children_with_parents()
-            c_pos = self._children_pos[idx]
-        return self._children[c_pos] > 0
+        return self.nbr_out[idx] > 0
 
     def get_children(self, idx):
-        try:
-            child_pos = self._children_pos[idx]
-        except TypeError:
-            # self._children_pos is None
-            self.set_children_with_parents()
-            child_pos = self._children_pos[idx]
-
-        c = self._children[child_pos]
-        return self._children[child_pos+1:child_pos+1+c]
+        return targets(self.graph_out, idx)
 
     def get_child_positions_batched(self, indices):
         if len(indices) == 0:
             return []
-        try:
-            child_positions = self._children_pos[indices]
-        except TypeError:
-            # self._children_pos is None
-            self.set_children_with_parents()
-            child_positions = self._children_pos[indices]
-
-        counts = self._children[child_positions]
-        indices_list = [np.arange(child_positions[i]+1, child_positions[i]+1+counts[i]) for i in range(len(indices))]
-        positions = np.concatenate([self._children[l] + indices[i] for i, l in enumerate(indices_list)])
+        targets_list = (targets(self.graph_out, idx) for idx in indices)
+        positions = np.concatenate(targets_list)
         return positions
 
     def get_children_counts(self, indices):
-        try:
-            children_pos = self._children_pos[indices]
-        except TypeError:
-            # self._children_pos is None
-            self.set_children_with_parents()
-            children_pos = self._children_pos[indices]
-        return self._children[children_pos]
+        return self.nbr_out[indices]
 
     def set_parents_with_children(self):
+        raise NotImplementedError('set_parents_with_children not implemented for graph structure')
         logger.warning('set_parents_with_children ...')
         assert self._children is not None and self._children_pos is not None, 'children arrays are None, can not ' \
                                                                               'create parents'
@@ -1025,31 +978,6 @@ class Forest(object):
                 c_idx = p_idx + c_offset
                 self._parents[c_idx] = -c_offset
         #print('set parents')
-
-    def set_children_with_parents(self):
-        #logger.warning('set_children_with_parents ...')
-        assert self._parents is not None, 'parents are None, can not create children arrays'
-        children_dict, _ = _children_and_roots(self.parents)
-
-        _children_pos = np.zeros(shape=len(self), dtype=DTYPE_IDX)
-        # initialize with maximal size possible (if forest is a list)
-        _children = np.zeros(shape=2 * len(self), dtype=DTYPE_OFFSET)
-
-        pos = 0
-        for idx in range(len(self)):
-            _children_pos[idx] = pos
-            if idx in children_dict:
-                current_children = children_dict[idx]
-                l = len(current_children)
-                _children[pos] = l
-                _children[pos + 1:pos + 1 + l] = current_children
-                pos += l
-            else:
-                _children[pos] = 0
-            pos += 1
-
-        self._children = _children[:pos]
-        self._children_pos = _children_pos
 
     #def resolve_and_clean_ids(self):
     #    link_parent_positions = np.isin(self.data, self.link_types).nonzero()[0]
@@ -1065,7 +993,9 @@ class Forest(object):
     #    self.data[identity_positions] = d_identity
     #    self.data[link_parent_positions] = d_identity
 
+    # deprecated
     def get_path_indices(self, start, end=None):
+        raise NotImplementedError('set_parents_with_children not implemented for graph structure')
         res = []
         idx = start
         while self.parents[idx] != 0 and idx != end:
@@ -1084,15 +1014,8 @@ class Forest(object):
         return self._data
 
     @property
-    def parents(self):
-        if self._parents is None:
-            #logger.debug('forest: create parents from children')
-            self.set_parents_with_children()
-        return self._parents
-
-    @property
     def forest(self):
-        return self.data, self.parents
+        return self.data, self.graph_out
 
     @property
     def roots(self):
@@ -1101,9 +1024,7 @@ class Forest(object):
         :return: a plain numpy array containing all root positions
         """
         if self._root_pos is None:
-            #logger.debug('forest: create roots from parents (%i)' % len(self.parents))
-            self._root_pos = np.where(self.parents == 0)[0].astype(DTYPE_IDX)
-            #self._root_pos = np.where(self.g_in_nbr == 0)[0].astype(DTYPE_IDX)
+            self._root_pos = np.where(self.nbr_in == 0)[0].astype(DTYPE_IDX)
         return self._root_pos
 
     @property
@@ -1230,35 +1151,28 @@ class Forest(object):
         return self.lexicon.get_link_types(data_as_hashes=self.data_as_hashes)
 
     @property
-    def g_in(self):
-        if self._g_in is None:
-            if self._g_out is not None:
-                logger.debug('create g_out from g_in')
-                self._g_in = csr_matrix(self._g_out)
-            elif self._parents is not None:
-                logger.debug('create g_out from parents')
-                indices = self.parents + np.arange(len(self), dtype=DTYPE_IDX)
-                indptr = np.arange(len(self) + 1, dtype=DTYPE_IDX)
-                data = np.ones(shape=len(self), dtype=bool)
-                self._g_in = csr_matrix((data, indices, indptr), shape=(len(self), len(self)))
-        return self._g_in
+    def graph_in(self):
+        if self._graph_in is None:
+            if self._graph_out is not None:
+                logger.debug('create graph_in from graph_out')
+                self._graph_in = csr_matrix(self._graph_out)
+        return self._graph_in
 
     @property
-    def g_out(self):
-        if self._g_out is None:
-            if self._g_in is not None:
-                logger.debug('create g_out from g_in')
-                self._g_out = csc_matrix(self._g_in)
-            else:
-                raise NotImplementedError('create g_out from ... not implemented')
-        return self._g_out
+    def graph_out(self):
+        if self._graph_out is None:
+            logger.debug('create graph_out from graph_in')
+            self._graph_out = csc_matrix(self.graph_in)
+        return self._graph_out
 
     @property
-    def g_out_nbr(self):
-        nbr = self.g_out.indptr[1:] - self.g_out.indptr[:-1]
-        return nbr
+    def nbr_out(self):
+        if self._nbr_out is None:
+            self._nbr_out = self.graph_out.indptr[1:] - self.graph_out.indptr[:-1]
+        return self._nbr_out
 
     @property
-    def g_in_nbr(self):
-        nbr = self.g_in.indptr[1:] - self.g_in.indptr[:-1]
-        return nbr
+    def nbr_in(self):
+        if self._nbr_in is None:
+            self._nbr_in = self.graph_in.indptr[1:] - self.graph_in.indptr[:-1]
+        return self._nbr_in

@@ -363,11 +363,7 @@ def get_or_calc_sequence_data(params):
         assert root_start <= root_end, 'ERROR: root_start=%i > root_end=%i' % (root_start, root_end)
         assert root_end <= len(roots), 'ERROR: root_end=%i > len(roots)=%i' % (root_end, len(roots))
 
-        _forests = map(lambda seq: Forest(forest=seq, lexicon=lexicon,
-                                          data_as_hashes=current_forest.data_as_hashes,
-                                          #root_ids=current_forest.root_data,
-                                          lexicon_roots=current_forest.lexicon_roots),
-                       current_forest.trees(root_indices=roots[root_start:root_end], show_links=params.get('show_links', True)))
+        _forests = [current_forest.get_slice(root=root, show_links=params.get('show_links', True)) for root in roots[root_start:root_end]]
     elif 'idx_start' in params:
         idx_start = params.get('idx_start', 0)
         idx_end = params.get('idx_end', len(current_forest))
@@ -376,11 +372,7 @@ def get_or_calc_sequence_data(params):
 
         params['data_as_hashes'] = current_forest.data_as_hashes
 
-        _forests = [Forest(data=current_forest.data[idx_start:idx_end],
-                           parents=current_forest.parents[idx_start:idx_end],
-                           lexicon=lexicon, data_as_hashes=current_forest.data_as_hashes,
-                           #root_ids=current_forest.root_data,
-                           lexicon_roots=current_forest.lexicon_roots)]
+        _forests = [current_forest.get_slice(indices=np.arange(start=idx_start, stop=idx_end))]
     elif 'idx' in params:
         _forests, transformed = get_forests_for_indices_from_forest(indices=[params['idx']], current_forest=current_forest,
                                                                     params=params, transform=False)#, transform=params['transformed_idx'])
@@ -440,7 +432,7 @@ def get_or_calc_sequence_data(params):
                                   lexicon=lexicon)
         _forests = [_forests[0], candidate_forest]
 
-    params['data_sequences'], params['sequences'] = zip(*[([f.data, f.parents], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
+    params['data_sequences'], params['sequences'] = zip(*[([f.data, f.graph_out], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
     if params.get('calc_depths', False):
         params['depths'] = [f.depths for f in _forests]
     if params.get('calc_depths_max', False):

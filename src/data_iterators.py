@@ -255,20 +255,21 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
     for idx in indices:
         target_root_ids = []
         # allow multiple link edges
-        for child_offset in forest.get_children(idx):
-            child_data = forest.data[idx + child_offset]
+        for child_idx in forest.get_children(idx):
+            child_data = forest.data[child_idx]
             # allow only one type of link edge
             assert child_data == d_link_type, \
                 'link_data (%s, data=%i, idx=%i) is not as expected (%s). parent: %s, data=%i, idx=%i' \
                 % (forest.lexicon.get_s(child_data, data_as_hashes=forest.data_as_hashes),
-                   child_data, idx + child_offset,
+                   child_data, child_idx,
                    forest.lexicon.get_s(d_link_type, data_as_hashes=forest.data_as_hashes),
                    forest.lexicon.get_s(forest.data[idx], data_as_hashes=forest.data_as_hashes),
                    forest.data[idx], idx)
-            child_offset_target = forest.get_children(idx + child_offset)
-            assert len(child_offset_target) == 1, 'link has more or less then one targets: %i' % len(child_offset_target)
+            child_indices_target = forest.get_children(child_idx)
+            assert len(child_indices_target) == 1, \
+                'link has more or less then one targets: %i' % len(child_indices_target)
 
-            target_id_idx = idx + child_offset + child_offset_target[0]
+            target_id_idx = child_indices_target[0]
             target_id_data = forest.data[target_id_idx]
             # TODO: should not be possible
             if target_id_data == data_unknown:
@@ -384,9 +385,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         #sizes = []
         for idx in indices:
             # follow to first element of sequential data
-            context_child_offset = forest.get_children(idx)[0]
             # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1. NOT NECESSARY: gets cleaned by
-            idx_start = idx + context_child_offset #+ 1
+            idx_start = forest.get_children(idx)[0]
 
             root_pos = idx - OFFSET_CONTEXT_ROOT
             root_idx = forest.root_mapping[root_pos]
@@ -432,6 +432,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
 
     elif concat_mode == CM_SEQUENCE:
         # DEPRECATED
+        raise NotImplementedError('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
         logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
         # TODO: remove
         # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
@@ -448,7 +449,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             f = get_tree_naive(idx_start=idx+context_child_offset, idx_end=idx_end, forest=forest,
                                concat_mode=concat_mode, link_types=link_types,
                                remove_types=remove_types_naive, data_aggregator=data_nif_context)
-            f.set_children_with_parents()
+            #f.set_children_with_parents()
             tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
             yield tree_context
             n += 1
@@ -684,7 +685,7 @@ def get_classes_ids(indices_classes_root, classes_all_ids, forest):
     unknown_id = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
     classes_ids = []
     for i, classes_root_idx in enumerate(indices_classes_root):
-        classes_indices = forest.get_children(classes_root_idx) + classes_root_idx
+        classes_indices = forest.get_children(classes_root_idx)
         # exclude mesh ids that occurs less then min_count (these were mapped to UNKNOWN in merge_batches)
         current_class_ids_mapped = [classes_mapping[m_id] for m_id in forest.data[classes_indices]
                                     if m_id != unknown_id and m_id in classes_mapping]
@@ -798,7 +799,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode=CM_T
             idx_seealso_root = idx_root + offset_seealso
             children = []
             seealso_root_ids = []
-            for c_offset in sequence_trees.get_children(idx_seealso_root):
+            for c_idx in sequence_trees.get_children(idx_seealso_root):
                 seealso_root_ids = []
                 seealso_offset = sequence_trees.get_children(idx_seealso_root + c_offset)[0]
                 seealso_idx = idx_seealso_root + c_offset + seealso_offset
@@ -818,7 +819,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode=CM_T
                     f_seealso = get_tree_naive(root=seealso_root_id, forest=sequence_trees, concat_mode=concat_mode,
                                                lexicon=lexicon, link_types=[data_ref, data_ref_seealso],
                                                remove_types=remove_types_naive)
-                    f_seealso.set_children_with_parents()
+                    #f_seealso.set_children_with_parents()
                     tree_seealso = f_seealso.get_tree_dict(max_depth=max_depth-2, context=context, transform=transform)
                 children.append({KEY_HEAD: data_ref_seealso_transformed, KEY_CHILDREN: [tree_seealso]})
                 seealso_root_ids.append(seealso_root_id)
@@ -831,7 +832,7 @@ def data_tuple_iterator_dbpedianif(index_files, sequence_trees, concat_mode=CM_T
                 else:
                     f = get_tree_naive(root=root_id, forest=sequence_trees, concat_mode=concat_mode, lexicon=lexicon,
                                        link_types=[data_ref, data_ref_seealso], remove_types=remove_types_naive)
-                    f.set_children_with_parents()
+                    #f.set_children_with_parents()
                     tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
                 if bag_of_seealsos:
                     yield [[tree_context, {KEY_HEAD: data_root_seealso_transformed, KEY_CHILDREN: children}],
