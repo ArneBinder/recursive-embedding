@@ -31,6 +31,10 @@ logger.addHandler(logger_streamhandler)
 logger.propagate = False
 
 
+def targets(g, idx):
+    return g.indices[g.indptr[idx]:g.indptr[idx + 1]]
+
+
 def _get_root(parents, idx):
     i = idx
     while parents[i] != 0:
@@ -900,10 +904,12 @@ class Forest(object):
                 last_node = node
 
             for i in range(len(nodes)):
-                target_index = i + self.parents[i+start]
-                if target_index < 0 or target_index >= len(nodes):
-                    target_index = i
-                graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
+                target_indices = targets(self.g_in, i)
+                for target_index in target_indices:
+                    if target_index < 0 or target_index >= len(nodes):
+                        target_index = i
+                    if target_index != i:
+                        graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
 
         logger.debug('graph created. write to file: %s ...' % filename)
         # print(graph.to_string())
@@ -1229,7 +1235,7 @@ class Forest(object):
             if self._g_out is not None:
                 logger.debug('create g_out from g_in')
                 self._g_in = csr_matrix(self._g_out)
-            elif self._parents is None:
+            elif self._parents is not None:
                 logger.debug('create g_out from parents')
                 indices = self.parents + np.arange(len(self), dtype=DTYPE_IDX)
                 indptr = np.arange(len(self) + 1, dtype=DTYPE_IDX)
