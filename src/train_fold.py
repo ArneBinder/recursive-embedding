@@ -1435,7 +1435,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         lexicon_roots = Lexicon(filename=lexicon_root_fn, load_vecs=False)
     else:
         lexicon_roots = None
-    forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
+    #forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
+    forest = Forest(filename=config.train_data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
 
     #if config.model_type == MT_REROOT:
     logger.debug('set ids to IDENTITY')

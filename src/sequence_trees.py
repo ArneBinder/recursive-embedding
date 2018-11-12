@@ -90,7 +90,6 @@ def _calc_depth(children, parents, depth, start):
 
 
 def _sequence_node_to_sequence_trees(seq_tree):
-    raise NotImplementedError('Not implemented for graph structrue')
     current_data = []
     current_parents = []
     children_roots = []
@@ -498,16 +497,17 @@ class Forest(object):
             return self._dicts[idx]
         seq_node = {KEY_HEAD: self.data[idx], KEY_CHILDREN: []}
         if self.has_children(idx):
-            for child_idx in self.get_children(idx):
+            for child_idx in targets(self.graph_out, idx):
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict_cached(child_idx))
         seq_node[KEY_CHILDREN].sort(cmp=_compare_tree_dicts)
 
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
-    # TODO(graph)
-    def get_tree_dict(self, idx, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
-                      link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0):
+    # TODO(graph): test!
+    def get_tree_dict(self, idx, visited=None, visited_reverse=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
+                      link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0,
+                      revert=False):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -535,23 +535,32 @@ class Forest(object):
         #    if seq_node is not None:
         #        logger.debug('got tree from cache')
         #        return seq_node
-
+        #if revert:
+        #    if visited_reverse is None:
+        #        visited_reverse = set()
+        #    visited_reverse.add(idx)
+        #else:
+        if visited is None:
+            visited = set()
+        visited.add(idx)
         data_head = self.data[idx]
-
         assert context == 0 or transform, 'context > 0, but transform is disabled.'
 
         cost = costs.get(data_head, 1)
 
         if transform:
-            data_head = self.lexicon.transform_idx(data_head)
+            data_head = self.lexicon.transform_idx(data_head, revert=revert)
         # blank node dropout
+        # TODO: check, if disabling this should be disabled for the head (iff len(visited) == 1)
         if keep_prob_blank < 1.0 and data_head not in link_types and keep_prob_blank < np.random.uniform():
             data_head = self.lexicon.transform_idx(data_blank) if transform else data_blank
 
         seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         # ATTENTION: allows cost of 0!
         if self.has_children(idx) and 0 <= cost <= max_depth:
-            for child_idx in self.get_children(idx):
+            for target in targets(self.graph_out, idx):
+                if visited is not None and target in visited:
+                    continue
                 # full node dropout
                 if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
                     continue
@@ -559,42 +568,52 @@ class Forest(object):
                 # if the child is a link ...
                 if data_head in link_types:
                     # ... and the target tree exists: jump to target root, ...
-                    #if self.data[child_idx] in self.root_id_pos:
-                    target_root_pos = self.root_id_pos.get(self.data[child_idx], None)
+                    #if self.data[target] in self.root_id_pos:
+                    target_root_pos = self.root_id_pos.get(self.data[target], None)
                     if target_root_pos is not None:
-                        child_idx = target_root_pos + link_content_offset
+                        target = target_root_pos + link_content_offset
                     else:
                         # ... otherwise add the TARGET element NO: if costs prohibit link following, this is never reached. otherwise this should not be used
                         #d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
                         #seq_node[KEY_CHILDREN].append({KEY_HEAD: self.lexicon.transform_idx(d_target) if transform else d_target, KEY_CHILDREN: []})
                         continue
 
-                seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=child_idx,
+                seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target,
+                                                                 visited=visited,
+                                                                 visited_reverse=visited_reverse,
                                                                  max_depth=max_depth - cost,
-                                                                 context=context, transform=transform or context > 0,
+                                                                 context=context,
+                                                                 transform=transform or context > 0,
                                                                  costs=costs,
                                                                  link_types=link_types,
-                                                                 data_blank=data_blank, keep_prob_blank=keep_prob_blank,
+                                                                 data_blank=data_blank,
+                                                                 keep_prob_blank=keep_prob_blank,
                                                                  keep_prob_node=keep_prob_node))
-        if context > 0 and self.parents[idx] != 0:
-            # full node dropout
-            if not(keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
-                seq_node[KEY_CHILDREN].append(self.get_tree_dict_parent(idx=idx, max_depth=context-cost,
-                                                                        #transform=transform,
-                                                                        costs=costs,
-                                                                        link_types=link_types,
-                                                                        data_blank=data_blank,
-                                                                        keep_prob_blank=keep_prob_blank,
-                                                                        keep_prob_node=keep_prob_node))
-        # caching
-        #if self._dicts is not None:
-        #    depth = min(self.depths[idx], max_depth)
-        #    self._dicts[(idx, depth)] = seq_node
+        if context > 0:
+            for target_back in targets(self.graph_in, idx):
+                if visited is not None and target_back in visited:
+                    continue
+                # full node dropout
+                if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
+                    continue
+                seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target_back,
+                                                                 revert=True,
+                                                                 visited=visited,
+                                                                 visited_reverse=visited_reverse,
+                                                                 max_depth=context - cost,
+                                                                 context=context,
+                                                                 transform=transform or context > 0,
+                                                                 costs=costs,
+                                                                 link_types=link_types,
+                                                                 data_blank=data_blank,
+                                                                 keep_prob_blank=keep_prob_blank,
+                                                                 keep_prob_node=keep_prob_node))
+
         return seq_node
 
-    # TODO(graph)
-    def get_tree_dict_rooted(self, idx, max_depth=9999, costs={}, link_types=[], data_blank=None, keep_prob_blank=1.0,
-                             keep_prob_node=1.0):
+    # TODO(graph): test!
+    def get_tree_dict_rooted(self, idx, visited=None, visited_reverse=None, revert=False, max_depth=9999, costs={},
+                             link_types=[],  data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0):
         #result = None
         # if current data is a link, start at parent NOT NECESSARY (will be transformed to IDENTITY entry)
         #if self.parents[idx] != 0:
@@ -604,23 +623,36 @@ class Forest(object):
         #        result = {KEY_HEAD: self.lexicon.transform_idx(d_target), KEY_CHILDREN: []}
 
         #if result is None:
-        result = self.get_tree_dict(idx, max_depth=max_depth, transform=True, costs=costs, link_types=link_types,
-                                    data_blank=data_blank, keep_prob_blank=keep_prob_blank,
-                                    keep_prob_node=keep_prob_node)
+        #if visited_reverse is None:
+        #    visited_reverse = set()
+        if visited is None:
+            visited = set()
+        result = self.get_tree_dict(idx, visited=visited, visited_reverse=visited_reverse, revert=revert,
+                                    max_depth=max_depth, transform=True,
+                                    costs=costs,  link_types=link_types, data_blank=data_blank,
+                                    keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node)
+
         #cost = costs.get(self.data[idx], 1)
         cost = 1
-        if self.parents[idx] != 0 and max_depth > 0:
-            # full node dropout
-            if not (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
-                parent_tree = self.get_tree_dict_parent(idx, max_depth-cost, costs=costs, link_types=link_types,
-                                                        data_blank=data_blank, keep_prob_blank=keep_prob_blank,
-                                                        keep_prob_node=keep_prob_node)
-                result[KEY_CHILDREN].append(parent_tree)
+        if max_depth > 0:
+            for target_back in targets(self.graph_in, idx):
+                if visited is not None and target_back in visited:
+                    continue
+                # full node dropout
+                if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
+                    continue
+                result_back = self.get_tree_dict_rooted(target_back, visited=visited, visited_reverse=visited_reverse,
+                                                      max_depth=max_depth-cost, costs=costs,
+                                                      link_types=link_types, data_blank=data_blank,
+                                                      keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node)
+                result[KEY_CHILDREN].append(result_back)
         return result
 
+    # not used
     # TODO(graph)
     def get_tree_dict_parent(self, idx, max_depth=9999, costs={}, link_types=[], data_blank=None, keep_prob_blank=1.0,
                              keep_prob_node=1.0):
+        raise NotImplementedError('not implemented for graph. use get_tree_dict_reroot')
         assert self.lexicon is not None, 'lexicon is not set'
 
         if self.parents[idx] == 0:
@@ -644,7 +676,7 @@ class Forest(object):
             # if link is not disabled (cost < 0) ...
             if current_cost_down >= 0:
                 # ... add other children
-                for child_idx in self.get_children(current_id):
+                for child_idx in targets(self.graph_out, current_id):
                     if child_idx != previous_id:
                         # full node dropout
                         if not (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
