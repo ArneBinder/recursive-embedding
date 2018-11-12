@@ -4,6 +4,7 @@ import logging
 import os
 
 import pydot
+from scipy.sparse import csr_matrix, csc_matrix
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
@@ -158,6 +159,8 @@ class Forest(object):
         self._children_pos = None
         self._root_pos = None
         self._root_data = None
+        self._g_out = None
+        self._g_in = None
 
         if filename is not None:
             self.load(filename=filename, load_parents=load_parents, load_children=load_children,
@@ -1094,6 +1097,7 @@ class Forest(object):
         if self._root_pos is None:
             #logger.debug('forest: create roots from parents (%i)' % len(self.parents))
             self._root_pos = np.where(self.parents == 0)[0].astype(DTYPE_IDX)
+            #self._root_pos = np.where(self.g_in_nbr == 0)[0].astype(DTYPE_IDX)
         return self._root_pos
 
     @property
@@ -1218,3 +1222,37 @@ class Forest(object):
         """
         assert self.lexicon is not None, 'can not get link types if lexicon is not available'
         return self.lexicon.get_link_types(data_as_hashes=self.data_as_hashes)
+
+    @property
+    def g_in(self):
+        if self._g_in is None:
+            if self._g_out is not None:
+                logger.debug('create g_out from g_in')
+                self._g_in = csr_matrix(self._g_out)
+            elif self._parents is None:
+                logger.debug('create g_out from parents')
+                indices = self.parents + np.arange(len(self), dtype=DTYPE_IDX)
+                indptr = np.arange(len(self) + 1, dtype=DTYPE_IDX)
+                data = np.ones(shape=len(self), dtype=bool)
+                self._g_in = csr_matrix((data, indices, indptr), shape=(len(self), len(self)))
+        return self._g_in
+
+    @property
+    def g_out(self):
+        if self._g_out is None:
+            if self._g_in is not None:
+                logger.debug('create g_out from g_in')
+                self._g_out = csc_matrix(self._g_in)
+            else:
+                raise NotImplementedError('create g_out from ... not implemented')
+        return self._g_out
+
+    @property
+    def g_out_nbr(self):
+        nbr = self.g_out.indptr[1:] - self.g_out.indptr[:-1]
+        return nbr
+
+    @property
+    def g_in_nbr(self):
+        nbr = self.g_in.indptr[1:] - self.g_in.indptr[:-1]
+        return nbr
