@@ -254,12 +254,13 @@ def extract_relation_subtree(forest):
 def handle_relation(forest):
     e1_hash = hash_string(TYPE_E1)
     e2_hash = hash_string(TYPE_E2)
-    relation_other_hash = hash_string(TYPE_RELATION + SEPARATOR + 'Other')
-    new_relation_strings = {TYPE_RELATION + SEPARATOR + 'Other'}
+    relation_other_string = TYPE_RELATION_TYPE + SEPARATOR + 'Other'
+    relation_other_hash = hash_string(relation_other_string)
+    new_relation_strings = {relation_other_string}
     all_relation_ids, all_relation_strings = forest.lexicon.get_ids_for_prefix(TYPE_RELATION)
     # add TYPE_RELATION itself because it should be removed from the graph
     all_relation_hashes = [hash_string(s) for s in all_relation_strings + (TYPE_RELATION,)]
-    assert relation_other_hash in all_relation_hashes, 'relation_other_hash not found in all_relation_hashes'
+    #assert relation_other_hash in all_relation_hashes, 'relation_other_hash not found in all_relation_hashes'
     new_data_list = []
     new_graph_list = []
     for i, root_pos in enumerate(forest.roots):
@@ -274,7 +275,7 @@ def handle_relation(forest):
         assert len(relation_strings) == 2, 'more then one (%i) relations found for root=%i' % (len(relation_strings), i)
         parts = relation_strings[1].split(SEPARATOR)[1].split('(')
         rel_type = parts[0]
-        # re-append relation prefix
+        # prepend relation-type prefix
         rel_type = TYPE_RELATION_TYPE + SEPARATOR + rel_type
         new_relation_strings.add(rel_type)
         if len(parts) > 1:
