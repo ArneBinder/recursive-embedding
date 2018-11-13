@@ -4,7 +4,7 @@ import logging
 import os
 
 import pydot
-from scipy.sparse import csr_matrix, csc_matrix
+from scipy import sparse
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
@@ -44,7 +44,7 @@ def graph_in_from_parents(parents):
     # indptr = np.arange(len(indices) + 1, dtype=DTYPE_IDX)
     indptr = np.concatenate(([0], np.add.accumulate(mask, dtype=DTYPE_IDX)))
     data = np.ones(shape=len(indices), dtype=bool)
-    graph = csr_matrix((data, indices, indptr), shape=(len(parents), len(parents)))
+    graph = sparse.csr_matrix((data, indices, indptr), shape=(len(parents), len(parents)))
     return graph
 
 # unused
@@ -156,19 +156,19 @@ def concatenate_graphs(graphs):
     _indices = np.concatenate(indices)
     _data = np.concatenate(datas)
 
-    if m_type == csr_matrix:
-        return csr_matrix((_data, _indices, _indptr), shape=(offset_shape, offset_shape))
-    elif m_type == csc_matrix:
-        return csc_matrix((_data, _indices, _indptr), shape=(offset_shape, offset_shape))
+    if m_type == sparse.csr_matrix:
+        return sparse.csr_matrix((_data, _indices, _indptr), shape=(offset_shape, offset_shape))
+    elif m_type == sparse.csc_matrix:
+        return sparse.csc_matrix((_data, _indices, _indptr), shape=(offset_shape, offset_shape))
     else:
         raise NotImplementedError('concatenation for matrix type "%s" not implemented' % m_type)
 
 
 def graph_from_graph(graph, size):
-    if isinstance(graph, csr_matrix):
-        return csr_matrix((size, size), dtype=graph.dtype)
-    elif isinstance(graph, csc_matrix):
-        return csc_matrix((size, size), dtype=graph.dtype)
+    if isinstance(graph, sparse.csr_matrix):
+        return sparse.csr_matrix((size, size), dtype=graph.dtype)
+    elif isinstance(graph, sparse.csc_matrix):
+        return sparse.csc_matrix((size, size), dtype=graph.dtype)
     else:
         raise AssertionError('unknown graph type: %s' % str(type(graph)))
 
@@ -1227,14 +1227,14 @@ class Forest(object):
         if self._graph_in is None:
             if self._graph_out is not None:
                 logger.debug('create graph_in from graph_out')
-                self._graph_in = csr_matrix(self._graph_out)
+                self._graph_in = sparse.csr_matrix(self._graph_out)
         return self._graph_in
 
     @property
     def graph_out(self):
         if self._graph_out is None:
             logger.debug('create graph_out from graph_in')
-            self._graph_out = csc_matrix(self.graph_in)
+            self._graph_out = sparse.csc_matrix(self.graph_in)
         return self._graph_out
 
     @property
