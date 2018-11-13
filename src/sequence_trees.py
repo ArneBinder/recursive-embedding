@@ -559,8 +559,7 @@ class Forest(object):
         # blank node dropout
         # do not blank heads and links
         if len(visited) > 1 and \
-                ((keep_prob_blank < 1.0 and data_head not in link_types and keep_prob_blank < np.random.uniform())
-                 or (data_head in blank_types and data_head not in link_types)):
+                ((keep_prob_blank < 1.0 and data_head not in link_types and keep_prob_blank < np.random.uniform())):
             data_head = data_blank
 
         if transform:
@@ -570,12 +569,6 @@ class Forest(object):
         # ATTENTION: allows cost of 0!
         if self.nbr_out[idx] > 0 and 0 <= cost <= max_depth:
             for target in targets(self.graph_out, idx):
-                if visited is not None and target in visited:
-                    continue
-                # full node dropout
-                if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
-                    continue
-
                 # if the child is a link ...
                 if data_head in link_types:
                     # ... and the target tree exists: jump to target root, ...
@@ -588,6 +581,14 @@ class Forest(object):
                         #d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
                         #seq_node[KEY_CHILDREN].append({KEY_HEAD: self.lexicon.transform_idx(d_target) if transform else d_target, KEY_CHILDREN: []})
                         continue
+
+                if visited is not None and target in visited:
+                    continue
+
+                data_target = self.data[target]
+                # full node dropout
+                if (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()) or data_target in blank_types:
+                    continue
 
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target,
                                                                  visited=visited,
@@ -606,8 +607,9 @@ class Forest(object):
                 for target in targets(self.graph_in, idx):
                     if visited is not None and target in visited:
                         continue
+                    data_target = self.data[target]
                     # full node dropout
-                    if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
+                    if (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()) or data_target in blank_types:
                         continue
                     # TODO: handle link_types (see above)?
                     seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target,
