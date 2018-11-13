@@ -625,6 +625,7 @@ class Lexicon(object):
         res = [(self.mapping[self.strings[s]], s) for s in self.strings if s.startswith(prefix + constants.SEPARATOR)]
         if len(res) == 0:
             logger.warning('no indices found for prefix=%s' % prefix)
+            return [(), ()]
         return zip(*res)
 
     def get_indices(self, indices=None, prefix=None, indices_as_blacklist=False):
