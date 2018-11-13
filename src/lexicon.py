@@ -553,7 +553,12 @@ class Lexicon(object):
             assert len(new_vecs) <= len(self), 'can not set more vecs than amount of existing ' \
                                                                    'types (len(new_vecs)==%i > len(types)==%i)' \
                                                                    % (len(new_vecs), len(self))
-            self._vecs = new_vecs
+            if new_vecs.shape[0] < len(self):
+                logging.debug('pad missing vecs (%i) with zero' % (len(self) - new_vecs.shape[0]))
+                self._vecs = np.zeros(shape=(len(self), new_vecs.shape[1]), dtype=np.float32)
+                self._vecs[:new_vecs.shape[0], :] = new_vecs
+            else:
+                self._vecs = new_vecs
         elif dims is not None and dims > 0:
             self._vecs = np.zeros(shape=(0, dims), dtype=DTYPE_VECS)
         else:
