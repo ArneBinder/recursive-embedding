@@ -291,7 +291,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
                   link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000,
-                  keep_prob_blank=1.0, keep_prob_node=1.0,
+                  keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(),
                   **unused):
     """
     create trees rooted at indices
@@ -326,6 +326,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #root_types = []
     # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
     data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    blank_types = [lexicon.get_d(s=t, data_as_hashes=forest.data_as_hashes) for t in blank_types]
 
     # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
     if TYPE_REF in lexicon.strings:
@@ -337,6 +338,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
         costs[data_ref_seealso] = link_cost_ref_seealso
         link_types.append(data_ref_seealso)
+
     #if TYPE_PMID in lexicon.strings:
     #    d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=forest.data_as_hashes)
     #    root_types.append(d_pmid)
@@ -350,7 +352,6 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     if transform:
         data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context)
         data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed)
-    data_root = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=forest.data_as_hashes)
 
     # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
     remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
@@ -367,11 +368,13 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             if reroot:
                 tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
                                                            costs=costs, link_types=link_types, data_blank=data_blanking,
-                                                           keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node)
+                                                           keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
+                                                           blank_types=blank_types)
             else:
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
                                                     costs=costs, link_types=link_types, data_blank=data_blanking,
-                                                    keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node)
+                                                    keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
+                                                    blank_types=blank_types)
             yield tree_context
             n += 1
             # measure progress in percent
