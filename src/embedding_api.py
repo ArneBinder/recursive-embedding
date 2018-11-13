@@ -245,7 +245,7 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
             max_depth=params.get('max_depth', 10), transform=transform,
             link_cost_ref=params.get('link_cost_ref', None),
             link_cost_ref_seealso=params.get('link_cost_ref_seealso', None), reroot=params.get('reroot', False),
-            max_size_plain=1000, keep_prob_blank=1.0, keep_prob_node=1.0,
+            max_size_plain=1000, keep_prob_blank=params.get('keep_prob_blank', 1.0), keep_prob_node=params.get('keep_prob_node', 1.0),
             blank_types=blank_types):
 
         forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
