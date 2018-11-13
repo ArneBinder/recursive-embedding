@@ -252,11 +252,13 @@ def extract_relation_subtree(forest):
 
 
 def handle_relation(forest):
+    e_string = TYPE_NAMED_ENTITY
+    e_hash = hash_string(e_string)
     e1_hash = hash_string(TYPE_E1)
     e2_hash = hash_string(TYPE_E2)
     relation_other_string = TYPE_RELATION_TYPE + SEPARATOR + 'Other'
     relation_other_hash = hash_string(relation_other_string)
-    new_relation_strings = {relation_other_string}
+    new_relation_strings = {relation_other_string, e_string}
     all_relation_ids, all_relation_strings = forest.lexicon.get_ids_for_prefix(TYPE_RELATION)
     # add TYPE_RELATION itself because it should be removed from the graph
     all_relation_hashes = [hash_string(s) for s in all_relation_strings + (TYPE_RELATION,)]
@@ -283,12 +285,15 @@ def handle_relation(forest):
             rel_dir = parts[1][:-1]
         else:
             rel_dir = None
-        new_data_list.append(data)
-        new_data_list.append(np.array([hash_string(rel_type), relation_other_hash], dtype=DTYPE_HASH))
 
         # assume there is only one E1 and E2
         e1_position = np.argwhere(data == e1_hash)[0][0]
         e2_position = np.argwhere(data == e2_hash)[0][0]
+        # unify argument marker
+        data[e1_position] = e_hash
+        data[e2_position] = e_hash
+        new_data_list.append(data)
+        new_data_list.append(np.array([hash_string(rel_type), relation_other_hash], dtype=DTYPE_HASH))
         new_graph = concatenate_graphs((graph, graph_from_graph(graph, size=2)))
         if rel_dir is None or rel_dir == 'e1,e2':
             # connect relation
