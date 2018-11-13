@@ -222,41 +222,26 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
 
 def get_forests_for_indices_from_forest(indices, current_forest, params, transform):
 
-    max_depth = params.get('max_depth', 10)
     context = params.get('context', 0)
     transform = transform or context > 0
 
     if current_forest.data_as_hashes:
         current_forest.hashes_to_indices()
-    link_types = []
-    costs = {}
-    if TYPE_REF in lexicon.strings:
-        d_ref = lexicon.get_d(TYPE_REF, data_as_hashes=current_forest.data_as_hashes)
-        link_types.append(d_ref)
-        if 'link_cost_ref' in params:
-            costs[d_ref] = params['link_cost_ref']
-    if TYPE_REF_SEEALSO in lexicon.strings:
-        d_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=current_forest.data_as_hashes)
-        link_types.append(d_ref_seealso)
-        if 'link_cost_ref_seealso' in params:
-            costs[d_ref_seealso] = params['link_cost_ref_seealso']
-    #d_dbpedia_resource = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=current_forest.data_as_hashes)
-    #d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=current_forest.data_as_hashes)
 
     forests = []
     transformed = params.get('reroot', False) or transform
-    for idx in indices:
-        if params.get('reroot', False):
-            tree_dict = current_forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, costs=costs,
-                                                            #transform=True,
-                                                            link_types=link_types)
-        else:
-            tree_dict = current_forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context,
-                                                     transform=transform,
-                                                     costs=costs, link_types=link_types)
+
+    for tree_dict in data_iterators.tree_iterator(
+            indices, current_forest, concat_mode=params.get('concat_mode', constants.CM_TREE), context=context,
+            max_depth=params.get('max_depth', 10), transform=transform,
+            link_cost_ref=params.get('link_cost_ref', None),
+            link_cost_ref_seealso=params.get('link_cost_ref_seealso', None), reroot=params.get('reroot', False),
+            max_size_plain=1000, keep_prob_blank=1.0, keep_prob_node=1.0,
+            blank_types=[unicode(b) for b in params.get('blank_types', ())]):
+
         forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                        data_as_hashes=current_forest.data_as_hashes, #root_ids=current_forest.root_data,
-                        lexicon_roots=current_forest.lexicon_roots)#, transformed_indices=transformed)
+                        data_as_hashes=current_forest.data_as_hashes,  # root_ids=current_forest.root_data,
+                        lexicon_roots=current_forest.lexicon_roots)
         forests.append(forest)
 
     return forests, transformed
