@@ -50,6 +50,7 @@ def data_tuple_iterator_reroot(sequence_trees, neg_samples, index_files=[], indi
     :param unused:
     :return:
     """
+    raise NotImplementedError('data_tuple_iterator_reroot is deprecated. use tree_iterator')
     logger.debug('size of data: %i' % len(sequence_trees))
     logger.debug('size of lexicon: %i' % len(sequence_trees.lexicon))
     assert max_depth > 0, 'can not produce candidates for zero depth trees (single nodes)'
@@ -364,16 +365,10 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #x = (1 + (len(indices) / 100))
     if concat_mode == CM_TREE:
         for idx in indices:
-            if reroot:
-                tree_context = forest.get_tree_dict_rooted(idx=idx, max_depth=max_depth, #transform=transform,
-                                                           costs=costs, link_types=link_types, data_blank=data_blanking,
-                                                           keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                           blank_types=blank_types)
-            else:
-                tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform,
-                                                    costs=costs, link_types=link_types, data_blank=data_blanking,
-                                                    keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                    blank_types=blank_types)
+            tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform or reroot,
+                                                costs=costs, link_types=link_types, data_blank=data_blanking,
+                                                keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
+                                                blank_types=blank_types, go_back=reroot)
             yield tree_context
             n += 1
             # measure progress in percent

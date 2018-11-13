@@ -402,8 +402,8 @@ class Forest(object):
         leafs = [root]
         seen.add(root)
         # do not follow links
-        if self.has_children(root) and (show_links or (self.data[root] not in self.link_types)):
-            for c in self.get_children(root):
+        if self.nbr_out[root] > 0 and (show_links or (self.data[root] not in self.link_types)):
+            for c in targets(self.graph_out, root):
                 if c not in seen:
                     leafs.extend(self.get_descendant_indices(c, seen=seen, show_links=show_links))
         # because of graph structure indices could double
@@ -505,7 +505,7 @@ class Forest(object):
         if idx in self._dicts:
             return self._dicts[idx]
         seq_node = {KEY_HEAD: self.data[idx], KEY_CHILDREN: []}
-        if self.has_children(idx):
+        if self.nbr_out[idx] > 0:
             for child_idx in targets(self.graph_out, idx):
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict_cached(child_idx))
         seq_node[KEY_CHILDREN].sort(cmp=_compare_tree_dicts)
@@ -516,7 +516,7 @@ class Forest(object):
     # TODO(graph): test!
     def get_tree_dict(self, idx, visited=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0,
-                      revert=False, blank_types=()):
+                      revert=False, blank_types=(), go_back=False):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -568,7 +568,7 @@ class Forest(object):
 
         seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
         # ATTENTION: allows cost of 0!
-        if self.has_children(idx) and 0 <= cost <= max_depth:
+        if self.nbr_out[idx] > 0 and 0 <= cost <= max_depth:
             for target in targets(self.graph_out, idx):
                 if visited is not None and target in visited:
                     continue
@@ -599,7 +599,30 @@ class Forest(object):
                                                                  data_blank=data_blank,
                                                                  keep_prob_blank=keep_prob_blank,
                                                                  keep_prob_node=keep_prob_node,
-                                                                 blank_types=blank_types))
+                                                                 blank_types=blank_types,
+                                                                 go_back=go_back))
+        if go_back:
+            if self.nbr_in[idx] > 0 and 0 <= cost <= max_depth:
+                for target in targets(self.graph_in, idx):
+                    if visited is not None and target in visited:
+                        continue
+                    # full node dropout
+                    if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
+                        continue
+                    # TODO: handle link_types (see above)?
+                    seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target,
+                                                                     revert=True,
+                                                                     visited=visited,
+                                                                     max_depth=max_depth - cost,
+                                                                     context=context,
+                                                                     transform=transform or context > 0,
+                                                                     costs=costs,
+                                                                     link_types=link_types,
+                                                                     data_blank=data_blank,
+                                                                     keep_prob_blank=keep_prob_blank,
+                                                                     keep_prob_node=keep_prob_node,
+                                                                     blank_types=blank_types,
+                                                                     go_back=go_back))
         if context > 0:
             for target_back in targets(self.graph_in, idx):
                 if visited is not None and target_back in visited:
@@ -622,7 +645,7 @@ class Forest(object):
 
         return seq_node
 
-    # TODO(graph): test!
+    # DEPRECATED. use get_tree_dict with go_back=True
     def get_tree_dict_rooted(self, idx, visited=None, revert=False, max_depth=9999, costs={},
                              link_types=[],  data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=()):
         #result = None
@@ -994,9 +1017,11 @@ class Forest(object):
                     result.append(l)
         return result
 
+    # deprecated, use self.nbr_out[idx] > 0 directly
     def has_children(self, idx):
         return self.nbr_out[idx] > 0
 
+    # deprecated, use targets(self.graph_out, idx) directly
     def get_children(self, idx):
         return targets(self.graph_out, idx)
 
@@ -1007,6 +1032,7 @@ class Forest(object):
         positions = np.concatenate(targets_list)
         return positions
 
+    # deprecated, use self.nbr_out[indices] directly
     def get_children_counts(self, indices):
         return self.nbr_out[indices]
 
