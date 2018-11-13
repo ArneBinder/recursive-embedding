@@ -197,9 +197,9 @@ default_config = {'train_data_path': ['DEFINE_string',
                   #                'nst'
                   #                ],
                   'nbr_trees': ['DEFINE_string',
-                                "100000",
+                                "",
                                 'number of trees for one epoch when training the REROOT model',
-                                None],
+                                'nb'],
                   'nbr_trees_test': ['DEFINE_string',
                                      "",
                                      'If > 0, number of trees for one test epoch when training the REROOT model. '
