@@ -4,6 +4,7 @@ import spacy
 
 import plac
 import numpy as np
+from spacy.strings import hash_string
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY, \
     TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_HASH, \
@@ -12,7 +13,7 @@ from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
 from preprocessing import KEY_ANNOTATIONS
-from sequence_trees import Forest
+from sequence_trees import Forest, slice_graph, concatenate_graphs, graph_from_graph
 
 logger = logging.getLogger('corpus_semeval2010task8')
 logger.setLevel(logging.DEBUG)
@@ -250,6 +251,70 @@ def extract_relation_subtree(forest):
     return new_forest
 
 
+def handle_relation(forest):
+    e1_hash = hash_string(TYPE_E1)
+    e2_hash = hash_string(TYPE_E2)
+    relation_other_hash = hash_string(TYPE_RELATION + SEPARATOR + 'Other')
+    new_relation_strings = {TYPE_RELATION + SEPARATOR + 'Other'}
+    all_relation_ids, all_relation_strings = forest.lexicon.get_ids_for_prefix(TYPE_RELATION)
+    # add TYPE_RELATION itself because it should be removed from the graph
+    all_relation_hashes = [hash_string(s) for s in all_relation_strings + (TYPE_RELATION,)]
+    assert relation_other_hash in all_relation_hashes, 'relation_other_hash not found in all_relation_hashes'
+    new_data_list = []
+    new_graph_list = []
+    for i, root_pos in enumerate(forest.roots):
+        indices = np.arange(root_pos, forest.roots[i+1] if i+1 < len(forest.roots) else len(forest))
+        data = forest.data[indices]
+
+        relation_positions = np.isin(data, all_relation_hashes)
+        relation_strings = [forest.lexicon.get_s(d=d, data_as_hashes=True) for d in data[relation_positions]]
+        data = data[~relation_positions]
+        graph = slice_graph(forest.graph_out, indices=indices[~relation_positions])
+        # has two contain _two_ elements: TYPE_RELATION and the relation
+        assert len(relation_strings) == 2, 'more then one (%i) relations found for root=%i' % (len(relation_strings), i)
+        parts = relation_strings[1].split(SEPARATOR)[1].split('(')
+        rel_type = parts[0]
+        # re-append relation prefix
+        rel_type = TYPE_RELATION_TYPE + SEPARATOR + rel_type
+        new_relation_strings.add(rel_type)
+        if len(parts) > 1:
+            # remove remaining closing bracket
+            rel_dir = parts[1][:-1]
+        else:
+            rel_dir = None
+        new_data_list.append(data)
+        new_data_list.append(np.array([hash_string(rel_type), relation_other_hash], dtype=DTYPE_HASH))
+
+        # assume there is only one E1 and E2
+        e1_position = np.argwhere(data == e1_hash)[0][0]
+        e2_position = np.argwhere(data == e2_hash)[0][0]
+        new_graph = concatenate_graphs((graph, graph_from_graph(graph, size=2)))
+        if rel_dir is None or rel_dir == 'e1,e2':
+            # connect relation
+            new_graph[e1_position, len(data)] = True
+            new_graph[len(data), e2_position] = True
+            # connect new Other relation in opposite direction
+            new_graph[e2_position, len(data)+1] = True
+            new_graph[len(data)+1, e1_position] = True
+        elif rel_dir == 'e2,e1':
+            # connect relation
+            new_graph[e2_position, len(data)] = True
+            new_graph[len(data), e1_position] = True
+            # connect new Other relation in opposite direction
+            new_graph[e1_position, len(data)+1] = True
+            new_graph[len(data)+1, e2_position] = True
+        else:
+            raise AssertionError('unknown relation direction')
+        new_graph_list.append(new_graph)
+
+    new_data = np.concatenate(new_data_list)
+    new_graph_out = concatenate_graphs(new_graph_list)
+    new_forest = Forest(data=new_data, graph_out=new_graph_out, lexicon=forest.lexicon,
+                        lexicon_roots=forest.lexicon_roots, data_as_hashes=True)
+    new_forest.lexicon.add_all(new_relation_strings)
+    return new_forest
+
+
 @plac.annotations(
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
@@ -285,7 +350,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         make_parent_dir(out_base_name)
         process_records(records=read_file(os.path.join(in_path, fn), annots), out_base_name=out_base_name,
                         record_reader=reader, parser=parser, sentence_processor=_sentence_processor, concat_mode=None,
-                        n_threads=n_threads, batch_size=parser_batch_size)#, adjust_forest_func=move_relation_annotation_to_annotation_subtree)#adjust_forest_func=extract_relation_subtree)
+                        n_threads=n_threads, batch_size=parser_batch_size, adjust_forest_func=handle_relation)#adjust_forest_func=extract_relation_subtree)
         logger.info('done.')
 
 
@@ -305,9 +370,9 @@ def main(mode, *args):
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_TYPE, classes_ids=relation_ids,
                        classes_strings=relation_strings)
 
-        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_DIRECTION)
-        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_DIRECTION, classes_ids=relation_ids,
-                       classes_strings=relation_strings)
+        #relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_DIRECTION)
+        #save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_DIRECTION, classes_ids=relation_ids,
+        #               classes_strings=relation_strings)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
     elif mode == 'ALL':
