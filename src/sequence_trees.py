@@ -136,7 +136,7 @@ def _compare_tree_dicts(tree1, tree2):
     return 0
 
 
-def _concatenate_graphs(graphs):
+def concatenate_graphs(graphs):
     m_type = None
     datas = []
     indices = []
@@ -164,7 +164,16 @@ def _concatenate_graphs(graphs):
         raise NotImplementedError('concatenation for matrix type "%s" not implemented' % m_type)
 
 
-def _slice_graph(graph, indices):
+def graph_from_graph(graph, size):
+    if isinstance(graph, csr_matrix):
+        return csr_matrix((size, size), dtype=graph.dtype)
+    elif isinstance(graph, csc_matrix):
+        return csc_matrix((size, size), dtype=graph.dtype)
+    else:
+        raise AssertionError('unknown graph type: %s' % str(type(graph)))
+
+
+def slice_graph(graph, indices):
     return graph[indices].transpose()[indices].transpose()
 
 
@@ -409,7 +418,7 @@ class Forest(object):
             indices_exclude = np.sort(self.get_descendant_indices(root_exclude))
             mask = np.isin(indices, indices_exclude, invert=True)
             indices = indices[mask]
-        return Forest(data=self.data[indices].copy(), graph_out=_slice_graph(self.graph_out, indices).copy(),
+        return Forest(data=self.data[indices].copy(), graph_out=slice_graph(self.graph_out, indices).copy(),
                       lexicon=self.lexicon,
                       lexicon_roots=self.lexicon_roots,
                       data_as_hashes=self.data_as_hashes)
@@ -806,11 +815,11 @@ class Forest(object):
         for f in forests[1:]:
             Forest.meta_matches(forests[0], f, 'concatenate')
         if forests[0]._graph_in is not None:
-            new_graph_in = _concatenate_graphs((f._graph_in for f in forests))
+            new_graph_in = concatenate_graphs((f._graph_in for f in forests))
         else:
             new_graph_in = None
         if forests[0]._graph_out is not None:
-            new_graph_out = _concatenate_graphs((f._graph_out for f in forests))
+            new_graph_out = concatenate_graphs((f._graph_out for f in forests))
         else:
             new_graph_out = None
 
