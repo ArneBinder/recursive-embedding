@@ -293,22 +293,20 @@ def handle_relation(forest):
         data[e1_position] = e_hash
         data[e2_position] = e_hash
         new_data_list.append(data)
-        new_data_list.append(np.array([hash_string(rel_type), relation_other_hash], dtype=DTYPE_HASH))
+
         new_graph = concatenate_graphs((graph, graph_from_graph(graph, size=2)))
-        if rel_dir is None or rel_dir == 'e1,e2':
-            # connect relation
-            new_graph[e1_position, len(data)] = True
-            new_graph[len(data), e2_position] = True
-            # connect new Other relation in opposite direction
-            new_graph[e2_position, len(data)+1] = True
-            new_graph[len(data)+1, e1_position] = True
-        elif rel_dir == 'e2,e1':
-            # connect relation
-            new_graph[e2_position, len(data)] = True
-            new_graph[len(data), e1_position] = True
-            # connect new Other relation in opposite direction
-            new_graph[e1_position, len(data)+1] = True
-            new_graph[len(data)+1, e2_position] = True
+        # connect relation1
+        new_graph[e1_position, len(data)] = True
+        new_graph[len(data), e2_position] = True
+        # connect relation2
+        new_graph[e2_position, len(data) + 1] = True
+        new_graph[len(data) + 1, e1_position] = True
+        if rel_dir is None or rel_dir == 'e2,e1':
+            # relation1 is _the_ relation
+            new_data_list.append(np.array([hash_string(rel_type), relation_other_hash], dtype=DTYPE_HASH))
+        elif rel_dir == 'e1,e2':
+            # relation2 is _the_ relation
+            new_data_list.append(np.array([relation_other_hash, hash_string(rel_type)], dtype=DTYPE_HASH))
         else:
             raise AssertionError('unknown relation direction')
         new_graph_list.append(new_graph)
