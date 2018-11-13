@@ -83,9 +83,10 @@ vocab_manual = {UNKNOWN_EMBEDDING: u'UNKNOWN',
                 ROOT_EMBEDDING: u'ROOT',
                 PADDING_EMBEDDING: u'PADDING',
                 TARGET_EMBEDDING: u'TARGET',
+                BLANKED_EMBEDDING: u'BLANKED'
                 }
 # TODO: consider using distinct embedding for blanked  nodes ('BLANKED' instead of 'UNKNOWN')
-vocab_manual[BLANKED_EMBEDDING] = vocab_manual[UNKNOWN_EMBEDDING]
+#vocab_manual[BLANKED_EMBEDDING] = vocab_manual[UNKNOWN_EMBEDDING]
 
 CM_TREE = 'tree'
 CM_SEQUENCE = 'sequence'
