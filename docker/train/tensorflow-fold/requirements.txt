@@ -5,10 +5,10 @@
 spacy>=2.0.0
 pprint
 six
+scipy
 
 # train
 sklearn
-scipy
 
 # embedding_api
 sklearn

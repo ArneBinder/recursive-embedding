@@ -6,6 +6,7 @@ spacy>=2.0.0
 pprint
 six
 plac
+scipy
 
 # visualization
 svgutils

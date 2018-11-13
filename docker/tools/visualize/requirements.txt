@@ -4,6 +4,7 @@
 
 spacy>=2.0.0
 pprint
+scipy
 #six
 # installed via distinct command in dockerfile (already installed in gpu version)
 #tensorflow==1.3
