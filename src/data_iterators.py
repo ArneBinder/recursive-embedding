@@ -326,7 +326,6 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #root_types = []
     # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
     data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    blank_types = [lexicon.get_d(s=t, data_as_hashes=forest.data_as_hashes) for t in blank_types]
 
     # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
     if TYPE_REF in lexicon.strings:

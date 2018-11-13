@@ -237,7 +237,7 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
             link_cost_ref=params.get('link_cost_ref', None),
             link_cost_ref_seealso=params.get('link_cost_ref_seealso', None), reroot=params.get('reroot', False),
             max_size_plain=1000, keep_prob_blank=1.0, keep_prob_node=1.0,
-            blank_types=[unicode(b) for b in params.get('blank_types', ())]):
+            blank_types=[current_forest.lexicon.get_d(s=unicode(b), data_as_hashes=current_forest.data_as_hashes) for b in params.get('blank_types', ())]):
 
         forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
                         data_as_hashes=current_forest.data_as_hashes,  # root_ids=current_forest.root_data,

@@ -1428,6 +1428,17 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     if debug:
         tree_iterator_args['debug'] = True
 
+    if config.blank and config.blank.strip():
+        logger.info('blank tokens with prefixes: %s' % config.blank)
+        blank_ids = set()
+        blank_strings = set()
+        for prefix in config.blank.strip().split(','):
+            _ids, _id_strings = lexicon.get_ids_for_prefix(prefix)
+            blank_ids.update(_ids)
+            blank_strings.update(_id_strings)
+        logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
+        tree_iterator_args['blank_types'] = set([lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
+
     # load forest data
     lexicon_root_fn = '%s.root.id' % config.train_data_path
     if Lexicon.exist(lexicon_root_fn, types_only=True):
@@ -1442,15 +1453,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     logger.debug('set ids to IDENTITY')
     d_identity = lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
     forest.data[forest.roots + OFFSET_ID] = d_identity
-    if config.blank and config.blank.strip():
-        logger.info('blank tokens with prefixes: %s' % config.blank)
-        d_blanked = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=False)
-        mask = np.zeros_like(forest.data, dtype=bool)
-        for prefix in config.blank.strip().split(','):
-            ids, id_strings = lexicon.get_ids_for_prefix(prefix)
-            mask |= np.isin(forest.data, ids)
-        logging.info('set %i indices to %s' % (np.count_nonzero(mask), vocab_manual[BLANKED_EMBEDDING]))
-        forest.data[mask] = d_blanked
 
     ## DEBUG
     #ids_new = np.load('/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT/relation_toendsplit_ps1_TEST.bk/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtREROOT_ns8_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/values_max_indices.np')
