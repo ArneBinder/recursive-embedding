@@ -89,6 +89,10 @@ tf.flags.DEFINE_string('logdir_pretrained',
                        'Set this to fine tune a pre-trained model. The logdir_pretrained has to contain a types file '
                        'with the filename "model.types"'
                        )
+tf.flags.DEFINE_string('vecs_pretrained',
+                       None,
+                       'Load lexicon vecs from a pretrained model'
+                       )
 tf.flags.DEFINE_boolean('init_only',
                         False,
                         'If True, save the model without training and exit')
@@ -468,7 +472,7 @@ def log_shapes_info(reader, tree_embedder_prefix='TreeEmbedding/', optimizer_suf
 
 def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False,
                 no_fixed_vecs=False, all_vecs_fixed=False, var_vecs_zero=False, var_vecs_random=False,
-                additional_vecs_path=None):
+                additional_vecs_path=None, vecs_pretrained=None):
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
     if logdir_continue:
         raise NotImplementedError('usage of logdir_continue not implemented')
@@ -516,17 +520,18 @@ def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_con
 
             #ROOT_idx = lexicon.get_d(vocab_manual[ROOT_EMBEDDING], data_as_hashes=False)
             #IDENTITY_idx = lexicon.get_d(vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
-            if logdir_pretrained:
-                logger.info('load lexicon from pre-trained model: %s' % logdir_pretrained)
+            if logdir_pretrained or vecs_pretrained:
+                p = logdir_pretrained or vecs_pretrained
+                logger.info('load lexicon from pre-trained model: %s' % p)
                 # Check, if flags file is available (because of docker-compose file, logdir_pretrained could be just
                 # train path prefix and is therefore not None, but does not point to a valid train dir).
-                if os.path.exists(os.path.join(logdir_pretrained, FLAGS_FN)):
+                if os.path.exists(os.path.join(p, FLAGS_FN)):
                     #old_config = Config(logdir=logdir_pretrained)
-                    checkpoint_fn = tf.train.latest_checkpoint(logdir_pretrained)
-                    assert checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + logdir_pretrained
+                    checkpoint_fn = tf.train.latest_checkpoint(p)
+                    assert checkpoint_fn is not None, 'No checkpoint file found in logdir_pretrained: ' + p
                     reader_old = tf.train.NewCheckpointReader(checkpoint_fn)
                     log_shapes_info(reader_old)
-                    lexicon_old = Lexicon(filename=os.path.join(logdir_pretrained, 'model'))
+                    lexicon_old = Lexicon(filename=os.path.join(p, 'model'))
                     lexicon_old.init_vecs(checkpoint_reader=reader_old)
                     logger.debug('merge old lexicon into new one...')
                     lexicon.merge(lexicon_old, add_entries=True, replace_vecs=True)
@@ -616,6 +621,9 @@ def init_model_type(config, logdir):
 
     # discrete classification
     elif config.model_type == MT_MULTICLASS:
+        if config.tree_embedder.strip() == 'HTUBatchedHead_reduceSUM_mapGRU':
+            logger.warning('tree_embedder HTUBatchedHead_reduceSUM_mapGRU not allowed for model_type == %s. It will be changed to: HTU_reduceSUM_mapGRU' % MT_MULTICLASS)
+            config.tree_embedder = 'HTU_reduceSUM_mapGRU'
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
         tree_iterator = diters.tree_iterator
@@ -1348,7 +1356,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embeddings=None, test_files=None,
                 init_only=None, test_only=None, precompile=True, debug=False, discard_tree_embeddings=False,
-                discard_prepared_embeddings=False):
+                discard_prepared_embeddings=False, vecs_pretrained=None):
     # config.set_run_description()
     #try:
     #    config.run_description
@@ -1376,7 +1384,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=load_embeddings or logdir_pretrained,
         logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
         var_vecs_zero=config.var_vecs_zero, var_vecs_random=config.var_vecs_random,
-        additional_vecs_path=config.additional_vecs)
+        additional_vecs_path=config.additional_vecs, vecs_pretrained=vecs_pretrained)
     # use previous tree model config values
     #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
     #if prev_config is not None and config.model_type != prev_config.model_type:
@@ -1738,6 +1746,11 @@ if __name__ == '__main__':
         logdir_pretrained = None
     else:
         logdir_pretrained = FLAGS.logdir_pretrained
+    if FLAGS.vecs_pretrained is not None and FLAGS.vecs_pretrained.strip() == '/root/train/':
+        vecs_pretrained = None
+    else:
+        vecs_pretrained = FLAGS.vecs_pretrained
+
 
     # Handle multiple logdir_continue's
     # ATTENTION: discards any FLAGS (e.g. provided as argument) contained in default_config!
@@ -1760,6 +1773,7 @@ if __name__ == '__main__':
                                        precompile=FLAGS.precompile, debug=FLAGS.debug,
                                        discard_tree_embeddings=FLAGS.discard_tree_embeddings,
                                        discard_prepared_embeddings=FLAGS.discard_prepared_embeddings,
+                                        vecs_pretrained=vecs_pretrained
                                        )
                 metrics, metric_main = get_metrics_and_main_metric(stats, metric_main=FLAGS.early_stopping_metric)
                 add_metrics(config_dict, stats, metric_keys=metrics, prefix=stats_prefix)
@@ -1884,7 +1898,8 @@ if __name__ == '__main__':
                         if not FLAGS.test_only:
                             t_start = datetime.now()
                             metrics_dev = execute_run(c, load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
-                                                      precompile=FLAGS.precompile, debug=FLAGS.debug)
+                                                      precompile=FLAGS.precompile, debug=FLAGS.debug,
+                                                      logdir_pretrained=logdir_pretrained, vecs_pretrained=vecs_pretrained)
                             d['steps_train'] = metrics_dev['step']
                             d['time_s'] = (datetime.now() - t_start).total_seconds()
                             metrics, metric_main = get_metrics_and_main_metric(metrics_dev,
@@ -1906,7 +1921,8 @@ if __name__ == '__main__':
                         if use_test_files:
                             t_start = datetime.now()
                             metrics_test = execute_run(c, test_only=True, precompile=FLAGS.precompile,
-                                                       test_files=FLAGS.test_files, debug=FLAGS.debug)
+                                                       test_files=FLAGS.test_files, debug=FLAGS.debug,
+                                                       logdir_pretrained=logdir_pretrained, vecs_pretrained=vecs_pretrained)
                             d['time_test_s'] = (datetime.now() - t_start).total_seconds()
                             metrics, metric_main = get_metrics_and_main_metric(metrics_test,
                                                                                metric_main=FLAGS.early_stopping_metric)
@@ -1924,4 +1940,4 @@ if __name__ == '__main__':
                         test_files=FLAGS.test_files, init_only=FLAGS.init_only, test_only=FLAGS.test_only,
                         precompile=FLAGS.precompile, debug=FLAGS.debug,
                         discard_tree_embeddings=FLAGS.discard_tree_embeddings,
-                        discard_prepared_embeddings=FLAGS.discard_prepared_embeddings,)
+                        discard_prepared_embeddings=FLAGS.discard_prepared_embeddings, vecs_pretrained=vecs_pretrained)
