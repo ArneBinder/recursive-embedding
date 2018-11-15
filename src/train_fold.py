@@ -1469,8 +1469,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 #type_class = TYPE_FOR_TASK[c.strip()]
                 _ids, _strings = forest.lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()))
                 #classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
-                #save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=c.strip(), classes_ids=classes_ids,
-                #               classes_strings=classes_strings)
+                save_class_ids(dir_path=os.path.join(logdir, 'data'),
+                               prefix_type=TYPE_LONG.get(prefix.strip(), prefix.strip()), classes_ids=_ids,
+                               classes_strings=_strings)
                 classes_ids_list.append(np.array(_ids, dtype=DTYPE_IDX))
             tree_iterator_args['classes_ids'] = classes_ids_list
 
