@@ -63,3 +63,25 @@ services:
                                   --start-root 2717
                                   --end-root -1
                                   --suffix train
+
+  corpus-all:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/semeval2010task8/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_semeval2010task8.py ALL
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/SEMEVAL2010T8
+                                  --n-threads ${NUM_THREADS_PARSE}
+                                  --parser-batch-size ${BATCH_SIZE_PARSE}
+                                  --sentence-processor ${SENTENCE_PROCESSOR}
+                                  --min-count ${MIN_COUNT}
+                                  --coverage ${COVERAGE}
+                                  --merged-forest-path /root/corpora_out/SEMEVAL2010T8/merged/forest
+                                  --add-reverted ${ADD_REVERTED}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
