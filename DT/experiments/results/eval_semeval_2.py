@@ -62,8 +62,8 @@ def dump(lines, fn):
 
 
 def eval(fn_predicted_tsv, fn_gold_tsv, script_dir):
-    check_script = 'perl %s %s %s' % (
-    join(script_dir, 'semeval2010_task8_scorer-v1.2.pl'), fn_predicted_tsv, fn_gold_tsv)
+    check_script = 'perl %s %s %s' \
+                   % (join(script_dir, 'semeval2010_task8_scorer-v1.2.pl'), fn_predicted_tsv, fn_gold_tsv)
     perl_result = subprocess.check_output(check_script, shell=True)
     last_line = perl_result.split('\n')[-2]
     score_str = last_line.replace(
@@ -73,7 +73,10 @@ def eval(fn_predicted_tsv, fn_gold_tsv, script_dir):
     return f1
 
 
-def main(p='/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT_rel/DEBUG_rev/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_kpb1.0_kpn1.0_leaffc0_lr0.003_lc-1_dpth7_mtREROOT_n_ns8_nfvFALSE_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/'):
+def main(p='/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT_rel/DEBUG_rev/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_kpb1.0_kpn1.0_leaffc0_lr0.003_lc-1_dpth7_mtREROOT_n_ns8_nfvFALSE_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/', script_dir=None):
+
+    if script_dir is None:
+        script_dir = p
 
     l_g = load_values(join(p, 'values_gold_strings.txt'))
     l_m = load_values(join(p, 'values_max_strings.txt'))
@@ -96,9 +99,9 @@ def main(p='/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT_rel/DEBUG_
     dump(r_m_best, join(p, 'v_m_best.txt'))
     dump(r_m_worst, join(p, 'v_m_worst.txt'))
 
-    f_none = eval(join(p, 'v_m_none.txt'), join(p, 'v_g_none.txt'), p)
-    f_best = eval(join(p, 'v_m_best.txt'), join(p, 'v_g_best.txt'), p)
-    f_worst = eval(join(p, 'v_m_worst.txt'), join(p, 'v_g_best.txt'), p)
+    f_none = eval(join(p, 'v_m_none.txt'), join(p, 'v_g_none.txt'), script_dir)
+    f_best = eval(join(p, 'v_m_best.txt'), join(p, 'v_g_best.txt'), script_dir)
+    f_worst = eval(join(p, 'v_m_worst.txt'), join(p, 'v_g_best.txt'), script_dir)
     print('f_none: %f' % f_none)
     print('f_best: %f' % f_best)
     print('f_worst: %f' % f_worst)
