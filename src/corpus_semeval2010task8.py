@@ -279,7 +279,12 @@ def handle_relation(forest):
         rel_type = parts[0]
         # prepend relation-type prefix
         rel_type = TYPE_RELATION_TYPE + SEPARATOR + rel_type
+        if rel_type.endswith('Other'):
+            rel_type_rev = rel_type
+        else:
+            rel_type_rev = rel_type + '/REV'
         new_relation_strings.add(rel_type)
+        new_relation_strings.add(rel_type_rev)
         if len(parts) > 1:
             # remove remaining closing bracket
             rel_dir = parts[1][:-1]
@@ -303,10 +308,10 @@ def handle_relation(forest):
         new_graph[len(data) + 1, e1_position] = True
         if rel_dir is None or rel_dir == 'e2,e1':
             # relation1 is _the_ relation
-            new_data_list.append(np.array([hash_string(rel_type), relation_other_hash], dtype=DTYPE_HASH))
+            new_data_list.append(np.array([hash_string(rel_type), hash_string(rel_type_rev)], dtype=DTYPE_HASH))
         elif rel_dir == 'e1,e2':
             # relation2 is _the_ relation
-            new_data_list.append(np.array([relation_other_hash, hash_string(rel_type)], dtype=DTYPE_HASH))
+            new_data_list.append(np.array([hash_string(rel_type_rev), hash_string(rel_type)], dtype=DTYPE_HASH))
         else:
             raise AssertionError('unknown relation direction')
         new_graph_list.append(new_graph)
