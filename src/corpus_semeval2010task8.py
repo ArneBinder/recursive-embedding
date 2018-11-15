@@ -274,7 +274,7 @@ def handle_relation(forest, add_reverted=False):
         relation_positions = np.isin(data, all_relation_hashes)
         relation_strings = [forest.lexicon.get_s(d=d, data_as_hashes=True) for d in data[relation_positions]]
         data = data[~relation_positions]
-        graph = slice_graph(forest.graph_in, indices=indices[~relation_positions])
+        graph_in = slice_graph(forest.graph_in, indices=indices[~relation_positions])
         # has two contain _two_ elements: TYPE_RELATION and the relation
         assert len(relation_strings) == 2, 'more then one (%i) relations found for root=%i' % (len(relation_strings), i)
         parts = relation_strings[1].split(SEPARATOR)[1].split('(')
@@ -294,8 +294,6 @@ def handle_relation(forest, add_reverted=False):
             rel_dir = None
 
         # Assume, there is only one E1 and E2.
-        # Connect to "parent" of entity labels:
-        # assume, they occur directly before the entity label (with respect to data array).
         e1_position = np.argwhere(data == e1_hash)[0][0]
         e2_position = np.argwhere(data == e2_hash)[0][0]
         # unify argument marker
@@ -303,45 +301,46 @@ def handle_relation(forest, add_reverted=False):
         data[e2_position] = e_hash
         new_data_list.append(data)
 
-        e1_position = targets(graph, e1_position)[0]
-        e2_position = targets(graph, e2_position)[0]
+        # get "parents" of entity annotations
+        e1_position = targets(graph_in, e1_position)[0]
+        e2_position = targets(graph_in, e2_position)[0]
 
         if add_reverted:
-            new_graph = concatenate_graphs((graph, empty_graph_from_graph(graph, size=2)))
+            new_graph_in = concatenate_graphs((graph_in, empty_graph_from_graph(graph_in, size=2)))
         else:
-            new_graph = concatenate_graphs((graph, empty_graph_from_graph(graph, size=1)))
+            new_graph_in = concatenate_graphs((graph_in, empty_graph_from_graph(graph_in, size=1)))
 
         if rel_dir is None or rel_dir == 'e2,e1':
-            # connect relation
-            new_graph[e2_position, len(data)] = True
-            new_graph[len(data), e1_position] = True
-            new_data = [hash_string(rel_type)]
-
+            new_data = []
             if add_reverted:
-                new_graph[e1_position, len(data) + 1] = True
-                new_graph[len(data) + 1, e2_position] = True
+                new_graph_in[len(data), e1_position] = True
+                new_graph_in[e2_position, len(data)] = True
                 new_data.append(hash_string(rel_type_rev))
+
+            # connect relation
+            new_graph_in[len(data) + len(new_data), e2_position] = True
+            new_graph_in[e1_position, len(data) + len(new_data)] = True
+            new_data.append(hash_string(rel_type))
 
             new_data_list.append(np.array(new_data, dtype=DTYPE_HASH))
         elif rel_dir == 'e1,e2':
+            new_data = []
             # connect relation
-            new_graph[e1_position, len(data)] = True
-            new_graph[len(data), e2_position] = True
-            new_data = [hash_string(rel_type)]
+            new_graph_in[len(data), e1_position] = True
+            new_graph_in[e2_position, len(data)] = True
+            new_data.append(hash_string(rel_type))
 
             if add_reverted:
-                new_graph[e2_position, len(data) + 1] = True
-                new_graph[len(data) + 1, e1_position] = True
+                new_graph_in[len(data) + 1, e2_position] = True
+                new_graph_in[e1_position, len(data) + 1] = True
                 new_data.append(hash_string(rel_type_rev))
 
             new_data_list.append(np.array(new_data, dtype=DTYPE_HASH))
         else:
             raise AssertionError('unknown relation direction')
-        new_graph_list.append(new_graph)
+        new_graph_list.append(new_graph_in)
 
-    new_data = np.concatenate(new_data_list)
-    new_graph_in = concatenate_graphs(new_graph_list)
-    new_forest = Forest(data=new_data, graph_in=new_graph_in, lexicon=forest.lexicon,
+    new_forest = Forest(data=np.concatenate(new_data_list), graph_in=concatenate_graphs(new_graph_list), lexicon=forest.lexicon,
                         lexicon_roots=forest.lexicon_roots, data_as_hashes=True)
     new_forest.lexicon.add_all(new_relation_strings)
     return new_forest
