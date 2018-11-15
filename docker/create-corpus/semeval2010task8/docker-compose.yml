@@ -15,6 +15,7 @@ services:
                                   --n-threads ${NUM_THREADS_PARSE}
                                   --parser-batch-size ${BATCH_SIZE_PARSE}
                                   --sentence-processor ${SENTENCE_PROCESSOR}
+                                  --add-reverted ${ADD_REVERTED}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 

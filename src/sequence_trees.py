@@ -164,7 +164,7 @@ def concatenate_graphs(graphs):
         raise NotImplementedError('concatenation for matrix type "%s" not implemented' % m_type)
 
 
-def graph_from_graph(graph, size):
+def empty_graph_from_graph(graph, size):
     if isinstance(graph, csr_matrix):
         return csr_matrix((size, size), dtype=graph.dtype)
     elif isinstance(graph, csc_matrix):

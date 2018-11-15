@@ -1,5 +1,7 @@
 import logging
 import os
+from functools import partial
+
 import spacy
 
 import plac
@@ -13,7 +15,7 @@ from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
 from preprocessing import KEY_ANNOTATIONS
-from sequence_trees import Forest, slice_graph, concatenate_graphs, graph_from_graph
+from sequence_trees import Forest, slice_graph, concatenate_graphs, empty_graph_from_graph, targets
 
 logger = logging.getLogger('corpus_semeval2010task8')
 logger.setLevel(logging.DEBUG)
@@ -251,13 +253,13 @@ def extract_relation_subtree(forest):
     return new_forest
 
 
-def handle_relation(forest):
+def handle_relation(forest, add_reverted=False):
     e_string = TYPE_NAMED_ENTITY
     e_hash = hash_string(e_string)
     e1_hash = hash_string(TYPE_E1)
     e2_hash = hash_string(TYPE_E2)
     relation_other_string = TYPE_RELATION_TYPE + SEPARATOR + 'Other'
-    relation_other_hash = hash_string(relation_other_string)
+    #relation_other_hash = hash_string(relation_other_string)
     new_relation_strings = {relation_other_string, e_string}
     all_relation_ids, all_relation_strings = forest.lexicon.get_ids_for_prefix(TYPE_RELATION)
     # add TYPE_RELATION itself because it should be removed from the graph
@@ -272,7 +274,7 @@ def handle_relation(forest):
         relation_positions = np.isin(data, all_relation_hashes)
         relation_strings = [forest.lexicon.get_s(d=d, data_as_hashes=True) for d in data[relation_positions]]
         data = data[~relation_positions]
-        graph = slice_graph(forest.graph_out, indices=indices[~relation_positions])
+        graph = slice_graph(forest.graph_in, indices=indices[~relation_positions])
         # has two contain _two_ elements: TYPE_RELATION and the relation
         assert len(relation_strings) == 2, 'more then one (%i) relations found for root=%i' % (len(relation_strings), i)
         parts = relation_strings[1].split(SEPARATOR)[1].split('(')
@@ -291,7 +293,9 @@ def handle_relation(forest):
         else:
             rel_dir = None
 
-        # assume there is only one E1 and E2
+        # Assume, there is only one E1 and E2.
+        # Connect to "parent" of entity labels:
+        # assume, they occur directly before the entity label (with respect to data array).
         e1_position = np.argwhere(data == e1_hash)[0][0]
         e2_position = np.argwhere(data == e2_hash)[0][0]
         # unify argument marker
@@ -299,26 +303,45 @@ def handle_relation(forest):
         data[e2_position] = e_hash
         new_data_list.append(data)
 
-        new_graph = concatenate_graphs((graph, graph_from_graph(graph, size=2)))
-        # connect relation1
-        new_graph[e1_position, len(data)] = True
-        new_graph[len(data), e2_position] = True
-        # connect relation2
-        new_graph[e2_position, len(data) + 1] = True
-        new_graph[len(data) + 1, e1_position] = True
+        e1_position = targets(graph, e1_position)[0]
+        e2_position = targets(graph, e2_position)[0]
+
+        if add_reverted:
+            new_graph = concatenate_graphs((graph, empty_graph_from_graph(graph, size=2)))
+        else:
+            new_graph = concatenate_graphs((graph, empty_graph_from_graph(graph, size=1)))
+
         if rel_dir is None or rel_dir == 'e2,e1':
-            # relation1 is _the_ relation
-            new_data_list.append(np.array([hash_string(rel_type), hash_string(rel_type_rev)], dtype=DTYPE_HASH))
+            # connect relation
+            new_graph[e2_position, len(data)] = True
+            new_graph[len(data), e1_position] = True
+            new_data = [hash_string(rel_type)]
+
+            if add_reverted:
+                new_graph[e1_position, len(data) + 1] = True
+                new_graph[len(data) + 1, e2_position] = True
+                new_data.append(hash_string(rel_type_rev))
+
+            new_data_list.append(np.array(new_data, dtype=DTYPE_HASH))
         elif rel_dir == 'e1,e2':
-            # relation2 is _the_ relation
-            new_data_list.append(np.array([hash_string(rel_type_rev), hash_string(rel_type)], dtype=DTYPE_HASH))
+            # connect relation
+            new_graph[e1_position, len(data)] = True
+            new_graph[len(data), e2_position] = True
+            new_data = [hash_string(rel_type)]
+
+            if add_reverted:
+                new_graph[e2_position, len(data) + 1] = True
+                new_graph[len(data) + 1, e1_position] = True
+                new_data.append(hash_string(rel_type_rev))
+
+            new_data_list.append(np.array(new_data, dtype=DTYPE_HASH))
         else:
             raise AssertionError('unknown relation direction')
         new_graph_list.append(new_graph)
 
     new_data = np.concatenate(new_data_list)
-    new_graph_out = concatenate_graphs(new_graph_list)
-    new_forest = Forest(data=new_data, graph_out=new_graph_out, lexicon=forest.lexicon,
+    new_graph_in = concatenate_graphs(new_graph_list)
+    new_forest = Forest(data=new_data, graph_in=new_graph_in, lexicon=forest.lexicon,
                         lexicon_roots=forest.lexicon_roots, data_as_hashes=True)
     new_forest.lexicon.add_all(new_relation_strings)
     return new_forest
@@ -330,9 +353,10 @@ def handle_relation(forest):
     sentence_processor=('sentence processor', 'option', 'p', str),
     n_threads=('number of threads for replacement operations', 'option', 't', int),
     parser_batch_size=('parser batch size', 'option', 'b', int),
+    add_reverted=('add reverted relation for every relation instance', 'option', 'r', str),
     unused='not used parameters'
 )
-def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_size=1000, *unused):
+def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_size=1000, add_reverted=None, *unused):
     if sentence_processor is not None and sentence_processor.strip() != '':
         _sentence_processor = getattr(preprocessing, sentence_processor.strip())
     else:
@@ -351,6 +375,9 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
     else:
         raise NotImplementedError('not implemented for sentence_processor=%s' % str(sentence_processor))
 
+    add_reverted = add_reverted is not None and add_reverted.strip() == 'True'
+    logger.info('add_reverted relations: %s' % str(add_reverted))
+
     file_names = ['SemEval2010_task8_training/TRAIN_FILE.TXT', 'SemEval2010_task8_testing_keys/TEST_FILE_FULL.TXT']
     parser = spacy.load('en')
     for fn in file_names:
@@ -359,7 +386,8 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         make_parent_dir(out_base_name)
         process_records(records=read_file(os.path.join(in_path, fn), annots), out_base_name=out_base_name,
                         record_reader=reader, parser=parser, sentence_processor=_sentence_processor, concat_mode=None,
-                        n_threads=n_threads, batch_size=parser_batch_size, adjust_forest_func=handle_relation)#adjust_forest_func=extract_relation_subtree)
+                        n_threads=n_threads, batch_size=parser_batch_size,
+                        adjust_forest_func=partial(handle_relation, add_reverted=add_reverted))#adjust_forest_func=extract_relation_subtree)
         logger.info('done.')
 
 
