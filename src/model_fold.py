@@ -1114,6 +1114,10 @@ class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU(TreeEmbedding_reduceSUM, Tre
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU, self).__init__(name=name, **kwargs)
 
+class TreeEmbedding_HTUBatchedHead_reduceSUM_mapCCFC(TreeEmbedding_reduceSUM, TreeEmbedding_mapCCFC, TreeEmbedding_HTUBatchedHead):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapCCFC, self).__init__(name=name, **kwargs)
+
 
 class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
     def __init__(self, **kwargs):
