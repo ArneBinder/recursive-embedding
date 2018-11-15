@@ -50,7 +50,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, OFFSET_MESH_ROOT, \
     MT_TUPLE_CONTINOUES, TYPE_ENTAILMENT, TYPE_POLARITY, TASK_MESH_PREDICTION, TASK_ENTAILMENT_PREDICTION, TYPE_MESH, \
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
-    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING
+    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -609,15 +609,15 @@ def init_model_type(config, logdir):
         load_parents = True
 
         # if task is not None or empty
-        if config.task and config.task.strip():
-            classes_ids_list = []
-            for c in config.task.split(','):
-                #type_class = TYPE_FOR_TASK[c.strip()]
-                classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
-                save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=c.strip(), classes_ids=classes_ids,
-                               classes_strings=classes_strings)
-                classes_ids_list.append(classes_ids)
-            tree_iterator_args['classes_ids'] = classes_ids_list
+        #if config.task and config.task.strip():
+        #    classes_ids_list = []
+        #    for c in config.task.split(','):
+        #        #type_class = TYPE_FOR_TASK[c.strip()]
+        #        classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
+        #        save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=c.strip(), classes_ids=classes_ids,
+        #                       classes_strings=classes_strings)
+        #        classes_ids_list.append(classes_ids)
+        #    tree_iterator_args['classes_ids'] = classes_ids_list
 
     # discrete classification
     elif config.model_type == MT_MULTICLASS:
@@ -1436,17 +1436,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     if debug:
         tree_iterator_args['debug'] = True
 
-    if config.blank and config.blank.strip():
-        logger.info('blank tokens with prefixes: %s' % config.blank)
-        blank_ids = set()
-        blank_strings = set()
-        for prefix in config.blank.strip().split(','):
-            _ids, _id_strings = lexicon.get_ids_for_prefix(prefix)
-            blank_ids.update(_ids)
-            blank_strings.update(_id_strings)
-        logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
-        tree_iterator_args['blank_types'] = set([lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
-
     # load forest data
     lexicon_root_fn = '%s.root.id' % config.train_data_path
     if Lexicon.exist(lexicon_root_fn, types_only=True):
@@ -1457,10 +1446,33 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     #forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
     forest = Forest(filename=config.train_data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
 
+    if config.blank and config.blank.strip():
+        logger.info('blank tokens with prefixes: %s' % config.blank)
+        blank_ids = set()
+        blank_strings = set()
+        for prefix in config.blank.strip().split(','):
+            _ids, _id_strings = lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()))
+            blank_ids.update(_ids)
+            blank_strings.update(_id_strings)
+        logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
+        tree_iterator_args['blank_types'] = set([lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
+
     #if config.model_type == MT_REROOT:
     logger.debug('set ids to IDENTITY')
     d_identity = lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
     forest.data[forest.roots + OFFSET_ID] = d_identity
+
+    if config.model_type == MT_CANDIDATES:
+        if config.task and config.task.strip():
+            classes_ids_list = []
+            for prefix in config.task.split(','):
+                #type_class = TYPE_FOR_TASK[c.strip()]
+                _ids, _strings = forest.lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()))
+                #classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
+                #save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=c.strip(), classes_ids=classes_ids,
+                #               classes_strings=classes_strings)
+                classes_ids_list.append(np.array(_ids, dtype=DTYPE_IDX))
+            tree_iterator_args['classes_ids'] = classes_ids_list
 
     ## DEBUG
     #ids_new = np.load('/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT/relation_toendsplit_ps1_TEST.bk/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtREROOT_ns8_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/values_max_indices.np')
@@ -1504,6 +1516,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         meta[M_TEST][M_BATCH_ITER] = config.batch_iter
     if M_TRAIN in meta:
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
+
+
 
     # set tree iterator
     for m in meta:
