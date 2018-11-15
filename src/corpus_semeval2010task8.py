@@ -10,7 +10,7 @@ from spacy.strings import hash_string
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY, \
     TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_HASH, \
-    TYPE_RELATION_TYPE, TYPE_RELATION_DIRECTION
+    TYPE_RELATION, TYPE_RELATION_FORWARD, TYPE_RELATION_BACKWARD
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
@@ -258,7 +258,7 @@ def handle_relation(forest, add_reverted=False):
     e_hash = hash_string(e_string)
     e1_hash = hash_string(TYPE_E1)
     e2_hash = hash_string(TYPE_E2)
-    relation_other_string = TYPE_RELATION_TYPE + SEPARATOR + 'Other'
+    relation_other_string = TYPE_RELATION_FORWARD + SEPARATOR + 'Other'
     #relation_other_hash = hash_string(relation_other_string)
     new_relation_strings = {relation_other_string, e_string}
     all_relation_ids, all_relation_strings = forest.lexicon.get_ids_for_prefix(TYPE_RELATION)
@@ -278,14 +278,14 @@ def handle_relation(forest, add_reverted=False):
         # has two contain _two_ elements: TYPE_RELATION and the relation
         assert len(relation_strings) == 2, 'more then one (%i) relations found for root=%i' % (len(relation_strings), i)
         parts = relation_strings[1].split(SEPARATOR)[1].split('(')
-        rel_type = parts[0]
         # prepend relation-type prefix
-        rel_type = TYPE_RELATION_TYPE + SEPARATOR + rel_type
+        rel_type = TYPE_RELATION_FORWARD + SEPARATOR + parts[0]
         if rel_type.endswith('Other'):
             rel_type_rev = rel_type
         else:
-            rel_type_rev = rel_type + '/REV'
+            rel_type_rev = TYPE_RELATION_BACKWARD + SEPARATOR + parts[0]
         new_relation_strings.add(rel_type)
+        # gets cleaned while merging, if not used
         new_relation_strings.add(rel_type_rev)
         if len(parts) > 1:
             # remove remaining closing bracket
@@ -402,8 +402,8 @@ def main(mode, *args):
         plac.call(parse, args)
     elif mode == 'MERGE':
         forest_merged, out_path_merged = plac.call(merge_batches, args)
-        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_TYPE)
-        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_TYPE, classes_ids=relation_ids,
+        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION)
+        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids,
                        classes_strings=relation_strings)
 
         #relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_DIRECTION)
