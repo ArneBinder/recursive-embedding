@@ -120,8 +120,9 @@ def collect_file_names(out_path_batches):
         f_names = sorted(f_names, key=lambda fn: int(fn[len(PREFIX_FN)+1:]))
     except ValueError:
         logger.warning('Could not sort file names by NUMBER (expected format: "%s-NUMBER"). Sort as strings.' % PREFIX_FN)
+        f_names = sorted(f_names)
     f_paths = [os.path.join(out_path_batches, f) for f in f_names]
-    logger.debug('f_names: %s' % ', '.join(f_names))
+    #logger.debug('f_names: %s' % ', '.join(f_names))
     logger.info('finished. %s' % str(datetime.now()-t_start))
     return f_names, f_paths
 
