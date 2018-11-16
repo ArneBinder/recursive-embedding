@@ -1550,7 +1550,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 if data_blanked not in indices_mapping_dict:
                     indices_mapping_dict[data_blanked] = (indices_mapping_all, np.concatenate(classes_ids_list))
 
-                config.neg_samples = str(max(map(len, classes_ids_list)) - 1)
+                config.neg_samples = str(min(int(config.neg_samples or 1000), max(map(len, classes_ids_list)) - 1))
                 logger.debug('set neg_samples = %s (== max(nbr_of_classes -1) over all sets of classes) for exhaustive sampling'
                              % config.neg_samples)
             else:
