@@ -363,6 +363,8 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
 
     if _sentence_processor == preprocessing.process_sentence1:
         annots = ([TYPE_E1], [TYPE_E2], [0])
+    elif _sentence_processor == preprocessing.process_sentence11:
+        annots = ([TYPE_E1], [TYPE_E2], [0])
     elif _sentence_processor == preprocessing.process_sentence3:
         annots = ([TYPE_E1, TYPE_DEPENDENCY_RELATION + SEPARATOR + TYPE_ARTIFICIAL],
                   [TYPE_E2, TYPE_DEPENDENCY_RELATION + SEPARATOR + TYPE_ARTIFICIAL],
