@@ -253,7 +253,7 @@ def extract_relation_subtree(forest):
     return new_forest
 
 
-def handle_relation(forest, add_reverted=False):
+def handle_relation(forest, reverted=''):
     e_string = TYPE_NAMED_ENTITY
     e_hash = hash_string(e_string)
     e1_hash = hash_string(TYPE_E1)
@@ -305,22 +305,23 @@ def handle_relation(forest, add_reverted=False):
         e1_position = targets(graph_in, e1_position)[0]
         e2_position = targets(graph_in, e2_position)[0]
 
-        if add_reverted:
+        if reverted == 'add':
             new_graph_in = concatenate_graphs((graph_in, empty_graph_from_graph(graph_in, size=2)))
         else:
             new_graph_in = concatenate_graphs((graph_in, empty_graph_from_graph(graph_in, size=1)))
 
         if rel_dir is None or rel_dir == 'e2,e1':
             new_data = []
-            if add_reverted:
+            if reverted == 'add' or reverted == 'single':
                 new_graph_in[len(data), e1_position] = True
                 new_graph_in[e2_position, len(data)] = True
                 new_data.append(hash_string(rel_type_rev))
 
-            # connect relation
-            new_graph_in[len(data) + len(new_data), e2_position] = True
-            new_graph_in[e1_position, len(data) + len(new_data)] = True
-            new_data.append(hash_string(rel_type))
+            if reverted != 'single':
+                # connect relation
+                new_graph_in[len(data) + len(new_data), e2_position] = True
+                new_graph_in[e1_position, len(data) + len(new_data)] = True
+                new_data.append(hash_string(rel_type))
 
             new_data_list.append(np.array(new_data, dtype=DTYPE_HASH))
         elif rel_dir == 'e1,e2':
@@ -330,9 +331,9 @@ def handle_relation(forest, add_reverted=False):
             new_graph_in[e2_position, len(data)] = True
             new_data.append(hash_string(rel_type))
 
-            if add_reverted:
-                new_graph_in[len(data) + 1, e2_position] = True
-                new_graph_in[e1_position, len(data) + 1] = True
+            if reverted == 'add':
+                new_graph_in[len(data) + len(new_data), e2_position] = True
+                new_graph_in[e1_position, len(data) + len(new_data)] = True
                 new_data.append(hash_string(rel_type_rev))
 
             new_data_list.append(np.array(new_data, dtype=DTYPE_HASH))
@@ -352,10 +353,10 @@ def handle_relation(forest, add_reverted=False):
     sentence_processor=('sentence processor', 'option', 'p', str),
     n_threads=('number of threads for replacement operations', 'option', 't', int),
     parser_batch_size=('parser batch size', 'option', 'b', int),
-    add_reverted=('add reverted relation for every relation instance', 'option', 'r', str),
+    reverted=('add reverted relation for every relation instance', 'option', 'r', str),
     unused='not used parameters'
 )
-def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_size=1000, add_reverted=None, *unused):
+def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_size=1000, reverted='', *unused):
     if sentence_processor is not None and sentence_processor.strip() != '':
         _sentence_processor = getattr(preprocessing, sentence_processor.strip())
     else:
@@ -376,8 +377,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
     else:
         raise NotImplementedError('not implemented for sentence_processor=%s' % str(sentence_processor))
 
-    add_reverted = add_reverted is not None and add_reverted.strip() == 'True'
-    logger.info('add_reverted relations: %s' % str(add_reverted))
+    logger.info('reverted relations: %s' % reverted)
 
     file_names = ['SemEval2010_task8_training/TRAIN_FILE.TXT', 'SemEval2010_task8_testing_keys/TEST_FILE_FULL.TXT']
     parser = spacy.load('en')
@@ -388,7 +388,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         process_records(records=read_file(os.path.join(in_path, fn), annots), out_base_name=out_base_name,
                         record_reader=reader, parser=parser, sentence_processor=_sentence_processor, concat_mode=None,
                         n_threads=n_threads, batch_size=parser_batch_size,
-                        adjust_forest_func=partial(handle_relation, add_reverted=add_reverted))#adjust_forest_func=extract_relation_subtree)
+                        adjust_forest_func=partial(handle_relation, reverted=reverted))#adjust_forest_func=extract_relation_subtree)
         logger.info('done.')
 
 
