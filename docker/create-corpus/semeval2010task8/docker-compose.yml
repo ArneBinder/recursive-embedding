@@ -15,7 +15,7 @@ services:
                                   --n-threads ${NUM_THREADS_PARSE}
                                   --parser-batch-size ${BATCH_SIZE_PARSE}
                                   --sentence-processor ${SENTENCE_PROCESSOR}
-                                  --add-reverted ${ADD_REVERTED}
+                                  --reverted ${REVERTED}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
@@ -82,6 +82,6 @@ services:
                                   --min-count ${MIN_COUNT}
                                   --coverage ${COVERAGE}
                                   --merged-forest-path /root/corpora_out/SEMEVAL2010T8/merged/forest
-                                  --add-reverted ${ADD_REVERTED}
+                                  --reverted ${REVERTED}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
