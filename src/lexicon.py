@@ -803,7 +803,16 @@ class Lexicon(object):
         return data
         #return data_new
 
-    def read_data(self, expand_dict=True, return_hashes=False, *args, **kwargs):
+    def read_data(self, expand_dict=True, return_hashes=False, as_graph=False, *args, **kwargs):
+        if as_graph:
+            data, graph_out, graph_in = read_data_graph(*args, strings=self.strings, expand_dict=expand_dict, **kwargs)
+            if expand_dict:
+                self.clear_cached_values()
+            if return_hashes:
+                return Forest(data=data, graph_in=graph_in, graph_out=graph_out, lexicon=self, data_as_hashes=True)
+            else:
+                return Forest(data=self.convert_data_hashes_to_indices(data), graph_in=graph_in, graph_out=graph_out,
+                              lexicon=self, data_as_hashes=False)
         data, parents = read_data(*args, strings=self.strings, expand_dict=expand_dict, **kwargs)
         if expand_dict:
             self.clear_cached_values()

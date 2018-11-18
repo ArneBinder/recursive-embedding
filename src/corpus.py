@@ -69,8 +69,8 @@ def save_class_ids(dir_path, prefix_type, classes_ids, classes_strings=None):
             f.writelines(map(lambda s: s+'\n', classes_strings))
 
 
-def process_records(records, out_base_name, record_reader, sentence_processor, parser, concat_mode='sequence',
-                    batch_size=1000, n_threads=4, adjust_forest_func=None):
+def process_records(records, out_base_name, record_reader, concat_mode='sequence',
+                    batch_size=1000, n_threads=4, adjust_forest_func=None, *args, **kwargs):
     if not Lexicon.exist(out_base_name, types_only=True) \
             or not Forest.exist(out_base_name) \
             or not numpy_exists('%s.%s' % (out_base_name, FE_UNIQUE_HASHES)) \
@@ -80,10 +80,9 @@ def process_records(records, out_base_name, record_reader, sentence_processor, p
         # forest, lexicon, lexicon_roots = corpus.process_records(parser=nlp, reader=_reader)
 
         lexicon = Lexicon()
-        forest = lexicon.read_data(reader=_reader, sentence_processor=sentence_processor,
-                                   parser=parser, batch_size=batch_size, concat_mode=concat_mode,
+        forest = lexicon.read_data(*args, reader=_reader, batch_size=batch_size, concat_mode=concat_mode,
                                    inner_concat_mode='tree', expand_dict=True, as_tuples=True,
-                                   return_hashes=True, n_threads=n_threads)
+                                   return_hashes=True, n_threads=n_threads, **kwargs)
         if adjust_forest_func is not None:
             forest = adjust_forest_func(forest)
 
