@@ -195,14 +195,14 @@ def main(mode, *args):
         #save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_DIRECTION, classes_ids=relation_ids,
         #               classes_strings=relation_strings)
     elif mode == 'CREATE_INDICES':
-        raise NotImplementedError("mode == 'CREATE_INDICES' not yet implemented")
         plac.call(create_index_files, args)
     elif mode == 'ALL':
-        raise NotImplementedError("mode == 'ALL' not yet implemented")
         plac.call(main, ('PARSE',) + args)
         plac.call(main, ('MERGE',) + args)
-        plac.call(main, ('CREATE_INDICES', '--end-root', '2717', '--split-count', '1', '--suffix', 'test') + args)
-        plac.call(main, ('CREATE_INDICES', '--start-root', '2717', '--split-count', '4', '--suffix', 'train') + args)
+        plac.call(main, ('CREATE_INDICES', '--end-root', '22584', '--split-count', '1', '--suffix', 'dev') + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '22584', '--end-root', '38041', '--split-count', '1',
+                         '--suffix', 'test') + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '38041', '--split-count', '4', '--suffix', 'train') + args)
     else:
         raise ValueError('unknown mode')
 

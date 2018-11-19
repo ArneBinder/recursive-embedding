@@ -30,7 +30,7 @@ services:
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
-  corpus-indices-test:
+  corpus-indices-dev:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/tacred/Dockerfile
@@ -42,8 +42,23 @@ services:
                                   --merged-forest-path /root/corpora_out/TACRED/merged/forest
                                   --split-count 1
                                   --start-root 0
-                                  --end-root 2717
+                                  --end-root 22584
                                   --suffix dev
+
+  corpus-indices-test:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/tacred/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/TACRED/merged/forest
+                                  --split-count 1
+                                  --start-root 22584
+                                  --end-root 38041
+                                  --suffix test
 
   corpus-indices-train:
     build:
@@ -56,7 +71,7 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/TACRED/merged/forest
                                   --split-count ${SPLIT_COUNT}
-                                  --start-root 2717
+                                  --start-root 38041
                                   --end-root -1
                                   --suffix train
 

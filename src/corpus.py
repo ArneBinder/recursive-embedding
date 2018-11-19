@@ -352,7 +352,9 @@ def merge_converted_batches(f_names, out_dir_batches_converted, out_path_merged)
     forests = []
     for fn in f_names:
         fn_path_out = os.path.join(out_dir_batches_converted, fn)
-        forests.append(Forest(filename=fn_path_out))
+        forest = Forest(filename=fn_path_out)
+        logger.info('%s has %i roots' % (fn, len(forest.roots)))
+        forests.append(forest)
     forest_merged = Forest.concatenate(forests)
     forest_merged.dump(filename=out_path_merged)
     logger.info('finished. %s' % str(datetime.now() - t_start))
