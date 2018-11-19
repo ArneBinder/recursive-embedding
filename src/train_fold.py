@@ -1452,7 +1452,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         blank_ids = set()
         blank_strings = set()
         for prefix in config.blank.strip().split(','):
-            _ids, _id_strings = lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()))
+            types_or_prefix = TYPE_LONG.get(prefix.strip(), prefix.strip())
+            if isinstance(types_or_prefix, list):
+                _id_strings = types_or_prefix
+                _ids = [lexicon.get_d(s=s, data_as_hashes=False) for s in _id_strings]
+            else:
+                _ids, _id_strings = lexicon.get_ids_for_prefix(types_or_prefix)
             blank_ids.update(_ids)
             blank_strings.update(_id_strings)
         logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
@@ -1468,8 +1473,12 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             classes_ids_list = []
             for prefix in config.task.split(','):
                 #type_class = TYPE_FOR_TASK[c.strip()]
-                _ids, _strings = forest.lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()))
-                #classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
+                types_or_prefix = TYPE_LONG.get(prefix.strip(), prefix.strip())
+                if isinstance(types_or_prefix, list):
+                    _strings = types_or_prefix
+                    _ids = [lexicon.get_d(s=s, data_as_hashes=False) for s in _strings]
+                else:
+                    _ids, _strings = forest.lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()))
                 save_class_ids(dir_path=os.path.join(logdir, 'data'),
                                prefix_type=TYPE_LONG.get(prefix.strip(), prefix.strip()), classes_ids=_ids,
                                classes_strings=_strings)
