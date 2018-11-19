@@ -1,3 +1,4 @@
+import io
 import logging
 import os
 from datetime import datetime
@@ -53,7 +54,7 @@ def load_class_ids(dir_path, prefix_type):
     classes_strings = None
     if os.path.exists(fn_strings):
         logger.debug('load class strings for %s to: %s' % (prefix_type, fn_strings))
-        classes_strings = list((s[:-1] for s in open(fn_strings).readlines()))
+        classes_strings = list((s[:-1] for s in io.open(fn_strings, encoding='utf8').readlines()))
     return classes_ids, classes_strings
 
 
@@ -65,7 +66,7 @@ def save_class_ids(dir_path, prefix_type, classes_ids, classes_strings=None):
     if classes_strings is not None:
         fn_strings = '%s.%s.%s' % (dir_path, CLASSES_FNS.get(prefix_type, prefix_type.replace('/', '-')), FE_CLASS_STRINGS)
         logger.debug('save class strings for %s to: %s' % (prefix_type, fn_strings))
-        with open(fn_strings, 'w') as f:
+        with io.open(fn_strings, 'w', encoding='utf8') as f:
             f.writelines(map(lambda s: s+'\n', classes_strings))
 
 
