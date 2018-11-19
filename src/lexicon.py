@@ -838,7 +838,8 @@ class Lexicon(object):
             else:
                 return Forest(data=self.convert_data_hashes_to_indices(data), graph_in=graph_in, graph_out=graph_out,
                               lexicon=self, data_as_hashes=False)
-        data, parents = read_data(*args, strings=self.strings, expand_dict=expand_dict, **kwargs)
+        data, parents = read_data(*args, reader=reader, reader_args=reader_args, strings=self.strings,
+                                  expand_dict=expand_dict, **kwargs)
         if expand_dict:
             self.clear_cached_values()
         if return_hashes:
