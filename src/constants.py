@@ -69,7 +69,8 @@ CLASSES_FNS = {TYPE_MESH: u'MESH',
                TYPE_LEXEME: u"LEXEME",
                TYPE_POS_TAG: u"POS",
                TYPE_DEPENDENCY_RELATION: u"DEP-REL",
-               STRUCTURE_TYPES: u"STRUCTURE"}
+               #STRUCTURE_TYPES: u"STRUCTURE"
+               }
 
 FN_TREE_INDICES = 'tree_indices'
 

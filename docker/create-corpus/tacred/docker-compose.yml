@@ -12,6 +12,7 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py PARSE
                                   --in-path /root/corpora_in
                                   --out-path /root/corpora_out/TACRED
+                                  --sentence-processor ${SENTENCE_PROCESSOR}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
@@ -87,6 +88,7 @@ services:
       /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py ALL
                                   --in-path /root/corpora_in
                                   --out-path /root/corpora_out/TACRED
+                                  --sentence-processor ${SENTENCE_PROCESSOR}
                                   --min-count ${MIN_COUNT}
                                   --coverage ${COVERAGE}
                                   --merged-forest-path /root/corpora_out/TACRED/merged/forest

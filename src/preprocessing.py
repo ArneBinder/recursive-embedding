@@ -488,7 +488,7 @@ def process_sentence10(sentence, parsed_data, strings, dict_unknown=None, concat
 
 
 # embeddings for:
-# word, edge (reversed i.e. edge type links word to parent edge type)
+# word, edge (edge type links word to parent word)
 def process_sentence11(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, annotations=(), **kwargs):
     sen_data = []
     sen_parents = []

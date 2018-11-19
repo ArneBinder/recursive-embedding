@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from functools import partial
 
 import numpy as np
 from datetime import datetime
@@ -94,12 +95,20 @@ def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("s
            ):
     nbr_total = 0
     nbr_failed = 0
+    keys_check = set(keys_annot)
+    keys_check.add('stanford_head')
+    if key_rel is not None:
+        keys_check.add(key_rel)
+
+    dep_edge_offset = 0 if key_rel is None else 1
+
     for r in records:
         try:
             nbr_total += 1
-            assert len(r[key_main]) == len(r[key_rel]), \
-                'number of %s: %i != number of %s: %i (dif: %i)'\
-                % (key_main, len(r[key_main]), key_rel, len(r[key_rel]), len(r[key_rel]) - len(r[key_main]))
+            for k in keys_check:
+                assert len(r[key_main]) == len(r[k]), \
+                    'number of %s: %i != number of %s: %i (dif: %i)'\
+                    % (key_main, len(r[key_main]), k, len(r[k]), len(r[k]) - len(r[key_main]))
             entities = r[key_entity]
             entities_end = {e[1]-1: e for e in entities}
             data_strings = [root_string, KEY_PREFIX_MAPPING['id'] + SEPARATOR + r['id'], TYPE_CONTEXT]
@@ -109,12 +118,14 @@ def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("s
             root = None
 
             for i, entry in enumerate(r[key_main]):
-                start_positions.append(len(data_strings))
+                start_pos = len(data_strings)
+                start_positions.append(start_pos)
                 data_strings.append(KEY_PREFIX_MAPPING[key_main] + SEPARATOR + entry)
-                edges.append((len(data_strings), len(data_strings) - 1))
-                data_strings.append(KEY_PREFIX_MAPPING[key_rel] + SEPARATOR + r[key_rel][i])
+                if key_rel is not None:
+                    edges.append((len(data_strings), len(data_strings) - 1))
+                    data_strings.append(KEY_PREFIX_MAPPING[key_rel] + SEPARATOR + r[key_rel][i])
                 for j, k_annot in enumerate(keys_annot):
-                    edges.append((len(data_strings) - 2 - j, len(data_strings)))
+                    edges.append((start_pos, len(data_strings)))
                     data_strings.append(KEY_PREFIX_MAPPING[k_annot] + SEPARATOR + r[k_annot][i])
                 if i in entities_end:
                     entity_positions.append(len(data_strings))
@@ -123,9 +134,9 @@ def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("s
                     data_strings.append(KEY_PREFIX_MAPPING[key_entity])
             for i, head in enumerate(r['stanford_head']):
                 if head != 0:
-                    edges.append((start_positions[head - 1], start_positions[i] + 1))
+                    edges.append((start_positions[head - 1], start_positions[i] + dep_edge_offset))
                 else:
-                    root = start_positions[i] + 1
+                    root = start_positions[i] + dep_edge_offset
 
             assert root is not None, 'ROOT not found'
             edges.append((2, len(data_strings)))
@@ -159,10 +170,24 @@ def parse_dummy(out_base_name):
 @plac.annotations(
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
+    sentence_processor=('sentence processor', 'option', 'p', str),
     unused='not used parameters'
 )
-def parse(in_path, out_path, *unused):
-
+def parse(in_path, out_path, sentence_processor=None, *unused):
+    if sentence_processor is None or sentence_processor.strip() == '':
+        sentence_processor = 'process_sentence1'
+    # default to process_sentence1
+    if sentence_processor.strip() == 'process_sentence1':
+        record_reader = partial(reader, key_rel=None, keys_annot=())
+    elif sentence_processor.strip() == 'process_sentence3':
+        record_reader = partial(reader, key_rel=None, keys_annot=("stanford_deprel",))
+    elif sentence_processor.strip() == 'process_sentence11':
+        record_reader = partial(reader, key_rel="stanford_deprel", keys_annot=())
+    elif sentence_processor.strip() == 'process_sentence12':
+        record_reader = partial(reader, key_rel="stanford_deprel", keys_annot=("stanford_pos",))
+    else:
+        raise NotImplementedError('sentence_processor: %s not implemented for parsing tacred' % sentence_processor)
+    logger.info('use %s' % sentence_processor)
     file_names = ['dev', 'test', 'train']
     for fn in file_names:
         logger.info('create forest for %s ...' % fn)
@@ -172,7 +197,7 @@ def parse(in_path, out_path, *unused):
         out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
         make_parent_dir(out_base_name)
         process_records(records=(json.loads(s) for s in open(os.path.join(in_path, fn + '.jsonl')).readlines()),
-                        out_base_name=out_base_name, record_reader=reader, concat_mode=None, as_graph=True,
+                        out_base_name=out_base_name, record_reader=record_reader, concat_mode=None, as_graph=True,
                         dont_parse=True)
     logger.info('done.')
 
@@ -190,10 +215,6 @@ def main(mode, *args):
         relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids,
                        classes_strings=relation_strings)
-
-        #relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION_DIRECTION)
-        #save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION_DIRECTION, classes_ids=relation_ids,
-        #               classes_strings=relation_strings)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
     elif mode == 'ALL':
