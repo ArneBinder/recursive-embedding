@@ -493,6 +493,8 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, tr
             if class_ids is not None:
                 if class_ids[rep] == head_transformed_back:
                     rep = class_ids[-1]
+                else:
+                    rep = class_ids[rep]
             else:
                 # otherwise just use as index to lexicon
                 if rep == head_transformed_back:
