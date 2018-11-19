@@ -27,9 +27,9 @@ import svgutils.transform as sg
 import constants
 import preprocessing
 from lexicon import Lexicon
-from sequence_trees import Forest
+from sequence_trees import Forest, concatenate_structures
 from config import Config
-from constants import TYPE_REF, TYPE_REF_SEEALSO, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, \
+from constants import TYPE_REF_SEEALSO, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, \
     LOGGING_FORMAT, vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, SEPARATOR, TYPE_LEXEME, MT_CANDIDATES, \
     OFFSET_ID, BASE_TYPES
 import data_iterators
@@ -285,10 +285,12 @@ def get_or_calc_sequence_data(params):
                                                        root_label=params.get('root_label', None)))
 
     if 'data_sequences' in params:
-        d_list, p_list = zip(*params['data_sequences'])
+        d_list, structure_list = zip(*params['data_sequences'])
+        structure = concatenate_structures(structure_list)
         params['data_as_hashes'] = params.get('data_as_hashes', False)
-        current_forest = Forest(data=np.concatenate(d_list), parents=np.concatenate(p_list), lexicon=lexicon,
-                                data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
+        current_forest = Forest(data=np.concatenate(d_list), structure=structure,
+                                lexicon=lexicon, data_as_hashes=params['data_as_hashes'],
+                                root_ids=params.get('root_ids', None))
     else:
         init_forest(data_path)
         current_forest = forest
@@ -522,8 +524,8 @@ def get_or_calc_scores(params):
         else:
             assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
                 'can not construct reroot trees of an already transformed tree'
-            for data, parents in params['data_sequences']:
-                current_forest = Forest(data=data, parents=parents, lexicon=lexicon,
+            for data, structure in params['data_sequences']:
+                current_forest = Forest(data=data, structure=structure, lexicon=lexicon,
                                         data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
                 #params['reroot'] = True
                 # transform, if not already done

@@ -164,6 +164,21 @@ def concatenate_graphs(graphs):
         raise NotImplementedError('concatenation for matrix type "%s" not implemented' % m_type)
 
 
+def concatenate_structures(structure_list):
+    assert len(structure_list) > 0, 'can not concatenate empty structure_list'
+    if isinstance(structure_list[0], csc_matrix) or isinstance(structure_list[0], csr_matrix):
+        return concatenate_graphs(structure_list)
+    elif isinstance(structure_list[0], np.ndarray):
+        return np.concatenate(structure_list)
+    elif isinstance(structure_list[0], list) or isinstance(structure_list[0], np.ndarray):
+        parents = []
+        for p in structure_list:
+            parents.extend(p)
+        return parents
+    else:
+        raise AssertionError('Unknown structure type: %s. Can not concatenate.' % type(structure_list[0]))
+
+
 def empty_graph_from_graph(graph, size):
     if isinstance(graph, csr_matrix):
         return csr_matrix((size, size), dtype=graph.dtype)
@@ -180,7 +195,7 @@ def slice_graph(graph, indices):
 class Forest(object):
     def __init__(self, filename=None, data=None, parents=None, forest=None, tree_dict=None, lexicon=None,
                  data_as_hashes=False, root_ids=None, root_pos=None, load_root_ids=True, load_root_pos=True,
-                 lexicon_roots=None, transformed_indices=False, graph_in=None, graph_out=None):
+                 lexicon_roots=None, transformed_indices=False, graph_in=None, graph_out=None, structure=None):
         self.reset_cache_values()
         self._as_hashes = data_as_hashes
         self._lexicon = lexicon
@@ -195,10 +210,10 @@ class Forest(object):
 
         if filename is not None:
             self.load(filename=filename, load_root_ids=load_root_ids, load_root_pos=load_root_pos)
-        elif (data is not None and (graph_in is not None or graph_out is not None or parents is not None)) \
+        elif (data is not None and (graph_in is not None or graph_out is not None or structure is not None or parents is not None)) \
                 or forest is not None:
             self.set_forest(data=data, parents=parents, forest=forest, graph_in=graph_in, graph_out=graph_out, #children=children, children_pos=children_pos,
-                            data_as_hashes=data_as_hashes, root_data=root_ids, root_pos=root_pos)
+                            structure=structure, data_as_hashes=data_as_hashes, root_data=root_ids, root_pos=root_pos)
         elif tree_dict is not None:
             _data, _parents = _sequence_node_to_sequence_trees(tree_dict)
             if transformed_indices:
@@ -270,7 +285,7 @@ class Forest(object):
         else:
             self._root_pos = None
 
-    def set_forest(self, data=None, parents=None, forest=None, graph_in=None, graph_out=None,
+    def set_forest(self, data=None, parents=None, forest=None, graph_in=None, graph_out=None, structure=None,
                    data_as_hashes=False, root_data=None, root_pos=None):
         self._as_hashes = data_as_hashes
         if self.data_as_hashes:
@@ -298,6 +313,17 @@ class Forest(object):
                 if not isinstance(parents, np.ndarray) or not parents.dtype == DTYPE_OFFSET:
                     parents = np.array(parents, dtype=DTYPE_OFFSET)
                 self._graph_in = graph_in_from_parents(parents)
+            elif structure is not None:
+                if isinstance(structure, csc_matrix):
+                    self._graph_out = structure
+                elif isinstance(structure, csc_matrix):
+                    self._graph_in = structure
+                elif isinstance(structure, np.ndarray) and parents.dtype == DTYPE_OFFSET:
+                    self._graph_in = graph_in_from_parents(parents)
+                elif isinstance(structure, list) and len(data) == len(parents):
+                    self._graph_in = graph_in_from_parents(np.array(parents, dtype=DTYPE_OFFSET))
+                else:
+                    raise AssertionError('Unknown structure for graph. type: %s' % type(structure))
         assert self._graph_in is not None or self._graph_out is not None, \
             'either graph_in (%s) or graph_out (%s) have to be set (True iff array is set, in brackets)' \
             % (str(self._graph_in is not None), str(self._graph_out is not None))
