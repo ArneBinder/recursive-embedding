@@ -63,7 +63,9 @@ LINK_TYPES = [TYPE_REF, TYPE_REF_SEEALSO, TYPE_REF_TUPLE]
 CLASSES_FNS = {TYPE_MESH: u'MESH',
                TYPE_ENTAILMENT: u'ENTAILMENT',
                TYPE_POLARITY: u"POLARITY",
-               TYPE_RELATION: u"RELATION"}
+               TYPE_RELATION: u"RELATION",
+               TYPE_LEXEME: u"LEXEME",
+               TYPE_POS_TAG: u"POS"}
 
 FN_TREE_INDICES = 'tree_indices'
 
