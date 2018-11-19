@@ -570,17 +570,6 @@ def identity_reader(content):
     yield content
 
 
-def read_data_graph(reader, strings, sentence_processor=None, parser=None,  reader_args={}, batch_size=1000,
-                    concat_mode=default_concat_mode, inner_concat_mode=default_inner_concat_mode, expand_dict=True,
-                    dont_parse=False, reader_roots=None, reader_roots_args={}, as_tuples=False, n_threads=4):
-
-    if not dont_parse:
-        raise NotImplementedError('read_data_graph not implemented with parsing')
-
-
-
-
-
 def read_data(reader, sentence_processor, parser, strings, reader_args={}, batch_size=1000,
               concat_mode=default_concat_mode, inner_concat_mode=default_inner_concat_mode,
               expand_dict=True, reader_roots=None, reader_roots_args={}, as_tuples=False, n_threads=4):

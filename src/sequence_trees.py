@@ -286,7 +286,11 @@ class Forest(object):
             data = np.array(data, dtype=data_dtype)
         self._data = data
         self._graph_in = graph_in
+        if self._graph_in is not None and not isinstance(self._graph_in, csr_matrix):
+            self._graph_in = csr_matrix(self._graph_in)
         self._graph_out = graph_out
+        if self._graph_out is not None and not isinstance(self._graph_out, csc_matrix):
+            self._graph_out = csc_matrix(self._graph_out)
         if self._graph_in is None and self._graph_out is None:
             if parents is not None:
                 assert len(data) == len(parents), \

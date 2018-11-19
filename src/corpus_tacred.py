@@ -1,16 +1,16 @@
 import json
 import logging
+import os
+
+import numpy as np
 from datetime import datetime
 
-from scipy.sparse import csr_matrix, csc_matrix, lil_matrix, coo_matrix
+from scipy.sparse import csr_matrix, coo_matrix
 import plac
-import spacy
 
-
-import preprocessing
 from constants import LOGGING_FORMAT, TYPE_RELATION, TYPE_DATASET, SEPARATOR, TYPE_POS_TAG, TYPE_LEXEME, \
-    TYPE_DEPENDENCY_RELATION, TYPE_NAMED_ENTITY
-from corpus import process_records, merge_batches, create_index_files, save_class_ids
+    TYPE_DEPENDENCY_RELATION, TYPE_NAMED_ENTITY, TYPE_SENTENCE, TYPE_CONTEXT
+from corpus import process_records, merge_batches, create_index_files, save_class_ids, DIR_BATCHES
 from mytools import make_parent_dir
 
 logger = logging.getLogger('corpus_tacred')
@@ -87,64 +87,105 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
     print('time: %s' % str(datetime.now() - t_start))
 
 
-def reader(records, key_main="tokens", keys_annot=("stanford_pos", "stanford_deprel"),
+def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("stanford_pos", ),
            root_string=TYPE_TACRED, key_entity="entities"
            #keys_meta=(TYPE_RELATION,), key_id=TYPE_SEMEVAL2010TASK8_ID,
            #root_text_string=TYPE_CONTEXT
            ):
+    nbr_total = 0
+    nbr_failed = 0
     for r in records:
-        entities = r[key_entity]
-        entities_end = [e[-1]-1 for e in entities]
-        size = len(r[key_main]) * (1 + len(keys_annot) + len(entities) + 2)
-        graph_out = coo_matrix((size, size), dtype=bool)
-        data_strings = [root_string, KEY_PREFIX_MAPPING['id'] + SEPARATOR + r['id']]
-        mapping = {}
-        start_positions = []
+        try:
+            nbr_total += 1
+            assert len(r[key_main]) == len(r[key_rel]), \
+                'number of %s: %i != number of %s: %i (dif: %i)'\
+                % (key_main, len(r[key_main]), key_rel, len(r[key_rel]), len(r[key_rel]) - len(r[key_main]))
+            entities = r[key_entity]
+            entities_end = {e[1]-1: e for e in entities}
+            data_strings = [root_string, KEY_PREFIX_MAPPING['id'] + SEPARATOR + r['id'], TYPE_CONTEXT]
+            edges = [(0, 1), (0, 2)]
+            start_positions = []
+            entity_positions = []
+            root = None
 
-        for i, entry in enumerate(r[key_main]):
-            start_positions.append(len(data_strings))
-            mapping[len(data_strings)] = i
-            data_strings.append(KEY_PREFIX_MAPPING[key_main] + SEPARATOR + entry)
-            for k_annot in keys_annot:
-                mapping[len(data_strings)] = i
-                data_strings.append(KEY_PREFIX_MAPPING[k_annot] + SEPARATOR + r[k_annot][i])
-            if i in entities_end:
-                mapping[len(data_strings)] = i
-                data_strings.append(KEY_PREFIX_MAPPING[key_entity])
-            # TODO: add graph structure
-        yield r
+            for i, entry in enumerate(r[key_main]):
+                start_positions.append(len(data_strings))
+                data_strings.append(KEY_PREFIX_MAPPING[key_main] + SEPARATOR + entry)
+                edges.append((len(data_strings), len(data_strings) - 1))
+                data_strings.append(KEY_PREFIX_MAPPING[key_rel] + SEPARATOR + r[key_rel][i])
+                for j, k_annot in enumerate(keys_annot):
+                    edges.append((len(data_strings) - 2 - j, len(data_strings)))
+                    data_strings.append(KEY_PREFIX_MAPPING[k_annot] + SEPARATOR + r[k_annot][i])
+                if i in entities_end:
+                    entity_positions.append(len(data_strings))
+                    for j in range(entities_end[i][0], entities_end[i][1]):
+                        edges.append((start_positions[j], len(data_strings)))
+                    data_strings.append(KEY_PREFIX_MAPPING[key_entity])
+            for i, head in enumerate(r['stanford_head']):
+                if head != 0:
+                    edges.append((start_positions[head - 1], start_positions[i] + 1))
+                else:
+                    root = start_positions[i] + 1
+
+            assert root is not None, 'ROOT not found'
+            edges.append((2, len(data_strings)))
+            edges.append((len(data_strings), root))
+            data_strings.append(TYPE_SENTENCE)
+
+            edges.append((entity_positions[0], len(data_strings)))
+            edges.append((len(data_strings), entity_positions[1]))
+            data_strings.append(KEY_PREFIX_MAPPING["label"] + SEPARATOR + r["label"])
+
+            rows_and_cols = np.array(edges).T
+            graph_out = csr_matrix(coo_matrix((np.ones(len(edges), dtype=bool), (rows_and_cols[1], rows_and_cols[0]))))
+            #_graph_out = graph_out.toarray()
+            yield data_strings, None, graph_out
+        except Exception as e:
+            nbr_failed += 1
+            logger.warning('ID:%s %s' % (r['id'], str(e)))
+    logger.info('successfully read %i records (%i records failed)' % (nbr_total - nbr_failed, nbr_failed))
 
 
 @plac.annotations(
-    out_base_name=('corpora output base file name', 'option', 'o', str),
-    sentence_processor=('sentence processor', 'option', 'p', str),
+    out_base_name=('corpora output base file name', 'option', 'o', str)
 )
-def parse_dummy(out_base_name, sentence_processor=None):
+def parse_dummy(out_base_name):
     print(out_base_name)
     make_parent_dir(out_base_name)
-    if sentence_processor is not None and sentence_processor.strip() != '':
-        _sentence_processor = getattr(preprocessing, sentence_processor.strip())
-    else:
-        _sentence_processor = preprocessing.process_sentence1
-    parser = spacy.load('en')
-    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name, record_reader=reader, parser=parser,
-                    sentence_processor=_sentence_processor, concat_mode=None)
+    process_records(records=[DUMMY_RECORD], out_base_name=out_base_name, record_reader=reader, concat_mode=None,
+                    as_graph=True, dont_parse=True)
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL']),
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+    unused='not used parameters'
+)
+def parse(in_path, out_path, *unused):
+
+    file_names = ['dev', 'test', 'train']
+    for fn in file_names:
+        logger.info('create forest for %s ...' % fn)
+        if not os.path.exists(os.path.join(in_path, fn + '.jsonl')):
+            logger.warning('could not find file: %s. skip it.' % os.path.join(in_path, fn + '.jsonl'))
+            continue
+        out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
+        make_parent_dir(out_base_name)
+        process_records(records=(json.loads(s) for s in open(os.path.join(in_path, fn + '.jsonl')).readlines()),
+                        out_base_name=out_base_name, record_reader=reader, concat_mode=None, as_graph=True,
+                        dont_parse=True)
+    logger.info('done.')
+
+
+@plac.annotations(
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'ALL']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
         plac.call(parse_dummy, args)
-    elif mode == 'TEST':
-        raise NotImplementedError("mode == 'TEST' not yet implemented")
-        res = list(plac.call(read_file, args))
     elif mode == 'PARSE':
-        raise NotImplementedError("mode == 'PARSE' not yet implemented")
         plac.call(parse, args)
     elif mode == 'MERGE':
-        raise NotImplementedError("mode == 'MERGE' not yet implemented")
         forest_merged, out_path_merged = plac.call(merge_batches, args)
         relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids,

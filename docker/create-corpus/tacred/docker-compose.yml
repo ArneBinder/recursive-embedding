@@ -1,0 +1,79 @@
+version: '2.3'
+services:
+  corpus-parse:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/tacred/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py PARSE
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/TACRED
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-merge:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/tacred/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py MERGE
+                                  --out-path /root/corpora_out/TACRED
+                                  --min-count ${MIN_COUNT}
+                                  --coverage ${COVERAGE}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-indices-test:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/tacred/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/TACRED/merged/forest
+                                  --split-count 1
+                                  --start-root 0
+                                  --end-root 2717
+                                  --suffix dev
+
+  corpus-indices-train:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/tacred/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/TACRED/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root 2717
+                                  --end-root -1
+                                  --suffix train
+
+  corpus-all:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/tacred/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py ALL
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/TACRED
+                                  --min-count ${MIN_COUNT}
+                                  --coverage ${COVERAGE}
+                                  --merged-forest-path /root/corpora_out/TACRED/merged/forest
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}

@@ -8,10 +8,10 @@ import logging
 import os
 
 from preprocessing import read_data, without_prefix, PREFIX_LEX
-from constants import vocab_manual, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, DTYPE_VECS, LOGGING_FORMAT, IDENTITY_EMBEDDING, \
+from constants import vocab_manual, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, DTYPE_VECS, LOGGING_FORMAT, \
     UNKNOWN_EMBEDDING, LINK_TYPES
-from sequence_trees import Forest
-from mytools import numpy_dump, numpy_load, numpy_exists
+from sequence_trees import Forest, concatenate_graphs
+from mytools import numpy_dump, numpy_load, numpy_exists, getOrAdd
 
 logger = logging.getLogger('lexicon')
 logger.setLevel(logging.DEBUG)
@@ -803,9 +803,34 @@ class Lexicon(object):
         return data
         #return data_new
 
-    def read_data(self, expand_dict=True, return_hashes=False, as_graph=False, *args, **kwargs):
+    def read_data(self, reader, reader_args={}, expand_dict=True, return_hashes=False, as_graph=False,
+                  dont_parse=False, *args, **kwargs):
         if as_graph:
-            data, graph_out, graph_in = read_data_graph(*args, strings=self.strings, expand_dict=expand_dict, **kwargs)
+            if dont_parse:
+                if expand_dict:
+                    idx_unknown = None
+                else:
+                    assert vocab_manual[UNKNOWN_EMBEDDING] in self.strings, '"%s" is not in StringStore.' \
+                                                                       % UNKNOWN_EMBEDDING
+                    idx_unknown = self.strings[vocab_manual[UNKNOWN_EMBEDDING]]
+
+                data = []
+
+                graph_in_list = []
+                graph_out_list = []
+                for data_strings, graph_in, graph_out in reader(**reader_args):
+                    current_data = [getOrAdd(self.strings, s, idx_unknown) for s in data_strings]
+                    data.extend(current_data)
+                    if graph_in is not None:
+                        graph_in_list.append(graph_in)
+                    if graph_out is not None:
+                        graph_out_list.append(graph_out)
+                graph_in = concatenate_graphs(graph_in_list) if len(graph_in_list) > 0 else None
+                graph_out = concatenate_graphs(graph_out_list) if len(graph_out_list) > 0 else None
+            else:
+                raise NotImplementedError('lexicon.read_data not implemented for as_graph==True and dont_parse==False')
+                data, graph_out, graph_in = read_data_graph(*args, reader=reader, reader_args=reader_args,
+                                                            strings=self.strings, expand_dict=expand_dict, **kwargs)
             if expand_dict:
                 self.clear_cached_values()
             if return_hashes:
