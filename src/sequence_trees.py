@@ -318,10 +318,10 @@ class Forest(object):
                     self._graph_out = structure
                 elif isinstance(structure, csc_matrix):
                     self._graph_in = structure
-                elif isinstance(structure, np.ndarray) and parents.dtype == DTYPE_OFFSET:
-                    self._graph_in = graph_in_from_parents(parents)
-                elif isinstance(structure, list) and len(data) == len(parents):
-                    self._graph_in = graph_in_from_parents(np.array(parents, dtype=DTYPE_OFFSET))
+                elif isinstance(structure, np.ndarray) and structure.dtype == DTYPE_OFFSET:
+                    self._graph_in = graph_in_from_parents(structure)
+                elif isinstance(structure, list) and len(data) == len(structure):
+                    self._graph_in = graph_in_from_parents(np.array(structure, dtype=DTYPE_OFFSET))
                 else:
                     raise AssertionError('Unknown structure for graph. type: %s' % type(structure))
         assert self._graph_in is not None or self._graph_out is not None, \
