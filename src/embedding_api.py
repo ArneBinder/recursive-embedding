@@ -390,45 +390,6 @@ def get_or_calc_tree_dicts_or_forests(params, return_forests=True):
                                                                                                  current_forest=current_forest,
                                                                                                  params=params,
                                                                                                  transform=False)
-    elif 'reroot_start' in params:
-        raise NotImplementedError('reroot_start functionality is deprecated')
-        if current_forest.data_as_hashes:
-            current_forest.hashes_to_indices()
-        params['data_as_hashes'] = current_forest.data_as_hashes
-
-        tree_start = params.get('reroot_start', 0)
-        tree_end = params.get('reroot_end', len(current_forest))
-        max_depth = params.get('max_depth', 100)
-        #context = params.get('context', 0)
-
-        params['transformed_idx'] = True
-        _forests = []
-        for i, [(tree_dict_children, candidate_heads), probs] \
-                in enumerate(data_iterators.data_tuple_iterator_reroot(sequence_trees=current_forest, neg_samples=10,
-                                                                       max_tries=10, max_depth=max_depth,
-                                                                       link_cost_ref=params.get('link_cost_ref', None),
-                                                                       link_cost_ref_seealso=params.get('link_cost_ref_seealso', -1),
-                                                                       transform=True)):
-            if i < tree_start:
-                continue
-            if 0 <= tree_end <= i:
-                break
-
-            tree_dict = {KEY_HEAD: candidate_heads[0], KEY_CHILDREN: tree_dict_children}
-            vis_forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                                data_as_hashes=current_forest.data_as_hashes,
-                                #root_ids=current_forest.root_data,
-                                lexicon_roots=current_forest.lexicon_roots)
-            _forests.append(vis_forest)
-
-            candidates_forest = Forest(data=candidate_heads[1:],
-                                       parents=np.zeros(shape=len(candidate_heads)-1, dtype=DTYPE_OFFSET),
-                                       lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes,
-                                       #root_ids=current_forest.root_data,
-                                       lexicon_roots=current_forest.lexicon_roots
-                                       )
-            _forests.append(candidates_forest)
-
     else:
         _forests = [current_forest]
         params['transformed_idx'] = False
