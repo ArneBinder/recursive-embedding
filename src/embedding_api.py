@@ -35,6 +35,7 @@ from constants import TYPE_REF_SEEALSO, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, KE
 import data_iterators
 from data_iterators import OFFSET_CONTEXT_ROOT
 import data_iterators as diter
+from src.mytools import numpy_dump
 from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor, init_model_type
 
 TEMP_FN_SVG = 'temp_forest.svg'
@@ -220,7 +221,7 @@ def parse_iterator(sequences, sentence_processor, concat_mode, inner_concat_mode
         yield _forest.forest
 
 
-def get_forests_for_indices_from_forest(indices, current_forest, params, transform):
+def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, transform):
 
     context = params.get('context', 0)
     transform = transform or context > 0
@@ -228,7 +229,6 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
     if current_forest.data_as_hashes:
         current_forest.hashes_to_indices()
 
-    forests = []
     transformed = params.get('reroot', False) or transform
 
     blank_ids = set()
@@ -240,6 +240,7 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
     logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
     blank_types = set([lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
 
+    tree_dicts = []
     for tree_dict in data_iterators.tree_iterator(
             indices, current_forest, concat_mode=params.get('concat_mode', constants.CM_TREE), context=context,
             max_depth=params.get('max_depth', 10), transform=transform,
@@ -247,16 +248,12 @@ def get_forests_for_indices_from_forest(indices, current_forest, params, transfo
             link_cost_ref_seealso=params.get('link_cost_ref_seealso', None), reroot=params.get('reroot', False),
             max_size_plain=1000, keep_prob_blank=params.get('keep_prob_blank', 1.0), keep_prob_node=params.get('keep_prob_node', 1.0),
             blank_types=blank_types):
+        tree_dicts.append(tree_dict)
 
-        forest = Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon,
-                        data_as_hashes=current_forest.data_as_hashes,  # root_ids=current_forest.root_data,
-                        lexicon_roots=current_forest.lexicon_roots)
-        forests.append(forest)
-
-    return forests, transformed
+    return tree_dicts, transformed
 
 
-def get_or_calc_sequence_data(params):
+def get_or_calc_tree_dicts_or_forests(params, return_forests=True):
     global data_path, lexicon
 
     if params.get('clear_lexicon', False):
@@ -297,7 +294,7 @@ def get_or_calc_sequence_data(params):
         params['data_as_hashes'] = current_forest.data_as_hashes
         params['root_ids'] = current_forest.root_data
 
-    _forests = []
+    _forests = None
     #params['transformed_idx'] = False
 
     if 'indices_getter' in params:
@@ -339,7 +336,7 @@ def get_or_calc_sequence_data(params):
         indices, indices_targets_unused = indices_getter(index_files=[fn], forest=current_forest)
         # set tree iterator
         tree_iter = data_iterators.tree_iterator(indices=indices, forest=current_forest, **tree_iterator_args)
-
+        _forests = []
         for i, tree_dict in enumerate(tree_iter):
             if i < tuple_start:
                 continue
@@ -370,10 +367,31 @@ def get_or_calc_sequence_data(params):
 
         _forests = [current_forest.get_slice(indices=np.arange(start=idx_start, stop=idx_end))]
     elif 'idx' in params:
-        _forests, transformed = get_forests_for_indices_from_forest(indices=[params['idx']], current_forest=current_forest,
-                                                                    params=params, transform=False)#, transform=params['transformed_idx'])
-        params['transformed_idx'] = transformed
+        params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(
+            indices=[params['idx']], current_forest=current_forest,params=params, transform=False)
+    elif 'indices' in params:
+        params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(
+            indices=params['indices'], current_forest=current_forest, params=params, transform=False)
+    elif 'indices_prefix' in params:
+        ids = []
+        for prefix in params['indices_prefix']:
+            prefix_or_types = constants.TYPE_LONG.get(prefix.strip(), prefix.strip())
+            if isinstance(prefix_or_types, list):
+                _ids = [current_forest.lexicon.get_d(s=s, data_as_hashes=current_forest.data_as_hashes) for s in prefix_or_types]
+            else:
+                _ids, _strings = current_forest.lexicon.get_ids_for_prefix(prefix=prefix_or_types)
+            assert len(_ids) > 0, ' no ids found for indices_prefix: %s' % ', '.join(prefix_or_types)
+            logger.info('select %i different ids for prefix: %s' % (len(_ids), prefix.strip()))
+            ids.extend(_ids)
+        mask = np.isin(current_forest.data, ids)
+        indices = np.nonzero(mask)[0]
+        logger.info('create %i tree_dicts ...' % len(indices))
+        params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(indices=indices,
+                                                                                                 current_forest=current_forest,
+                                                                                                 params=params,
+                                                                                                 transform=False)
     elif 'reroot_start' in params:
+        raise NotImplementedError('reroot_start functionality is deprecated')
         if current_forest.data_as_hashes:
             current_forest.hashes_to_indices()
         params['data_as_hashes'] = current_forest.data_as_hashes
@@ -413,8 +431,12 @@ def get_or_calc_sequence_data(params):
 
     else:
         _forests = [current_forest]
+        params['transformed_idx'] = False
 
     candidates = params.get('candidates', None)
+    if (return_forests or candidates is not None) and 'tree_dicts' in params:
+        _forests = tree_dicts_to_forests(params['tree_dicts'], current_forest)
+
     if candidates is not None:
         # convert to lexemes if not already an url (starting with "http://") or a type (prefixed with a BASE_TYPE)
         params['candidates'] = [TYPE_LEXEME + SEPARATOR + unicode(c)
@@ -428,26 +450,33 @@ def get_or_calc_sequence_data(params):
                                   lexicon=lexicon)
         _forests = [_forests[0], candidate_forest]
 
-    params['data_sequences'], params['sequences'] = zip(*[([f.data, f.graph_out], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
-    if params.get('calc_depths', False):
-        params['depths'] = [f.depths for f in _forests]
-    if params.get('calc_depths_max', False):
-        params['depths_max'] = np.array([np.max(f.depths) for f in _forests])
+    if _forests is not None:
+        params['forests'] = _forests
+        #params['data_sequences'], params['sequences'] = zip(*[([f.data, f.graph_out], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
+    #if params.get('calc_depths', False):
+    #    params['depths'] = [f.depths for f in _forests]
+    #if params.get('calc_depths_max', False):
+    #    params['depths_max'] = np.array([np.max(f.depths) for f in _forests])
+    return current_forest
 
 
-def calc_embeddings(data_sequences_or_trees, transformed, root_ids=None, max_depth=20):
+def calc_embeddings(tree_dicts_or_forests, transformed, root_ids=None, max_depth=20):
     assert model_tree is not None, 'No model loaded. To load a model, use endpoint: /api/load?path=path_to_model'
 
     # TODO: rework! (add link_types and costs)
     batch = []
-    for i, data_and_parents_or_tree in enumerate(data_sequences_or_trees):
-        if isinstance(data_and_parents_or_tree, Forest):
-            tree = data_and_parents_or_tree
+    logger.info('calculate %i embeddings ...' % len(tree_dicts_or_forests))
+    for i, tree_dict_or_forest in enumerate(tree_dicts_or_forests):
+        if isinstance(tree_dict_or_forest, dict):
+            tree_dict = tree_dict_or_forest
         else:
-            tree = Forest(forest=data_and_parents_or_tree, lexicon=lexicon, root_ids=root_ids)
+            if isinstance(tree_dict_or_forest, Forest):
+                tree = tree_dict_or_forest
+            else:
+                tree = Forest(forest=tree_dict_or_forest, lexicon=lexicon, root_ids=root_ids)
 
-        #tree.visualize(filename='debug_%d.svg' % i, transformed=transformed)
-        tree_dict = tree.get_tree_dict(idx=tree.roots[0], max_depth=max_depth, transform=not transformed)
+            #tree.visualize(filename='debug_%d.svg' % i, transformed=transformed)
+            tree_dict = tree.get_tree_dict(idx=tree.roots[0], max_depth=max_depth, transform=not transformed)
         # add correct root as candidate (if HTUBatchedHead model is used)
         tree_dict[KEY_CANDIDATES] = [tree_dict[KEY_HEAD]]
         batch.append([tree_dict])
@@ -466,12 +495,20 @@ def get_or_calc_embeddings(params):
     if 'embeddings' in params:
         params['embeddings'] = np.array(params['embeddings'])
     else:
-        if 'data_sequences' not in params:
-            get_or_calc_sequence_data(params)
+        if 'tree_dicts' not in params and 'forests' not in params:
+            # TODO: use return_forests=False
+            get_or_calc_tree_dicts_or_forests(params, return_forests=False)
 
-        params['embeddings'] = calc_embeddings(data_sequences_or_trees=params['data_sequences'],
+        params['embeddings'] = calc_embeddings(tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
                                                max_depth=int(params.get('max_depth', 20)),
                                                transformed=params['transformed_idx'])
+
+
+def tree_dicts_to_forests(tree_dicts, current_forest):
+    forests = [
+        Forest(tree_dict=tree_dict, lexicon=current_forest.lexicon, data_as_hashes=current_forest.data_as_hashes,
+               lexicon_roots=current_forest.lexicon_roots) for tree_dict in tree_dicts]
+    return forests
 
 
 def get_or_calc_scores(params):
@@ -479,17 +516,15 @@ def get_or_calc_scores(params):
         params['scores'] = np.array(params['scores'])
     else:
         import model_fold
-        get_or_calc_sequence_data(params)
+
         params['embeddings'] = []
         params['scores'] = []
-
-        if 'candidates_data' in params:
+        if 'candidates' in params:
+            _ = get_or_calc_tree_dicts_or_forests(params, return_forests=True)
             assert isinstance(model_tree.embedder, model_fold.TreeEmbedding_HTUBatchedHead), \
                 'embedder of tree model has to be TreeEmbedding_HTUBatchedHead'
 
-            _forest = Forest(forest=params['data_sequences'][0], lexicon=lexicon,
-                             data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
-
+            _forest = params['forests'][0]
             forest_dict = _forest.get_tree_dict(idx=_forest.roots[0],
                                                 transform=not params.get('transformed_idx', False),
                                                 max_depth=params.get('max_depth', 10),
@@ -498,7 +533,6 @@ def get_or_calc_scores(params):
                                                 costs={},
                                                 link_types=[]
                                                 )
-            #forest_dict[KEY_CANDIDATES] = params['candidates_data']
             if not params.get('transformed_idx', False):
                 params['candidates_data'] = lexicon.transform_indices(params['candidates_data'])
 
@@ -522,28 +556,68 @@ def get_or_calc_scores(params):
             params['color_by_rank'] = True
 
         else:
-            assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
-                'can not construct reroot trees of an already transformed tree'
-            for data, structure in params['data_sequences']:
-                current_forest = Forest(data=data, structure=structure, lexicon=lexicon,
-                                        data_as_hashes=params['data_as_hashes'], root_ids=params.get('root_ids', None))
-                #params['reroot'] = True
-                # transform, if not already done
-                reroot_forests, transformed = get_forests_for_indices_from_forest(
-                    indices=range(len(current_forest)), current_forest=current_forest, params=params,
-                    transform=not params.get('transformed_idx', False))
-                current_embeddings = calc_embeddings(reroot_forests, max_depth=int(params.get('max_depth', 20)),
-                                                     root_ids=params.get('root_ids', None),
-                                                     transformed=transformed) #params['transformed_idx'])
-                params['embeddings'].append(current_embeddings)
+            #if params.get('reroot', False):
+            current_forest = get_or_calc_tree_dicts_or_forests(params, return_forests=False)
+            if params.get('transformed_idx', False):
+                current_embeddings = calc_embeddings(params.get('tree_dicts', None) or params['forests'],
+                                                     max_depth=int(params.get('max_depth', 20)),
+                                                     #root_ids=params.get('root_ids', None),
+                                                     transformed=params.get('transformed_idx', False))
                 fdict = {model_main.tree_model.embeddings_all: current_embeddings,
                          model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
                 current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
                 if params.get('normalize_scores', False):
                     current_scores = current_scores / np.sum(current_scores)
-                params['scores'].append(current_scores)
+                logger.info('calculated %i scores' % len(current_scores))
 
-        params['transformed_idx'] = True
+                if 'dump' not in params:
+                    forests = params.get('forests', None) or tree_dicts_to_forests(params['tree_dicts'], current_forest)
+                    params['sequences'] = [[f.get_text_plain(start=f.roots[0], end=f.roots[0] + 1,
+                                                             blacklist=params.get('prefix_blacklist', None),
+                                                             transformed=params.get('transformed_idx', False))[0] for f in forests]]
+                    params['data_sequences'] = [[[0] * len(params['sequences'][0]), [0] * len(params['sequences'][0])]]
+                    params['embeddings'].append(current_embeddings)
+                    params['scores'].append(current_scores)
+                else:
+                    params['sequences'] = []
+                    params['data_sequences'] = []
+                    dump_dir = params['dump']
+                    if not os.path.exists(dump_dir):
+                        os.makedirs(dump_dir)
+                    numpy_dump(os.path.join(dump_dir, 'dump.embeddings'), current_embeddings)
+                    numpy_dump(os.path.join(dump_dir, 'dump.scores'), current_scores)
+                    if 'indices' in params:
+                        numpy_dump(os.path.join(dump_dir, 'dump.indices'), np.array(params['indices']))
+                params['transformed_idx'] = True
+            else:
+                #_ = get_or_calc_tree_dicts_or_forests(params, return_forests=True)
+                assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
+                    'can not construct reroot trees of an already transformed tree'
+                params['reroot'] = True
+                #forests = params.get('forests', tree_dicts_to_forests(params['tree_dicts'], current_forest))
+                if 'forests' in params:
+                    forests = params['forests']
+                else:
+                    forests = tree_dicts_to_forests(params['tree_dicts'], current_forest)
+
+                for forest in forests:
+                    # create for every node a tree_dict rooted by this node
+                    # transform, if not already done
+                    tree_dicts, transformed = get_tree_dicts_for_indices_from_forest(
+                        indices=range(len(forest)), current_forest=forest, params=params,
+                        transform=not params.get('transformed_idx', False))
+                    current_embeddings = calc_embeddings(tree_dicts, max_depth=int(params.get('max_depth', 20)),
+                                                         #root_ids=params.get('root_ids', None),
+                                                         transformed=transformed) #params['transformed_idx'])
+                    params['embeddings'].append(current_embeddings)
+                    fdict = {model_main.tree_model.embeddings_all: current_embeddings,
+                             model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
+                    current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
+                    if params.get('normalize_scores', False):
+                        current_scores = current_scores / np.sum(current_scores)
+                    params['scores'].append(current_scores)
+
+                #params['transformed_idx'] = True
 
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
@@ -689,20 +763,34 @@ def embed():
 def create_visualization_response(params):
     mode = params.get('vis_mode', 'image')
     if mode == 'image':
-        for i, data_sequence in enumerate(params['data_sequences']):
-            if 'root_ids' in params:
-                root_ids = params['root_ids']
+        if 'root_ids' in params:
+            root_ids = params['root_ids']
+        else:
+            root_ids = None
+        forest_temp = None
+        count = 0
+        for i, forests_or_data_and_structure_or_tree_dicts in enumerate(params.get('forests', None) or params.get('data_sequences', None) or params['tree_dicts']):
+            if isinstance(forests_or_data_and_structure_or_tree_dicts, Forest):
+                forest_temp = forests_or_data_and_structure_or_tree_dicts
+            elif isinstance(forests_or_data_and_structure_or_tree_dicts, tuple) or isinstance(forests_or_data_and_structure_or_tree_dicts, list):
+                data, structure = forests_or_data_and_structure_or_tree_dicts
+                forest_temp = Forest(data=data, structure=structure, lexicon=lexicon,
+                                     data_as_hashes=params.get('data_as_hashes', False),
+                                     #root_ids=root_ids
+                                     )
             else:
-                root_ids = None
-            forest_temp = Forest(forest=data_sequence, lexicon=lexicon,
-                                 data_as_hashes=params.get('data_as_hashes', False),
-                                 root_ids=root_ids)
+                forest_temp = Forest(tree_dict=forests_or_data_and_structure_or_tree_dicts, lexicon=lexicon,
+                                     data_as_hashes=params.get('data_as_hashes', False),
+                                     #root_ids=root_ids
+                                     )
             forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
-                                  token_list=params['sequences'][i],
+                                  token_list=params['sequences'][i] if 'sequences' in params else None,
                                   scores=params['scores'][i] if 'scores' in params else None,
                                   color_by_rank=params.get('color_by_rank', False))
-        assert len(params['data_sequences']) > 0, 'empty data_sequences'
-        concat_visualizations_svg(TEMP_FN_SVG, len(params['data_sequences']))
+            count += 1
+        #assert len(params['data_sequences']) > 0, 'empty data_sequences'
+        assert forest_temp is not None, 'no data to visualize'
+        concat_visualizations_svg(TEMP_FN_SVG, count)
 
         response = send_file(TEMP_FN_SVG)
         # debug of
@@ -725,7 +813,10 @@ def score():
         logging.info('Scores requested')
         params = get_params(request)
         get_or_calc_scores(params)
-        response = create_visualization_response(params)
+        if 'dump' in params:
+            response = Response('data was dumped to: %s' % params['dump'])
+        else:
+            response = create_visualization_response(params)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         if params is not None and params.get('clear_lexicon', False):
@@ -821,6 +912,18 @@ def norm():
     return response
 
 
+def set_datasequences_and_sequences_from_tree_dicts_or_forests(params, current_forest):
+    if 'forests' in params:
+        forests = params['forests']
+    else:
+        forests = tree_dicts_to_forests(params['tree_dicts'], current_forest)
+    data_sequences, sequences = zip(*[([f.data, f.graph_out], f.get_text_plain(
+        blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f
+                                                          in forests])
+    params['data_sequences'] = data_sequences
+    params['sequences'] = sequences
+
+
 @app.route("/api/visualize", methods=['POST'])
 def visualize():
     global lexicon
@@ -829,7 +932,8 @@ def visualize():
         start = time.time()
         logging.info('Visualizations requested')
         params = get_params(request)
-        get_or_calc_sequence_data(params)
+        current_forest = get_or_calc_tree_dicts_or_forests(params)
+        set_datasequences_and_sequences_from_tree_dicts_or_forests(params, current_forest)
         response = create_visualization_response(params)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
