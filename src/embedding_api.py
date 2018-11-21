@@ -90,6 +90,7 @@ sess = None
 model_tree = None
 model_main = None
 lexicon = None
+lexicon_dims = None
 forest = None
 data_path = None
 tfidf_data = None
@@ -358,6 +359,7 @@ def get_or_calc_tree_dicts_or_forests(params):
         assert root_end <= len(roots), 'ERROR: root_end=%i > len(roots)=%i' % (root_end, len(roots))
 
         _forests = [current_forest.get_slice(root=root, show_links=params.get('show_links', True)) for root in roots[root_start:root_end]]
+        params['indices'] = current_forest.roots[root_start:root_end]
     elif 'idx_start' in params:
         idx_start = params.get('idx_start', 0)
         idx_end = params.get('idx_end', len(current_forest))
@@ -370,6 +372,7 @@ def get_or_calc_tree_dicts_or_forests(params):
     elif 'idx' in params:
         params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(
             indices=[params['idx']], current_forest=current_forest,params=params, transform=False)
+        params['indices'] = [params['idx']]
     elif 'indices' in params:
         params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(
             indices=params['indices'], current_forest=current_forest, params=params, transform=False)
@@ -378,6 +381,7 @@ def get_or_calc_tree_dicts_or_forests(params):
                                                                    data_as_hashes=current_forest.data_as_hashes)
         mask = np.isin(current_forest.data, ids)
         indices = np.nonzero(mask)[0]
+        params['indices'] = indices
         logger.info('create %i tree_dicts ...' % len(indices))
         params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(indices=indices,
                                                                                                  current_forest=current_forest,
@@ -386,6 +390,7 @@ def get_or_calc_tree_dicts_or_forests(params):
     else:
         _forests = [current_forest]
         params['transformed_idx'] = False
+        params['indices'] = [current_forest.roots[0]]
 
     #if return_forests and 'tree_dicts' in params:
     #    _forests = tree_dicts_to_forests(params['tree_dicts'], current_forest)
@@ -451,14 +456,9 @@ def get_or_calc_embeddings(params):
         if 'tree_dicts' not in params and 'forests' not in params:
             get_or_calc_tree_dicts_or_forests(params)
 
-        _embeddings = calc_embeddings(tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
-                                               max_depth=int(params.get('max_depth', 20)),
-                                               transformed=params['transformed_idx'])
-        if 'dump' in params:
-            dump_dir = params['dump']
-            numpy_dump(os.path.join(dump_dir, 'dump.embeddings'), _embeddings)
-        else:
-            params['embeddings'] = _embeddings
+        params['embeddings'] = calc_embeddings(
+            tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
+            max_depth=int(params.get('max_depth', 20)), transformed=params['transformed_idx'])
 
 
 def tree_dicts_to_forests(tree_dicts, current_forest):
@@ -502,6 +502,7 @@ def get_or_calc_scores(params):
                     params['forests'] = tree_dicts_to_forests(params['tree_dicts'], current_forest)
             new_forests = []
             heads = np.ones(len((params.get('tree_dicts', None) or params['forests'])), dtype=DTYPE_IDX) * -1
+            batch = []
             for i, tree_dict_or_forest in enumerate((params.get('tree_dicts', None) or params['forests'])):
                 if isinstance(tree_dict_or_forest, dict):
                     forest_dict = tree_dict_or_forest
@@ -511,7 +512,7 @@ def get_or_calc_scores(params):
                         max_depth=params.get('max_depth', 10),
                         # TODO: check these parameters
                         context=0, costs={}, link_types=[])
-                batch = []
+
                 heads[i] = forest_dict[KEY_HEAD]
                 if nbr_candidates is not None and nbr_candidates == len(params['candidates_data']):
                     forest_dict[KEY_CANDIDATES] = params['candidates_data']
@@ -521,31 +522,39 @@ def get_or_calc_scores(params):
                         current_tree_dict = forest_dict.copy()
                         current_tree_dict[KEY_CANDIDATES] = [c]
                         batch.append([current_tree_dict])
-
-                fdict_embeddings = model_tree.build_feed_dict(batch)
-                embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict_embeddings)
-                embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
-
-                fdict_scores = {model_main.tree_model.embeddings_all: embeddings,
-                                model_main.values_gold: np.zeros(shape=(len(params['candidates_data']),), dtype=np.float32)}
-
-                current_scores = sess.run(model_main.scores, feed_dict=fdict_scores)
-                if params.get('normalize_scores', True):
-                    current_scores = current_scores / np.sum(current_scores)
-
                 if dump_dir is None:
-                    params['scores'].append(None)
                     new_forests.append(params['forests'][i])
                     new_forests.append(candidate_forest)
-                params['scores'].append(current_scores.reshape((len(params['candidates_data']))))
+
+            fdict_embeddings = model_tree.build_feed_dict(batch)
+            embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict_embeddings)
+            embeddings_shaped = embeddings_all.reshape((-1, model_tree.tree_output_size))
+
+            fdict_scores = {model_main.tree_model.embeddings_all: embeddings_shaped,
+                            model_main.values_gold: np.zeros(shape=(len(params['candidates_data']),), dtype=np.float32)}
+
+            scores = sess.run(model_main.scores, feed_dict=fdict_scores)
+            scores_shaped = scores.reshape((-1, len(params['candidates_data'])))
+
+            # TODO: add normalization
+            #if params.get('normalize_scores', True):
+            #    current_scores = current_scores / np.sum(current_scores)
+
             if dump_dir is None:
+                params['scores'] = []
+                for current_scores in scores_shaped:
+                    params['scores'].append(None)
+                    params['scores'].append(current_scores)
                 params['forests'] = new_forests
                 if 'tree_dicts' in params:
                     del params['tree_dicts']
             else:
-                numpy_dump(os.path.join(dump_dir, 'dump.heads'), heads)
-                numpy_dump(os.path.join(dump_dir, 'dump.scores'), np.array(params['scores']))
-                numpy_dump(os.path.join(dump_dir, 'dump.candidates'), np.array(params['candidates_data']))
+                numpy_dump(os.path.join(dump_dir, 'scores.head'), heads)
+                numpy_dump(os.path.join(dump_dir, 'scores.value'), scores_shaped)
+                numpy_dump(os.path.join(dump_dir, 'scores.candidate'), np.array(params['candidates_data']))
+                if 'indices' in params:
+                    numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
+                    del params['indices']
 
             params['color_by_rank'] = True
 
@@ -553,7 +562,6 @@ def get_or_calc_scores(params):
             if params.get('transformed_idx', False):
                 current_embeddings = calc_embeddings(params.get('tree_dicts', None) or params['forests'],
                                                      max_depth=int(params.get('max_depth', 20)),
-                                                     #root_ids=params.get('root_ids', None),
                                                      transformed=params.get('transformed_idx', False))
                 fdict = {model_main.tree_model.embeddings_all: current_embeddings,
                          model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
@@ -568,22 +576,21 @@ def get_or_calc_scores(params):
                                                              blacklist=params.get('prefix_blacklist', None),
                                                              transformed=params.get('transformed_idx', False))[0] for f in forests]]
                     params['data_sequences'] = [[[0] * len(params['sequences'][0]), [0] * len(params['sequences'][0])]]
-                    params['embeddings'].append(current_embeddings)
+                    #params['embeddings'].append(current_embeddings)
                     params['scores'].append(current_scores)
                 else:
                     params['sequences'] = []
                     params['data_sequences'] = []
-                    numpy_dump(os.path.join(dump_dir, 'dump.embeddings'), current_embeddings)
-                    numpy_dump(os.path.join(dump_dir, 'dump.scores'), current_scores)
+                    #numpy_dump(os.path.join(dump_dir, 'embeddings.concat'), current_embeddings)
+                    numpy_dump(os.path.join(dump_dir, 'scores.value'), current_scores)
                     if 'indices' in params:
-                        numpy_dump(os.path.join(dump_dir, 'dump.indices'), np.array(params['indices']))
+                        numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
+                        del params['indices']
                 params['transformed_idx'] = True
             else:
-                #_ = get_or_calc_tree_dicts_or_forests(params, return_forests=True)
                 assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
                     'can not construct reroot trees of an already transformed tree'
                 params['reroot'] = True
-                #forests = params.get('forests', tree_dicts_to_forests(params['tree_dicts'], current_forest))
                 if 'forests' in params:
                     forests = params['forests']
                 else:
@@ -596,17 +603,25 @@ def get_or_calc_scores(params):
                         indices=range(len(forest)), current_forest=forest, params=params,
                         transform=not params.get('transformed_idx', False))
                     current_embeddings = calc_embeddings(tree_dicts, max_depth=int(params.get('max_depth', 20)),
-                                                         #root_ids=params.get('root_ids', None),
-                                                         transformed=transformed) #params['transformed_idx'])
-                    params['embeddings'].append(current_embeddings)
+                                                         transformed=transformed)
+
                     fdict = {model_main.tree_model.embeddings_all: current_embeddings,
                              model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
                     current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
                     if params.get('normalize_scores', False):
                         current_scores = current_scores / np.sum(current_scores)
-                    params['scores'].append(current_scores)
 
-                #params['transformed_idx'] = True
+                    params['embeddings'].append(current_embeddings)
+                    params['scores'].append(current_scores)
+                if dump_dir is not None:
+                    params['sequences'] = []
+                    params['data_sequences'] = []
+                    numpy_dump(os.path.join(dump_dir, 'scores.value'), np.array(params['scores']))
+                    del params['embeddings']
+                    del params['scores']
+                    if 'indices' in params:
+                        numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
+                        del params['indices']
 
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
@@ -733,16 +748,22 @@ def embed():
         logging.info('Embeddings requested')
         params = get_params(request)
         get_or_calc_embeddings(params)
+        if 'dump' in params:
+            _embeddings = params['embeddings']
+            dump_dir = params['dump']
+            numpy_dump(os.path.join(dump_dir, 'embeddings.context'), _embeddings[:, :-lexicon_dims - 1])
+            numpy_dump(os.path.join(dump_dir, 'embeddings.head'), _embeddings[:, -lexicon_dims - 1:-1])
+            numpy_dump(os.path.join(dump_dir, 'embeddings.id'), _embeddings[:, -1].astype(dtype=DTYPE_IDX))
+            del params['embeddings']
+            if 'indices' in params:
+                numpy_dump(os.path.join(dump_dir, 'embeddings.idx'), np.array(params['indices']))
+                del params['indices']
+            response = Response("created %i embeddings (dumped to %s)" % (_embeddings.shape[0], dump_dir))
+        else:
+            return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+            json_data = json.dumps(filter_result(make_serializable(params)))
+            response = Response(json_data, mimetype=return_type)
 
-        # debug
-        # params['embeddings'].dump('api_request_embeddings')
-        # if 'scores_gold' in params:
-        #    params['scores_gold'].dump('api_request_scores_gold')
-        # debug end
-
-        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(filter_result(make_serializable(params)))
-        response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
@@ -1185,11 +1206,12 @@ def init_forest(data_path):
 
 def main(data_source):
     global sess, model_tree, model_main, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, \
-        embedding_indices, embeddings, model_config, nbr_candidates
+        embedding_indices, embeddings, model_config, nbr_candidates, lexicon_dims
     sess = None
     model_tree = None
     model_main = None
     lexicon = None
+    lexicon_dims = None
     forest = None
     data_path = None
     tfidf_data = None
@@ -1204,6 +1226,8 @@ def main(data_source):
         return
 
     lexicon, checkpoint_fn, _ = get_lexicon(logdir=data_source, train_data_path=data_source, dont_dump=True)
+    if lexicon.has_vecs:
+        lexicon_dims = lexicon.dims
     if checkpoint_fn:
         assert lexicon.vecs is None or lexicon.is_filled, \
             'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' \
