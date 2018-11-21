@@ -35,7 +35,7 @@ from constants import TYPE_REF_SEEALSO, DTYPE_OFFSET, DTYPE_IDX, KEY_HEAD, KEY_C
 import data_iterators
 from data_iterators import OFFSET_CONTEXT_ROOT
 import data_iterators as diter
-from src.mytools import numpy_dump
+from src.mytools import numpy_dump, softmax
 from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor, init_model_type
 
 TEMP_FN_SVG = 'temp_forest.svg'
@@ -536,9 +536,8 @@ def get_or_calc_scores(params):
             scores = sess.run(model_main.scores, feed_dict=fdict_scores)
             scores_shaped = scores.reshape((-1, len(params['candidates_data'])))
 
-            # TODO: add normalization
-            #if params.get('normalize_scores', True):
-            #    current_scores = current_scores / np.sum(current_scores)
+            if params.get('normalize_scores', False):
+                scores_shaped = softmax(scores_shaped, axis=-1)
 
             if dump_dir is None:
                 params['scores'] = []
@@ -567,7 +566,7 @@ def get_or_calc_scores(params):
                          model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
                 current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
                 if params.get('normalize_scores', False):
-                    current_scores = current_scores / np.sum(current_scores)
+                    current_scores = softmax(current_scores, axis=-1)
                 logger.info('calculated %i scores' % len(current_scores))
 
                 if dump_dir is None:
@@ -609,7 +608,7 @@ def get_or_calc_scores(params):
                              model_main.values_gold: np.zeros(shape=(1,), dtype=np.float32)}
                     current_scores = sess.run(model_main.scores, feed_dict=fdict).reshape((current_embeddings.shape[0]))
                     if params.get('normalize_scores', False):
-                        current_scores = current_scores / np.sum(current_scores)
+                        current_scores = softmax(current_scores, axis=-1)
 
                     params['embeddings'].append(current_embeddings)
                     params['scores'].append(current_scores)
