@@ -29,7 +29,7 @@ import preprocessing
 from lexicon import Lexicon
 from sequence_trees import Forest, concatenate_structures
 from config import Config
-from constants import TYPE_REF_SEEALSO, DTYPE_OFFSET, KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, \
+from constants import TYPE_REF_SEEALSO, DTYPE_OFFSET, DTYPE_IDX, KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, \
     LOGGING_FORMAT, vocab_manual, IDENTITY_EMBEDDING, TYPE_PARAGRAPH, SEPARATOR, TYPE_LEXEME, MT_CANDIDATES, \
     OFFSET_ID, BASE_TYPES
 import data_iterators
@@ -98,6 +98,7 @@ tfidf_root_ids = None
 embedding_indices = None
 embeddings = None
 model_config = None
+nbr_candidates = None
 
 logger = logging.getLogger('')
 logger.setLevel(logging.DEBUG)
@@ -253,7 +254,7 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
     return tree_dicts, transformed
 
 
-def get_or_calc_tree_dicts_or_forests(params, return_forests=True):
+def get_or_calc_tree_dicts_or_forests(params):
     global data_path, lexicon
 
     if params.get('clear_lexicon', False):
@@ -372,17 +373,9 @@ def get_or_calc_tree_dicts_or_forests(params, return_forests=True):
     elif 'indices' in params:
         params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(
             indices=params['indices'], current_forest=current_forest, params=params, transform=False)
-    elif 'indices_prefix' in params:
-        ids = []
-        for prefix in params['indices_prefix']:
-            prefix_or_types = constants.TYPE_LONG.get(prefix.strip(), prefix.strip())
-            if isinstance(prefix_or_types, list):
-                _ids = [current_forest.lexicon.get_d(s=s, data_as_hashes=current_forest.data_as_hashes) for s in prefix_or_types]
-            else:
-                _ids, _strings = current_forest.lexicon.get_ids_for_prefix(prefix=prefix_or_types)
-            assert len(_ids) > 0, ' no ids found for indices_prefix: %s' % ', '.join(prefix_or_types)
-            logger.info('select %i different ids for prefix: %s' % (len(_ids), prefix.strip()))
-            ids.extend(_ids)
+    elif 'indices_prefixes' in params:
+        ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['indices_prefixes'],
+                                                                   data_as_hashes=current_forest.data_as_hashes)
         mask = np.isin(current_forest.data, ids)
         indices = np.nonzero(mask)[0]
         logger.info('create %i tree_dicts ...' % len(indices))
@@ -394,25 +387,22 @@ def get_or_calc_tree_dicts_or_forests(params, return_forests=True):
         _forests = [current_forest]
         params['transformed_idx'] = False
 
-    candidates = params.get('candidates', None)
-    if (return_forests or candidates is not None) and 'tree_dicts' in params:
-        _forests = tree_dicts_to_forests(params['tree_dicts'], current_forest)
+    #if return_forests and 'tree_dicts' in params:
+    #    _forests = tree_dicts_to_forests(params['tree_dicts'], current_forest)
 
-    if candidates is not None:
+    if 'candidates_prefixes' in params:
+        params['candidates_data'] = current_forest.lexicon.get_ids_for_prefixes_or_types(
+            prefixes_or_types=params['candidates_prefixes'], data_as_hashes=current_forest.data_as_hashes)
+    elif 'candidates' in params:
         # convert to lexemes if not already an url (starting with "http://") or a type (prefixed with a BASE_TYPE)
         params['candidates'] = [TYPE_LEXEME + SEPARATOR + unicode(c)
                                 if not any([c.startswith(base_type) for base_type in ['http://'] + BASE_TYPES])
                                 else unicode(c) for c in params['candidates']]
-        params['candidates_data'] = [lexicon.get_d(s=s, data_as_hashes=_forests[0].data_as_hashes) for s in params['candidates']]
-        if params.get('transformed_idx', False):
-            params['candidates_data'] = lexicon.transform_indices(params['candidates_data'])
-        candidate_forest = Forest(data=params['candidates_data'],
-                                  parents=np.zeros(len(params['candidates_data']), dtype=DTYPE_OFFSET),
-                                  lexicon=lexicon)
-        _forests = [_forests[0], candidate_forest]
-
+        params['candidates_data'] = [current_forest.lexicon.get_d(s=s, data_as_hashes=current_forest.data_as_hashes) for s in
+                                     params['candidates']]
     if _forests is not None:
         params['forests'] = _forests
+        params['sequences'] = [f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False)) for f in _forests]
         #params['data_sequences'], params['sequences'] = zip(*[([f.data, f.graph_out], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
     #if params.get('calc_depths', False):
     #    params['depths'] = [f.depths for f in _forests]
@@ -443,7 +433,9 @@ def calc_embeddings(tree_dicts_or_forests, transformed, root_ids=None, max_depth
         batch.append([tree_dict])
 
     if len(batch) > 0:
+        logger.debug('compile batch ...')
         fdict = model_tree.build_feed_dict(batch)
+        logger.debug('calculate embeddings for batch ...')
         embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict)
         embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
     else:
@@ -457,12 +449,16 @@ def get_or_calc_embeddings(params):
         params['embeddings'] = np.array(params['embeddings'])
     else:
         if 'tree_dicts' not in params and 'forests' not in params:
-            # TODO: use return_forests=False
-            get_or_calc_tree_dicts_or_forests(params, return_forests=False)
+            get_or_calc_tree_dicts_or_forests(params)
 
-        params['embeddings'] = calc_embeddings(tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
+        embeddings = calc_embeddings(tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
                                                max_depth=int(params.get('max_depth', 20)),
                                                transformed=params['transformed_idx'])
+        if 'dump' in params:
+            dump_dir = params['dump']
+            numpy_dump(os.path.join(dump_dir, 'dump.embeddings'), embeddings)
+        else:
+            params['embeddings'] = embeddings
 
 
 def tree_dicts_to_forests(tree_dicts, current_forest):
@@ -478,47 +474,82 @@ def get_or_calc_scores(params):
     else:
         import model_fold
 
+        if 'dump' in params:
+            dump_dir = params['dump']
+            if not os.path.exists(dump_dir):
+                os.makedirs(dump_dir)
+        else:
+            dump_dir = None
         params['embeddings'] = []
         params['scores'] = []
-        if 'candidates' in params:
-            _ = get_or_calc_tree_dicts_or_forests(params, return_forests=True)
+        current_forest = get_or_calc_tree_dicts_or_forests(params)
+        if 'candidates_data' in params:
             assert isinstance(model_tree.embedder, model_fold.TreeEmbedding_HTUBatchedHead), \
                 'embedder of tree model has to be TreeEmbedding_HTUBatchedHead'
+            # we modify the number of trees, so we remove other tree data as well
+            if 'sequences' in params:
+                del params['sequences']
+            if 'data_sequences' in params:
+                del params['data_sequences']
 
-            _forest = params['forests'][0]
-            forest_dict = _forest.get_tree_dict(idx=_forest.roots[0],
-                                                transform=not params.get('transformed_idx', False),
-                                                max_depth=params.get('max_depth', 10),
-                                                # TODO: check these parameters
-                                                context=0,
-                                                costs={},
-                                                link_types=[]
-                                                )
-            if not params.get('transformed_idx', False):
+            if params.get('transformed_idx', False):
                 params['candidates_data'] = lexicon.transform_indices(params['candidates_data'])
+            if dump_dir is None:
+                candidate_forest = Forest(data=params['candidates_data'],
+                                          parents=np.zeros(len(params['candidates_data']), dtype=DTYPE_OFFSET),
+                                          lexicon=lexicon)
+                if 'tree_dicts' in params and 'forests' not in params:
+                    params['forests'] = tree_dicts_to_forests(params['tree_dicts'], current_forest)
+            new_forests = []
+            heads = np.ones(len((params.get('tree_dicts', None) or params['forests'])), dtype=DTYPE_IDX) * -1
+            for i, tree_dict_or_forest in enumerate((params.get('tree_dicts', None) or params['forests'])):
+                if isinstance(tree_dict_or_forest, dict):
+                    forest_dict = tree_dict_or_forest
+                else:
+                    forest_dict = tree_dict_or_forest.get_tree_dict(
+                        idx=tree_dict_or_forest.roots[0], transform=not params.get('transformed_idx', False),
+                        max_depth=params.get('max_depth', 10),
+                        # TODO: check these parameters
+                        context=0, costs={}, link_types=[])
+                batch = []
+                heads[i] = forest_dict[KEY_HEAD]
+                if nbr_candidates is not None and nbr_candidates == len(params['candidates_data']):
+                    forest_dict[KEY_CANDIDATES] = params['candidates_data']
+                    batch.append([forest_dict])
+                else:
+                    for c in params['candidates_data']:
+                        current_tree_dict = forest_dict.copy()
+                        current_tree_dict[KEY_CANDIDATES] = [c]
+                        batch.append([current_tree_dict])
 
-            batch = []
-            for c in params['candidates_data']:
-                current_tree_dict = forest_dict.copy()
-                current_tree_dict[KEY_CANDIDATES] = [c]
-                batch.append([current_tree_dict])
+                fdict_embeddings = model_tree.build_feed_dict(batch)
+                embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict_embeddings)
+                embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
 
-            fdict_embeddings = model_tree.build_feed_dict(batch)
-            embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict_embeddings)
-            embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
+                fdict_scores = {model_main.tree_model.embeddings_all: embeddings,
+                                model_main.values_gold: np.zeros(shape=(len(params['candidates_data']),), dtype=np.float32)}
 
-            fdict_scores = {model_main.tree_model.embeddings_all: embeddings,
-                            model_main.values_gold: np.zeros(shape=(len(params['candidates_data']),), dtype=np.float32)}
+                current_scores = sess.run(model_main.scores, feed_dict=fdict_scores)
+                if params.get('normalize_scores', True):
+                    current_scores = current_scores / np.sum(current_scores)
 
-            current_scores = sess.run(model_main.scores, feed_dict=fdict_scores)
-            if params.get('normalize_scores', True):
-                current_scores = current_scores / np.sum(current_scores)
-            params['scores'] = [None, current_scores.reshape((len(params['candidates_data'])))]
+                if dump_dir is None:
+                    params['scores'].append(None)
+                    new_forests.append(params['forests'][i])
+                    new_forests.append(candidate_forest)
+                params['scores'].append(current_scores.reshape((len(params['candidates_data']))))
+            if dump_dir is None:
+                params['forests'] = new_forests
+                if 'tree_dicts' in params:
+                    del params['tree_dicts']
+            else:
+                numpy_dump(os.path.join(dump_dir, 'dump.heads'), heads)
+                numpy_dump(os.path.join(dump_dir, 'dump.scores'), np.array(params['scores']))
+                numpy_dump(os.path.join(dump_dir, 'dump.candidates'), np.array(params['candidates_data']))
+
             params['color_by_rank'] = True
 
         else:
-            #if params.get('reroot', False):
-            current_forest = get_or_calc_tree_dicts_or_forests(params, return_forests=False)
             if params.get('transformed_idx', False):
                 current_embeddings = calc_embeddings(params.get('tree_dicts', None) or params['forests'],
                                                      max_depth=int(params.get('max_depth', 20)),
@@ -531,7 +562,7 @@ def get_or_calc_scores(params):
                     current_scores = current_scores / np.sum(current_scores)
                 logger.info('calculated %i scores' % len(current_scores))
 
-                if 'dump' not in params:
+                if dump_dir is None:
                     forests = params.get('forests', None) or tree_dicts_to_forests(params['tree_dicts'], current_forest)
                     params['sequences'] = [[f.get_text_plain(start=f.roots[0], end=f.roots[0] + 1,
                                                              blacklist=params.get('prefix_blacklist', None),
@@ -542,9 +573,6 @@ def get_or_calc_scores(params):
                 else:
                     params['sequences'] = []
                     params['data_sequences'] = []
-                    dump_dir = params['dump']
-                    if not os.path.exists(dump_dir):
-                        os.makedirs(dump_dir)
                     numpy_dump(os.path.join(dump_dir, 'dump.embeddings'), current_embeddings)
                     numpy_dump(os.path.join(dump_dir, 'dump.scores'), current_scores)
                     if 'indices' in params:
@@ -873,7 +901,7 @@ def norm():
     return response
 
 
-def set_datasequences_and_sequences_from_tree_dicts_or_forests(params, current_forest):
+def set_datasequences_and_sequences_from_tree_dicts_or_forests(params, current_forest, keep_sequences=True):
     if 'forests' in params:
         forests = params['forests']
     else:
@@ -881,8 +909,9 @@ def set_datasequences_and_sequences_from_tree_dicts_or_forests(params, current_f
     data_sequences, sequences = zip(*[([f.data, f.graph_out], f.get_text_plain(
         blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f
                                                           in forests])
+    if keep_sequences and 'sequences' not in params:
+        params['sequences'] = sequences
     params['data_sequences'] = data_sequences
-    params['sequences'] = sequences
 
 
 @app.route("/api/visualize", methods=['POST'])
@@ -1070,17 +1099,22 @@ def clear_cached_embeddings():
 
 @app.route("/api/load", methods=['POST'])
 def load_data_source():
+    global nbr_candidates
     try:
         start = time.time()
         logging.info('Reload requested')
         params = get_params(request)
         path = params['path']
+        nbr_candidates = params.get('nbr_candidates', None)
         main(path)
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
         raise InvalidUsage('%s: %s' % (type(e).__name__, str(e)))
-    return "reload successful"
+    if nbr_candidates is None:
+        return "reload successful"
+    else:
+        return "reload successful. set nbr_candidates=%i" % nbr_candidates
 
 
 def get_cluster_ids(embeddings):
@@ -1151,7 +1185,7 @@ def init_forest(data_path):
 
 def main(data_source):
     global sess, model_tree, model_main, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, \
-        embedding_indices, embeddings, model_config
+        embedding_indices, embeddings, model_config, nbr_candidates
     sess = None
     model_tree = None
     model_main = None
@@ -1187,7 +1221,7 @@ def main(data_source):
                 logging.debug('fixed lexicon entries:     %i' % lexicon.len_fixed)
 
                 model_config.keep_prob = 1.0
-                model_config.neg_samples = "0"
+                model_config.neg_samples = "0" if nbr_candidates is None else str(nbr_candidates - 1)
 
                 tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(model_config, logdir=data_source)
                 model_tree, model_main, prepared_embeddings, compiled_trees = create_models(

@@ -633,6 +633,20 @@ class Lexicon(object):
             return [(), ()]
         return zip(*res)
 
+    def get_ids_for_prefixes_or_types(self, prefixes_or_types, data_as_hashes):
+        ids = []
+        for prefix_or_type in prefixes_or_types:
+            prefix_or_types = constants.TYPE_LONG.get(prefix_or_type.strip(), prefix_or_type.strip())
+            if isinstance(prefix_or_types, list):
+                _ids = [self.get_d(s=s, data_as_hashes=data_as_hashes) for s in
+                        prefix_or_types]
+            else:
+                _ids, _strings = self.get_ids_for_prefix(prefix=prefix_or_types)
+            assert len(_ids) > 0, ' no ids found for indices_prefix: %s' % ', '.join(prefix_or_types)
+            logger.info('select %i different ids for prefix: %s' % (len(_ids), prefix_or_type.strip()))
+            ids.extend(_ids)
+        return ids
+
     def get_indices(self, indices=None, prefix=None, indices_as_blacklist=False):
         #assert indices is not None or prefix is not None, 'please provide indices or a prefix'
         if prefix is not None:
