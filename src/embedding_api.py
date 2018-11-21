@@ -451,14 +451,14 @@ def get_or_calc_embeddings(params):
         if 'tree_dicts' not in params and 'forests' not in params:
             get_or_calc_tree_dicts_or_forests(params)
 
-        embeddings = calc_embeddings(tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
+        _embeddings = calc_embeddings(tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
                                                max_depth=int(params.get('max_depth', 20)),
                                                transformed=params['transformed_idx'])
         if 'dump' in params:
             dump_dir = params['dump']
-            numpy_dump(os.path.join(dump_dir, 'dump.embeddings'), embeddings)
+            numpy_dump(os.path.join(dump_dir, 'dump.embeddings'), _embeddings)
         else:
-            params['embeddings'] = embeddings
+            params['embeddings'] = _embeddings
 
 
 def tree_dicts_to_forests(tree_dicts, current_forest):
