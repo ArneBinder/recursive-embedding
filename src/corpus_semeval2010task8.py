@@ -393,7 +393,32 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL']),
+    in_path=('corpora input folder', 'option', 'i', str),
+    server_url=('stanford coreNLP server url', 'option', 's', str),
+)
+def to_opennre_format(in_path, server_url='http://localhost:9000'):
+    from nltk.parse.corenlp import CoreNLPDependencyParser, CoreNLPParser
+    file_names = ['SemEval2010_task8_training/TRAIN_FILE.TXT', 'SemEval2010_task8_testing_keys/TEST_FILE_FULL.TXT']
+    #dep_parser = CoreNLPDependencyParser(url=server_url)
+    parser = CoreNLPParser(url=server_url)
+    for fn in file_names:
+        for record in read_file(os.path.join(in_path, fn), annotations=([TYPE_E1], [TYPE_E2], [0])):
+            annots = record[KEY_ANNOTATIONS]
+            head = record[KEY_TEXT][annots[0][0]:annots[0][1]]
+            tail = record[KEY_TEXT][annots[1][0]:annots[1][1]]
+            tokens = list(parser.tokenize(record[KEY_TEXT]))
+            relation = record[TYPE_RELATION]
+            if relation == 'Other':
+                relation = 'NA'
+            id = record[TYPE_SEMEVAL2010TASK8_ID]
+            # TODO: construct OpenNRE dict
+            pass
+
+
+
+
+@plac.annotations(
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL', 'CONVERT']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -418,6 +443,8 @@ def main(mode, *args):
         plac.call(main, ('MERGE',) + args)
         plac.call(main, ('CREATE_INDICES', '--end-root', '2717', '--split-count', '1', '--suffix', 'test') + args)
         plac.call(main, ('CREATE_INDICES', '--start-root', '2717', '--split-count', '4', '--suffix', 'train') + args)
+    elif mode == 'CONVERT':
+        plac.call(to_opennre_format, args)
     else:
         raise ValueError('unknown mode')
 
