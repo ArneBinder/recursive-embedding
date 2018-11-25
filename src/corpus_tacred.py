@@ -62,30 +62,42 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
     from nltk.parse.corenlp import CoreNLPDependencyParser
     t_start = datetime.now()
     dep_parser = CoreNLPDependencyParser(url=server_url)
-    print('process %s ...' % fn_in)
+
+    logger.info('process %s ...' % fn_in)
+    mismatches = set()
     with open(fn_in) as f_in:
         with open(fn_out, 'w') as f_out:
             for line in f_in.readlines():
                 jsl = json.loads(line)
-                parses = dep_parser.parse(jsl['tokens'])
-                annots = None
-                for parse in parses:
-                    if annots is not None:
-                        print('ID:%s\tfound two parses' % jsl['id'])
-                        break
-                    annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
-                                                       k_map={'tag': 'stanford_pos',
-                                                              'head': 'stanford_head',
-                                                              'rel': 'stanford_deprel',
-                                                              'word': 'tokens_stanford',
-                                                              'address': 'address'})
-                assert annots is not None, 'found no parses'
-                if jsl['tokens'] != annots['tokens_stanford']:
-                    print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (jsl['id'], ', '.join(jsl['tokens']), ', '.join(annots['tokens_stanford'])))
-                del annots['tokens_stanford']
-                jsl.update(annots)
-                f_out.write(json.dumps(jsl) + '\n')
-    print('time: %s' % str(datetime.now() - t_start))
+                try:
+                    parses = dep_parser.parse(jsl['tokens'])
+                    annots = None
+                    for parse in parses:
+                        if annots is not None:
+                            logger.debug('ID:%s\tfound two parses' % jsl['id'])
+                            break
+                        annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
+                                                           k_map={'tag': 'stanford_pos',
+                                                                  'head': 'stanford_head',
+                                                                  'rel': 'stanford_deprel',
+                                                                  'word': 'tokens_stanford',
+                                                                  'address': 'address'})
+                    assert annots is not None, 'found no parses'
+                    assert len(jsl['tokens']) == len(annots['tokens_stanford']), \
+                        'ID:%s\tnumber of tokens after parsing does not match. before: %i vs after: %i' \
+                        % (jsl['id'], len(jsl['tokens']), len(annots['tokens_stanford']))
+                    if jsl['tokens'] != annots['tokens_stanford']:
+                        new_mismatches = [(jsl['tokens'][i], annots['tokens_stanford'][i]) for i in range(len(jsl['tokens'])) if jsl['tokens'][i] != annots['tokens_stanford'][i]]
+                        mismatches.update(new_mismatches)
+                        #print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (jsl['id'], ', '.join(jsl['tokens']), ', '.join(annots['tokens_stanford'])))
+                       # print('ID:%s\ttoken mismatches: %s' % (jsl['id'], '; '.join(mismatches)))
+                    del annots['tokens_stanford']
+                    jsl.update(annots)
+                    f_out.write(json.dumps(jsl) + '\n')
+                except AssertionError as e:
+                    logger.warning('ID:%s\t%s' % (jsl['id'], str(e)))
+    logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
+    logger.info('time: %s' % str(datetime.now() - t_start))
 
 
 def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("stanford_pos", ),
