@@ -81,7 +81,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                                                               'address': 'address'})
                 assert annots is not None, 'found no parses'
                 if jsl['tokens'] != annots['tokens_stanford']:
-                    print('ID:%s\ttokens do not match after parsing' % jsl['id'])
+                    print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (jsl['id'], ', '.join(jsl['tokens']), ', '.join(annots['tokens_stanford'])))
                 del annots['tokens_stanford']
                 jsl.update(annots)
                 f_out.write(json.dumps(jsl) + '\n')
@@ -203,7 +203,8 @@ def parse(in_path, out_path, sentence_processor=None, *unused):
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'ALL']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'ALL',
+                                                       'ANNOTATE']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -224,9 +225,12 @@ def main(mode, *args):
         plac.call(main, ('CREATE_INDICES', '--start-root', '22584', '--end-root', '38041', '--split-count', '1',
                          '--suffix', 'test') + args)
         plac.call(main, ('CREATE_INDICES', '--start-root', '38041', '--split-count', '4', '--suffix', 'train') + args)
+    elif mode == 'ANNOTATE':
+        plac.call(annotate_file_w_stanford, args)
     else:
         raise ValueError('unknown mode')
 
 
 if __name__ == '__main__':
     plac.call(main)
+    logger.info('done')

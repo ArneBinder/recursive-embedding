@@ -393,17 +393,58 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         logger.info('done.')
 
 
-def record_to_opennre_format(record, parser, dep_parser=None):
+def record_to_opennre_format(record, dep_parser):
     annots = record[KEY_ANNOTATIONS]
-    head_word = record[KEY_TEXT][annots[0][0]:annots[0][1]]
-    tail_word = record[KEY_TEXT][annots[1][0]:annots[1][1]]
-    tokens_iter = parser.tokenize(record[KEY_TEXT])
+    head_words = record[KEY_TEXT][annots[0][0]:annots[0][1]]
+    tail_words = record[KEY_TEXT][annots[1][0]:annots[1][1]]
+    tokens_iter = dep_parser.tokenize(record[KEY_TEXT])
     id = record[TYPE_SEMEVAL2010TASK8_ID]
     res = {
         'sentence': ' '.join(tokens_iter),
-        'head': {'word': head_word, 'id': '%s/%i/%i' % (id, annots[0][0], annots[0][1])},
-        'tail': {'word': tail_word, 'id': '%s/%i/%i' % (id, annots[1][0], annots[1][1])},
+        'head': {'word': head_words, 'id': '%s/%i/%i' % (id, annots[0][0], annots[0][1])},
+        'tail': {'word': tail_words, 'id': '%s/%i/%i' % (id, annots[1][0], annots[1][1])},
         'relation': record[TYPE_RELATION] if record[TYPE_RELATION] != 'Other' else 'NA',
+        'id': id
+    }
+
+    return res
+
+
+def get_word_indices(tokens, words):
+    for i in range(len(tokens) - len(words) + 1):
+        match = True
+        for j, w in enumerate(words):
+            if w != tokens[i + j]:
+                match = False
+                break
+        if match:
+            return [i, i + len(words)]
+    return None
+
+
+def record_to_tacred_format(record, dep_parser):
+    annots = record[KEY_ANNOTATIONS]
+    head_words = record[KEY_TEXT][annots[0][0]:annots[0][1]].split()
+    tail_words = record[KEY_TEXT][annots[1][0]:annots[1][1]].split()
+    tokens_iter = dep_parser.tokenize(record[KEY_TEXT])
+    tokens = list(tokens_iter)
+    indices_head = get_word_indices(tokens, head_words)
+
+    indices_tail = get_word_indices(tokens, tail_words)
+    try:
+        assert indices_head is not None, 'head="%s" not found in tokens: %s (%s)' \
+                                         % (' '.join(head_words), ', '.join(tokens), record[KEY_TEXT])
+        assert indices_tail is not None, 'tail="%s" not found in tokens: %s (%s)' \
+                                         % (' '.join(tail_words), ', '.join(tokens), record[KEY_TEXT])
+    except AssertionError as e:
+        raise e
+    id = record[TYPE_SEMEVAL2010TASK8_ID]
+    res = {
+        'tokens': tokens,
+        'entities': [indices_head, indices_tail],
+        #'head': {'word': head_words, 'id': '%s/%i/%i' % (id, annots[0][0], annots[0][1])},
+        #'tail': {'word': tail_words, 'id': '%s/%i/%i' % (id, annots[1][0], annots[1][1])},
+        'relation': record[TYPE_RELATION],
         'id': id
     }
 
@@ -423,20 +464,61 @@ def convert_to_opennre_format(in_path, out_path, server_url='http://localhost:90
     if not os.path.exists(out_path):
         os.makedirs(out_path)
 
+    # see https://github.com/nltk/nltk/wiki/Stanford-CoreNLP-API-in-NLTK
+    # start stanford corNLP (tokenize) server with:
+    # java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer -preload tokenize -status_port 9000 -port 9000 -timeout 15000 > /dev/null
+
+    #parser = CoreNLPParser(url=server_url)
+    relations_set = set()
+    dep_parser = CoreNLPDependencyParser(url=server_url)
+    for fn in file_names:
+        logger.info('process: %s ...' % fn)
+        if os.path.exists(os.path.join(out_path, file_names[fn])):
+            logger.info('already precessed. skip it.')
+            continue
+        records_converted = []
+        for record in read_file(os.path.join(in_path, fn), annotations=([TYPE_E1], [TYPE_E2], [0])):
+            record_opennre = record_to_opennre_format(record, dep_parser=dep_parser)
+            records_converted.append(record_opennre)
+            relations_set.add(record_opennre['relation'])
+        json.dump(records_converted, open(os.path.join(out_path, file_names[fn]), 'w'), indent=2)
+
+    rel2id = {r: i for i, r in enumerate(['NA'] + sorted([r for r in relations_set if r != 'NA']))}
+    json.dump(rel2id, open(os.path.join(out_path, 'rel2id.json'), 'w'), indent=2)
+
+
+@plac.annotations(
+    in_path=('corpora input folder', 'option', 'i', str),
+    server_url=('stanford coreNLP server url', 'option', 's', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+)
+def convert_to_tacred_format(in_path, out_path, server_url='http://localhost:9000'):
+    from nltk.parse.corenlp import CoreNLPDependencyParser, CoreNLPParser
+    file_names = {'SemEval2010_task8_training/TRAIN_FILE_fixed.TXT': 'train.json',
+                  'SemEval2010_task8_testing_keys/TEST_FILE_FULL_fixed.TXT': 'test.json'}
+
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
     # start stanford corNLP (tokenize) server with:
     # java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer -preload tokenize -status_port 9000 -port 9000 -timeout 15000 > /dev/null
 
     parser = CoreNLPParser(url=server_url)
     relations_set = set()
-    # dep_parser = CoreNLPDependencyParser(url=server_url)
+    dep_parser = CoreNLPDependencyParser(url=server_url)
     for fn in file_names:
         logger.info('process: %s ...' % fn)
-        records_opennre = []
+        if os.path.exists(os.path.join(out_path, file_names[fn])):
+            logger.info('already precessed. skip it.')
+            continue
+        records_converted = []
         for record in read_file(os.path.join(in_path, fn), annotations=([TYPE_E1], [TYPE_E2], [0])):
-            record_opennre = record_to_opennre_format(record, parser=parser)
-            records_opennre.append(record_opennre)
-            relations_set.add(record_opennre['relation'])
-        json.dump(records_opennre, open(os.path.join(out_path, file_names[fn]), 'w'), indent=2)
+            record_converted = record_to_tacred_format(record, dep_parser=dep_parser)
+            records_converted.append(record_converted)
+            relations_set.add(record_converted['relation'])
+        #json.dump(records_converted, open(os.path.join(out_path, file_names[fn]), 'w'), indent=2)
+        with open(os.path.join(out_path, file_names[fn]), 'w') as f:
+            f.writelines((json.dumps(r) + '\n' for r in records_converted))
 
     rel2id = {r: i for i, r in enumerate(['NA'] + sorted([r for r in relations_set if r != 'NA']))}
     json.dump(rel2id, open(os.path.join(out_path, 'rel2id.json'), 'w'), indent=2)
@@ -444,7 +526,7 @@ def convert_to_opennre_format(in_path, out_path, server_url='http://localhost:90
 
 @plac.annotations(
     mode=('processing mode', 'positional', None, str,
-          ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL', 'CONVERT']),
+          ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL', 'CONVERT_OPENNRE', 'CONVERT_TACRED']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -469,8 +551,10 @@ def main(mode, *args):
         plac.call(main, ('MERGE',) + args)
         plac.call(main, ('CREATE_INDICES', '--end-root', '2717', '--split-count', '1', '--suffix', 'test') + args)
         plac.call(main, ('CREATE_INDICES', '--start-root', '2717', '--split-count', '4', '--suffix', 'train') + args)
-    elif mode == 'CONVERT':
+    elif mode == 'CONVERT_OPENNRE':
         plac.call(convert_to_opennre_format, args)
+    elif mode == 'CONVERT_TACRED':
+        plac.call(convert_to_tacred_format, args)
     else:
         raise ValueError('unknown mode')
 
