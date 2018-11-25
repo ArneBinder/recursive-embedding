@@ -1,4 +1,5 @@
 import io
+import json
 import logging
 import os
 from datetime import datetime
@@ -35,6 +36,12 @@ DIR_MERGED = 'merged'
 
 PREFIX_FN = 'forest'
 
+KEY_ID = "id"
+KEY_STANFORD_TOKENS = "tokens"
+KEY_STANFORD_RELATION = "label"
+KEY_STANFORD_POS = "stanford_pos"
+KEY_STANFORD_DEPREL = "stanford_deprel"
+KEY_STANFORD_HEAD = "stanford_head"
 
 logger = logging.getLogger('corpus')
 logger.setLevel(logging.DEBUG)
@@ -496,3 +503,60 @@ def create_index_files(merged_forest_path, split_count=2, start_root=0, end_root
         suffix = suffix + '.'
     for i, split in enumerate(np.array_split(indices, split_count)):
         numpy_dump('%s.idx.%s%i' % (merged_forest_path, suffix, i), split)
+
+
+def stanford_depgraph_to_dict(dgraph, k_map=None, types=None):
+    res = {}
+    for i, node in dgraph.nodes.items():
+        # skip first (dummy) element
+        if node['address'] == 0:
+            continue
+        for k, v in node.items():
+            if (k in k_map or k_map is None) and (types is None or type(v) in types):
+                res.setdefault(k_map[k], []).append(v)
+    return res
+
+
+def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-jsonl/dev_10.jsonl',
+                             fn_out='/mnt/DATA/ML/data/corpora_in/tacred/tacred-jsonl/annot_dev_10.jsonl',
+                             server_url='http://localhost:9000'):
+    from nltk.parse.corenlp import CoreNLPDependencyParser
+    k_tokens_new = 'tokens_stanford'
+    t_start = datetime.now()
+    dep_parser = CoreNLPDependencyParser(url=server_url)
+
+    logger.info('process %s ...' % fn_in)
+    mismatches = set()
+    with open(fn_in) as f_in:
+        with open(fn_out, 'w') as f_out:
+            for line in f_in.readlines():
+                jsl = json.loads(line)
+                try:
+                    parses = dep_parser.parse(jsl[KEY_STANFORD_TOKENS])
+                    annots = None
+                    for parse in parses:
+                        if annots is not None:
+                            logger.debug('ID:%s\tfound two parses' % jsl[KEY_ID])
+                            break
+                        annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
+                                                           k_map={'tag': KEY_STANFORD_POS,
+                                                                  'head': KEY_STANFORD_HEAD,
+                                                                  'rel': KEY_STANFORD_DEPREL,
+                                                                  'word': k_tokens_new,
+                                                                  'address': 'address'})
+                    assert annots is not None, 'found no parses'
+                    assert len(jsl[KEY_STANFORD_TOKENS]) == len(annots[k_tokens_new]), \
+                        'ID:%s\tnumber of tokens after parsing does not match. before: %i vs after: %i' \
+                        % (jsl[KEY_ID], len(jsl[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new]))
+                    if jsl[KEY_STANFORD_TOKENS] != annots[k_tokens_new]:
+                        new_mismatches = [(jsl[KEY_STANFORD_TOKENS][i], annots[k_tokens_new][i]) for i in range(len(jsl[KEY_STANFORD_TOKENS])) if jsl[KEY_STANFORD_TOKENS][i] != annots[k_tokens_new][i]]
+                        mismatches.update(new_mismatches)
+                        #print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (jsl[KEY_STANFORD_ID], ', '.join(jsl[KEY_STANFORD_TOKENS]), ', '.join(annots[k_tokens_new])))
+                       # print('ID:%s\ttoken mismatches: %s' % (jsl[KEY_STANFORD_ID], '; '.join(mismatches)))
+                    del annots[k_tokens_new]
+                    jsl.update(annots)
+                    f_out.write(json.dumps(jsl) + '\n')
+                except AssertionError as e:
+                    logger.warning('ID:%s\t%s' % (jsl[KEY_ID], str(e)))
+    logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
+    logger.info('time: %s' % str(datetime.now() - t_start))

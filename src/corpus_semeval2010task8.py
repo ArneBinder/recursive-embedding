@@ -13,7 +13,8 @@ from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, T
     TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_HASH, \
     TYPE_RELATION, TYPE_RELATION_FORWARD, TYPE_RELATION_BACKWARD
 from mytools import make_parent_dir
-from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
+from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids, \
+    annotate_file_w_stanford
 import preprocessing
 from preprocessing import KEY_ANNOTATIONS
 from sequence_trees import Forest, slice_graph, concatenate_graphs, empty_graph_from_graph, targets
@@ -30,6 +31,8 @@ TYPE_E1 = TYPE_NAMED_ENTITY + SEPARATOR + u'E1'
 TYPE_E2 = TYPE_NAMED_ENTITY + SEPARATOR + u'E2'
 
 KEY_TEXT = 'text'
+KEY_ID = TYPE_SEMEVAL2010TASK8_ID
+RELATION_NA = 'Other'
 
 DUMMY_RECORD_ORIG = '1	"The system as described above has its greatest application in an arrayed <e1>configuration</e1> of antenna <e2>elements</e2>."\nComponent-Whole(e2,e1)\nComment: Not a collection: there is structure here, organisation.'
 
@@ -259,7 +262,7 @@ def handle_relation(forest, reverted=''):
     e_hash = hash_string(e_string)
     e1_hash = hash_string(TYPE_E1)
     e2_hash = hash_string(TYPE_E2)
-    relation_other_string = TYPE_RELATION_FORWARD + SEPARATOR + 'Other'
+    relation_other_string = TYPE_RELATION_FORWARD + SEPARATOR + RELATION_NA
     #relation_other_hash = hash_string(relation_other_string)
     new_relation_strings = {relation_other_string, e_string}
     all_relation_ids, all_relation_strings = forest.lexicon.get_ids_for_prefix(TYPE_RELATION)
@@ -281,7 +284,7 @@ def handle_relation(forest, reverted=''):
         parts = relation_strings[1].split(SEPARATOR)[1].split('(')
         # prepend relation-type prefix
         rel_type = TYPE_RELATION_FORWARD + SEPARATOR + parts[0]
-        if rel_type.endswith('Other'):
+        if rel_type.endswith(RELATION_NA):
             rel_type_rev = rel_type
         else:
             rel_type_rev = TYPE_RELATION_BACKWARD + SEPARATOR + parts[0]
@@ -393,7 +396,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
         logger.info('done.')
 
 
-def record_to_opennre_format(record, dep_parser):
+def record_to_opennre_format(record, dep_parser, relation_na=RELATION_NA):
     annots = record[KEY_ANNOTATIONS]
     head_words = record[KEY_TEXT][annots[0][0]:annots[0][1]]
     tail_words = record[KEY_TEXT][annots[1][0]:annots[1][1]]
@@ -403,15 +406,15 @@ def record_to_opennre_format(record, dep_parser):
         'sentence': ' '.join(tokens_iter),
         'head': {'word': head_words, 'id': '%s/%i/%i' % (id, annots[0][0], annots[0][1])},
         'tail': {'word': tail_words, 'id': '%s/%i/%i' % (id, annots[1][0], annots[1][1])},
-        'relation': record[TYPE_RELATION] if record[TYPE_RELATION] != 'Other' else 'NA',
+        'relation': record[TYPE_RELATION] if record[TYPE_RELATION] != relation_na else 'NA',
         'id': id
     }
 
     return res
 
 
-def get_word_indices(tokens, words):
-    for i in range(len(tokens) - len(words) + 1):
+def get_word_indices(tokens, words, start=0):
+    for i in range(start, len(tokens) - len(words) + 1):
         match = True
         for j, w in enumerate(words):
             if w != tokens[i + j]:
@@ -429,22 +432,18 @@ def record_to_tacred_format(record, dep_parser):
     tokens_iter = dep_parser.tokenize(record[KEY_TEXT])
     tokens = list(tokens_iter)
     indices_head = get_word_indices(tokens, head_words)
-
-    indices_tail = get_word_indices(tokens, tail_words)
-    try:
-        assert indices_head is not None, 'head="%s" not found in tokens: %s (%s)' \
-                                         % (' '.join(head_words), ', '.join(tokens), record[KEY_TEXT])
-        assert indices_tail is not None, 'tail="%s" not found in tokens: %s (%s)' \
+    assert indices_head is not None, 'head="%s" not found in tokens: %s (%s)' \
+                                     % (' '.join(head_words), ', '.join(tokens), record[KEY_TEXT])
+    # start lookup behind head
+    indices_tail = get_word_indices(tokens, tail_words, start=indices_head[-1])
+    assert indices_tail is not None, 'tail="%s" not found in tokens: %s (%s)' \
                                          % (' '.join(tail_words), ', '.join(tokens), record[KEY_TEXT])
-    except AssertionError as e:
-        raise e
+    assert indices_head != indices_tail, 'indices_tail equal indices_head'
     id = record[TYPE_SEMEVAL2010TASK8_ID]
     res = {
         'tokens': tokens,
         'entities': [indices_head, indices_tail],
-        #'head': {'word': head_words, 'id': '%s/%i/%i' % (id, annots[0][0], annots[0][1])},
-        #'tail': {'word': tail_words, 'id': '%s/%i/%i' % (id, annots[1][0], annots[1][1])},
-        'relation': record[TYPE_RELATION],
+        'label': record[TYPE_RELATION],
         'id': id
     }
 
@@ -493,18 +492,20 @@ def convert_to_opennre_format(in_path, out_path, server_url='http://localhost:90
     out_path=('corpora output folder', 'option', 'o', str),
 )
 def convert_to_tacred_format(in_path, out_path, server_url='http://localhost:9000'):
-    from nltk.parse.corenlp import CoreNLPDependencyParser, CoreNLPParser
-    file_names = {'SemEval2010_task8_training/TRAIN_FILE_fixed.TXT': 'train.json',
-                  'SemEval2010_task8_testing_keys/TEST_FILE_FULL_fixed.TXT': 'test.json'}
+    from nltk.parse.corenlp import CoreNLPDependencyParser
 
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
+    file_names = {'SemEval2010_task8_training/TRAIN_FILE_fixed.TXT': 'train.jsonl',
+                  'SemEval2010_task8_testing_keys/TEST_FILE_FULL_fixed.TXT': 'test.jsonl'}
+
+    out_path_annot = os.path.join(out_path, 'annotated')
+    if not os.path.exists(out_path_annot):
+        os.makedirs(out_path_annot)
 
     # start stanford corNLP (tokenize) server with:
     # java -mx4g -cp "*" edu.stanford.nlp.pipeline.StanfordCoreNLPServer -preload tokenize -status_port 9000 -port 9000 -timeout 15000 > /dev/null
 
-    parser = CoreNLPParser(url=server_url)
-    relations_set = set()
+    #parser = CoreNLPParser(url=server_url)
+    #relations_set = set()
     dep_parser = CoreNLPDependencyParser(url=server_url)
     for fn in file_names:
         logger.info('process: %s ...' % fn)
@@ -513,15 +514,18 @@ def convert_to_tacred_format(in_path, out_path, server_url='http://localhost:900
             continue
         records_converted = []
         for record in read_file(os.path.join(in_path, fn), annotations=([TYPE_E1], [TYPE_E2], [0])):
-            record_converted = record_to_tacred_format(record, dep_parser=dep_parser)
+            try:
+                record_converted = record_to_tacred_format(record, dep_parser=dep_parser)
+            except AssertionError as e:
+                logger.error('ID:%s failed to convert record.\t%s' % (record[KEY_ID], str(e)))
+                raise e
             records_converted.append(record_converted)
-            relations_set.add(record_converted['relation'])
-        #json.dump(records_converted, open(os.path.join(out_path, file_names[fn]), 'w'), indent=2)
         with open(os.path.join(out_path, file_names[fn]), 'w') as f:
             f.writelines((json.dumps(r) + '\n' for r in records_converted))
 
-    rel2id = {r: i for i, r in enumerate(['NA'] + sorted([r for r in relations_set if r != 'NA']))}
-    json.dump(rel2id, open(os.path.join(out_path, 'rel2id.json'), 'w'), indent=2)
+        # further annotate (depparse, pos)
+        annotate_file_w_stanford(fn_in=os.path.join(out_path, file_names[fn]),
+                                 fn_out=os.path.join(out_path_annot, file_names[fn]), server_url=server_url)
 
 
 @plac.annotations(

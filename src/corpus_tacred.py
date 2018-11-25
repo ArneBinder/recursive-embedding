@@ -11,7 +11,9 @@ import plac
 
 from constants import LOGGING_FORMAT, TYPE_RELATION, TYPE_DATASET, SEPARATOR, TYPE_POS_TAG, TYPE_LEXEME, \
     TYPE_DEPENDENCY_RELATION, TYPE_NAMED_ENTITY, TYPE_SENTENCE, TYPE_CONTEXT
-from corpus import process_records, merge_batches, create_index_files, save_class_ids, DIR_BATCHES
+from corpus import process_records, merge_batches, create_index_files, save_class_ids, DIR_BATCHES, \
+    annotate_file_w_stanford, KEY_STANFORD_POS, KEY_STANFORD_TOKENS, KEY_STANFORD_DEPREL, KEY_STANFORD_RELATION, \
+    KEY_ID, KEY_STANFORD_HEAD
 from mytools import make_parent_dir
 
 logger = logging.getLogger('corpus_tacred')
@@ -23,92 +25,41 @@ logger.addHandler(logger_streamhandler)
 
 TYPE_TACRED = TYPE_DATASET + SEPARATOR + 'TACRED'
 
+KEY_ENTITIES = "entities"
+
+
 KEY_PREFIX_MAPPING = {
-    "stanford_pos": TYPE_POS_TAG,
-    "tokens": TYPE_LEXEME,
-    "stanford_deprel": TYPE_DEPENDENCY_RELATION,
-    "label": TYPE_RELATION,
-    "id": TYPE_TACRED,
-    "entities": TYPE_NAMED_ENTITY
+    KEY_STANFORD_POS: TYPE_POS_TAG,
+    KEY_STANFORD_TOKENS: TYPE_LEXEME,
+    KEY_STANFORD_DEPREL: TYPE_DEPENDENCY_RELATION,
+    KEY_STANFORD_RELATION: TYPE_RELATION,
+    KEY_ID: TYPE_TACRED,
+    KEY_ENTITIES: TYPE_NAMED_ENTITY
 }
+
+RELATION_NA = 'no_relation'
 
 DUMMY_RECORD = {
-    "stanford_pos": ["IN", "DT", "JJ", "NN", ",", "NNP", "NNP", "NNP", "NNP", "NNP", "MD", "VB", "NN", ",", "VBG", "NNP", "NNP", "WP", "VBZ", "VBG", "TO", "VB", "DT", "NN", "NN", "."],
-    "stanford_head": [4, 4, 4, 12, 12, 10, 10, 10, 10, 12, 12, 0, 12, 12, 12, 17, 15, 20, 20, 17, 22, 20, 25, 25, 22, 12],
-    "label": "per:title",
-    "tokens": ["At", "the", "same", "time", ",", "Chief", "Financial", "Officer", "Douglas", "Flint", "will", "become", "chairman", ",", "succeeding", "Stephen", "Green", "who", "is", "leaving", "to", "take", "a", "government", "job", "."],
-    "entities": [[8, 10], [12, 13]],
+    KEY_STANFORD_POS: ["IN", "DT", "JJ", "NN", ",", "NNP", "NNP", "NNP", "NNP", "NNP", "MD", "VB", "NN", ",", "VBG", "NNP", "NNP", "WP", "VBZ", "VBG", "TO", "VB", "DT", "NN", "NN", "."],
+    KEY_STANFORD_HEAD: [4, 4, 4, 12, 12, 10, 10, 10, 10, 12, 12, 0, 12, 12, 12, 17, 15, 20, 20, 17, 22, 20, 25, 25, 22, 12],
+    KEY_STANFORD_RELATION: "per:title",
+    KEY_STANFORD_TOKENS: ["At", "the", "same", "time", ",", "Chief", "Financial", "Officer", "Douglas", "Flint", "will", "become", "chairman", ",", "succeeding", "Stephen", "Green", "who", "is", "leaving", "to", "take", "a", "government", "job", "."],
+    KEY_ENTITIES: [[8, 10], [12, 13]],
     "address": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26],
-    "stanford_deprel": ["case", "det", "amod", "nmod", "punct", "compound", "compound", "compound", "compound", "nsubj", "aux", "ROOT", "xcomp", "punct", "xcomp", "compound", "dobj", "nsubj", "aux", "acl:relcl", "mark", "xcomp", "det", "compound", "dobj", "punct"],
-    "id": "e7798fb926b9403cfcd2"
+    KEY_STANFORD_DEPREL: ["case", "det", "amod", "nmod", "punct", "compound", "compound", "compound", "compound", "nsubj", "aux", "ROOT", "xcomp", "punct", "xcomp", "compound", "dobj", "nsubj", "aux", "acl:relcl", "mark", "xcomp", "det", "compound", "dobj", "punct"],
+    KEY_ID: "e7798fb926b9403cfcd2"
 }
 
 
-def stanford_depgraph_to_dict(dgraph, k_map=None, types=None):
-    res = {}
-    for i, node in dgraph.nodes.items():
-        # skip first (dummy) element
-        if node['address'] == 0:
-            continue
-        for k, v in node.items():
-            if (k in k_map or k_map is None) and (types is None or type(v) in types):
-                res.setdefault(k_map[k], []).append(v)
-    return res
-
-
-def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-jsonl/dev_10.jsonl',
-                             fn_out='/mnt/DATA/ML/data/corpora_in/tacred/tacred-jsonl/annot_dev_10.jsonl',
-                             server_url='http://localhost:9000'):
-    from nltk.parse.corenlp import CoreNLPDependencyParser
-    t_start = datetime.now()
-    dep_parser = CoreNLPDependencyParser(url=server_url)
-
-    logger.info('process %s ...' % fn_in)
-    mismatches = set()
-    with open(fn_in) as f_in:
-        with open(fn_out, 'w') as f_out:
-            for line in f_in.readlines():
-                jsl = json.loads(line)
-                try:
-                    parses = dep_parser.parse(jsl['tokens'])
-                    annots = None
-                    for parse in parses:
-                        if annots is not None:
-                            logger.debug('ID:%s\tfound two parses' % jsl['id'])
-                            break
-                        annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
-                                                           k_map={'tag': 'stanford_pos',
-                                                                  'head': 'stanford_head',
-                                                                  'rel': 'stanford_deprel',
-                                                                  'word': 'tokens_stanford',
-                                                                  'address': 'address'})
-                    assert annots is not None, 'found no parses'
-                    assert len(jsl['tokens']) == len(annots['tokens_stanford']), \
-                        'ID:%s\tnumber of tokens after parsing does not match. before: %i vs after: %i' \
-                        % (jsl['id'], len(jsl['tokens']), len(annots['tokens_stanford']))
-                    if jsl['tokens'] != annots['tokens_stanford']:
-                        new_mismatches = [(jsl['tokens'][i], annots['tokens_stanford'][i]) for i in range(len(jsl['tokens'])) if jsl['tokens'][i] != annots['tokens_stanford'][i]]
-                        mismatches.update(new_mismatches)
-                        #print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (jsl['id'], ', '.join(jsl['tokens']), ', '.join(annots['tokens_stanford'])))
-                       # print('ID:%s\ttoken mismatches: %s' % (jsl['id'], '; '.join(mismatches)))
-                    del annots['tokens_stanford']
-                    jsl.update(annots)
-                    f_out.write(json.dumps(jsl) + '\n')
-                except AssertionError as e:
-                    logger.warning('ID:%s\t%s' % (jsl['id'], str(e)))
-    logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
-    logger.info('time: %s' % str(datetime.now() - t_start))
-
-
-def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("stanford_pos", ),
-           root_string=TYPE_TACRED, key_entity="entities"
+def reader(records, key_main=KEY_STANFORD_TOKENS, key_rel=KEY_STANFORD_DEPREL, keys_annot=(KEY_STANFORD_POS,),
+           root_string=TYPE_TACRED, key_entity=KEY_ENTITIES
            #keys_meta=(TYPE_RELATION,), key_id=TYPE_SEMEVAL2010TASK8_ID,
            #root_text_string=TYPE_CONTEXT
            ):
     nbr_total = 0
     nbr_failed = 0
     keys_check = set(keys_annot)
-    keys_check.add('stanford_head')
+    keys_check.add(KEY_STANFORD_HEAD)
     if key_rel is not None:
         keys_check.add(key_rel)
 
@@ -123,7 +74,7 @@ def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("s
                     % (key_main, len(r[key_main]), k, len(r[k]), len(r[k]) - len(r[key_main]))
             entities = r[key_entity]
             entities_end = {e[1]-1: e for e in entities}
-            data_strings = [root_string, KEY_PREFIX_MAPPING['id'] + SEPARATOR + r['id'], TYPE_CONTEXT]
+            data_strings = [root_string, KEY_PREFIX_MAPPING[KEY_ID] + SEPARATOR + r[KEY_ID], TYPE_CONTEXT]
             edges = [(0, 1), (0, 2)]
             start_positions = []
             entity_positions = []
@@ -144,7 +95,7 @@ def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("s
                     for j in range(entities_end[i][0], entities_end[i][1]):
                         edges.append((start_positions[j], len(data_strings)))
                     data_strings.append(KEY_PREFIX_MAPPING[key_entity])
-            for i, head in enumerate(r['stanford_head']):
+            for i, head in enumerate(r[KEY_STANFORD_HEAD]):
                 if head != 0:
                     edges.append((start_positions[head - 1], start_positions[i] + dep_edge_offset))
                 else:
@@ -157,7 +108,7 @@ def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("s
 
             edges.append((entity_positions[0], len(data_strings)))
             edges.append((len(data_strings), entity_positions[1]))
-            data_strings.append(KEY_PREFIX_MAPPING["label"] + SEPARATOR + r["label"])
+            data_strings.append(KEY_PREFIX_MAPPING[KEY_STANFORD_RELATION] + SEPARATOR + r[KEY_STANFORD_RELATION])
 
             rows_and_cols = np.array(edges).T
             graph_out = csr_matrix(coo_matrix((np.ones(len(edges), dtype=bool), (rows_and_cols[1], rows_and_cols[0]))))
@@ -165,7 +116,7 @@ def reader(records, key_main="tokens", key_rel="stanford_deprel", keys_annot=("s
             yield data_strings, None, graph_out
         except Exception as e:
             nbr_failed += 1
-            logger.warning('ID:%s %s' % (r['id'], str(e)))
+            logger.warning('ID:%s %s' % (r[KEY_ID], str(e)))
     logger.info('successfully read %i records (%i records failed)' % (nbr_total - nbr_failed, nbr_failed))
 
 
@@ -192,11 +143,11 @@ def parse(in_path, out_path, sentence_processor=None, *unused):
     if sentence_processor.strip() == 'process_sentence1':
         record_reader = partial(reader, key_rel=None, keys_annot=())
     elif sentence_processor.strip() == 'process_sentence3':
-        record_reader = partial(reader, key_rel=None, keys_annot=("stanford_deprel",))
+        record_reader = partial(reader, key_rel=None, keys_annot=(KEY_STANFORD_DEPREL,))
     elif sentence_processor.strip() == 'process_sentence11':
-        record_reader = partial(reader, key_rel="stanford_deprel", keys_annot=())
+        record_reader = partial(reader, key_rel=KEY_STANFORD_DEPREL, keys_annot=())
     elif sentence_processor.strip() == 'process_sentence12':
-        record_reader = partial(reader, key_rel="stanford_deprel", keys_annot=("stanford_pos",))
+        record_reader = partial(reader, key_rel=KEY_STANFORD_DEPREL, keys_annot=(KEY_STANFORD_POS,))
     else:
         raise NotImplementedError('sentence_processor: %s not implemented for parsing tacred' % sentence_processor)
     logger.info('use %s' % sentence_processor)
@@ -214,9 +165,55 @@ def parse(in_path, out_path, sentence_processor=None, *unused):
     logger.info('done.')
 
 
+def record_to_opennre_format(record, relation_na=RELATION_NA):
+    annots = record[KEY_ENTITIES]
+    head_words = ' '.join(record[KEY_STANFORD_TOKENS][annots[0][0]:annots[0][1]])
+    tail_words = ' '.join(record[KEY_STANFORD_TOKENS][annots[1][0]:annots[1][1]])
+    id = record[KEY_ID]
+    res = {
+        'sentence': ' '.join(record[KEY_STANFORD_TOKENS]),
+        'head': {'word': head_words, 'id': '%s/%i/%i' % (id, annots[0][0], annots[0][1])},
+        'tail': {'word': tail_words, 'id': '%s/%i/%i' % (id, annots[1][0], annots[1][1])},
+        'relation': record[KEY_STANFORD_RELATION] if record[KEY_STANFORD_RELATION] != relation_na else 'NA',
+        'id': id
+    }
+    return res
+
+
+@plac.annotations(
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+    relation_na=('use this relation as N/A', 'option', 'n', str),
+)
+def convert_to_opennre_format(in_path, out_path, relation_na=RELATION_NA):
+    file_names = {'train.jsonl': 'train.jsonl',
+                  'test.jsonl': 'test.jsonl'}
+
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
+    relations_set = set()
+    for fn in file_names:
+        logger.info('process: %s ...' % fn)
+        if os.path.exists(os.path.join(out_path, file_names[fn])):
+            logger.info('already precessed. skip it.')
+            continue
+        records_converted = []
+        with open(os.path.join(in_path, fn)) as f:
+            for line in f.readlines():
+                record = json.loads(line)
+                record_converted = record_to_opennre_format(record, relation_na=relation_na)
+                relations_set.add(record_converted['relation'])
+                records_converted.append(record_converted)
+        json.dump(records_converted, open(os.path.join(out_path, file_names[fn]), 'w'), indent=2)
+
+    rel2id = {r: i for i, r in enumerate(['NA'] + sorted([r for r in relations_set if r != 'NA']))}
+    json.dump(rel2id, open(os.path.join(out_path, 'rel2id.json'), 'w'), indent=2)
+
+
 @plac.annotations(
     mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'ALL',
-                                                       'ANNOTATE']),
+                                                       'ANNOTATE', 'CONVERT_OPENNRE']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -239,6 +236,8 @@ def main(mode, *args):
         plac.call(main, ('CREATE_INDICES', '--start-root', '38041', '--split-count', '4', '--suffix', 'train') + args)
     elif mode == 'ANNOTATE':
         plac.call(annotate_file_w_stanford, args)
+    elif mode == 'CONVERT_OPENNRE':
+        plac.call(convert_to_opennre_format, args)
     else:
         raise ValueError('unknown mode')
 
