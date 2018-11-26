@@ -251,6 +251,8 @@ MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'use_tfidf', 'use_circul
 DESCRIPTION_PARAMETERS = MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS + ['dump_trees', 'var_vecs_zero', 'var_vecs_random']
 FLAGS_FN = 'flags.json'
 
+VALUES_SHORT = {'TRUE': 'T', 'FALSE': 'F'}
+
 
 class Config(object):
     def __init__(self, logdir=None, logdir_pretrained=None, values=None):
@@ -338,7 +340,9 @@ class Config(object):
                 # if flag_value is a path, take only the last folder name
                 if os.sep in flag_value:
                     flag_value = flag_value.split(os.sep)[-2]
-                res.append(flag_name.lower() + flag_value.upper())
+                flag_value = flag_value.upper()
+                flag_value = VALUES_SHORT.get(flag_value, flag_value)
+                res.append(flag_name.lower() + flag_value)
         return '_'.join(res)
 
     def get_description(self):
