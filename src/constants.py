@@ -168,7 +168,9 @@ TYPE_LONG = {'REL': TYPE_RELATION,
              'LEX': TYPE_LEXEME,
              'STR': STRUCTURE_TYPES,
              'DAT': TYPE_DATASET,
-             'MAN': vocab_manual.values()}
+             # collides with TYPE_LEXEME because of UNKNOWN is added for TYPE_LEXEME:
+             #'MAN': vocab_manual.values()
+             }
 
 # structural assumptions
 # general

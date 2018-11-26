@@ -9,7 +9,7 @@ import os
 
 from preprocessing import read_data, without_prefix, PREFIX_LEX
 from constants import vocab_manual, DTYPE_COUNT, DTYPE_HASH, DTYPE_IDX, DTYPE_VECS, LOGGING_FORMAT, \
-    UNKNOWN_EMBEDDING, LINK_TYPES
+    UNKNOWN_EMBEDDING, LINK_TYPES, TYPE_LEXEME, SEPARATOR
 from sequence_trees import Forest, concatenate_graphs
 from mytools import numpy_dump, numpy_load, numpy_exists, getOrAdd
 
@@ -251,7 +251,7 @@ def get_dict_from_vocab(vocab):
     types = list(manual_vocab_values)
     i = len(types)
     for lexeme in vocab:
-        l = constants.TYPE_LEXEME + constants.SEPARATOR + lexeme.orth_
+        l = TYPE_LEXEME + SEPARATOR + lexeme.orth_
         # exclude entities which are in vocab_manual to avoid collisions
         if l in manual_vocab_values:
             logger.warn(
@@ -627,7 +627,11 @@ class Lexicon(object):
         #return converter, new_counts
 
     def get_ids_for_prefix(self, prefix):
-        res = [(self.mapping[self.strings[s]], s) for s in self.strings if s.startswith(prefix + constants.SEPARATOR)]
+        res = [(self.mapping[self.strings[s]], s) for s in self.strings if s.startswith(prefix + SEPARATOR)]
+        if prefix == TYPE_LEXEME:
+            logger.debug('add UNKNOWN for prefix %s' % TYPE_LEXEME)
+            s = vocab_manual[UNKNOWN_EMBEDDING]
+            res.append((self.mapping[self.strings[s]], s))
         if len(res) == 0:
             logger.warning('no indices found for prefix=%s' % prefix)
             return [(), ()]
@@ -944,7 +948,7 @@ class Lexicon(object):
 
     @staticmethod
     def vocab_prefix(man_vocab_id):
-        return constants.vocab_manual[man_vocab_id] + constants.SEPARATOR
+        return constants.vocab_manual[man_vocab_id] + SEPARATOR
 
     @staticmethod
     def has_vocab_prefix(s, man_vocab_id):
