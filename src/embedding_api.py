@@ -35,7 +35,7 @@ from constants import TYPE_REF_SEEALSO, DTYPE_OFFSET, DTYPE_IDX, KEY_HEAD, KEY_C
 import data_iterators
 from data_iterators import OFFSET_CONTEXT_ROOT
 import data_iterators as diter
-from src.mytools import numpy_dump, softmax, numpy_load
+from mytools import numpy_dump, softmax, numpy_load
 from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor, init_model_type
 
 TEMP_FN_SVG = 'temp_forest.svg'
