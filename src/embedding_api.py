@@ -35,7 +35,7 @@ from constants import TYPE_REF_SEEALSO, DTYPE_OFFSET, DTYPE_IDX, KEY_HEAD, KEY_C
 import data_iterators
 from data_iterators import OFFSET_CONTEXT_ROOT
 import data_iterators as diter
-from src.mytools import numpy_dump, softmax
+from src.mytools import numpy_dump, softmax, numpy_load
 from train_fold import get_lexicon, create_models, convert_sparse_matrix_to_sparse_tensor, init_model_type
 
 TEMP_FN_SVG = 'temp_forest.svg'
@@ -235,12 +235,11 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
 
     blank_ids = set()
     blank_strings = set()
-    for prefix in params.get('blank', ()):
-        _ids, _id_strings = lexicon.get_ids_for_prefix(prefix)
-        blank_ids.update(_ids)
-        blank_strings.update(_id_strings)
+    if 'blank' in params:
+        blank_ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['blank'],
+                                                                         data_as_hashes=current_forest.data_as_hashes)
     logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
-    blank_types = set([lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
+    blank_types = set([current_forest.lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
 
     tree_dicts = []
     for tree_dict in data_iterators.tree_iterator(
@@ -299,6 +298,24 @@ def get_or_calc_tree_dicts_or_forests(params):
     _forests = None
     #params['transformed_idx'] = False
 
+    if 'idx_files' in params:
+        indices_list = []
+        for idx_file_suffix in params['idx_files']:
+            indices_list.append(numpy_load('%s.%s' % (data_path, idx_file_suffix)))
+        selected_root_ids = np.concatenate(indices_list)
+        selected_root_ids.sort()
+        params['roots_selected'] = current_forest.roots[selected_root_ids]
+        selected_indices_list = []
+        # TODO: duplicated code from train_fold
+        for i, root in enumerate(selected_root_ids):
+            new_indices = np.arange(current_forest.roots[root],
+                                    current_forest.roots[root + 1] if root + 1 < len(current_forest.roots) else len(current_forest),
+                                    dtype=DTYPE_IDX)
+            selected_indices_list.append(new_indices)
+        selected_indices = np.concatenate(selected_indices_list)
+    else:
+        selected_indices = None
+
     if 'indices_getter' in params:
 
         #if not os.path.isfile(fn):
@@ -352,14 +369,14 @@ def get_or_calc_tree_dicts_or_forests(params):
             _forests.append(vis_forest)
 
     elif 'root_start' in params:
-        roots = current_forest.roots
+        roots = params.get('roots_selected', current_forest.roots)
         root_start = params.get('root_start', 0)
         root_end = params.get('root_end', len(roots))
         assert root_start <= root_end, 'ERROR: root_start=%i > root_end=%i' % (root_start, root_end)
         assert root_end <= len(roots), 'ERROR: root_end=%i > len(roots)=%i' % (root_end, len(roots))
 
         _forests = [current_forest.get_slice(root=root, show_links=params.get('show_links', True)) for root in roots[root_start:root_end]]
-        params['indices'] = current_forest.roots[root_start:root_end]
+        params['indices'] = roots[root_start:root_end]
     elif 'idx_start' in params:
         idx_start = params.get('idx_start', 0)
         idx_end = params.get('idx_end', len(current_forest))
@@ -381,6 +398,8 @@ def get_or_calc_tree_dicts_or_forests(params):
                                                                    data_as_hashes=current_forest.data_as_hashes)
         mask = np.isin(current_forest.data, ids)
         indices = np.nonzero(mask)[0]
+        if selected_indices is not None:
+            indices = indices[np.isin(indices, selected_indices)]
         params['indices'] = indices
         logger.info('create %i tree_dicts ...' % len(indices))
         params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(indices=indices,
