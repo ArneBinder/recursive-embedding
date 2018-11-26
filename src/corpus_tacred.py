@@ -23,17 +23,13 @@ logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
-TYPE_TACRED = TYPE_DATASET + SEPARATOR + 'TACRED'
-
 KEY_ENTITIES = "entities"
-
 
 KEY_PREFIX_MAPPING = {
     KEY_STANFORD_POS: TYPE_POS_TAG,
     KEY_STANFORD_TOKENS: TYPE_LEXEME,
     KEY_STANFORD_DEPREL: TYPE_DEPENDENCY_RELATION,
     KEY_STANFORD_RELATION: TYPE_RELATION,
-    KEY_ID: TYPE_TACRED,
     KEY_ENTITIES: TYPE_NAMED_ENTITY
 }
 
@@ -52,9 +48,7 @@ DUMMY_RECORD = {
 
 
 def reader(records, key_main=KEY_STANFORD_TOKENS, key_rel=KEY_STANFORD_DEPREL, keys_annot=(KEY_STANFORD_POS,),
-           root_string=TYPE_TACRED, key_entity=KEY_ENTITIES
-           #keys_meta=(TYPE_RELATION,), key_id=TYPE_SEMEVAL2010TASK8_ID,
-           #root_text_string=TYPE_CONTEXT
+           root_string=TYPE_DATASET + SEPARATOR + 'TACRED', key_entity=KEY_ENTITIES
            ):
     nbr_total = 0
     nbr_failed = 0
@@ -74,7 +68,7 @@ def reader(records, key_main=KEY_STANFORD_TOKENS, key_rel=KEY_STANFORD_DEPREL, k
                     % (key_main, len(r[key_main]), k, len(r[k]), len(r[k]) - len(r[key_main]))
             entities = r[key_entity]
             entities_end = {e[1]-1: e for e in entities}
-            data_strings = [root_string, KEY_PREFIX_MAPPING[KEY_ID] + SEPARATOR + r[KEY_ID], TYPE_CONTEXT]
+            data_strings = [root_string, root_string + SEPARATOR + r[KEY_ID], TYPE_CONTEXT]
             edges = [(0, 1), (0, 2)]
             start_positions = []
             entity_positions = []
@@ -134,9 +128,10 @@ def parse_dummy(out_base_name):
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
     sentence_processor=('sentence processor', 'option', 'p', str),
+    dataset_id=('id or name of teh dataset', 'option', 'd', str),
     unused='not used parameters'
 )
-def parse(in_path, out_path, sentence_processor=None, *unused):
+def parse(in_path, out_path, sentence_processor=None, dataset_id='TACRED', *unused):
     if sentence_processor is None or sentence_processor.strip() == '':
         sentence_processor = 'process_sentence1'
     # default to process_sentence1
@@ -160,8 +155,9 @@ def parse(in_path, out_path, sentence_processor=None, *unused):
         out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
         make_parent_dir(out_base_name)
         process_records(records=(json.loads(s) for s in open(os.path.join(in_path, fn + '.jsonl')).readlines()),
-                        out_base_name=out_base_name, record_reader=record_reader, concat_mode=None, as_graph=True,
-                        dont_parse=True)
+                        out_base_name=out_base_name,
+                        record_reader=partial(record_reader, root_string=TYPE_DATASET + SEPARATOR + dataset_id),
+                        concat_mode=None, as_graph=True, dont_parse=True)
     logger.info('done.')
 
 
