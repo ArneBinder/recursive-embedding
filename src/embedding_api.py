@@ -769,6 +769,8 @@ def embed():
         if 'dump' in params:
             _embeddings = params['embeddings']
             dump_dir = params['dump']
+            if not os.path.exists(dump_dir):
+                os.makedirs(dump_dir)
             numpy_dump(os.path.join(dump_dir, 'embeddings.context'), _embeddings[:, :-lexicon_dims - 1])
             numpy_dump(os.path.join(dump_dir, 'embeddings.head'), _embeddings[:, -lexicon_dims - 1:-1])
             numpy_dump(os.path.join(dump_dir, 'embeddings.id'), _embeddings[:, -1].astype(dtype=DTYPE_IDX))
