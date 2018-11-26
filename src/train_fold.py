@@ -1559,9 +1559,11 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 if data_blanked not in indices_mapping_dict:
                     indices_mapping_dict[data_blanked] = (indices_mapping_all, np.concatenate(classes_ids_list))
 
-                config.neg_samples = str(min(int(config.neg_samples or 1000), max(map(len, classes_ids_list)) - 1))
-                logger.debug('set neg_samples = %s (== min(config.neg_samples, max(nbr_of_classes) -1) over all sets of classes) for exhaustive sampling'
-                             % config.neg_samples)
+                new_neg_samples = str(min(int(config.neg_samples or 1000), max(map(len, classes_ids_list)) - 1))
+                if config.neg_samples.strip() != new_neg_samples:
+                    logger.debug('set neg_samples = %s (== min(config.neg_samples, max(nbr_of_classes) -1) over all sets of classes) for exhaustive sampling'
+                                 % config.neg_samples)
+                    config.neg_samples = new_neg_samples
             else:
                 indices_mapping_dict[None] = indices_mapping_full_trees
                 indices_mapping_all = indices_mapping_full_trees
@@ -1573,7 +1575,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 nbr_indices = len(indices_mapping_all)
             else:
                 nbr_indices = min(nbr_indices, len(indices_mapping_all))
-            logger.info('%s: use %i indices per epoch (forest size: %i)' % (m, nbr_indices, len(forest)))
+            logger.info('%s: use %i indices per epoch (available indices: %i)' % (m, nbr_indices, len(indices_mapping_full_trees)))
 
             def _sample_indices(shuffle=True):
                 logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping_all)))
