@@ -9,7 +9,7 @@ services:
       - ${HOST_CORPORA_IN}:/root/corpora_in
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py PARSE
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_sick.py PARSE
                                   --in-path /root/corpora_in
                                   --out-path /root/corpora_out/SICK
                                   --n-threads ${NUM_THREADS_PARSE}
@@ -26,7 +26,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py MERGE
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_sick.py MERGE
                                   --out-path /root/corpora_out/SICK
                                   --min-count ${MIN_COUNT}
                                   --coverage ${COVERAGE}
@@ -41,7 +41,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py CREATE_INDICES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_sick.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/SICK/merged/forest
                                   --split-count ${SPLIT_COUNT}
                                   --start-root 0
@@ -56,7 +56,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_sick.py CREATE_INDICES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_sick.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/SICK/merged/forest
                                   --split-count ${SPLIT_COUNT}
                                   --start-root 4927

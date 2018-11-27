@@ -19,7 +19,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py PREPARE_BATCHES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_dbpedianif.py PREPARE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF
                                   --batch-size ${BATCH_SIZE}
                                   --start-offset ${START}
@@ -38,7 +38,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py CREATE_BATCHES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_dbpedianif.py CREATE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF
                                   --batch-size ${BATCH_SIZE}
                                   --batch-size-parse ${BATCH_SIZE_PARSE}
@@ -56,7 +56,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py MERGE_BATCHES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_dbpedianif.py MERGE_BATCHES
                                   --out-path /root/corpora_out/DBPEDIANIF/${BATCH_SIZE}
                                   --min-count ${MIN_COUNT}
                                   --coverage ${COVERAGE}
@@ -73,7 +73,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_dbpedianif.py CREATE_INDICES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_dbpedianif.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/DBPEDIANIF/${BATCH_SIZE}/merged/forest
                                   --seealso-min ${SEEALSO_MIN_COUNT}
                                   --seealso-max ${SEEALSO_MAX_COUNT}

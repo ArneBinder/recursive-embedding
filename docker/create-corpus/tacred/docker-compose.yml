@@ -9,7 +9,7 @@ services:
       - ${HOST_CORPORA_IN}:/root/corpora_in
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py PARSE
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_tacred.py PARSE
                                   --in-path /root/corpora_in
                                   --out-path /root/corpora_out/TACRED
                                   --sentence-processor ${SENTENCE_PROCESSOR}
@@ -24,7 +24,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py MERGE
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_tacred.py MERGE
                                   --out-path /root/corpora_out/TACRED
                                   --min-count ${MIN_COUNT}
                                   --coverage ${COVERAGE}
@@ -39,7 +39,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py CREATE_INDICES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_tacred.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/TACRED/merged/forest
                                   --split-count 1
                                   --start-root 0
@@ -54,7 +54,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py CREATE_INDICES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_tacred.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/TACRED/merged/forest
                                   --split-count 1
                                   --start-root 22584
@@ -69,7 +69,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py CREATE_INDICES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_tacred.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/TACRED/merged/forest
                                   --split-count ${SPLIT_COUNT}
                                   --start-root 38041
@@ -85,7 +85,7 @@ services:
       - ${HOST_CORPORA_IN}:/root/corpora_in
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_tacred.py ALL
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_tacred.py ALL
                                   --in-path /root/corpora_in
                                   --out-path /root/corpora_out/TACRED
                                   --sentence-processor ${SENTENCE_PROCESSOR}

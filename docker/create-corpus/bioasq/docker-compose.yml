@@ -9,7 +9,7 @@ services:
       - ${HOST_CORPORA_IN}:/root/corpora_in
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py PREPARE_BATCHES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_bioasq.py PREPARE_BATCHES
                                   --in-path /root/corpora_in/${BIOASQ_SUBDIR}
                                   --mapping-file /root/recursive-embedding/Structured-Abstracts-Labels.txt
                                   --n-threads ${NUM_THREADS_PREPARE}
@@ -25,7 +25,7 @@ services:
       - ${HOST_CORPORA_IN}:/root/corpora_in
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py PARSE_BATCHES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_bioasq.py PARSE_BATCHES
                                   --in-path /root/corpora_in/${BIOASQ_SUBDIR}
                                   --out-path /root/corpora_out/BIOASQ/${BIOASQ_SUBDIR}
                                   --n-threads ${NUM_THREADS_PARSE}
@@ -41,7 +41,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py MERGE_BATCHES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_bioasq.py MERGE_BATCHES
                                   --out-path /root/corpora_out/BIOASQ/${BIOASQ_SUBDIR}
                                   --min-count ${MIN_COUNT}
                                   --coverage ${COVERAGE}
@@ -56,7 +56,7 @@ services:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_OUT}:/root/corpora_out
     command: >
-      /root/set-user-with-folder.sh /root/corpora_out python corpus_bioasq.py CREATE_INDICES
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_bioasq.py CREATE_INDICES
                                   --merged-forest-path /root/corpora_out/BIOASQ/${BIOASQ_SUBDIR}/merged/forest
                                   --split-count ${SPLIT_COUNT}
     cpuset: ${CPU_SET}
