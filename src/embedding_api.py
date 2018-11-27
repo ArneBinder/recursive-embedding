@@ -305,6 +305,7 @@ def get_or_calc_tree_dicts_or_forests(params):
         selected_root_ids = np.concatenate(indices_list)
         selected_root_ids.sort()
         params['roots_selected'] = current_forest.roots[selected_root_ids]
+        params['roots_idx'] = selected_root_ids
         selected_indices_list = []
         # TODO: duplicated code from train_fold
         for i, root in enumerate(selected_root_ids):
@@ -317,6 +318,7 @@ def get_or_calc_tree_dicts_or_forests(params):
         selected_indices = None
         if 'dump' in params:
             params['roots_selected'] = current_forest.roots
+            params['roots_idx'] = np.arange(current_forest.roots, dtype=DTYPE_IDX)
 
     if 'indices_getter' in params:
 
@@ -572,12 +574,6 @@ def get_or_calc_scores(params):
                 numpy_dump(os.path.join(dump_dir, 'scores.head'), heads)
                 numpy_dump(os.path.join(dump_dir, 'scores.value'), scores_shaped)
                 numpy_dump(os.path.join(dump_dir, 'scores.candidate'), np.array(params['candidates_data']))
-                if 'indices' in params:
-                    numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
-                    del params['indices']
-                if 'roots_selected' in params:
-                    numpy_dump(os.path.join(dump_dir, 'scores.roots.idx'), np.array(params['roots_selected']))
-                    del params['roots_selected']
 
             params['color_by_rank'] = True
 
@@ -599,19 +595,11 @@ def get_or_calc_scores(params):
                                                              blacklist=params.get('prefix_blacklist', None),
                                                              transformed=params.get('transformed_idx', False))[0] for f in forests]]
                     params['data_sequences'] = [[[0] * len(params['sequences'][0]), [0] * len(params['sequences'][0])]]
-                    #params['embeddings'].append(current_embeddings)
                     params['scores'].append(current_scores)
                 else:
                     params['sequences'] = []
                     params['data_sequences'] = []
-                    #numpy_dump(os.path.join(dump_dir, 'embeddings.concat'), current_embeddings)
                     numpy_dump(os.path.join(dump_dir, 'scores.value'), current_scores)
-                    if 'indices' in params:
-                        numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
-                        del params['indices']
-                    if 'roots_selected' in params:
-                        numpy_dump(os.path.join(dump_dir, 'scores.roots.idx'), np.array(params['roots_selected']))
-                        del params['roots_selected']
                 params['transformed_idx'] = True
             else:
                 assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
@@ -644,13 +632,18 @@ def get_or_calc_scores(params):
                     params['data_sequences'] = []
                     numpy_dump(os.path.join(dump_dir, 'scores.value'), np.array(params['scores']))
                     del params['embeddings']
-                    del params['scores']
-                    if 'indices' in params:
-                        numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
-                        del params['indices']
-                    if 'roots_selected' in params:
-                        numpy_dump(os.path.join(dump_dir, 'scores.roots.idx'), np.array(params['roots_selected']))
-                        del params['roots_selected']
+
+        if dump_dir is not None:
+            del params['scores']
+            if 'indices' in params:
+                numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
+                del params['indices']
+            if 'roots_selected' in params:
+                numpy_dump(os.path.join(dump_dir, 'scores.roots.idx'), np.array(params['roots_selected']))
+                del params['roots_selected']
+            if 'roots_idx' in params:
+                numpy_dump(os.path.join(dump_dir, 'scores.roots'), np.array(params['roots_idx']))
+                del params['roots_idx']
 
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
@@ -792,6 +785,9 @@ def embed():
             if 'roots_selected' in params:
                 numpy_dump(os.path.join(dump_dir, 'embeddings.roots.idx'), np.array(params['roots_selected']))
                 del params['roots_selected']
+            if 'roots_idx' in params:
+                numpy_dump(os.path.join(dump_dir, 'embeddings.roots'), np.array(params['roots_idx']))
+                del params['roots_idx']
             response = Response("created %i embeddings (dumped to %s)" % (_embeddings.shape[0], dump_dir))
         else:
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
