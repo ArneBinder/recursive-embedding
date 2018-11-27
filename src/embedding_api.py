@@ -439,12 +439,22 @@ def get_or_calc_tree_dicts_or_forests(params):
     return current_forest
 
 
-def calc_embeddings(tree_dicts_or_forests, transformed, root_ids=None, max_depth=20):
+def _process_batch(batch):
+    logger.info('compile batch ...')
+    fdict = model_tree.build_feed_dict(batch)
+    logger.info('calculate embeddings for batch ...')
+    embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict)
+    embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
+    return embeddings
+
+
+def calc_embeddings(tree_dicts_or_forests, transformed, root_ids=None, max_depth=20, batch_size=1000):
     assert model_tree is not None, 'No model loaded. To load a model, use endpoint: /api/load?path=path_to_model'
 
     # TODO: rework! (add link_types and costs)
     batch = []
-    logger.info('calculate %i embeddings ...' % len(tree_dicts_or_forests))
+    embeddings_list = []
+    logger.info('calculate %i embeddings with batch_size=%i ...' % (len(tree_dicts_or_forests), batch_size))
     for i, tree_dict_or_forest in enumerate(tree_dicts_or_forests):
         if isinstance(tree_dict_or_forest, dict):
             tree_dict = tree_dict_or_forest
@@ -454,18 +464,20 @@ def calc_embeddings(tree_dicts_or_forests, transformed, root_ids=None, max_depth
             else:
                 tree = Forest(forest=tree_dict_or_forest, lexicon=lexicon, root_ids=root_ids)
 
-            #tree.visualize(filename='debug_%d.svg' % i, transformed=transformed)
             tree_dict = tree.get_tree_dict(idx=tree.roots[0], max_depth=max_depth, transform=not transformed)
         # add correct root as candidate (if HTUBatchedHead model is used)
         tree_dict[KEY_CANDIDATES] = [tree_dict[KEY_HEAD]]
+
         batch.append([tree_dict])
+        if len(batch) == batch_size:
+            embeddings_list.append(_process_batch(batch))
+            batch = []
 
     if len(batch) > 0:
-        logger.debug('compile batch ...')
-        fdict = model_tree.build_feed_dict(batch)
-        logger.debug('calculate embeddings for batch ...')
-        embeddings_all = sess.run(model_tree.embeddings_all, feed_dict=fdict)
-        embeddings = embeddings_all.reshape((-1, model_tree.tree_output_size))
+        embeddings_list.append(_process_batch(batch))
+
+    if len(embeddings_list) > 0:
+        embeddings = np.concatenate(embeddings_list)
     else:
         embeddings = np.zeros(shape=(0, model_tree.embedder.dimension_embeddings), dtype=np.float32)
 
@@ -481,7 +493,9 @@ def get_or_calc_embeddings(params):
 
         params['embeddings'] = calc_embeddings(
             tree_dicts_or_forests=params.get('tree_dicts', None) or params['forests'],
-            max_depth=int(params.get('max_depth', 20)), transformed=params['transformed_idx'])
+            max_depth=int(params.get('max_depth', 20)), transformed=params['transformed_idx'],
+            batch_size=params.get('batch_size', 1000)
+        )
 
 
 def tree_dicts_to_forests(tree_dicts, current_forest):
