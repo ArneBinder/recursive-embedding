@@ -315,6 +315,8 @@ def get_or_calc_tree_dicts_or_forests(params):
         selected_indices = np.concatenate(selected_indices_list)
     else:
         selected_indices = None
+        if 'dump' in params:
+            params['roots_selected'] = current_forest.roots
 
     if 'indices_getter' in params:
 
@@ -573,6 +575,9 @@ def get_or_calc_scores(params):
                 if 'indices' in params:
                     numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
                     del params['indices']
+                if 'roots_selected' in params:
+                    numpy_dump(os.path.join(dump_dir, 'scores.roots.idx'), np.array(params['roots_selected']))
+                    del params['roots_selected']
 
             params['color_by_rank'] = True
 
@@ -604,6 +609,9 @@ def get_or_calc_scores(params):
                     if 'indices' in params:
                         numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
                         del params['indices']
+                    if 'roots_selected' in params:
+                        numpy_dump(os.path.join(dump_dir, 'scores.roots.idx'), np.array(params['roots_selected']))
+                        del params['roots_selected']
                 params['transformed_idx'] = True
             else:
                 assert not (params.get('transformed_idx', False) and params.get('reroot', False)), \
@@ -640,6 +648,9 @@ def get_or_calc_scores(params):
                     if 'indices' in params:
                         numpy_dump(os.path.join(dump_dir, 'scores.idx'), np.array(params['indices']))
                         del params['indices']
+                    if 'roots_selected' in params:
+                        numpy_dump(os.path.join(dump_dir, 'scores.roots.idx'), np.array(params['roots_selected']))
+                        del params['roots_selected']
 
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
@@ -778,6 +789,9 @@ def embed():
             if 'indices' in params:
                 numpy_dump(os.path.join(dump_dir, 'embeddings.idx'), np.array(params['indices']))
                 del params['indices']
+            if 'roots_selected' in params:
+                numpy_dump(os.path.join(dump_dir, 'embeddings.roots.idx'), np.array(params['roots_selected']))
+                del params['roots_selected']
             response = Response("created %i embeddings (dumped to %s)" % (_embeddings.shape[0], dump_dir))
         else:
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
