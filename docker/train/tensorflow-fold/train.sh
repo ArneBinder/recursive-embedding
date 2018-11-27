@@ -7,9 +7,18 @@ if [ -n "$1" ]; then
     shift
 fi
 
+## use second argument as logdir, if available
+if [ -n "$1" ]; then
+    TRAIN_LOGDIR="$1"
+    export TRAIN_LOGDIR
+    echo "TRAIN_LOGDIR: $TRAIN_LOGDIR"
+    shift
+fi
+
+## use remaining arguments as environment file names, if available
+
 ## enable exporting all variables that are defined from now on
 set -a
-## use remaining arguments as environment file names, if available
 while (( "$#" )); do
     echo "use environment variables from: $1"
     source "$1"
@@ -28,9 +37,12 @@ echo "CPU_SET: $CPU_SET"
 export NVIDIA_VISIBLE_DEVICES
 echo "NVIDIA_VISIBLE_DEVICES: $NVIDIA_VISIBLE_DEVICES"
 
-LOG_FN="$HOST_TRAIN/$PROJECT_NAME"_gpu"$NVIDIA_VISIBLE_DEVICES.log"
+PROJECT_NAME=${TRAIN_LOGDIR//\//_}
+CONTAINER_NAME=${PROJECT_NAME}_gpu${NVIDIA_VISIBLE_DEVICES}
+export CONTAINER_NAME
+LOG_FN="$HOST_TRAIN/$CONTAINER_NAME.log"
 
 echo "log to: $LOG_FN"
-echo "container_name: train_gpu$NVIDIA_VISIBLE_DEVICES"_"$PROJECT_NAME"
+echo "container_name: $CONTAINER_NAME"
 
-docker-compose -p "$PROJECT_NAME""_gpu$NVIDIA_VISIBLE_DEVICES" up train-fold > "$LOG_FN"
+docker-compose -p "$CONTAINER_NAME" up train-fold > "$LOG_FN"

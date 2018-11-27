@@ -1,7 +1,7 @@
 version: '2.3'
 services:
   train-fold:
-    container_name: train_gpu${NVIDIA_VISIBLE_DEVICES}_${PROJECT_NAME}
+    container_name: train_${CONTAINER_NAME}
     runtime: ${DOCKER_RUNTIME}
     build:
       context: ../../..
