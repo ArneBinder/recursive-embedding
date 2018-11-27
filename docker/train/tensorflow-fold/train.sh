@@ -1,33 +1,27 @@
 #!/bin/bash
 
-## use first argument as environment file name, if available
-if [ -n "$1" ]; then
-    ENV_FN="$1"
-else
-    ENV_FN=.env
-fi
-echo "use environment variables from: $ENV_FN"
-source "$ENV_FN"
-# copy to .env for docker-compose
-cp "$ENV_FN" .env
-# copy used .env file into logdir
-cp "$ENV_FN" "$HOST_TRAIN/$TRAIN_LOGDIR/"
-
 NVIDIA_VISIBLE_DEVICES=0
-## use second argument as gpu nbr, if available
-if [ -n "$2" ]; then
-    NVIDIA_VISIBLE_DEVICES="$2"
+## use first argument as gpu nbr, if available
+if [ -n "$1" ]; then
+    NVIDIA_VISIBLE_DEVICES="$1"
+    shift
 fi
 
+## enable exporting all variables that are defined from now on
+set -a
+## use remaining arguments as environment file names, if available
+while (( "$#" )); do
+    echo "use environment variables from: $1"
+    source "$1"
+    shift
+done
+## disable automatic variable export
+set +a
 
-## use third argument as cpu set, if available
-if [ -n "$3" ]; then
-    CPU_SET="$3"
-else
-    NBR_CPUS=4
-    echo "NBR_CPUS: $NBR_CPUS"
-    CPU_SET=$(($2 * $NBR_CPUS))-$(($2 * $NBR_CPUS + $NBR_CPUS - 1))
-fi
+## set cpu_set
+NBR_CPUS=4
+echo "NBR_CPUS: $NBR_CPUS"
+CPU_SET=$(($NVIDIA_VISIBLE_DEVICES * $NBR_CPUS))-$(($NVIDIA_VISIBLE_DEVICES * $NBR_CPUS + $NBR_CPUS - 1))
 
 export CPU_SET
 echo "CPU_SET: $CPU_SET"
