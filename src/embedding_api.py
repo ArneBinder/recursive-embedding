@@ -90,7 +90,6 @@ sess = None
 model_tree = None
 model_main = None
 lexicon = None
-lexicon_dims = None
 forest = None
 data_path = None
 tfidf_data = None
@@ -791,7 +790,7 @@ def embed():
                 os.makedirs(dump_dir)
             dims_all = _embeddings.shape[-1]
             # ATTENTION: this is only correct if no leaf_fc is used!
-            dims_context = dims_all - lexicon_dims - 1
+            dims_context = dims_all - model_tree.embedder.head_size - 1
             numpy_dump(os.path.join(dump_dir, 'embeddings.context'), _embeddings[:, :dims_context])
             numpy_dump(os.path.join(dump_dir, 'embeddings.head'), _embeddings[:, dims_context:-1])
             numpy_dump(os.path.join(dump_dir, 'embeddings.id'), _embeddings[:, -1].astype(dtype=DTYPE_IDX))
@@ -1253,12 +1252,11 @@ def init_forest(data_path):
 
 def main(data_source):
     global sess, model_tree, model_main, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, \
-        embedding_indices, embeddings, model_config, nbr_candidates, lexicon_dims
+        embedding_indices, embeddings, model_config, nbr_candidates
     sess = None
     model_tree = None
     model_main = None
     lexicon = None
-    lexicon_dims = None
     forest = None
     data_path = None
     tfidf_data = None
@@ -1273,8 +1271,6 @@ def main(data_source):
         return
 
     lexicon, checkpoint_fn, _ = get_lexicon(logdir=data_source, train_data_path=data_source, dont_dump=True)
-    if lexicon.has_vecs:
-        lexicon_dims = lexicon.dims
     if checkpoint_fn:
         assert lexicon.vecs is None or lexicon.is_filled, \
             'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' \
