@@ -717,7 +717,7 @@ def check_train_test_overlap(forest_indices_train, forest_indices_train_target, 
 
 
 def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=None, index_file_sizes=None,
-                  work_forests=None, indices=None, use_pool=True):
+                  work_forests=None, indices=None, use_pool=True, tree_iterators_kwargs={}):
     # save compiled trees to file, if cache_dir is given
     if cache_dir is not None:
         assert index_file_names is not None, 'caching of compiled trees to file indicated (because compile cache_dir ' \
@@ -731,7 +731,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
     for m in tree_iterators:
         logger.debug('compile %s trees ...' % m)
         try:
-            current_tree_iter = tree_iterators[m](indices=indices[m])
+            current_tree_iter = tree_iterators[m](indices=indices[m], **tree_iterators_kwargs.get(m, {}))
         except TypeError as e:
             assert work_forests is not None, '%s tree_iterator is not satisfied, but work_forests are None' % m
 
@@ -1246,7 +1246,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             recompile_thread = RecompileThread(q=train_tree_queue, train_tree_iter=meta[M_TRAIN][M_TREE_ITER],
                                                compiler=meta[M_TRAIN][M_MODEL].tree_model.compiler,
                                                train_indices_sampler=meta[M_TRAIN][M_INDICES_SAMPLER],
-                                               compile_func=compile_trees)
+                                               compile_func=partial(compile_trees, tree_iterators_kwargs={M_TRAIN: {'embedder': meta[M_TRAIN][M_MODEL].tree_model.embedder, 'session': sess}})
+                                               )
             recompile_thread.start()
         else:
             train_tree_queue = None
@@ -1604,7 +1605,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
                                            neg_samples=int('0' + config.neg_samples), #nbr_indices=nbr_indices,
-                                           sample_method='frequency' if m == M_TRAIN else None,
+                                           sample_method='nearest' if m == M_TRAIN else None,
                                            indices_mappings=indices_mapping_dict,
                                            **_tree_iterator_args)
         else:

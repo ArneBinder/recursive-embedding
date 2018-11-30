@@ -463,9 +463,24 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #logger.debug('created %i trees' % n)
 
 
+def get_nearest_neighbor_samples(idx_transformed, all_candidate_indices, lexicon, embedder, session, nbr):
+    all_candidate_indices_transformed = np.array(lexicon.transform_indices(indices=all_candidate_indices))
+    feed_dict = {embedder.reference_idx: [idx_transformed], embedder.candidate_indices: [all_candidate_indices_transformed]}
+    sims = session.run(embedder.reference_vs_candidates, feed_dict)[0]
+    max_indices_indices = np.argpartition(sims, -(nbr + 1))[-(nbr + 1):]
+    max_indices = all_candidate_indices_transformed[max_indices_indices]
+    max_indices[max_indices == idx_transformed] = max_indices[0]
+    max_indices[0] = idx_transformed
+    return max_indices
+
+
 def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, transform=True, debug=False,
-                   sample_method=None, **kwargs):
+                   sample_method=None, embedder=None, session=None, **kwargs):
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+    nearest_neighbors_transformed = {}
+    if embedder is None and session is None and sample_method == 'nearest':
+        logger.warning('embdder or session not available, but required for sample_method=nearest. Use "frequency" instead.')
+        sample_method = 'frequency'
     #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
         #samples = np.random.choice(forest.data, size=neg_samples + 1)
@@ -479,7 +494,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, tr
             indices_mapping, class_ids = indices_mappings[head_transformed_back]
             nbr_classes = len(class_ids)
 
-        if class_ids is not None and neg_samples + 1 == nbr_classes and sample_method is None:
+        if class_ids is not None and neg_samples + 1 == nbr_classes and (sample_method is None or sample_method == 'nearest'):
             sample_method = 'all'
         if sample_method is None:
             sample_method = 'frequency'
@@ -489,6 +504,8 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, tr
             samples = class_ids.copy()
             # swap head to front
             samples[samples == head_transformed_back] = samples[0]
+            samples = forest.lexicon.transform_indices(samples)
+            samples[0] = tree[KEY_HEAD]
         elif sample_method == 'frequency':
             # sample only from selected data
             sample_indices = np.random.choice(indices_mapping, size=neg_samples + 1)
@@ -510,11 +527,18 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, tr
             # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
             # replaced by IDENTITY in train_fold.execute_run.
             samples[samples < 0] = d_target
+            samples = forest.lexicon.transform_indices(samples)
+            samples[0] = tree[KEY_HEAD]
+        elif sample_method == 'nearest':
+            if tree[KEY_HEAD] in nearest_neighbors_transformed:
+                samples = nearest_neighbors_transformed[tree[KEY_HEAD]]
+            else:
+                all_candidate_indices = np.unique(forest.data[indices_mapping])
+                samples = get_nearest_neighbor_samples(tree[KEY_HEAD], all_candidate_indices, forest.lexicon, embedder, session, nbr=neg_samples)
+                nearest_neighbors_transformed[tree[KEY_HEAD]] = samples
         else:
             raise Exception('unknown sample_method: %s' % str(sample_method))
 
-        samples = forest.lexicon.transform_indices(samples)
-        samples[0] = tree[KEY_HEAD]
         tree[KEY_CANDIDATES] = samples
         tree[KEY_HEAD] = None
         yield tree
