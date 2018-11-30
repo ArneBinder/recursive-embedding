@@ -839,7 +839,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name=name, **kwargs)
         #self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
-        self._fc = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
+        #self._fc = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
 
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
@@ -848,7 +848,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
         #print('trees_children: %s' % str(trees_children.output_type))
         dummy_head = td.Zeros(output_type=_htu_model.output_type)
-        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1) >> self._fc
+        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1) #>> self._fc
         #print('reduced_children: %s' % str(reduced_children.output_type))
         #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
         #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc >> self._fc)
@@ -866,7 +866,8 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     @property
     def output_size(self):
-        return self._fc.output_size * 2 + 1
+        #return self._fc.output_size * 2 + 1
+        return self.head_size + self.state_size + 1
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
@@ -1634,10 +1635,21 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         # shape: batch_size, candidate_count, concat_embeddings_dim
         _shape = final_vecs.get_shape().as_list()
         concat_embeddings_dim = _shape[-1]
-        # split vecs into two
-        assert concat_embeddings_dim % 2 == 0, \
-            'dimension of concatenated embeddings has to be multiple of two, but it is: %i' % _shape[-1]
-        final_vecs_split = tf.reshape(final_vecs, shape=(-1, 2, concat_embeddings_dim // 2))
+
+        ## split vecs into two
+        #assert concat_embeddings_dim % 2 == 0, \
+        #    'dimension of concatenated embeddings has to be multiple of two, but it is: %i' % _shape[-1]
+        #final_vecs_split = tf.reshape(final_vecs, shape=(-1, 2, concat_embeddings_dim // 2))
+        vecs_reshaped = tf.reshape(final_vecs, shape=(-1, concat_embeddings_dim))
+        candidate_dims = tree_model.embedder.head_size
+        reference_dims = concat_embeddings_dim - candidate_dims
+        vecs_reference = vecs_reshaped[:, :reference_dims]
+        vecs_candidate = tf.expand_dims(vecs_reshaped[:, reference_dims:], axis=1)
+        with tf.name_scope(name='fc_reference') as sc:
+            fc_reference = tf.contrib.layers.fully_connected(inputs=vecs_reference, num_outputs=candidate_dims, scope=sc)
+            vecs_reference_scaled = tf.expand_dims(tf.nn.dropout(fc_reference, keep_prob=tree_model.keep_prob), axis=1)
+        final_vecs_split = tf.concat((vecs_reference_scaled, vecs_candidate), axis=1)
+
         # use circular correlation
         if use_circular_correlation:
             logger.debug('add circular correlation')

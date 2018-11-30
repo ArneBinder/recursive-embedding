@@ -789,8 +789,11 @@ def embed():
             dump_dir = params['dump']
             if not os.path.exists(dump_dir):
                 os.makedirs(dump_dir)
-            numpy_dump(os.path.join(dump_dir, 'embeddings.context'), _embeddings[:, :-lexicon_dims - 1])
-            numpy_dump(os.path.join(dump_dir, 'embeddings.head'), _embeddings[:, -lexicon_dims - 1:-1])
+            dims_all = _embeddings.shape[-1]
+            # ATTENTION: this is only correct if no leaf_fc is used!
+            dims_context = dims_all - lexicon_dims - 1
+            numpy_dump(os.path.join(dump_dir, 'embeddings.context'), _embeddings[:, :dims_context])
+            numpy_dump(os.path.join(dump_dir, 'embeddings.head'), _embeddings[:, dims_context:-1])
             numpy_dump(os.path.join(dump_dir, 'embeddings.id'), _embeddings[:, -1].astype(dtype=DTYPE_IDX))
             del params['embeddings']
             if 'indices' in params:
