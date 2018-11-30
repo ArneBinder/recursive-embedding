@@ -1562,7 +1562,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 new_neg_samples = str(min(int(config.neg_samples or 1000), max(map(len, classes_ids_list)) - 1))
                 if config.neg_samples.strip() != new_neg_samples:
                     logger.debug('set neg_samples = %s (== min(config.neg_samples, max(nbr_of_classes) -1) over all sets of classes) for exhaustive sampling'
-                                 % config.neg_samples)
+                                 % new_neg_samples)
                     config.neg_samples = new_neg_samples
             else:
                 indices_mapping_dict[None] = indices_mapping_full_trees
