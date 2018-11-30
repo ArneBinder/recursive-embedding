@@ -215,18 +215,20 @@ def AttentionReduce(name=None):  # pylint: disable=invalid-name
 
 class TreeEmbedding(object):
     def __init__(self, name, lex_size_fix, lex_size_var, dimension_embeddings, keep_prob_placeholder=None,
-                 state_size=None, leaf_fc_size=0, #root_fc_sizes=0,
+                 state_size=None, leaf_fc_size=0,
                  keep_prob_fixed=1.0, **unused):
         self._lex_size_fix = lex_size_fix
         self._lex_size_var = lex_size_var
         self._dim_embeddings = dimension_embeddings
 
-        self._lexicon_fix, self._lexicon_fix_placeholder, self._lexicon_fix_init = create_lexicon(lex_size=self._lex_size_fix,
-                                                                                                  dimension_embeddings=self._dim_embeddings,
-                                                                                                  trainable=False)
         self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
                                                                                                   dimension_embeddings=self._dim_embeddings,
                                                                                                   trainable=True)
+        self._lexicon_fix, self._lexicon_fix_placeholder, self._lexicon_fix_init = create_lexicon(lex_size=self._lex_size_fix,
+                                                                                                  dimension_embeddings=self._dim_embeddings,
+                                                                                                  trainable=False)
+        self._lexicon = tf.concat((self._lexicon_var, self._lexicon_fix), axis=0)
+
         self._keep_prob_fixed = keep_prob_fixed
         if keep_prob_placeholder is not None:
             self._keep_prob = keep_prob_placeholder
@@ -256,57 +258,20 @@ class TreeEmbedding(object):
                                          activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
                                          name=VAR_PREFIX_FC_REVERSE + '_%d' % self._dim_embeddings)
 
-    def embed_dep(self):
-        # negative values indicate enabled head dropout
-        def helper(x, keep_prob):
-            if x >= 0:
-                return x
-            if np.random.random() < keep_prob:
-                return x + self.lex_size
-            return -1
-
-        # get the head embedding from id
-        #return td.Function(lambda x: tf.gather(self._lexicon, x))
-        return td.InputTransform(lambda x: helper(x, self.keep_prob_fixed)) \
-               >> td.OneOf(key_fn=(lambda x: x >= 0),
-                           case_blocks={True: td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x)),
-                                        False: td.Void() >> td.Zeros(self._dim_embeddings)})
-
-    def dropout_blanking(self):
-        # if dropout is enabled, return id_blanking (eventually shifted to negative range) if sample was in range
-        #return td.InputTransform(lambda x: x if (self._keep_dropout_blanking == 1.0 or np.random.uniform() < self._keep_dropout_blanking) else (self._id_blanking if x >= 0 else -x-1))
-        def _do(x):
-            #x if (self._keep_dropout_blanking == 1.0 or np.random.uniform() < self._keep_dropout_blanking) else (
-            #    self._id_blanking if x >= 0 else -x - 1)
-            if (self._keep_dropout_blanking == 1.0 or np.random.uniform() < self._keep_prob):
-                print('dont blank')#: %f' % self._keep_dropout_blanking)
-                return x
-            else:
-                res = self._id_blanking if x >= 0 else -x - 1
-                print('blank')#: %f' % self._keep_dropout_blanking)
-                return res
-
-        return td.InputTransform(_do)
+        self._reference_idx = tf.placeholder(shape=0, dtype=tf.int64)
+        self._candidate_indices = tf.placeholder(dtype=tf.int64)
 
     def embed(self):
         # get the head embedding from id
-        #if self._lex_size_fix > 0 and self._lex_size_var > 0:
-        return td.OneOf(key_fn=(lambda x: (x >= 0, (-x-1 if x < 0 else x) // (self._lex_size_fix + self._lex_size_var))),
+        return td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
                         case_blocks={
-                            # trainable embedding
-                            (True, 0):  td.Scalar(dtype='int32')
-                                        >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size))),
-                            # trainable embedding for "reverted" edge
-                            (True, 1):  td.Scalar(dtype='int32')
-                                        >> td.Function(lambda x: tf.gather(self._lexicon_var, tf.mod(x, self.lexicon_size)))
-                                        >> self._reverse_fc,
-                            # fixed embedding
-                            (False, 0): td.Scalar(dtype='int32')
-                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x) - 1, self.lexicon_size))),
-                            # fixed embedding for "reverted" edge
-                            (False, 1): td.Scalar(dtype='int32')
-                                        >> td.Function(lambda x: tf.gather(self._lexicon_fix, tf.mod(tf.abs(x) - 1, self.lexicon_size)))
-                                        >> self._reverse_fc,
+                            # normal embedding
+                            0: td.Scalar(dtype='int32')
+                               >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size))),
+                            # "reverted" edge embedding
+                            1: td.Scalar(dtype='int32')
+                               >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size)))
+                               >> self._reverse_fc,
                         })
 
     def head(self, name='head_embed'):
@@ -314,6 +279,12 @@ class TreeEmbedding(object):
 
     def children(self, name=KEY_CHILDREN):
         return td.InputTransform(lambda x: x.get(KEY_CHILDREN, []), name=name)
+
+    def reference_vs_candidates(self):
+        reference_embedding = tf.nn.l2_normalize(tf.gather(self.lexicon, self.reference_idx), dim=-1)
+        candidate_embeddings = tf.nn.l2_normalize(tf.gather(self.lexicon, self.candidate_indices), dim=-1)
+        _mul = candidate_embeddings * reference_embedding
+        return tf.reduce_sum(_mul, axis=-1)
 
     @property
     def state_size(self):
@@ -365,7 +336,11 @@ class TreeEmbedding(object):
 
     @property
     def lexicon_size(self):
-        return self._lex_size_fix + self._lex_size_var
+        return self._lex_size_var + self._lex_size_fix
+
+    @property
+    def lexicon(self):
+        return self._lexicon
 
     @property
     def keep_prob(self):
@@ -386,6 +361,14 @@ class TreeEmbedding(object):
     @property
     def output_size(self):
         raise NotImplementedError
+
+    @property
+    def reference_idx(self):
+        return self._reference_idx
+
+    @property
+    def candidate_indices(self):
+        return self._candidate_indices
 
 
 def get_lexicon_vars():

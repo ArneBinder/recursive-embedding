@@ -891,27 +891,18 @@ class Lexicon(object):
             logger.warning('trying to transform a root_id. set to unknown.')
             return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
 
+        offset = len(self) if revert else 0
         idx_trans = self.ids_fixed_dict.get(idx, None)
         if idx_trans is not None:
-            if revert:
-                idx_trans += len(self)
-            return -idx_trans - 1
+            return idx_trans + len(self.ids_var) + offset
         idx_trans = self.ids_var_dict.get(idx, None)
         if idx_trans is not None:
-            if revert:
-                idx_trans += len(self)
-            return idx_trans
-        #idx_trans = root_id_pos.get(idx, None)
-        #if idx_trans is not None:
-        #if idx in root_ids:
-        #    return self.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
+            return idx_trans + offset
 
-        #raise ValueError('idx=%i not in ids_fixed, ids_var or root_id_pos' % idx)
         if d_unknown_replacement is None:
             logger.warning('idx=%i not in ids_fixed or ids_var. Set to UNKNOWN.' % idx)
             return self.get_d(s=vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
         else:
-            #logger.debug('idx=%i not in ids_fixed or ids_var. Set to unknown_replacment: %i.' % (idx, d_unknown_replacement))
             return d_unknown_replacement
 
     def transform_indices(self, indices, revert=False, d_unknown_replacement=None):
@@ -923,15 +914,13 @@ class Lexicon(object):
         :param idx: the negative (-> fixed vec) or positive (-> var vec) index
         :return: the lexicon index, True iff idx was reverted else False
         """
-        if idx < 0:
-            idx = -idx - 1
-            reverted = (idx // len(self) == 1)
-            idx = idx % len(self)
-            return self.ids_fixed[idx], reverted
-        else:
-            reverted = (idx // len(self) == 1)
-            idx = idx % len(self)
+        reverted = False
+        if idx >= len(self):
+            reverted = True
+            idx -= len(self)
+        if idx < len(self.ids_var):
             return self.ids_var[idx], reverted
+        return self.ids_fixed[idx - len(self.ids_var)], reverted
 
     def order_by_hashes(self, hashes):
         assert not self.frozen, 'can not order frozen lexicon by hashes'
