@@ -258,8 +258,8 @@ class TreeEmbedding(object):
                                          activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
                                          name=VAR_PREFIX_FC_REVERSE + '_%d' % self._dim_embeddings)
 
-        self._reference_idx = tf.placeholder(shape=0, dtype=tf.int64)
-        self._candidate_indices = tf.placeholder(dtype=tf.int64)
+        self._reference_idx = tf.placeholder(shape=0, dtype=tf.int32)
+        self._candidate_indices = tf.placeholder(dtype=tf.int32)
 
     def embed(self):
         # get the head embedding from id
@@ -281,9 +281,12 @@ class TreeEmbedding(object):
         return td.InputTransform(lambda x: x.get(KEY_CHILDREN, []), name=name)
 
     def reference_vs_candidates(self):
+        # implemented for batches
         reference_embedding = tf.nn.l2_normalize(tf.gather(self.lexicon, self.reference_idx), dim=-1)
         candidate_embeddings = tf.nn.l2_normalize(tf.gather(self.lexicon, self.candidate_indices), dim=-1)
-        _mul = candidate_embeddings * reference_embedding
+        reference_embedding_tiled = tf.tile(reference_embedding, multiples=[1, tf.shape(candidate_embeddings)[1]])
+        reference_embedding_tiled_reshaped = tf.reshape(reference_embedding_tiled, tf.shape(candidate_embeddings))
+        _mul = candidate_embeddings * reference_embedding_tiled_reshaped
         return tf.reduce_sum(_mul, axis=-1)
 
     @property
