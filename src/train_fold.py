@@ -1604,6 +1604,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
                                            neg_samples=int('0' + config.neg_samples), #nbr_indices=nbr_indices,
+                                           sample_method='frequency' if m == M_TRAIN else None,
                                            indices_mappings=indices_mapping_dict,
                                            **_tree_iterator_args)
         else:

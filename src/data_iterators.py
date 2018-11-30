@@ -463,7 +463,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #logger.debug('created %i trees' % n)
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, transform=True, debug=False, **kwargs):
+def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, transform=True, debug=False,
+                   sample_method=None, **kwargs):
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
@@ -478,12 +479,17 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, tr
             indices_mapping, class_ids = indices_mappings[head_transformed_back]
             nbr_classes = len(class_ids)
 
+        if class_ids is not None and neg_samples + 1 == nbr_classes and sample_method is None:
+            sample_method = 'all'
+        if sample_method is None:
+            sample_method = 'frequency'
+
         # use all class_ids as samples (exhaustive sampling without repetitions), if its number matches neg_samples
-        if class_ids is not None and neg_samples + 1 == nbr_classes:
+        if sample_method == 'all':
             samples = class_ids.copy()
             # swap head to front
             samples[samples == head_transformed_back] = samples[0]
-        else:
+        elif sample_method == 'frequency':
             # sample only from selected data
             sample_indices = np.random.choice(indices_mapping, size=neg_samples + 1)
             samples = forest.data[sample_indices]
@@ -504,6 +510,8 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, tr
             # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
             # replaced by IDENTITY in train_fold.execute_run.
             samples[samples < 0] = d_target
+        else:
+            raise Exception('unknown sample_method: %s' % str(sample_method))
 
         samples = forest.lexicon.transform_indices(samples)
         samples[0] = tree[KEY_HEAD]
