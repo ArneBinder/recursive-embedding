@@ -1600,12 +1600,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             if m == M_TRAIN:
                 _tree_iterator_args = {'keep_prob_blank': config.keep_prob_blank, 'keep_prob_node': config.keep_prob_node}
                 _tree_iterator_args.update(tree_iterator_args)
+                sample_method = 'nearest'
+                # sample to all when sample_method='nearest
+                indices_mapping_dict = {None: indices_mapping_all}
             else:
                 _tree_iterator_args = tree_iterator_args
+                sample_method = None
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
                                            neg_samples=int('0' + config.neg_samples), #nbr_indices=nbr_indices,
-                                           sample_method='nearest' if m == M_TRAIN else None,
+                                           sample_method=sample_method,
                                            indices_mappings=indices_mapping_dict,
                                            **_tree_iterator_args)
         else:
