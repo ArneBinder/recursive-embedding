@@ -269,16 +269,20 @@ class TreeEmbedding(object):
         self._reference_vs_candidates = tf.reduce_sum(_mul, axis=-1)
 
     def embed(self):
+        # TODO: needs evaluation!! does it make sense w/o masked filter fc after HTU?
         # get the head embedding from id
+        def _embed(direction_embedding):
+            return td.AllOf(td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size))),
+                            td.Void() >> td.FromTensor(np.array(direction_embedding, dtype=np.float32)))\
+                   >> td.Concat()
+
         return td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
                         case_blocks={
                             # normal embedding
-                            0: td.Scalar(dtype='int32')
-                               >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size))),
+                            0: _embed([0, 1]),
                             # "reverted" edge embedding
-                            1: td.Scalar(dtype='int32')
-                               >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size)))
-                               >> self._reverse_fc,
+                            1: _embed([1, 0]),
+                               #>> self._reverse_fc,
                         })
 
     def head(self, name='head_embed'):
@@ -361,7 +365,7 @@ class TreeEmbedding(object):
 
     @property
     def head_size(self):
-        return self.leaf_fc_size or self._dim_embeddings
+        return self.leaf_fc_size or (self._dim_embeddings + 2)
 
     @property
     def output_size(self):
@@ -466,14 +470,33 @@ def gru_cell(scope, state_size, keep_prob, input_size):
             'gru_cell')
 
 
-class TreeEmbedding_mapGRU(TreeEmbedding_map):
+class TreeEmbedding_mapGRU_old(TreeEmbedding_map):
     def __init__(self, name, **kwargs):
-        super(TreeEmbedding_mapGRU, self).__init__(name='mapGRU_' + name, **kwargs)
+        super(TreeEmbedding_mapGRU_old, self).__init__(name='mapGRU_' + name, **kwargs)
         self._rnn_cell = gru_cell(self.scope, self.state_size, self.keep_prob, self.head_size)
 
     @property
     def map(self):
         return self._rnn_cell >> td.GetItem(1)
+
+
+class TreeEmbedding_mapGRU(TreeEmbedding_map):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_mapGRU, self).__init__(name='mapGRU_' + name, **kwargs)
+        self._rnn_cell = gru_cell(self.scope, self.state_size, self.keep_prob, self.head_size)
+        self._fc_direction = td.FC(self.state_size * 2, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_direction')
+
+    @property
+    def map(self):
+        def _merge(x, filter):
+            x_reshaped = tf.reshape(x, shape=(-1, self.state_size, 2))
+            filter_reshaped = tf.expand_dims(filter, -1)
+            _res = tf.squeeze(tf.matmul(x_reshaped, filter_reshaped), axis=[-1])
+            return _res
+
+        res = td.AllOf(self._rnn_cell >> td.GetItem(1) >> self._fc_direction, td.GetItem(0) >> td.Function(lambda x: x[:,-2:])) >> td.Function(_merge)
+        res.set_output_type(tdt.TensorType(shape=[self.state_size], dtype='float32'))
+        return res
 
 
 class TreeEmbedding_mapGRU2(TreeEmbedding_map):
