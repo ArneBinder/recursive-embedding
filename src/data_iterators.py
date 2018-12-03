@@ -478,6 +478,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, tr
                    sample_method=None, embedder=None, session=None, **kwargs):
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     nearest_neighbors_transformed = {}
+    logger.debug('default sample_method=%s' % str(sample_method))
     if embedder is None and session is None and sample_method == 'nearest':
         logger.warning('embedder or session not available, but required for sample_method=nearest. Use "frequency" instead.')
         sample_method = 'frequency'
