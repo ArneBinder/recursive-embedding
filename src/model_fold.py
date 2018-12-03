@@ -1600,7 +1600,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
                                      shape=[-1, self.nbr_embeddings_in, tree_model.tree_output_size])
         # last entry of every embedding contains the candidate id (see TreeEmbedding_HTUBatchedHead)
-        self._candidate_indices = tf.reshape(tree_embeddings[:,:,-1], shape=[-1, self.nbr_embeddings_in])
+        self._candidate_indices = tf.cast(tf.reshape(tree_embeddings[:,:,-1], shape=[-1, self.nbr_embeddings_in]), dtype=tf.int32)
         final_vecs = self._final_vecs(tree_embeddings[:,:,:-1], tree_model.tree_output_size - 1)
 
         if not isinstance(fc_sizes, (list, tuple)):
