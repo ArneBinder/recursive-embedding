@@ -20,6 +20,7 @@ DEFAULT_SCOPE_SCORING = 'scoring'
 DIMENSION_SIM_MEASURE = 300
 VAR_NAME_LEXICON_VAR = 'embeddings'
 VAR_NAME_LEXICON_FIX = 'embeddings_fix'
+VAR_NAME_LEXICON_BIAS = 'embeddings_bias'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 VAR_PREFIX_FC_LEAF = 'FC_leaf'
 VAR_PREFIX_FC_ROOT = 'FC_root'
@@ -229,6 +230,8 @@ class TreeEmbedding(object):
                                                                                                   trainable=False)
         self._lexicon = tf.concat((self._lexicon_var, self._lexicon_fix), axis=0)
 
+        self._lexicon_bias = tf.Variable(tf.constant(0.0, shape=[self.lexicon_size], name=VAR_NAME_LEXICON_BIAS))
+
         self._keep_prob_fixed = keep_prob_fixed
         if keep_prob_placeholder is not None:
             self._keep_prob = keep_prob_placeholder
@@ -346,6 +349,10 @@ class TreeEmbedding(object):
     @property
     def lexicon(self):
         return self._lexicon
+
+    @property
+    def lexicon_bias(self):
+        return self._lexicon_bias
 
     @property
     def keep_prob(self):
@@ -1648,6 +1655,9 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         # use cosine similarity
         else:
             logits = tf.reshape(sim_cosine(final_vecs_split), shape=(-1, self.candidate_count))
+            candidate_biases = tf.gather(tree_model.embedder.lexicon_bias, self.candidate_indices)
+            logits += candidate_biases
+
 
         # use fully connected layer
         #batch_size = tf.shape(tree_embeddings)[0]
