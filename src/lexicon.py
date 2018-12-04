@@ -874,9 +874,13 @@ class Lexicon(object):
             self.strings.add(new_string)
             self.clear_cached_values()
 
-    def add_all(self, new_strings):
+    def add_and_get(self, new_string, data_as_hashes):
+        self.add(new_string)
+        return self.get_d(new_string, data_as_hashes=data_as_hashes)
+
+    def add_all(self, new_strings, prefix=u''):
         for s in new_strings:
-            self._strings.add(s)
+            self._strings.add(prefix + s)
         self.clear_cached_values()
 
     def transform_idx(self, idx, revert=False, d_unknown_replacement=None):

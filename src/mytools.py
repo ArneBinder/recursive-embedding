@@ -113,7 +113,6 @@ def logging_init():
     logging.basicConfig(level=logging.DEBUG, stream=sys.stdout, format=logging_format)
 
 
-#unused
 def make_parent_dir(fn):
     out_dir = os.path.abspath(os.path.join(fn, os.pardir))
     if not os.path.isdir(out_dir):
