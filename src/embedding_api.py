@@ -776,8 +776,19 @@ def current_root_ids():
         return np.arange(len(forest.roots), dtype=np.int32)
 
 
-def get_pos_and_len(selected_root_indices, data_indices):
-    pass
+def get_partition_positions(selected_root_indices, data_indices):
+    root_i = 0
+    pos = [0]
+    if len(selected_root_indices) > 1:
+        for i, idx in enumerate(data_indices):
+            if idx >= selected_root_indices[root_i + 1]:
+                root_i += 1
+                pos.append(i)
+                if root_i + 1 == len(selected_root_indices):
+                    break
+    pos.append(len(data_indices))
+    return np.array(pos)
+
 
 @app.route("/api/embed", methods=['POST'])
 def embed():
@@ -798,6 +809,10 @@ def embed():
             numpy_dump(os.path.join(dump_dir, 'embeddings.head'), _embeddings[:, dims_context:-1])
             numpy_dump(os.path.join(dump_dir, 'embeddings.id'), _embeddings[:, -1].astype(dtype=DTYPE_IDX))
             del params['embeddings']
+            if 'indices' in params and 'roots_selected' in params:
+                partition_positions = get_partition_positions(selected_root_indices=params['roots_selected'],
+                                                              data_indices=params['indices'])
+                numpy_dump(os.path.join(dump_dir, 'embeddings.pos'), partition_positions)
             if 'indices' in params:
                 numpy_dump(os.path.join(dump_dir, 'embeddings.idx'), np.array(params['indices']))
                 del params['indices']
