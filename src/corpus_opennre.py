@@ -191,13 +191,14 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     out_path_merged = join(out_path, DIR_MERGED)
     if not os.path.exists(out_path_merged):
         os.makedirs(out_path_merged)
-    logger_fh = logging.FileHandler(os.path.join(out_path_merged, 'corpus-parse-merge.log'))
+    logger_fh = logging.FileHandler(os.path.join(out_path, 'corpus-parse-merge.log'))
     logger_fh.setLevel(logging.DEBUG)
     logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
     logger.addHandler(logger_fh)
 
     if sentence_processor is None or sentence_processor.strip() == '':
         sentence_processor = 'process_sentence1'
+    #TODO: add other sentence_processors
     # default to process_sentence1
     #if sentence_processor.strip() == 'process_sentence1':
     #    record_reader = partial(reader, key_rel=None, keys_annot=())
@@ -282,13 +283,14 @@ def main(mode, *args):
         relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids,
                        classes_strings=relation_strings)
+        return out_path_merged
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
     elif mode == 'ALL':
-        plac.call(main, ('PARSE',) + args)
+        out_path_merged = plac.call(main, ('PARSE',) + args)
         #plac.call(main, ('MERGE',) + args)
-        plac.call(main, ('CREATE_INDICES', '--end-root', '2709', '--split-count', '1', '--suffix', 'test') + args)
-        plac.call(main, ('CREATE_INDICES', '--start-root', '2709', '--split-count', '1', '--suffix', 'train') + args)
+        plac.call(main, ('CREATE_INDICES', '--end-root', '2707', '--split-count', '1', '--suffix', 'test', '--merged-forest-path', out_path_merged) + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '2707', '--split-count', '4', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
     elif mode == 'ANNOTATE':
         plac.call(annotate_file_w_stanford, args)
     else:
