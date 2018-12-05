@@ -68,8 +68,8 @@ def get_argument_root(pos, length, heads, head_root=-1):
     return lca
 
 
-def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix, root_hash, context_hash, entity_hash,
-                    sentence_hash, head_root=-1):
+def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_hash, context_hash, entity_hash,
+                    sentence_hash, annotation_keys, target_offset=0, head_root=-1):
     # load: _word, _len, _pos1, _pos2, _label, _stanford_head,
     # and if available: _stanford_deprel, _stanford_pos
 
@@ -79,7 +79,6 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     data['word'] = numpy_load(join(in_path, fn + '_word'))
     data['label'] = numpy_load(join(in_path, fn + '_label'))
 
-    annotation_keys = list(set(data2id) - set(data))
     for annotation in annotation_keys:
         data[annotation] = numpy_load(join(in_path, '%s_%s' % (fn, annotation)))
 
@@ -143,11 +142,11 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
             pos_self = i2 * len(data_keys) + len_meta
             # head? connect with context node
             if h == head_root:
-                root = pos_self
+                root = pos_self + target_offset
             else:
                 pos_head = h * len(data_keys) + len_meta
-                graph_tuples.append((pos_head, pos_self))
-            graph_tuples.extend([(pos_self, pos_self + i3 + 1) for i3, k in enumerate(data_keys[1:])])
+                graph_tuples.append((pos_head, pos_self + target_offset))
+            graph_tuples.extend([(pos_self, pos_self + i3) if i3 != target_offset else (pos_self + i3, pos_self) for i3 in range(1, len(data_keys))])
 
         # remaining data (entities, relation)
         _new_data = np.array([sentence_hash, entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
@@ -185,9 +184,12 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     sentence_processor=('sentence processor', 'option', 'p', str),
     dataset_id=('id or name of the dataset', 'option', 'd', str),
     dump_batches=('dump batches', 'flag', 'b', bool),
+    annotations=('comma separated list of annotation keys', 'option', 'a', str),
+    target_offset=('offset to link descendant elements to', 'option', 't', int),
     unused='not used parameters'
 )
-def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False, *unused):
+def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False,
+          annotations='stanford_deprel,stanford_pos', target_offset=0, *unused):
     out_path_merged = join(out_path, DIR_MERGED)
     if not os.path.exists(out_path_merged):
         os.makedirs(out_path_merged)
@@ -198,23 +200,28 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
 
     if sentence_processor is None or sentence_processor.strip() == '':
         sentence_processor = 'process_sentence1'
-    #TODO: add other sentence_processors
     # default to process_sentence1
-    #if sentence_processor.strip() == 'process_sentence1':
-    #    record_reader = partial(reader, key_rel=None, keys_annot=())
-    #elif sentence_processor.strip() == 'process_sentence3':
-    #    record_reader = partial(reader, key_rel=None, keys_annot=(KEY_STANFORD_DEPREL,))
-    #elif sentence_processor.strip() == 'process_sentence11':
-    #    record_reader = partial(reader, key_rel=KEY_STANFORD_DEPREL, keys_annot=())
-    #elif sentence_processor.strip() == 'process_sentence12':
-    #    record_reader = partial(reader, key_rel=KEY_STANFORD_DEPREL, keys_annot=(KEY_STANFORD_POS,))
-    #else:
-    #    raise NotImplementedError('sentence_processor: %s not implemented for parsing tacred' % sentence_processor)
+    if sentence_processor.strip() == 'process_sentence1':
+        annotations = ''
+        target_offset = 0
+    elif sentence_processor.strip() == 'process_sentence3':
+        annotations = 'stanford_deprel'
+        target_offset = 0
+    elif sentence_processor.strip() == 'process_sentence11':
+        annotations = 'stanford_deprel'
+        target_offset = 1
+    elif sentence_processor.strip() == 'process_sentence12':
+        annotations = 'stanford_deprel,stanford_pos'
+        target_offset = 1
+    else:
+        raise NotImplementedError('sentence_processor: %s not implemented for parsing opennre' % sentence_processor)
     logger.info('use %s' % sentence_processor)
     _config = json.load(open(join(in_path, 'config')))
     lexicon = Lexicon(add_vocab_manual=True)
     data2id = {'word': _config['word2id'], 'label': _config['relation2id']}
-    data2id.update(_config['annotations2id'])
+    annotation_keys = [annot.strip() for annot in annotations.split(',') if annot.strip() != '']
+    for annot in annotation_keys:
+        data2id[annot.strip()] = _config['annotations2id'][annot.strip()]
     id2data = {}
     for k in data2id:
         lexicon.add_all(data2id[k], prefix=DATA_TO_TYPE[k] + SEPARATOR)
@@ -236,7 +243,8 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
         logger.info('create forest for %s ...' % fn)
         try:
             current_data_graph = construct_batch(in_path, join(out_path, DIR_BATCHES) if dump_batches else None,
-                                                 fn, lexicon, data2id, id2data,
+                                                 fn, lexicon, id2data=id2data, annotation_keys=annotation_keys,
+                                                 target_offset=target_offset,
                                                  id_prefix=root_string, root_hash=root_hash, context_hash=context_hash,
                                                  entity_hash=entity_hash, sentence_hash=sentence_hash)
             logger.info('created graph with %i components' % len(current_data_graph.roots))
