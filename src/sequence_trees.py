@@ -316,7 +316,7 @@ class Forest(object):
             elif structure is not None:
                 if isinstance(structure, csc_matrix):
                     self._graph_out = structure
-                elif isinstance(structure, csc_matrix):
+                elif isinstance(structure, csr_matrix):
                     self._graph_in = structure
                 elif isinstance(structure, np.ndarray) and structure.dtype == DTYPE_OFFSET:
                     self._graph_in = graph_in_from_parents(structure)

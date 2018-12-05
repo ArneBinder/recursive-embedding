@@ -6,10 +6,10 @@ from os.path import join
 from functools import partial
 
 import plac
-from scipy.sparse import coo_matrix, csc_matrix
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 
 from src.constants import TYPE_RELATION, LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, TYPE_LEXEME, TYPE_POS_TAG, \
-    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, DTYPE_OFFSET
+    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, DTYPE_OFFSET, TYPE_SENTENCE
 from src.corpus import merge_batches, save_class_ids, create_index_files, DIR_BATCHES
 from src.lexicon import Lexicon
 from src.mytools import make_parent_dir, numpy_load
@@ -41,7 +41,8 @@ def distances_to_pos_and_length(distances, max_len):
     return indices, c
 
 
-def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix, root_hash, context_hash, entity_hash):
+def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix, root_hash, context_hash, entity_hash,
+                    sentence_hash):
     # load: _word, _len, _pos1, _pos2, _label, _stanford_head,
     # and if available: _stanford_deprel, _stanford_pos
 
@@ -86,28 +87,38 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
         new_data_list.append(_new_data)
         added += len(_new_data)
         graph_tuples.extend([(0, 1), (0, 2)])
-        pos_pos1 = pos1[i] * (len(data_keys) - 1) + 2
-        pos_pos2 = pos2[i] * (len(data_keys) - 1) + 2
+        len_meta = added
+        pos_pos1 = pos1[i] * len(data_keys) + len_meta
+        pos_pos2 = pos2[i] * len(data_keys) + len_meta
         # real data (per token)
         _new_data = np.stack([data_converted[k][i][:l] for k in data_keys], axis=-1).flatten()
         new_data_list.append(_new_data)
         added += len(_new_data)
+        root = None
         for i2, h in enumerate(heads):
-            pos_self = i2 * (len(data_keys) - 1) + 2
-            pos_head = h * (len(data_keys) - 1) + 2
-            graph_tuples.append((pos_head, pos_self))
-            graph_tuples.extend([(pos_self, pos_self + i3) for i3, k in enumerate(data_keys[1:])])
+            pos_self = i2 * len(data_keys) + len_meta
+            # head? connect with context node
+            if h == 0:
+                root = pos_self
+            else:
+                pos_head = h * len(data_keys) + len_meta
+                graph_tuples.append((pos_head, pos_self))
+            graph_tuples.extend([(pos_self, pos_self + i3 + 1) for i3, k in enumerate(data_keys[1:])])
+
         # remaining data (entities, relation)
-        graph_tuples.append((pos_pos1, added))
-        graph_tuples.append((pos_pos2, added + 1))
-        graph_tuples.append((pos_pos1, added + 2))
-        graph_tuples.append((added + 2, pos_pos2))
-        _new_data = np.array([entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
+        _new_data = np.array([sentence_hash, entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
+        graph_tuples.append((2, added))
+        graph_tuples.append((added, root))
+        graph_tuples.append((pos_pos1, added + 1))
+        graph_tuples.append((pos_pos2, added + 2))
+        graph_tuples.append((pos_pos1, added + 3))
+        # TODO: check direction
+        graph_tuples.append((added + 3, pos_pos2))
         new_data_list.append(_new_data)
         added += len(_new_data)
 
-        # TODO: fix graph structure
-        current_graph = csc_matrix(coo_matrix((np.ones(len(graph_tuples), dtype=bool)), zip(*graph_tuples)))
+        row, col = zip(*graph_tuples)
+        current_graph = coo_matrix((np.ones(len(graph_tuples), dtype=bool), (row, col))).transpose().tocsc()
         new_graph_list.append(current_graph)
         #_new_parents = np.ones(added, dtype=DTYPE_OFFSET) * -1
         #_new_parents[0] = 0
@@ -159,6 +170,7 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', *unu
     root_hash = lexicon.add_and_get(root_string, data_as_hashes=True)
     entity_hash = lexicon.add_and_get(TYPE_NAMED_ENTITY, data_as_hashes=True)
     context_hash = lexicon.add_and_get(TYPE_CONTEXT, data_as_hashes=True)
+    sentence_hash = lexicon.add_and_get(TYPE_SENTENCE, data_as_hashes=True)
     # TODO: add vecs to lexicon
     vec = numpy_load(join(in_path, 'vec'))
     file_names = ['dev', 'test', 'train']
@@ -175,7 +187,8 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', *unu
             #                record_reader=partial(record_reader, root_string=TYPE_DATASET + SEPARATOR + dataset_id),
             #                concat_mode=None, as_graph=True, dont_parse=True)
             construct_batch(in_path, join(out_path, DIR_BATCHES), fn, lexicon, data2id, id2data, id_prefix=root_string,
-                            root_hash=root_hash, context_hash=context_hash, entity_hash=entity_hash)
+                            root_hash=root_hash, context_hash=context_hash, entity_hash=entity_hash,
+                            sentence_hash=sentence_hash)
         except IOError as e:
             logger.warning(e)
             continue
