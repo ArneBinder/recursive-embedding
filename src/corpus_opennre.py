@@ -5,14 +5,15 @@ import os
 from os.path import join
 
 import plac
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
+from scipy.sparse import coo_matrix
 
-from src.constants import TYPE_RELATION, LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, TYPE_LEXEME, TYPE_POS_TAG, \
-    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, DTYPE_OFFSET, TYPE_SENTENCE, DTYPE_IDX
-from src.corpus import merge_batches, save_class_ids, create_index_files, DIR_BATCHES, DIR_MERGED
-from src.lexicon import Lexicon
-from src.mytools import make_parent_dir, numpy_load
-from src.sequence_trees import Forest, concatenate_structures
+from constants import TYPE_RELATION, LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, TYPE_LEXEME, TYPE_POS_TAG, \
+    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, TYPE_SENTENCE, DTYPE_VECS
+from corpus import save_class_ids, create_index_files, DIR_BATCHES, DIR_MERGED, \
+    annotate_file_w_stanford
+from lexicon import Lexicon
+from mytools import make_parent_dir, numpy_load
+from sequence_trees import Forest, concatenate_structures
 
 logger = logging.getLogger('corpus_opennre')
 logger.setLevel(logging.DEBUG)
@@ -70,7 +71,6 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     # construct the data and graph
     data_keys = ['word'] + annotation_keys
     new_data_list = []
-    #new_parent_list = []
     new_graph_list = []
     lexicon_root_data = Lexicon()
     id_hashes = []
@@ -122,20 +122,19 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
         row, col = zip(*graph_tuples)
         current_graph = coo_matrix((np.ones(len(graph_tuples), dtype=bool), (row, col))).transpose().tocsc()
         new_graph_list.append(current_graph)
-        #_new_parents = np.ones(added, dtype=DTYPE_OFFSET) * -1
-        #_new_parents[0] = 0
-        #new_parent_list.append(_new_parents)
 
     forest = Forest(data=np.concatenate(new_data_list), structure=concatenate_structures(new_graph_list),
-                    #lexicon=lexicon,
                     lexicon_roots=lexicon_root_data,
                     data_as_hashes=True)
     forest.set_root_data_by_offset()
     lexicon_root_data.order_by_hashes(forest.root_data)
     forest.set_lexicon_roots(lexicon_root_data)
-    forest.dump(join(out_path, fn))
-    lexicon.dump(join(out_path, fn), strings_only=True)
-    lexicon_root_data.dump(join(out_path, '%s.root.id' % fn), strings_only=True)
+    if out_path is not None:
+        if not os.path.exists(out_path):
+            os.makedirs(out_path)
+        forest.dump(join(out_path, fn))
+        lexicon.dump(join(out_path, fn), strings_only=True)
+        lexicon_root_data.dump(join(out_path, '%s.root.id' % fn), strings_only=True)
     return forest
 
 
@@ -144,9 +143,10 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     out_path=('corpora output folder', 'option', 'o', str),
     sentence_processor=('sentence processor', 'option', 'p', str),
     dataset_id=('id or name of the dataset', 'option', 'd', str),
+    dump_batches=('dump batches', 'flag', 'b', bool),
     unused='not used parameters'
 )
-def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', *unused):
+def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False, *unused):
     if sentence_processor is None or sentence_processor.strip() == '':
         sentence_processor = 'process_sentence1'
     # default to process_sentence1
@@ -184,58 +184,51 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', *unu
     data_graph_list = []
     for fn in file_names:
         logger.info('create forest for %s ...' % fn)
-        #if not os.path.exists(os.path.join(in_path, fn + '.jsonl')):
-        #    logger.warning('could not find file: %s. skip it.' % os.path.join(in_path, fn + '.jsonl'))
-        #    continue
         try:
-            out_base_name = os.path.join(out_path, DIR_BATCHES, fn.split('/')[0])
-            make_parent_dir(out_base_name)
-            #process_records(records=(json.loads(s) for s in open(os.path.join(in_path, fn + '.jsonl')).readlines()),
-            #                out_base_name=out_base_name,
-            #                record_reader=partial(record_reader, root_string=TYPE_DATASET + SEPARATOR + dataset_id),
-            #                concat_mode=None, as_graph=True, dont_parse=True)
-            current_data_graph = construct_batch(in_path, join(out_path, DIR_BATCHES),
-                                     fn, lexicon, data2id, id2data,
-                                     id_prefix=root_string, root_hash=root_hash, context_hash=context_hash,
-                                     entity_hash=entity_hash, sentence_hash=sentence_hash)
+            current_data_graph = construct_batch(in_path, join(out_path, DIR_BATCHES) if dump_batches else None,
+                                                 fn, lexicon, data2id, id2data,
+                                                 id_prefix=root_string, root_hash=root_hash, context_hash=context_hash,
+                                                 entity_hash=entity_hash, sentence_hash=sentence_hash)
             logger.info('created graph with %i components' % len(current_data_graph.roots))
             data_graph_list.append(current_data_graph)
         except IOError as e:
-            logger.warning(e)
+            logger.warning('%s. Skip "%s".' % (str(e), fn))
             continue
 
     logger.info('merge ...')
     data_graph = Forest.concatenate(data_graph_list)
     data_graph.set_lexicon(lexicon)
+    logger.info('convert hashes to indices...')
+    data_graph.hashes_to_indices()
 
     # add vecs to lexicon
+    logger.info('add vecs ...')
     vec = numpy_load(join(in_path, 'vec'))
     strings = id2data['word']
     # init zero vecs
-    lexicon.init_vecs(dims=vec.shape[-1])
+    lexicon.init_vecs(new_vecs=np.zeros(shape=[len(lexicon), vec.shape[-1]], dtype=DTYPE_VECS))
     # set vecs
     indices_strings = lexicon.set_to_vecs(vecs=vec, strings=strings, prefix=TYPE_LEXEME + SEPARATOR)
     # fix these vecs
+    # TODO: remove indices for "<START_TOKEN>", etc. from indices_strings (don't fix them)
     lexicon.init_ids_fixed(ids_fixed=indices_strings)
 
-    # TODO: convert data_graph (hashes to ids)
-
     out_path_merged = join(out_path, DIR_MERGED, 'forest')
+    make_parent_dir(out_path_merged)
     data_graph.dump(out_path_merged)
     lexicon.dump(out_path_merged)
-    data_graph.lexicon_roots.dump('%s.root.id' % out_path_merged)
-    logger.info('done.')
+    data_graph.lexicon_roots.dump('%s.root.id' % out_path_merged, strings_only=True)
+    return data_graph, out_path_merged
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'ALL',
-                                                       'ANNOTATE', 'CONVERT_OPENNRE']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'CREATE_INDICES', 'ALL', 'ANNOTATE']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE':
-        plac.call(parse, args)
-    elif mode == 'MERGE':
-        forest_merged, out_path_merged = plac.call(merge_batches, args)
+        forest_merged, out_path_merged = plac.call(parse, args)
+        #elif mode == 'MERGE':
+        #forest_merged, out_path_merged = plac.call(merge_batches, args)
         relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION)
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids,
                        classes_strings=relation_strings)
@@ -243,15 +236,11 @@ def main(mode, *args):
         plac.call(create_index_files, args)
     elif mode == 'ALL':
         plac.call(main, ('PARSE',) + args)
-        plac.call(main, ('MERGE',) + args)
-        plac.call(main, ('CREATE_INDICES', '--end-root', '22584', '--split-count', '1', '--suffix', 'dev') + args)
-        plac.call(main, ('CREATE_INDICES', '--start-root', '22584', '--end-root', '38041', '--split-count', '1',
-                         '--suffix', 'test') + args)
-        plac.call(main, ('CREATE_INDICES', '--start-root', '38041', '--split-count', '4', '--suffix', 'train') + args)
-    #elif mode == 'ANNOTATE':
-    #    plac.call(annotate_file_w_stanford, args)
-    #elif mode == 'CONVERT_OPENNRE':
-    #    plac.call(convert_to_opennre_format, args)
+        #plac.call(main, ('MERGE',) + args)
+        plac.call(main, ('CREATE_INDICES', '--end-root', '2709', '--split-count', '1', '--suffix', 'test') + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '2709', '--split-count', '1', '--suffix', 'train') + args)
+    elif mode == 'ANNOTATE':
+        plac.call(annotate_file_w_stanford, args)
     else:
         raise ValueError('unknown mode')
 
