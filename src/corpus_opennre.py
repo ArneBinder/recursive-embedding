@@ -41,10 +41,39 @@ def distances_to_pos_and_length(distances, max_len):
     return indices, c
 
 
+def lowest_common_ancestor(indices_start, heads, head_root=-1):
+
+    idx_root = np.nonzero(heads == head_root)[0]
+    indices_to_root = [[]] * len(indices_start)
+    for i, idx_start in enumerate(indices_start):
+        idx = idx_start
+        while idx != idx_root:
+            indices_to_root[i].append(idx)
+            idx = heads[idx]
+
+    idx = idx_root
+    for i in range(2, min([len(l) for l in indices_to_root])):
+        if len(set(map(lambda x: x[-i], indices_to_root))) == 1:
+            idx = indices_to_root[0][-i]
+        else:
+            break
+    return idx
+
+
+def get_argument_root(pos, length, heads, head_root=-1):
+    pos_list = [pos + j for j in range(length)]
+    if len(pos_list) == 1:
+        return pos_list[0]
+    lca = lowest_common_ancestor(indices_start=pos_list, heads=heads, head_root=head_root)
+    return lca
+
+
 def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix, root_hash, context_hash, entity_hash,
                     sentence_hash, head_root=-1):
     # load: _word, _len, _pos1, _pos2, _label, _stanford_head,
     # and if available: _stanford_deprel, _stanford_pos
+
+    relation_mention_id = numpy_load(join(in_path, fn + '_relation_mention_id'))
 
     data = {}
     data['word'] = numpy_load(join(in_path, fn + '_word'))
@@ -77,11 +106,24 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     for i in range(len(data_converted['word'])):
         added = 0
         graph_tuples = []
-        id_string = id_prefix + SEPARATOR + fn + SEPARATOR + str(i)
-        id_hash = lexicon_root_data.add_and_get(id_string, data_as_hashes=True)
-        id_hashes.append(id_hash)
         l = length[i]
         heads = head[i][:l]
+        arg1_root = get_argument_root(pos=pos1[i], length=len1[i], heads=heads)
+        arg2_root = get_argument_root(pos=pos2[i], length=len2[i], heads=heads)
+        if not (pos1[i] <= arg1_root < pos1[i] + len1[i]):
+            logger.warning('ID:%s arg1_root (%i) outside entity span [%i:%i]'
+                           % (relation_mention_id[i], arg1_root, pos1[i], pos1[i] + len1[i]))
+        if not (pos2[i] <= arg2_root < pos2[i] + len2[i]):
+            logger.warning('ID:%s arg2_root (%i) outside entity span [%i:%i]'
+                           % (relation_mention_id[i], arg2_root, pos2[i], pos2[i] + len2[i]))
+        if arg1_root == arg2_root:
+            logger.warning(
+                'ID:%s arg1_root == arg2_root (%i). Skip it!' % (relation_mention_id[i], arg1_root))
+            continue
+
+        id_string = id_prefix + SEPARATOR + fn + SEPARATOR + relation_mention_id[i]
+        id_hash = lexicon_root_data.add_and_get(id_string, data_as_hashes=True)
+        id_hashes.append(id_hash)
 
         # meta data
         _new_data = np.array([root_hash, id_hash, context_hash], dtype=DTYPE_HASH)
@@ -89,9 +131,9 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
         added += len(_new_data)
         graph_tuples.extend([(0, 1), (0, 2)])
         len_meta = added
-        # TODO: set correct pos1 / pos2 with len1 / len2 (take lowest commen ancestor)
-        pos_pos1 = pos1[i] * len(data_keys) + len_meta
-        pos_pos2 = pos2[i] * len(data_keys) + len_meta
+
+        pos_arg1 = arg1_root * len(data_keys) + len_meta
+        pos_arg2 = arg2_root * len(data_keys) + len_meta
         # real data (per token)
         _new_data = np.stack([data_converted[k][i][:l] for k in data_keys], axis=-1).flatten()
         new_data_list.append(_new_data)
@@ -111,11 +153,10 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
         _new_data = np.array([sentence_hash, entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
         graph_tuples.append((2, added))
         graph_tuples.append((added, root))
-        graph_tuples.append((pos_pos1, added + 1))
-        graph_tuples.append((pos_pos2, added + 2))
-        graph_tuples.append((pos_pos1, added + 3))
-        # TODO: check direction
-        graph_tuples.append((added + 3, pos_pos2))
+        graph_tuples.append((pos_arg1, added + 1))
+        graph_tuples.append((pos_arg2, added + 2))
+        graph_tuples.append((pos_arg1, added + 3))
+        graph_tuples.append((added + 3, pos_arg2))
         new_data_list.append(_new_data)
         added += len(_new_data)
 
