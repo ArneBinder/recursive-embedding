@@ -209,9 +209,11 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     lexicon.init_vecs(new_vecs=np.zeros(shape=[len(lexicon), vec.shape[-1]], dtype=DTYPE_VECS))
     # set vecs
     indices_strings = lexicon.set_to_vecs(vecs=vec, strings=strings, prefix=TYPE_LEXEME + SEPARATOR)
-    # fix these vecs
-    # TODO: remove indices for "<START_TOKEN>", etc. from indices_strings (don't fix them)
-    lexicon.init_ids_fixed(ids_fixed=indices_strings)
+    # fix these vecs (except special entries)
+    indices_strings_special = lexicon.get_indices(strings=["<START_TOKEN>", "<UNK_TOKEN>", "<PAD_TOKEN>"],
+                                                  prefix=TYPE_LEXEME + SEPARATOR)
+    indices_fix = indices_strings[~np.isin(indices_strings, indices_strings_special)]
+    lexicon.init_ids_fixed(ids_fixed=indices_fix)
 
     out_path_merged = join(out_path, DIR_MERGED, 'forest')
     make_parent_dir(out_path_merged)
