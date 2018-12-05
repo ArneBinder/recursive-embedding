@@ -898,7 +898,7 @@ class Forest(object):
             logger.warning('Concatenate Forests with lexicon_roots reuses and appends to the lexicon_roots of the '
                            'first Forest.')
             for f in forests[1:]:
-                for s in f._lexion_roots.strings:
+                for s in f._lexicon_roots.strings:
                     assert s not in forests[0]._lexicon_roots.strings, 'root string (%s) already in lexicon_roots' % s
                     forests[0]._lexicon_roots.strings.add(s)
             forests[0]._lexicon_roots.clear_cached_values()
