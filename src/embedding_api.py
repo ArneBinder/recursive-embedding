@@ -776,6 +776,9 @@ def current_root_ids():
         return np.arange(len(forest.roots), dtype=np.int32)
 
 
+def get_pos_and_len(selected_root_indices, data_indices):
+    pass
+
 @app.route("/api/embed", methods=['POST'])
 def embed():
     try:
@@ -802,8 +805,11 @@ def embed():
                 numpy_dump(os.path.join(dump_dir, 'embeddings.roots.idx'), np.array(params['roots_selected']))
                 del params['roots_selected']
             if 'roots_idx' in params:
-                numpy_dump(os.path.join(dump_dir, 'embeddings.roots'), np.array(params['roots_idx']))
+                _roots_idx = np.array(params['roots_idx'])
                 del params['roots_idx']
+                numpy_dump(os.path.join(dump_dir, 'embeddings.roots'), _roots_idx)
+                _roots_strings = forest.root_strings[_roots_idx]
+                open(os.path.join(dump_dir, 'embeddings.roots.string'), 'w').writelines((s + '\n' for s in _roots_strings))
             response = Response("created %i embeddings (dumped to %s)" % (_embeddings.shape[0], dump_dir))
         else:
             return_type = params.get('HTTP_ACCEPT', False) or 'application/json'

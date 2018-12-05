@@ -247,6 +247,7 @@ class Forest(object):
         self._root_id_set = None
         self._nbr_in = None
         self._nbr_out = None
+        self._root_strings = None
 
     def load(self, filename, load_root_ids=True, load_root_pos=True,
              load_graph_in=True, load_graph_out=True):
@@ -342,6 +343,7 @@ class Forest(object):
 
     def set_lexicon_roots(self, lexicon_roots):
         self._lexicon_roots = lexicon_roots
+        self._root_strings = None
 
     # deprecated
     def set_root_ids(self, root_ids):
@@ -354,10 +356,12 @@ class Forest(object):
             assert root_ids.dtype == DTYPE_IDX, 'wrong dtype of new root_ids=%s (expected: %s)' \
                                                 % (str(root_ids.dtype), str(DTYPE_IDX))
         self._root_data = root_ids
+        self._root_strings = None
 
     def set_root_data_by_offset(self):
         #if self.data_as_hashes:
         self._root_data = self.data[self.roots + OFFSET_ID]
+        self._root_strings = None
         #else:
         #    self._root_data = -self.data[self.roots + OFFSET_ID] - 1
 
@@ -1145,6 +1149,18 @@ class Forest(object):
         if self._root_data is None:
             self.set_root_data_by_offset()
         return self._root_data
+
+    @property
+    def root_strings(self):
+        assert self.lexicon_roots is not None, 'lexicon_roots not available'
+        if self._root_strings is None:
+            _root_data = self.root_data
+            if max(_root_data) < 0:
+                self._root_strings = np.array([self.lexicon_roots.get_s(idx, data_as_hashes=False) for idx in -self.root_data - 1])
+            else:
+                self._root_strings = np.array([self.lexicon_roots.get_s(h, data_as_hashes=True) for h in self.root_data])
+
+        return self._root_strings
 
     @property
     def depths(self):
