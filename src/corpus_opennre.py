@@ -147,6 +147,14 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     unused='not used parameters'
 )
 def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False, *unused):
+    out_path_merged = join(out_path, DIR_MERGED)
+    if not os.path.exists(out_path_merged):
+        os.makedirs(out_path_merged)
+    logger_fh = logging.FileHandler(os.path.join(out_path_merged, 'corpus-parse-merge.log'))
+    logger_fh.setLevel(logging.DEBUG)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
     if sentence_processor is None or sentence_processor.strip() == '':
         sentence_processor = 'process_sentence1'
     # default to process_sentence1
@@ -215,12 +223,11 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     indices_fix = indices_strings[~np.isin(indices_strings, indices_strings_special)]
     lexicon.init_ids_fixed(ids_fixed=indices_fix)
 
-    out_path_merged = join(out_path, DIR_MERGED, 'forest')
-    make_parent_dir(out_path_merged)
-    data_graph.dump(out_path_merged)
-    lexicon.dump(out_path_merged)
-    data_graph.lexicon_roots.dump('%s.root.id' % out_path_merged, strings_only=True)
-    return data_graph, out_path_merged
+    out_path_merged_forest = join(out_path_merged, 'forest')
+    data_graph.dump(out_path_merged_forest)
+    lexicon.dump(out_path_merged_forest)
+    data_graph.lexicon_roots.dump('%s.root.id' % out_path_merged_forest, strings_only=True)
+    return data_graph, out_path_merged_forest
 
 
 @plac.annotations(
