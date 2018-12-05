@@ -42,7 +42,7 @@ def distances_to_pos_and_length(distances, max_len):
 
 
 def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix, root_hash, context_hash, entity_hash,
-                    sentence_hash):
+                    sentence_hash, head_root=-1):
     # load: _word, _len, _pos1, _pos2, _label, _stanford_head,
     # and if available: _stanford_deprel, _stanford_pos
 
@@ -98,7 +98,7 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
         for i2, h in enumerate(heads):
             pos_self = i2 * len(data_keys) + len_meta
             # head? connect with context node
-            if h == 0:
+            if h == head_root:
                 root = pos_self
             else:
                 pos_head = h * len(data_keys) + len_meta
@@ -129,7 +129,6 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     forest.set_root_data_by_offset()
     forest.dump(join(out_path, fn))
     lexicon.dump(join(out_path, fn), strings_only=True)
-    print('dummy')
     return forest
 
 
