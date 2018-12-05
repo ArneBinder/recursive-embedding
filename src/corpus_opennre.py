@@ -3,14 +3,13 @@ import logging
 import numpy as np
 import os
 from os.path import join
-from functools import partial
 
 import plac
 from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 
 from src.constants import TYPE_RELATION, LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, TYPE_LEXEME, TYPE_POS_TAG, \
-    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, DTYPE_OFFSET, TYPE_SENTENCE
-from src.corpus import merge_batches, save_class_ids, create_index_files, DIR_BATCHES
+    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, DTYPE_OFFSET, TYPE_SENTENCE, DTYPE_IDX
+from src.corpus import merge_batches, save_class_ids, create_index_files, DIR_BATCHES, DIR_MERGED
 from src.lexicon import Lexicon
 from src.mytools import make_parent_dir, numpy_load
 from src.sequence_trees import Forest, concatenate_structures
@@ -71,14 +70,16 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
     # construct the data and graph
     data_keys = ['word'] + annotation_keys
     new_data_list = []
-    new_parent_list = []
+    #new_parent_list = []
     new_graph_list = []
+    lexicon_root_data = Lexicon()
+    id_hashes = []
     for i in range(len(data_converted['word'])):
         added = 0
         graph_tuples = []
         id_string = id_prefix + SEPARATOR + fn + SEPARATOR + str(i)
-        lexicon.add(id_string)
-        id_hash = lexicon.get_d(id_string, data_as_hashes=True)
+        id_hash = lexicon_root_data.add_and_get(id_string, data_as_hashes=True)
+        id_hashes.append(id_hash)
         l = length[i]
         heads = head[i][:l]
 
@@ -88,6 +89,7 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
         added += len(_new_data)
         graph_tuples.extend([(0, 1), (0, 2)])
         len_meta = added
+        # TODO: set correct pos1 / pos2 with len1 / len2 (take lowest commen ancestor)
         pos_pos1 = pos1[i] * len(data_keys) + len_meta
         pos_pos2 = pos2[i] * len(data_keys) + len_meta
         # real data (per token)
@@ -125,10 +127,15 @@ def construct_batch(in_path, out_path, fn, lexicon, data2id, id2data, id_prefix,
         #new_parent_list.append(_new_parents)
 
     forest = Forest(data=np.concatenate(new_data_list), structure=concatenate_structures(new_graph_list),
-                    lexicon=lexicon, data_as_hashes=True)
+                    #lexicon=lexicon,
+                    lexicon_roots=lexicon_root_data,
+                    data_as_hashes=True)
     forest.set_root_data_by_offset()
+    lexicon_root_data.order_by_hashes(forest.root_data)
+    forest.set_lexicon_roots(lexicon_root_data)
     forest.dump(join(out_path, fn))
     lexicon.dump(join(out_path, fn), strings_only=True)
+    lexicon_root_data.dump(join(out_path, '%s.root.id' % fn), strings_only=True)
     return forest
 
 
@@ -170,9 +177,11 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', *unu
     entity_hash = lexicon.add_and_get(TYPE_NAMED_ENTITY, data_as_hashes=True)
     context_hash = lexicon.add_and_get(TYPE_CONTEXT, data_as_hashes=True)
     sentence_hash = lexicon.add_and_get(TYPE_SENTENCE, data_as_hashes=True)
-    # TODO: add vecs to lexicon
-    vec = numpy_load(join(in_path, 'vec'))
+
+    if not os.path.isdir(out_path):
+        os.makedirs(out_path)
     file_names = ['dev', 'test', 'train']
+    data_graph_list = []
     for fn in file_names:
         logger.info('create forest for %s ...' % fn)
         #if not os.path.exists(os.path.join(in_path, fn + '.jsonl')):
@@ -185,12 +194,36 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', *unu
             #                out_base_name=out_base_name,
             #                record_reader=partial(record_reader, root_string=TYPE_DATASET + SEPARATOR + dataset_id),
             #                concat_mode=None, as_graph=True, dont_parse=True)
-            construct_batch(in_path, join(out_path, DIR_BATCHES), fn, lexicon, data2id, id2data, id_prefix=root_string,
-                            root_hash=root_hash, context_hash=context_hash, entity_hash=entity_hash,
-                            sentence_hash=sentence_hash)
+            current_data_graph = construct_batch(in_path, join(out_path, DIR_BATCHES),
+                                     fn, lexicon, data2id, id2data,
+                                     id_prefix=root_string, root_hash=root_hash, context_hash=context_hash,
+                                     entity_hash=entity_hash, sentence_hash=sentence_hash)
+            logger.info('created graph with %i components' % len(current_data_graph.roots))
+            data_graph_list.append(current_data_graph)
         except IOError as e:
             logger.warning(e)
             continue
+
+    logger.info('merge ...')
+    data_graph = Forest.concatenate(data_graph_list)
+    data_graph.set_lexicon(lexicon)
+
+    # add vecs to lexicon
+    vec = numpy_load(join(in_path, 'vec'))
+    strings = id2data['word']
+    # init zero vecs
+    lexicon.init_vecs(dims=vec.shape[-1])
+    # set vecs
+    indices_strings = lexicon.set_to_vecs(vecs=vec, strings=strings, prefix=TYPE_LEXEME + SEPARATOR)
+    # fix these vecs
+    lexicon.init_ids_fixed(ids_fixed=indices_strings)
+
+    # TODO: convert data_graph (hashes to ids)
+
+    out_path_merged = join(out_path, DIR_MERGED, 'forest')
+    data_graph.dump(out_path_merged)
+    lexicon.dump(out_path_merged)
+    data_graph.lexicon_roots.dump('%s.root.id' % out_path_merged)
     logger.info('done.')
 
 

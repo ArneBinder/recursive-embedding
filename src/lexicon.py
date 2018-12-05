@@ -651,12 +651,18 @@ class Lexicon(object):
             ids.extend(_ids)
         return ids
 
-    def get_indices(self, indices=None, prefix=None, indices_as_blacklist=False):
-        #assert indices is not None or prefix is not None, 'please provide indices or a prefix'
-        if prefix is not None:
+    def get_indices(self, indices=None, prefix=None, strings=None, indices_as_blacklist=False):
+        if strings is not None:
+            if prefix is None:
+                indices = [self.mapping[hash_string(s)] for s in strings]
+            else:
+                indices = [self.mapping[hash_string(prefix + s)] for s in strings]
+        elif prefix is not None:
             indices, strings = self.get_ids_for_prefix(prefix)
         if indices is None:
             indices = np.arange(len(self), dtype=DTYPE_IDX)
+        elif not isinstance(indices, np.ndarray):
+            indices = np.array(indices, dtype=DTYPE_IDX)
         if indices_as_blacklist:
             indices_all = np.arange(len(self), dtype=DTYPE_IDX)
             mask_other = ~np.isin(indices_all, indices)
@@ -702,6 +708,19 @@ class Lexicon(object):
             self._vecs[i] = np.random.standard_normal(size=self._vecs.shape[1]) * vecs_variance + vecs_mean
         if len(indices) > 0:
             logger.info('set %i vecs to random' % len(indices))
+
+    def set_to_vecs(self, vecs, *args, **kwargs):
+        assert self.vecs is not None, 'can not set vecs because they lexicon vecs are not initialized (None)'
+        indices = self.get_indices(*args, **kwargs)
+        assert len(indices) == vecs.shape[0], 'number of lexicon indices (%i) does not match number of vecs (%i)' \
+                                              % (len(indices), vecs.shape[0])
+        assert vecs.shape[-1] == self.dims, \
+            'dimensionality of new vecs (%i) does not match lexicon dimensionality (%i)' % (vecs.shape[-1], self.dims)
+        assert vecs.dtype == self.vecs.dtype, 'dtype of vecs (%s) does not match dtype of lexicon vecs (%s)' \
+                                              % (str(vecs.dtype), str(self.vecs.dtype))
+        self._vecs[indices] = vecs
+        self.freeze()
+        return indices
 
     def add_flag(self, *args, **kwargs):
         assert self.vecs is not None, 'vecs is None, can not set to zero'
