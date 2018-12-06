@@ -1343,7 +1343,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 '%s rank (of %i):\t%i\tdif: %f\tmax_queue_length: %i'
                 % (metric, len(stat_queue), rank, (stat - prev_max), max_queue_length))
 
-            if len(stat_queue) == 1 or not config.early_stopping_window or epoch == 0:
+            if len(stat_queue) == 1 or config.early_stopping_window < 0 or epoch == 0:
+                logger.info('save checkpoint ...')
                 supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
             if 0 < config.early_stopping_window < len(stat_queue):
@@ -1471,7 +1472,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
 
     if config.model_type == MT_CANDIDATES:
         if config.task and config.task.strip():
-            classes_ids_list = []
+            lexicon_indices_list = []
             for prefix in config.task.split(','):
                 #type_class = TYPE_FOR_TASK[c.strip()]
                 types_or_prefix = TYPE_LONG.get(prefix.strip(), prefix.strip())
@@ -1483,8 +1484,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 save_class_ids(dir_path=os.path.join(logdir, 'data'),
                                prefix_type=prefix.strip(), classes_ids=_ids,
                                classes_strings=_strings)
-                classes_ids_list.append(np.array(_ids, dtype=DTYPE_IDX))
-            tree_iterator_args['classes_ids'] = classes_ids_list
+                lexicon_indices_list.append(np.array(_ids, dtype=DTYPE_IDX))
+            tree_iterator_args['classes_ids'] = lexicon_indices_list
 
     ## DEBUG
     #ids_new = np.load('/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT/relation_toendsplit_ps1_TEST.bk/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtREROOT_ns8_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/values_max_indices.np')
@@ -1536,81 +1537,86 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         if config.model_type == MT_CANDIDATES:
             root_indices = meta[m][M_INDICES]
             # create a mapping to all data that will be used in training
-            indices_mapping_full_trees = np.concatenate([np.arange(forest.roots[root_idx],
+            data_indices_full_trees = np.concatenate([np.arange(forest.roots[root_idx],
                                                         forest.roots[root_idx + 1] if root_idx + 1 < len(
                                                             forest.roots) else len(forest)) for root_idx in
                                               root_indices])
-            classes_ids_list = tree_iterator_args.get('classes_ids', None)
+            lexicon_indices_list = tree_iterator_args.get('classes_ids', None)
 
             indices_mapping_dict = {}
             # filter indices_mapping by class ids
-            if classes_ids_list is not None:
-                indices_mapping_list = []
-                for cids in classes_ids_list:
-                    mask = np.isin(forest.data[indices_mapping_full_trees], cids)
-                    logger.debug('take %i indices from indices_mapping_all (len=%i)'
-                                 % (np.count_nonzero(mask), len(indices_mapping_full_trees)))
-                    current_mapping = indices_mapping_full_trees[mask]
-                    indices_mapping_list.append(current_mapping)
-                    for cid in cids:
-                        indices_mapping_dict[cid] = (current_mapping, cids)
-                indices_mapping_all = np.sort(np.concatenate(indices_mapping_list))
+            if lexicon_indices_list is not None:
+                data_indices_list = []
+                for lexicon_indices in lexicon_indices_list:
+                    mask = np.isin(forest.data[data_indices_full_trees], lexicon_indices)
+                    logger.debug('take %i indices from data_indices_selected (len=%i)'
+                                 % (np.count_nonzero(mask), len(data_indices_full_trees)))
+                    current_data_indices = data_indices_full_trees[mask]
+                    data_indices_list.append(current_data_indices)
+                    for lex_idx in lexicon_indices:
+                        indices_mapping_dict[lex_idx] = (current_data_indices, lexicon_indices)
+                data_indices_selected = np.sort(np.concatenate(data_indices_list))
                 # blanked should select all
                 data_blanked = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=False)
                 if data_blanked not in indices_mapping_dict:
-                    indices_mapping_dict[data_blanked] = (indices_mapping_all, np.concatenate(classes_ids_list))
+                    indices_mapping_dict[data_blanked] = (data_indices_selected, np.concatenate(lexicon_indices_list))
 
-                new_neg_samples = str(min(int(config.neg_samples or 1000), max(map(len, classes_ids_list)) - 1))
+                new_neg_samples = str(min(int(config.neg_samples or 1000), max(map(len, lexicon_indices_list)) - 1))
                 if config.neg_samples.strip() != new_neg_samples:
                     logger.debug('set neg_samples = %s (== min(config.neg_samples, max(nbr_of_classes) -1) over all sets of classes) for exhaustive sampling'
                                  % new_neg_samples)
                     config.neg_samples = new_neg_samples
             else:
-                indices_mapping_dict[None] = indices_mapping_full_trees
-                indices_mapping_all = indices_mapping_full_trees
+                data_indices_selected = data_indices_full_trees
+            indices_mapping_dict[None] = data_indices_selected
 
             nbr_indices = int(config.nbr_trees or 0)
             if m == M_TEST and config.nbr_trees_test:
                 nbr_indices = int(config.nbr_trees_test or 0)
             if nbr_indices <= 0:
-                nbr_indices = len(indices_mapping_all)
+                nbr_indices = len(data_indices_selected)
             else:
-                nbr_indices = min(nbr_indices, len(indices_mapping_all))
-            logger.info('%s: use %i indices per epoch (available indices: %i)' % (m, nbr_indices, len(indices_mapping_full_trees)))
+                nbr_indices = min(nbr_indices, len(data_indices_selected))
+            logger.info('%s: use %i indices per epoch (selected indices: %i, available indices: %i)'
+                        % (m, nbr_indices, len(data_indices_selected), len(data_indices_full_trees)))
 
             def _sample_indices(shuffle=True):
-                logger.debug('select %i new root indices (selected data size: %i)' % (nbr_indices, len(indices_mapping_all)))
+                logger.debug('select %i new root indices (selected data size: %i)'
+                             % (nbr_indices, len(data_indices_selected)))
                 if debug:
                     logger.warning('use %i FIXED indices (debug: True)' % nbr_indices)
-                    assert nbr_indices <= len(indices_mapping_all), 'nbr_indices (%i) is higher then selected data size (%i)' \
-                                                                % (nbr_indices, len(indices_mapping_all))
+                    assert nbr_indices <= len(data_indices_selected), 'nbr_indices (%i) is higher then selected data size (%i)' \
+                                                                % (nbr_indices, len(data_indices_selected))
                     _indices = np.arange(nbr_indices, dtype=DTYPE_IDX)
                 else:
-                    _indices = np.random.randint(len(indices_mapping_all), size=nbr_indices) if shuffle else np.arange(nbr_indices, dtype=DTYPE_IDX)
-                return indices_mapping_all[_indices]
+                    _indices = np.random.randint(len(data_indices_selected), size=nbr_indices) if shuffle else np.arange(nbr_indices, dtype=DTYPE_IDX)
+                return data_indices_selected[_indices]
 
+            # re-sampling implies re-building of all trees
             # re-sample only if not exhaustive sampling
-            if nbr_indices != len(indices_mapping_all) or (m == M_TRAIN and (config.keep_prob_blank < 1.0 or config.keep_prob_node < 1.0)):
+            if nbr_indices != len(data_indices_selected) or (m == M_TRAIN and (config.keep_prob_blank < 1.0 or config.keep_prob_node < 1.0)):
                 meta[m][M_INDICES_SAMPLER] = _sample_indices
             else:
                 logger.debug(
                     '%s: disable re-sampling because all available indices (nbr: %i) are sampled at once' % (m, nbr_indices))
-            # dont shuffle TEST set
+            # don't shuffle TEST set
             meta[m][M_INDICES] = _sample_indices(shuffle=(m != M_TEST))
             if m == M_TRAIN:
                 _tree_iterator_args = {'keep_prob_blank': config.keep_prob_blank, 'keep_prob_node': config.keep_prob_node}
                 _tree_iterator_args.update(tree_iterator_args)
-                sample_method = 'nearest'
-                # sample to all when sample_method='nearest
-                indices_mapping_dict = {None: indices_mapping_all}
+                sample_method = config.sample_method
             else:
                 _tree_iterator_args = tree_iterator_args
-                sample_method = None
+                sample_method = diters.SAMPLE_METHOD_UNIFORM
+                if config.sample_method.endswith('A'):
+                    sample_method += 'A'
+            logger.info('%s: use sample_method %s' % (m, sample_method))
             meta[m][M_TREE_ITER] = partial(diters.reroot_wrapper,
                                            tree_iter=tree_iterator, forest=forest,
                                            neg_samples=int('0' + config.neg_samples), #nbr_indices=nbr_indices,
                                            sample_method=sample_method,
-                                           indices_mappings=indices_mapping_dict,
+                                           indices_mapping=indices_mapping_dict,
+                                           #data_indices_selected=data_indices_selected,
                                            **_tree_iterator_args)
         else:
             #if precompile:

@@ -17,6 +17,15 @@ from mytools import numpy_load
 RECURSION_LIMIT_MIN = 1000
 RECURSION_LIMIT_ADD = 100
 
+## different sample methods for reroot_wrapper
+## take all
+SAMPLE_METHOD_UNIFORM = 'U'
+SAMPLE_METHOD_UNIFORM_ALL = 'UA'
+SAMPLE_METHOD_FREQUENCY = 'F'
+SAMPLE_METHOD_FREQUENCY_ALL = 'FA'
+SAMPLE_METHOD_NEAREST = 'NA'
+SAMPLE_METHOD_NEAREST_ALL = 'NA'
+
 #OFFSET_CONTEXT_ROOT = 2
 #OFFSET_SEEALSO_ROOT = 3
 #OFFSET_RELATEDNESS_SCORE_ROOT = 3
@@ -474,68 +483,89 @@ def get_nearest_neighbor_samples(idx_transformed, all_candidate_indices, lexicon
     return max_indices
 
 
-def reroot_wrapper(tree_iter, neg_samples, forest, indices_mappings, indices, transform=True, debug=False,
-                   sample_method=None, embedder=None, session=None, **kwargs):
+def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None, #data_indices_all=None,
+                   transform=True, debug=False,
+                   sample_method='', embedder=None, session=None, **kwargs):
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     nearest_neighbors_transformed = {}
     logger.debug('default sample_method=%s' % str(sample_method))
-    if embedder is None and session is None and sample_method == 'nearest':
-        logger.warning('embedder or session not available, but required for sample_method=nearest. Use "frequency" instead.')
-        sample_method = 'frequency'
+    sample_method_backup = SAMPLE_METHOD_FREQUENCY_ALL
+    if sample_method == SAMPLE_METHOD_NEAREST_ALL:
+        if embedder is None and session is None:
+            logger.warning('embedder or session not available, but required for sample_method=nearest. Use "%s" instead.'
+                           % str(sample_method_backup))
+            sample_method = sample_method_backup
+
+    if sample_method in [SAMPLE_METHOD_UNIFORM_ALL, SAMPLE_METHOD_FREQUENCY_ALL, SAMPLE_METHOD_NEAREST_ALL]:
+        data_indices_all = indices_mapping[None]
+        indices_mapping = None
+        assert data_indices_all is not None, 'not class-wise sampling requires data_indices_all, but it is None'
+    else:
+        assert indices_mapping is not None, 'class-wise sampling requires indices_mapping, but it is None'
+        data_indices_all = None
+
     #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
         #samples = np.random.choice(forest.data, size=neg_samples + 1)
         head_transformed_back, was_reverted = forest.lexicon.transform_idx_back(tree[KEY_HEAD])
         # get selected data
-        if None in indices_mappings:
-            indices_mapping = indices_mappings[None]
-            nbr_classes = len(forest.lexicon)
-            class_ids = None
+        if indices_mapping is None:
+            data_indices = data_indices_all
+            nbr_lex_indices = len(forest.lexicon)
+            lexicon_indices = None
         else:
-            indices_mapping, class_ids = indices_mappings[head_transformed_back]
-            nbr_classes = len(class_ids)
+            data_indices, lexicon_indices = indices_mapping[head_transformed_back]
+            nbr_lex_indices = len(lexicon_indices)
 
-        if class_ids is not None and neg_samples + 1 == nbr_classes and (sample_method is None or sample_method == 'nearest'):
-            sample_method = 'all'
-        if sample_method is None:
-            sample_method = 'frequency'
+        # use all lexicon_indices as samples (exhaustive sampling without repetitions), if its number matches neg_samples
+        if sample_method in [SAMPLE_METHOD_UNIFORM, SAMPLE_METHOD_UNIFORM_ALL]:
+            # ATTENTION: lexicon_indices might get shuffled
+            samples = lexicon_indices
+            if neg_samples + 1 < len(samples):
+                np.random.shuffle(samples)
+                samples = samples[:neg_samples + 1]
+            elif neg_samples + 1 > len(samples):
+                raise Exception('not enough lexicon_indices (%i) for uniform sampling with (neg_samples+1)=%i'
+                                % (len(samples), neg_samples + 1))
 
-        # use all class_ids as samples (exhaustive sampling without repetitions), if its number matches neg_samples
-        if sample_method == 'all':
-            samples = class_ids.copy()
             # swap head to front
             samples[samples == head_transformed_back] = samples[0]
+            samples[0] = head_transformed_back
             samples = forest.lexicon.transform_indices(samples)
-            samples[0] = tree[KEY_HEAD]
-        elif sample_method == 'frequency':
+            #samples[0] = tree[KEY_HEAD]
+        elif sample_method in [SAMPLE_METHOD_FREQUENCY, SAMPLE_METHOD_FREQUENCY_ALL]:
             # sample only from selected data
-            sample_indices = np.random.choice(indices_mapping, size=neg_samples + 1)
+            sample_indices = np.random.choice(data_indices, size=neg_samples + 1)
             samples = forest.data[sample_indices]
             # replace samples that equal the head/root: sample replacement element
-            rep = np.random.randint(nbr_classes - 1)
-            # map replacement element from class index to lexicon index, if class_ids are given
-            if class_ids is not None:
-                if class_ids[rep] == head_transformed_back:
-                    rep = class_ids[-1]
+            rep = np.random.randint(nbr_lex_indices - 1)
+            # map replacement element from class index to lexicon index, if lexicon_indices are given
+            if lexicon_indices is not None:
+                if lexicon_indices[rep] == head_transformed_back:
+                    rep = lexicon_indices[-1]
                 else:
-                    rep = class_ids[rep]
+                    rep = lexicon_indices[rep]
             else:
                 # otherwise just use as index to lexicon
                 if rep == head_transformed_back:
-                    rep = nbr_classes - 1
+                    rep = nbr_lex_indices - 1
 
             samples[samples == head_transformed_back] = rep
             # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
             # replaced by IDENTITY in train_fold.execute_run.
             samples[samples < 0] = d_target
+            samples[0] = head_transformed_back
             samples = forest.lexicon.transform_indices(samples)
-            samples[0] = tree[KEY_HEAD]
-        elif sample_method == 'nearest':
+            #samples[0] = tree[KEY_HEAD]
+        elif sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
             if tree[KEY_HEAD] in nearest_neighbors_transformed:
                 samples = nearest_neighbors_transformed[tree[KEY_HEAD]]
             else:
-                all_candidate_indices = np.unique(forest.data[indices_mapping])
-                samples = get_nearest_neighbor_samples(tree[KEY_HEAD], all_candidate_indices, forest.lexicon, embedder, session, nbr=neg_samples)
+                #all_candidate_indices = np.unique(forest.data[data_indices])
+                assert len(data_indices) > neg_samples, \
+                    'not enough data_indices (%i) to get neg_samples=%i nearest neighbors' % (data_indices, neg_samples)
+                samples = get_nearest_neighbor_samples(tree[KEY_HEAD], data_indices, forest.lexicon, embedder, session,
+                                                       nbr=neg_samples)
                 nearest_neighbors_transformed[tree[KEY_HEAD]] = samples
         else:
             raise Exception('unknown sample_method: %s' % str(sample_method))
