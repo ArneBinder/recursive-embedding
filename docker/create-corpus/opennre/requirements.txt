@@ -12,7 +12,9 @@ scipy
 svgutils
 pydot
 
+# convert_nyt
 nltk
+requests
 
 # from python:
 # csv json itertools functools errno math copy logging fnmatch os ntpath re random sys time math multiprocessing datetime
