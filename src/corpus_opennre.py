@@ -343,8 +343,8 @@ def convert_nyt(in_path, server_url='http://localhost:9000'):
     out_path = join(in_path, 'annotated')
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    #file_names = ['test', 'train']
-    file_names = ['test-reading-friendly-1000']
+    file_names = ['test', 'train']
+    #file_names = ['test-reading-friendly-1000']
     for fn in file_names:
         _fn = join(in_path, fn)
         _fn_jl = '%s.jsonl' % _fn
