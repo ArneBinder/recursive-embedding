@@ -349,9 +349,11 @@ def convert_nyt(in_path, server_url='http://localhost:9000'):
         _fn = join(in_path, fn)
         _fn_jl = '%s.jsonl' % _fn
         if not os.path.exists(_fn_jl):
+            logger.info('create %s ...' % _fn_jl)
             records = json.load(open('%s.json' % _fn))
             records_converted = [convert_nyt_record('%s/%i' % (fn, i), r) for i, r in enumerate(records)]
             io.open(_fn_jl, 'w', encoding='utf8').writelines((json.dumps(r, ensure_ascii=False) + u'\n' for r in records_converted))
+            logger.info('%s written' % _fn_jl)
         annotate_file_w_stanford(fn_in=_fn_jl, fn_out=join(out_path, '%s.jsonl' % fn), server_url=server_url)
 
 
