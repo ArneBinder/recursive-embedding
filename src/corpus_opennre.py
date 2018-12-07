@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import numpy as np
@@ -281,7 +282,7 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'CREATE_INDICES', 'ALL', 'ANNOTATE']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'CREATE_INDICES', 'ALL', 'ANNOTATE', 'CONVERT_NYT']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE':
@@ -301,8 +302,57 @@ def main(mode, *args):
         plac.call(main, ('CREATE_INDICES', '--start-root', '2707', '--split-count', '4', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
     elif mode == 'ANNOTATE':
         plac.call(annotate_file_w_stanford, args)
+    elif mode == 'CONVERT_NYT':
+        plac.call(convert_nyt, args)
     else:
         raise ValueError('unknown mode')
+
+
+def find_sub_list(sl, l):
+    sll = len(sl)
+    for ind in (i for i, e in enumerate(l) if e == sl[0]):
+        if l[ind:ind+sll] == sl:
+            return ind, sll
+    return None
+
+
+def convert_nyt_record(id, record):
+    # tokens, entities, id, label
+    tokens = record['sentence'].split()
+    tokens_head = record['head']['word'].split()
+    tokens_tail = record['tail']['word'].split()
+    entitiy_head = find_sub_list(tokens_head, tokens)
+    assert entitiy_head is not None, '%s not found in tokens: %s' % (str(tokens_head), str(tokens))
+    entity_tail = find_sub_list(tokens_tail, tokens)
+    assert entity_tail is not None, '%s not found in tokens: %s' % (str(tokens_head), str(tokens))
+    res = {
+        'id': id,
+        'tokens': tokens,
+        'entities': [entitiy_head, entity_tail],
+        'label': record['relation'],
+        'entities_types': [record['head']['type'].split(','), record['head']['type'].split(',')]
+    }
+    return res
+
+
+@plac.annotations(
+    in_path=('corpora input folder', 'option', 'i', str),
+    server_url=('stanford CoreNLP server url', 'option', 'u', str),
+)
+def convert_nyt(in_path, server_url='http://localhost:9000'):
+    out_path = join(in_path, 'annotated')
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    #file_names = ['test', 'train']
+    file_names = ['test-reading-friendly-1000']
+    for fn in file_names:
+        _fn = join(in_path, fn)
+        _fn_jl = '%s.jsonl' % _fn
+        if not os.path.exists(_fn_jl):
+            records = json.load(open('%s.json' % _fn))
+            records_converted = [convert_nyt_record('%s/%i' % (fn, i), r) for i, r in enumerate(records)]
+            io.open(_fn_jl, 'w', encoding='utf8').writelines((json.dumps(r, ensure_ascii=False) + u'\n' for r in records_converted))
+        annotate_file_w_stanford(fn_in=_fn_jl, fn_out=join(out_path, '%s.jsonl' % fn), server_url=server_url)
 
 
 if __name__ == '__main__':
