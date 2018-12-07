@@ -282,7 +282,7 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'CREATE_INDICES', 'ALL', 'ANNOTATE', 'CONVERT_NYT']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'CREATE_INDICES', 'ALL_SEMEVAL', 'ANNOTATE', 'CONVERT_NYT']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE':
@@ -295,7 +295,7 @@ def main(mode, *args):
         return out_path_merged
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
-    elif mode == 'ALL':
+    elif mode == 'ALL_SEMEVAL':
         out_path_merged = plac.call(main, ('PARSE',) + args)
         #plac.call(main, ('MERGE',) + args)
         plac.call(main, ('CREATE_INDICES', '--end-root', '2707', '--split-count', '1', '--suffix', 'test', '--merged-forest-path', out_path_merged) + args)

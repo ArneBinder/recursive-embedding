@@ -1,0 +1,80 @@
+version: '2.3'
+services:
+  corpus-parse:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/opennre/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_opennre.py PARSE
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/${DATASET_ID}
+                                  --sentence-processor ${SENTENCE_PROCESSOR}
+                                  --dataset-id ${DATASET_ID}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-indices-test-semeval:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/opennre/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_opennre.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/${DATASET_ID}/merged/forest
+                                  --split-count 1
+                                  --end-root 2707
+                                  --suffix test
+
+  corpus-indices-train-semeval:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/opennre/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_opennre.py CREATE_INDICES
+                                  --merged-forest-path /root/corpora_out/${DATASET_ID}/merged/forest
+                                  --split-count ${SPLIT_COUNT}
+                                  --start-root 2707
+                                  --suffix train
+
+  corpus-all-semeval:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/opennre/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_opennre.py ALL_SEMEVAL
+                                  --in-path /root/corpora_in
+                                  --out-path /root/corpora_out/${DATASET_ID}
+                                  --sentence-processor ${SENTENCE_PROCESSOR}
+                                  --dataset-id ${DATASET_ID}
+                                  --merged-forest-path /root/corpora_out/${DATASET_ID}/merged/forest
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+
+  convert-nyt:
+    build:
+      context: ../../..
+      dockerfile: docker/create-corpus/opennre/Dockerfile
+    volumes:
+      - ../../../src:/root/recursive-embedding/src
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_opennre.py CONVERT_NYT
+                                  --in-path /root/corpora_in
+                                  --server-url ${CORENLP_SERVER_URL}
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
