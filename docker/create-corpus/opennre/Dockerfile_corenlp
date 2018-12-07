@@ -1,0 +1,2 @@
+FROM openjdk:8
+COPY start_corenlp.sh /root/

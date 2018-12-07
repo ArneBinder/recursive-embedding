@@ -68,6 +68,8 @@ services:
     build:
       context: ../../..
       dockerfile: docker/create-corpus/opennre/Dockerfile
+    depends_on:
+      - core-nlp-server
     volumes:
       - ../../../src:/root/recursive-embedding/src
       - ${HOST_CORPORA_IN}:/root/corpora_in
@@ -75,6 +77,18 @@ services:
     command: >
       /root/set-user-with-folder.sh /root/recursive-embedding/src python corpus_opennre.py CONVERT_NYT
                                   --in-path /root/corpora_in
-                                  --server-url ${CORENLP_SERVER_URL}
+                                  --server-url core-nlp-server:${CORE_NLP_PORT}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
+
+
+  core-nlp-server:
+    build:
+      dockerfile: Dockerfile_corenlp
+
+    ports:
+      - ${CORE_NLP_PORT}:${CORE_NLP_PORT}
+    volumes:
+      - ${HOST_CORENLP_DIRECTORY}:/root/corenlp
+    command: >
+      start_corenlp.sh ${CORE_NLP_PORT} /root/corenlp
