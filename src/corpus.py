@@ -537,7 +537,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                 except ValueError as e:
                     logger.debug(str(e))
                     break
-        logger.info('loaded %i processed records' % len(records_preprocessed))
+        logger.info('loaded %i already processed records' % len(records_preprocessed))
 
     logger.info('process %s ...' % fn_in)
     mismatches = set()
@@ -575,6 +575,6 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         record.update(annots)
                     f_out.write(json.dumps(record) + '\n')
                 except AssertionError as e:
-                    logger.warning('ID:%s (#%i)\t%s' % (i, record[KEY_ID], str(e)))
+                    logger.warning('ID:%s (#%i)\t%s' % (record[KEY_ID], i, str(e)))
     logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
     logger.info('time: %s' % str(datetime.now() - t_start))
