@@ -519,44 +519,62 @@ def stanford_depgraph_to_dict(dgraph, k_map=None, types=None):
 
 def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-jsonl/dev_10.jsonl',
                              fn_out='/mnt/DATA/ML/data/corpora_in/tacred/tacred-jsonl/annot_dev_10.jsonl',
-                             server_url='http://localhost:9000'):
+                             server_url='http://localhost:9000',
+                             key_id=KEY_ID):
     from nltk.parse.corenlp import CoreNLPDependencyParser
     k_tokens_new = 'tokens_stanford'
     t_start = datetime.now()
     dep_parser = CoreNLPDependencyParser(url=server_url)
 
+    records_preprocessed = {}
+    if os.path.exists(fn_out):
+        logger.info('read already processed records from %s ...' % fn_out)
+        with open(fn_out) as f_out:
+            for line in f_out:
+                try:
+                    record = json.loads(line)
+                    records_preprocessed[record[key_id]] = record
+                except ValueError as e:
+                    logger.debug(str(e))
+                    break
+        logger.info('loaded %i processed records' % len(records_preprocessed))
+
     logger.info('process %s ...' % fn_in)
     mismatches = set()
     with open(fn_in) as f_in:
         with open(fn_out, 'w') as f_out:
-            for line in f_in.readlines():
-                jsl = json.loads(line)
+            for i, line in enumerate(f_in.readlines()):
+                record = json.loads(line)
                 try:
-                    parses = dep_parser.parse(jsl[KEY_STANFORD_TOKENS])
-                    annots = None
-                    for parse in parses:
-                        if annots is not None:
-                            logger.debug('ID:%s\tfound two parses' % jsl[KEY_ID])
-                            break
-                        annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
-                                                           k_map={'tag': KEY_STANFORD_POS,
-                                                                  'head': KEY_STANFORD_HEAD,
-                                                                  'rel': KEY_STANFORD_DEPREL,
-                                                                  'word': k_tokens_new,
-                                                                  'address': 'address'})
-                    assert annots is not None, 'found no parses'
-                    assert len(jsl[KEY_STANFORD_TOKENS]) == len(annots[k_tokens_new]), \
-                        'ID:%s\tnumber of tokens after parsing does not match. before: %i vs after: %i' \
-                        % (jsl[KEY_ID], len(jsl[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new]))
-                    if jsl[KEY_STANFORD_TOKENS] != annots[k_tokens_new]:
-                        new_mismatches = [(jsl[KEY_STANFORD_TOKENS][i], annots[k_tokens_new][i]) for i in range(len(jsl[KEY_STANFORD_TOKENS])) if jsl[KEY_STANFORD_TOKENS][i] != annots[k_tokens_new][i]]
-                        mismatches.update(new_mismatches)
-                        #print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (jsl[KEY_STANFORD_ID], ', '.join(jsl[KEY_STANFORD_TOKENS]), ', '.join(annots[k_tokens_new])))
-                       # print('ID:%s\ttoken mismatches: %s' % (jsl[KEY_STANFORD_ID], '; '.join(mismatches)))
-                    del annots[k_tokens_new]
-                    jsl.update(annots)
-                    f_out.write(json.dumps(jsl) + '\n')
+                    _id = record[key_id]
+                    if _id in records_preprocessed:
+                        record = records_preprocessed[_id]
+                    else:
+                        parses = dep_parser.parse(record[KEY_STANFORD_TOKENS])
+                        annots = None
+                        for parse in parses:
+                            if annots is not None:
+                                logger.debug('ID:%s (#%i)\tfound two parses' % (i, record[KEY_ID]))
+                                break
+                            annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
+                                                               k_map={'tag': KEY_STANFORD_POS,
+                                                                      'head': KEY_STANFORD_HEAD,
+                                                                      'rel': KEY_STANFORD_DEPREL,
+                                                                      'word': k_tokens_new,
+                                                                      'address': 'address'})
+                        assert annots is not None, 'found no parses'
+                        assert len(record[KEY_STANFORD_TOKENS]) == len(annots[k_tokens_new]), \
+                            'number of tokens after parsing does not match. before: %i vs after: %i' \
+                            % (len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new]))
+                        if record[KEY_STANFORD_TOKENS] != annots[k_tokens_new]:
+                            new_mismatches = [(record[KEY_STANFORD_TOKENS][i], annots[k_tokens_new][i]) for i in range(len(record[KEY_STANFORD_TOKENS])) if record[KEY_STANFORD_TOKENS][i] != annots[k_tokens_new][i]]
+                            mismatches.update(new_mismatches)
+                            #print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (record[KEY_STANFORD_ID], ', '.join(record[KEY_STANFORD_TOKENS]), ', '.join(annots[k_tokens_new])))
+                           # print('ID:%s\ttoken mismatches: %s' % (record[KEY_STANFORD_ID], '; '.join(mismatches)))
+                        del annots[k_tokens_new]
+                        record.update(annots)
+                    f_out.write(json.dumps(record) + '\n')
                 except AssertionError as e:
-                    logger.warning('ID:%s\t%s' % (jsl[KEY_ID], str(e)))
+                    logger.warning('ID:%s (#%i)\t%s' % (i, record[KEY_ID], str(e)))
     logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
     logger.info('time: %s' % str(datetime.now() - t_start))
