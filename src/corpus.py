@@ -554,7 +554,8 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         annots = None
                         for parse in parses:
                             if annots is not None:
-                                logger.debug('ID:%s (#%i)\tfound two parses' % (i, record[KEY_ID]))
+                                logger.debug('ID:%s (#%i)\tfound two parses'
+                                             % (i + len(records_preprocessed), record[KEY_ID]))
                                 break
                             annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
                                                                k_map={'tag': KEY_STANFORD_POS,
@@ -567,7 +568,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                             'number of tokens after parsing does not match. before: %i vs after: %i' \
                             % (len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new]))
                         if record[KEY_STANFORD_TOKENS] != annots[k_tokens_new]:
-                            new_mismatches = [(record[KEY_STANFORD_TOKENS][i], annots[k_tokens_new][i]) for i in range(len(record[KEY_STANFORD_TOKENS])) if record[KEY_STANFORD_TOKENS][i] != annots[k_tokens_new][i]]
+                            new_mismatches = [(record[KEY_STANFORD_TOKENS][j], annots[k_tokens_new][j]) for j in range(len(record[KEY_STANFORD_TOKENS])) if record[KEY_STANFORD_TOKENS][j] != annots[k_tokens_new][j]]
                             mismatches.update(new_mismatches)
                             #print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (record[KEY_STANFORD_ID], ', '.join(record[KEY_STANFORD_TOKENS]), ', '.join(annots[k_tokens_new])))
                            # print('ID:%s\ttoken mismatches: %s' % (record[KEY_STANFORD_ID], '; '.join(mismatches)))
@@ -575,6 +576,6 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         record.update(annots)
                     f_out.write(json.dumps(record) + '\n')
                 except AssertionError as e:
-                    logger.warning('ID:%s (#%i)\t%s' % (record[KEY_ID], i, str(e)))
+                    logger.warning('ID:%s (#%i)\t%s' % (record[KEY_ID], i + len(records_preprocessed), str(e)))
     logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
     logger.info('time: %s' % str(datetime.now() - t_start))
