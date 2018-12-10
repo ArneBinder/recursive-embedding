@@ -560,7 +560,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                             except HTTPError as e:
                                 nbr_try -= 1
                                 logger.warning('ID:%s (#%i) failed to parse. remaining tries: %i; tokens=%s\ne=%s'
-                                               % (i, record[KEY_ID], nbr_try, ', '.join(record[KEY_STANFORD_TOKENS]), str(e)))
+                                               % (record[KEY_ID], i, nbr_try, ', '.join(record[KEY_STANFORD_TOKENS]), str(e)))
                                 if nbr_try == 0:
                                     raise AssertionError('number of re-tries exceeded, skip record')
                                 continue
@@ -568,7 +568,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         annots = None
                         for parse in parses:
                             if annots is not None:
-                                logger.debug('ID:%s (#%i)\tfound two parses' % (i, record[KEY_ID]))
+                                logger.warning('ID:%s (#%i)\tfound two parses' % (record[KEY_ID], i))
                                 break
                             annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
                                                                k_map={'tag': KEY_STANFORD_POS,
