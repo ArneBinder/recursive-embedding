@@ -1,3 +1,5 @@
+import json
+
 import scipy.sparse as sparse
 import time
 from functools import wraps
@@ -165,6 +167,50 @@ def chunks(g, n, cut=False):
     #if len(l) > 0 and not cut:
     #    yield l
     assert len(l) == 0 or cut, '%i elements remain after chunking with n=%i' % (len(l), n)
+
+
+def jsonl_read(fn):
+    """ Read a json line file """
+    with open(fn) as f:
+        for l in f:
+            yield json.loads(l)
+
+
+def jsonl_compare(jl1, jl2, key_id='id', keys=None):
+    iter1 = iter(jl1)
+    iter2 = iter(jl2)
+    i = 0
+    try:
+        while True:
+            try:
+                r1 = iter1.next()
+                r2 = iter2.next()
+            except StopIteration:
+                break
+            assert r1[key_id] == r2[key_id], 'ids do not match. %s vs. %s' % (r1[key_id], r2[key_id])
+
+            for k in r1:
+                if keys is None or k in keys:
+                    assert k in r2, 'key=%s in r1, but not in r2' % k
+                    assert r1[k] == r2[k], 'values for k=%s do not match.\n%s vs.\n%s' % (k, str(r1[k]), str(r2[k]))
+            keys_2_only = set(r2) - set(r1)
+            for k in keys_2_only:
+                if keys is None or k in keys:
+                    assert k in r1, 'key=%s in r2, but not in r1' % k
+        i += 1
+    except AssertionError as e:
+        raise AssertionError('#%i: %s' % (i, str(e)))
+
+    try:
+        iter1.next()
+        raise AssertionError('r1 has more entries')
+    except StopIteration:
+        pass
+    try:
+        iter2.next()
+        raise AssertionError('r2 has more entries')
+    except StopIteration:
+        pass
 
 
 # similar to numpy.split, but uses sizes instead of end positions
