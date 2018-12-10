@@ -582,8 +582,8 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         if len(record[KEY_STANFORD_TOKENS]) != len(annots[k_tokens_new]):
                             #raise AssertionError('number of tokens after parsing does not match. before: %i vs after: %i' \
                             #    % (len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new])))
-                            logger.warning('number of tokens after parsing does not match. before: %i vs after: %i'
-                                           % (len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new])))
+                            logger.warning('ID:%s (#%i)\tnumber of tokens after parsing does not match. before: %i vs after: %i'
+                                           % (record[KEY_ID], i, len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new])))
                         else:
                             if record[KEY_STANFORD_TOKENS] != annots[k_tokens_new]:
                                 new_mismatches = [(record[KEY_STANFORD_TOKENS][j], annots[k_tokens_new][j]) for j in range(len(record[KEY_STANFORD_TOKENS])) if record[KEY_STANFORD_TOKENS][j] != annots[k_tokens_new][j]]
