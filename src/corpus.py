@@ -2,6 +2,7 @@ import io
 import json
 import logging
 import os
+from collections import Counter
 from datetime import datetime
 from functools import partial
 
@@ -542,7 +543,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
         logger.info('loaded %i already processed records' % len(records_preprocessed))
 
     logger.info('process %s ...' % fn_in)
-    mismatches = set()
+    mismatches = Counter()
     with open(fn_in) as f_in:
         with open(fn_out_tmp, 'w') as f_out:
             for i, line in enumerate(f_in.readlines()):
@@ -596,5 +597,5 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                 except AssertionError as e:
                     logger.warning('ID:%s (#%i)\t%s' % (record[KEY_ID], i, str(e)))
     os.rename(fn_out_tmp, fn_out)
-    logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
+    logger.debug('mismatches:\n%s' % '\n'.join(['%i:\t%s -> %s' % (mismatches[(x, y)], x, y) for (x, y) in sorted(mismatches, key=lambda x: mismatches[x], reverse=True)]))
     logger.info('time: %s' % str(datetime.now() - t_start))
