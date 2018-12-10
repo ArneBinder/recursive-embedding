@@ -176,7 +176,10 @@ def jsonl_read(fn):
             yield json.loads(l)
 
 
-def jsonl_compare(jl1, jl2, key_id='id', keys=None):
+def jsonl_compare(jl1, jl2, key_id='id', keys=None, sort=False):
+    if sort:
+        jl1 = sorted(list(jl1), cmp=lambda r: r[key_id])
+        jl2 = sorted(list(jl2), cmp=lambda r: r[key_id])
     iter1 = iter(jl1)
     iter2 = iter(jl2)
     i = 0
