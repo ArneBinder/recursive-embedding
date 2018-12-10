@@ -562,7 +562,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                                 logger.warning('ID:%s (#%i) failed to parse. remaining tries: %i; tokens=%s\ne=%s'
                                                % (i + len(records_preprocessed), record[KEY_ID], nbr_try, ', '.join(record[KEY_STANFORD_TOKENS]), str(e)))
                                 if nbr_try == 0:
-                                    raise Exception('number of re-tries exceeded, skip record')
+                                    raise AssertionError('number of re-tries exceeded, skip record')
                                 continue
 
                         annots = None
