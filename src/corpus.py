@@ -560,7 +560,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                             except HTTPError as e:
                                 nbr_try -= 1
                                 logger.warning('ID:%s (#%i) failed to parse. remaining tries: %i; tokens=%s\ne=%s'
-                                               % (i + len(records_preprocessed), record[KEY_ID], nbr_try, ', '.join(record[KEY_STANFORD_TOKENS]), str(e)))
+                                               % (i, record[KEY_ID], nbr_try, ', '.join(record[KEY_STANFORD_TOKENS]), str(e)))
                                 if nbr_try == 0:
                                     raise AssertionError('number of re-tries exceeded, skip record')
                                 continue
@@ -568,8 +568,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         annots = None
                         for parse in parses:
                             if annots is not None:
-                                logger.debug('ID:%s (#%i)\tfound two parses'
-                                             % (i + len(records_preprocessed), record[KEY_ID]))
+                                logger.debug('ID:%s (#%i)\tfound two parses' % (i, record[KEY_ID]))
                                 break
                             annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
                                                                k_map={'tag': KEY_STANFORD_POS,
@@ -590,7 +589,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         record.update(annots)
                     f_out.write(json.dumps(record) + '\n')
                 except AssertionError as e:
-                    logger.warning('ID:%s (#%i)\t%s' % (record[KEY_ID], i + len(records_preprocessed), str(e)))
+                    logger.warning('ID:%s (#%i)\t%s' % (record[KEY_ID], i, str(e)))
     os.rename(fn_out_tmp, fn_out)
     logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
     logger.info('time: %s' % str(datetime.now() - t_start))
