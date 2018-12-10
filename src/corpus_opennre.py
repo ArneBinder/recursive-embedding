@@ -148,6 +148,7 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
                 pos_head = h * len(data_keys) + len_meta
                 graph_tuples.append((pos_head, pos_self + target_offset))
             graph_tuples.extend([(pos_self, pos_self + i3) if i3 != target_offset else (pos_self + i3, pos_self) for i3 in range(1, len(data_keys))])
+        assert root is not None, 'root not found'
 
         # remaining data (entities, relation)
         _new_data = np.array([sentence_hash, entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
@@ -298,8 +299,8 @@ def main(mode, *args):
     elif mode == 'ALL_SEMEVAL':
         out_path_merged = plac.call(main, ('PARSE',) + args)
         #plac.call(main, ('MERGE',) + args)
-        plac.call(main, ('CREATE_INDICES', '--end-root', '2707', '--split-count', '1', '--suffix', 'test', '--merged-forest-path', out_path_merged) + args)
-        plac.call(main, ('CREATE_INDICES', '--start-root', '2707', '--split-count', '4', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
+        plac.call(main, ('CREATE_INDICES', '--end-root', '2714', '--split-count', '1', '--suffix', 'test', '--merged-forest-path', out_path_merged) + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '2714', '--split-count', '4', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
     elif mode == 'ANNOTATE':
         plac.call(annotate_file_w_stanford, args)
     elif mode == 'CONVERT_NYT':
