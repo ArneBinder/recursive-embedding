@@ -361,7 +361,11 @@ def convert_nyt(in_path, server_url='http://localhost:9000'):
         if not os.path.exists(_fn_jl):
             logger.warning('%s does not exist. Skipt it.' % _fn_jl)
             continue
-        annotate_file_w_stanford(fn_in=_fn_jl, fn_out=join(out_path, '%s.jsonl' % fn), server_url=server_url)
+        out_fn = join(out_path, '%s.jsonl' % fn)
+        if os.path.exists(out_fn):
+            logger.info('annotated file %s already exists' % out_fn)
+        else:
+            annotate_file_w_stanford(fn_in=_fn_jl, fn_out=out_fn, server_url=server_url)
 
 
 if __name__ == '__main__':

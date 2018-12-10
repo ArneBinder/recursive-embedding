@@ -522,14 +522,16 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                              server_url='http://localhost:9000',
                              key_id=KEY_ID):
     from nltk.parse.corenlp import CoreNLPDependencyParser
+    from requests.exceptions import HTTPError
     k_tokens_new = 'tokens_stanford'
     t_start = datetime.now()
     dep_parser = CoreNLPDependencyParser(url=server_url)
 
+    fn_out_tmp = fn_out + '.tmp'
     records_preprocessed = {}
-    if os.path.exists(fn_out):
-        logger.info('read already processed records from %s ...' % fn_out)
-        with open(fn_out) as f_out:
+    if os.path.exists(fn_out_tmp):
+        logger.info('read already processed records from %s ...' % fn_out_tmp)
+        with open(fn_out_tmp) as f_out:
             for line in f_out:
                 try:
                     record = json.loads(line)
@@ -542,7 +544,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
     logger.info('process %s ...' % fn_in)
     mismatches = set()
     with open(fn_in) as f_in:
-        with open(fn_out, 'w') as f_out:
+        with open(fn_out_tmp, 'w') as f_out:
             for i, line in enumerate(f_in.readlines()):
                 record = json.loads(line)
                 try:
@@ -550,7 +552,19 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                     if _id in records_preprocessed:
                         record = records_preprocessed[_id]
                     else:
-                        parses = dep_parser.parse(record[KEY_STANFORD_TOKENS])
+                        nbr_try = 5
+                        while nbr_try > 0:
+                            try:
+                                parses = dep_parser.parse(record[KEY_STANFORD_TOKENS])
+                                break
+                            except HTTPError as e:
+                                nbr_try -= 1
+                                logger.warning('ID:%s (#%i) failed to parse. remaining tries: %i; tokens=%s\ne=%s'
+                                               % (i + len(records_preprocessed), record[KEY_ID], nbr_try, ', '.join(record[KEY_STANFORD_TOKENS]), str(e)))
+                                if nbr_try == 0:
+                                    raise Exception('number of re-tries exceeded, skip record')
+                                continue
+
                         annots = None
                         for parse in parses:
                             if annots is not None:
@@ -577,5 +591,6 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                     f_out.write(json.dumps(record) + '\n')
                 except AssertionError as e:
                     logger.warning('ID:%s (#%i)\t%s' % (record[KEY_ID], i + len(records_preprocessed), str(e)))
+    os.rename(fn_out_tmp, fn_out)
     logger.debug('mismatches:\n%s' % '\n'.join(sorted(['%s -> %s' % (x, y) for (x, y) in mismatches])))
     logger.info('time: %s' % str(datetime.now() - t_start))
