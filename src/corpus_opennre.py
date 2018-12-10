@@ -42,9 +42,7 @@ def distances_to_pos_and_length(distances, max_len):
     return indices, c
 
 
-def lowest_common_ancestor(indices_start, heads, head_root=-1):
-
-    idx_root = np.nonzero(heads == head_root)[0]
+def lowest_common_ancestor(indices_start, heads, idx_root):
     indices_to_root = [[]] * len(indices_start)
     for i, idx_start in enumerate(indices_start):
         idx = idx_start
@@ -61,11 +59,11 @@ def lowest_common_ancestor(indices_start, heads, head_root=-1):
     return idx
 
 
-def get_argument_root(pos, length, heads, head_root=-1):
+def get_argument_root(pos, length, heads, idx_root):
     pos_list = [pos + j for j in range(length)]
     if len(pos_list) == 1:
         return pos_list[0]
-    lca = lowest_common_ancestor(indices_start=pos_list, heads=heads, head_root=head_root)
+    lca = lowest_common_ancestor(indices_start=pos_list, heads=heads, idx_root=idx_root)
     return lca
 
 
@@ -102,69 +100,82 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     new_data_list = []
     new_graph_list = []
     lexicon_root_data = Lexicon()
-    id_hashes = []
+    skipped = 0
     for i in range(len(data_converted['word'])):
         added = 0
         graph_tuples = []
-        l = length[i]
-        heads = head[i][:l]
-        arg1_root = get_argument_root(pos=pos1[i], length=len1[i], heads=heads)
-        arg2_root = get_argument_root(pos=pos2[i], length=len2[i], heads=heads)
-        if not (pos1[i] <= arg1_root < pos1[i] + len1[i]):
-            logger.warning('ID:%s arg1_root (%i) outside entity span [%i:%i]'
-                           % (relation_mention_id[i], arg1_root, pos1[i], pos1[i] + len1[i]))
-        if not (pos2[i] <= arg2_root < pos2[i] + len2[i]):
-            logger.warning('ID:%s arg2_root (%i) outside entity span [%i:%i]'
-                           % (relation_mention_id[i], arg2_root, pos2[i], pos2[i] + len2[i]))
-        if arg1_root == arg2_root:
-            logger.warning(
-                'ID:%s arg1_root == arg2_root (%i). Skip it!' % (relation_mention_id[i], arg1_root))
-            continue
+        try:
+            l = length[i]
+            heads = head[i][:l]
+            indices_root = np.nonzero(heads == head_root)[0]
+            assert len(indices_root) == 1, 'number of roots has to be 1, but is %i' % len(indices_root)
+            try:
+                arg1_root = get_argument_root(pos=pos1[i], length=len1[i], heads=heads, idx_root=indices_root[0])
+                arg2_root = get_argument_root(pos=pos2[i], length=len2[i], heads=heads, idx_root=indices_root[0])
+            except IndexError as e:
+                raise AssertionError('could not get argument root: %s' % (str(e)))
+            #if not (pos1[i] <= arg1_root < pos1[i] + len1[i]):
+            #    logger.warning('ID:%s (#%i) arg1_root (%i) outside entity span [%i:%i]'
+            #                   % (relation_mention_id[i], i, arg1_root, pos1[i], pos1[i] + len1[i]))
+            #if not (pos2[i] <= arg2_root < pos2[i] + len2[i]):
+            #    logger.warning('ID:%s (#%i) arg2_root (%i) outside entity span [%i:%i]'
+            #                   % (relation_mention_id[i], i, arg2_root, pos2[i], pos2[i] + len2[i]))
+            assert arg1_root is not None, 'could not get arg1_root (None)'
+            assert arg2_root is not None, 'could not get arg2_root (None)'
+            try:
+                assert arg1_root != arg2_root, 'arg1_root == arg2_root (%i)' % arg1_root
+            except TypeError as e:
+                raise e
 
-        id_string = id_prefix + SEPARATOR + fn + SEPARATOR + relation_mention_id[i]
-        id_hash = lexicon_root_data.add_and_get(id_string, data_as_hashes=True)
-        id_hashes.append(id_hash)
+            id_string = id_prefix + SEPARATOR + fn + SEPARATOR + relation_mention_id[i]
+            id_hash = Lexicon.hash_string(id_string)
 
-        # meta data
-        _new_data = np.array([root_hash, id_hash, context_hash], dtype=DTYPE_HASH)
-        new_data_list.append(_new_data)
-        added += len(_new_data)
-        graph_tuples.extend([(0, 1), (0, 2)])
-        len_meta = added
+            # meta data
+            _new_data = np.array([root_hash, id_hash, context_hash], dtype=DTYPE_HASH)
+            new_data_list.append(_new_data)
+            added += len(_new_data)
+            graph_tuples.extend([(0, 1), (0, 2)])
+            len_meta = added
 
-        pos_arg1 = arg1_root * len(data_keys) + len_meta
-        pos_arg2 = arg2_root * len(data_keys) + len_meta
-        # real data (per token)
-        _new_data = np.stack([data_converted[k][i][:l] for k in data_keys], axis=-1).flatten()
-        new_data_list.append(_new_data)
-        added += len(_new_data)
-        root = None
-        for i2, h in enumerate(heads):
-            pos_self = i2 * len(data_keys) + len_meta
-            # head? connect with context node
-            if h == head_root:
-                root = pos_self + target_offset
-            else:
-                pos_head = h * len(data_keys) + len_meta
-                graph_tuples.append((pos_head, pos_self + target_offset))
-            graph_tuples.extend([(pos_self, pos_self + i3) if i3 != target_offset else (pos_self + i3, pos_self) for i3 in range(1, len(data_keys))])
-        assert root is not None, 'root not found'
+            pos_arg1 = arg1_root * len(data_keys) + len_meta
+            pos_arg2 = arg2_root * len(data_keys) + len_meta
+            # real data (per token)
+            _new_data = np.stack([data_converted[k][i][:l] for k in data_keys], axis=-1).flatten()
+            new_data_list.append(_new_data)
+            added += len(_new_data)
+            root = None
+            for i2, h in enumerate(heads):
+                pos_self = i2 * len(data_keys) + len_meta
+                # head? connect with context node
+                if h == head_root:
+                    root = pos_self + target_offset
+                else:
+                    assert h < len(heads), 'head points outside'
+                    pos_head = h * len(data_keys) + len_meta
+                    graph_tuples.append((pos_head, pos_self + target_offset))
+                graph_tuples.extend([(pos_self, pos_self + i3) if i3 != target_offset else (pos_self + i3, pos_self) for i3 in range(1, len(data_keys))])
+            assert root is not None, 'root not found'
 
-        # remaining data (entities, relation)
-        _new_data = np.array([sentence_hash, entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
-        graph_tuples.append((2, added))
-        graph_tuples.append((added, root))
-        graph_tuples.append((pos_arg1, added + 1))
-        graph_tuples.append((pos_arg2, added + 2))
-        graph_tuples.append((pos_arg1, added + 3))
-        graph_tuples.append((added + 3, pos_arg2))
-        new_data_list.append(_new_data)
-        added += len(_new_data)
+            # remaining data (entities, relation)
+            _new_data = np.array([sentence_hash, entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
+            graph_tuples.append((2, added))
+            graph_tuples.append((added, root))
+            graph_tuples.append((pos_arg1, added + 1))
+            graph_tuples.append((pos_arg2, added + 2))
+            graph_tuples.append((pos_arg1, added + 3))
+            graph_tuples.append((added + 3, pos_arg2))
+            added += len(_new_data)
 
-        row, col = zip(*graph_tuples)
-        current_graph = coo_matrix((np.ones(len(graph_tuples), dtype=bool), (row, col))).transpose().tocsc()
-        new_graph_list.append(current_graph)
+            row, col = zip(*graph_tuples)
+            current_graph = coo_matrix((np.ones(len(graph_tuples), dtype=bool), (row, col))).transpose().tocsc()
+            lexicon_root_data.add(id_string)
+            new_data_list.append(_new_data)
+            new_graph_list.append(current_graph)
+        except AssertionError as e:
+            logger.warning('ID:%s (#%i) %s. Skip record.' % (relation_mention_id[i], i, str(e)))
+            skipped += 1
 
+    logger.info('skipped %i of %i records' % (skipped, len(data_converted['word'])))
     forest = Forest(data=np.concatenate(new_data_list), structure=concatenate_structures(new_graph_list),
                     lexicon_roots=lexicon_root_data,
                     data_as_hashes=True)
@@ -242,7 +253,7 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     file_names = ['dev', 'test', 'train']
     data_graph_list = []
     for fn in file_names:
-        logger.info('create forest for %s ...' % fn)
+        logger.info('create data for %s ...' % fn)
         try:
             current_data_graph = construct_batch(in_path, join(out_path, DIR_BATCHES) if dump_batches else None,
                                                  fn, lexicon, id2data=id2data, annotation_keys=annotation_keys,
@@ -283,7 +294,8 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'CREATE_INDICES', 'ALL_SEMEVAL', 'ANNOTATE', 'CONVERT_NYT']),
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'CREATE_INDICES', 'ALL_SEMEVAL', 'ALL_TACRED',
+                                                       'ANNOTATE', 'CONVERT_NYT']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE':
@@ -301,6 +313,12 @@ def main(mode, *args):
         #plac.call(main, ('MERGE',) + args)
         plac.call(main, ('CREATE_INDICES', '--end-root', '2714', '--split-count', '1', '--suffix', 'test', '--merged-forest-path', out_path_merged) + args)
         plac.call(main, ('CREATE_INDICES', '--start-root', '2714', '--split-count', '4', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
+    elif mode == 'ALL_TACRED':
+        out_path_merged = plac.call(main, ('PARSE',) + args)
+        #plac.call(main, ('MERGE',) + args)
+        plac.call(main, ('CREATE_INDICES', '--end-root', '22461', '--split-count', '1', '--suffix', 'dev', '--merged-forest-path', out_path_merged) + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '22461', '--end-root', str(22461 + 15426), '--split-count', '1', '--suffix', 'test', '--merged-forest-path', out_path_merged) + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', str(22461 + 15426), '--split-count', '4', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
     elif mode == 'ANNOTATE':
         plac.call(annotate_file_w_stanford, args)
     elif mode == 'CONVERT_NYT':

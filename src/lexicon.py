@@ -959,6 +959,10 @@ class Lexicon(object):
         self._hashes = hashes
 
     @staticmethod
+    def hash_string(string):
+        return hash_string(string)
+
+    @staticmethod
     def vocab_prefix(man_vocab_id):
         return constants.vocab_manual[man_vocab_id] + SEPARATOR
 
