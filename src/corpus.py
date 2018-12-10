@@ -546,6 +546,8 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
     with open(fn_in) as f_in:
         with open(fn_out_tmp, 'w') as f_out:
             for i, line in enumerate(f_in.readlines()):
+                if line.strip() == '':
+                    continue
                 record = json.loads(line)
                 try:
                     _id = record[key_id]
@@ -568,7 +570,7 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                         annots = None
                         for parse in parses:
                             if annots is not None:
-                                logger.warning('ID:%s (#%i)\tfound two parses' % (record[KEY_ID], i))
+                                logger.warning('ID:%s (#%i)\tfound two parses. Take the first.' % (record[KEY_ID], i))
                                 break
                             annots = stanford_depgraph_to_dict(parse, types=(int, unicode),
                                                                k_map={'tag': KEY_STANFORD_POS,
@@ -577,15 +579,18 @@ def annotate_file_w_stanford(fn_in='/mnt/DATA/ML/data/corpora_in/tacred/tacred-j
                                                                       'word': k_tokens_new,
                                                                       'address': 'address'})
                         assert annots is not None, 'found no parses'
-                        assert len(record[KEY_STANFORD_TOKENS]) == len(annots[k_tokens_new]), \
-                            'number of tokens after parsing does not match. before: %i vs after: %i' \
-                            % (len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new]))
-                        if record[KEY_STANFORD_TOKENS] != annots[k_tokens_new]:
-                            new_mismatches = [(record[KEY_STANFORD_TOKENS][j], annots[k_tokens_new][j]) for j in range(len(record[KEY_STANFORD_TOKENS])) if record[KEY_STANFORD_TOKENS][j] != annots[k_tokens_new][j]]
-                            mismatches.update(new_mismatches)
+                        if len(record[KEY_STANFORD_TOKENS]) != len(annots[k_tokens_new]):
+                            #raise AssertionError('number of tokens after parsing does not match. before: %i vs after: %i' \
+                            #    % (len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new])))
+                            logger.warning('number of tokens after parsing does not match. before: %i vs after: %i'
+                                           % (len(record[KEY_STANFORD_TOKENS]), len(annots[k_tokens_new])))
+                        else:
+                            if record[KEY_STANFORD_TOKENS] != annots[k_tokens_new]:
+                                new_mismatches = [(record[KEY_STANFORD_TOKENS][j], annots[k_tokens_new][j]) for j in range(len(record[KEY_STANFORD_TOKENS])) if record[KEY_STANFORD_TOKENS][j] != annots[k_tokens_new][j]]
+                                mismatches.update(new_mismatches)
                             #print('ID:%s\ttokens do not match after parsing. "%s" != "%s"' % (record[KEY_STANFORD_ID], ', '.join(record[KEY_STANFORD_TOKENS]), ', '.join(annots[k_tokens_new])))
                            # print('ID:%s\ttoken mismatches: %s' % (record[KEY_STANFORD_ID], '; '.join(mismatches)))
-                        del annots[k_tokens_new]
+                        #del annots[k_tokens_new]
                         record.update(annots)
                     f_out.write(json.dumps(record) + '\n')
                 except AssertionError as e:

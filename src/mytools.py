@@ -172,8 +172,10 @@ def chunks(g, n, cut=False):
 def jsonl_read(fn):
     """ Read a json line file """
     with open(fn) as f:
-        for l in f:
-            yield json.loads(l)
+        res = []
+        for i, l in enumerate(f):
+            res.append(json.loads(l))
+        return res
 
 
 def jsonl_compare(jl1, jl2, key_id='id', keys=None, sort=False):
@@ -200,7 +202,7 @@ def jsonl_compare(jl1, jl2, key_id='id', keys=None, sort=False):
             for k in keys_2_only:
                 if keys is None or k in keys:
                     assert k in r1, 'key=%s in r2, but not in r1' % k
-        i += 1
+            i += 1
     except AssertionError as e:
         raise AssertionError('#%i: %s' % (i, str(e)))
 
