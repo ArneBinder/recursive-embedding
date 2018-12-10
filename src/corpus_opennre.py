@@ -351,7 +351,7 @@ def convert_nyt(in_path, server_url='http://localhost:9000'):
         _fn_jl = '%s.jsonl' % _fn
         if not os.path.exists(_fn_jl):
             if not os.path.exists(_fn_in):
-                logger.warning('%s does not exist. Skipt it.' % _fn_in)
+                logger.warning('%s does not exist. Skip it.' % _fn_in)
                 continue
             logger.info('create %s ...' % _fn_jl)
             records = json.load(open(_fn_in))
