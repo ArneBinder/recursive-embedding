@@ -228,6 +228,7 @@ def process_sentence3(sentence, parsed_data, strings, dict_unknown=None, concat_
         sen_data.append(mytools.getOrAdd(strings, PREFIX_DEP + token.dep_, dict_unknown))
         sen_parents.append(-1)
         # check and append annotations, eventually. Append to token -> offset=2
+        # TODO: check parent_offset!
         annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, parent_offset=2)
         sen_data.extend([mytools.getOrAdd(strings, s, dict_unknown) for s in annot_data])
         sen_parents.extend(annot_parents)
@@ -298,6 +299,7 @@ def process_sentence5(sentence, parsed_data, strings, dict_unknown=None, concat_
         sen_data.append(mytools.getOrAdd(strings, PREFIX_POS + token.pos_, dict_unknown))
         sen_parents.append(-2)
         # check and append annotations, eventually. Append to token -> offset=2
+        # TODO: check parent_offset! (copied from process_sentence3)
         annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, parent_offset=2)
         sen_data.extend([mytools.getOrAdd(strings, s, dict_unknown) for s in annot_data])
         sen_parents.extend(annot_parents)
