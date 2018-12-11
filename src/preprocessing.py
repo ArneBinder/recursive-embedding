@@ -275,15 +275,13 @@ def process_sentence4(sentence, parsed_data, strings, dict_unknown=None, concat_
 
 
 # embeddings for:
-# words, edges, entity type (if !=0)
-def process_sentence5(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, **kwargs):
-    raise NotImplementedError('does not consider correct root padding for flat models (see ps3 and ps10)')
+# words, edges, pos
+def process_sentence5(sentence, parsed_data, strings, dict_unknown=None, concat_mode=None, annotations=(), **kwargs):
     sen_data = []
     sen_parents = []
     root_offsets = []
     root_parents = []
     for i in range(sentence.start, sentence.end):
-
         # get current token
         token = parsed_data[i]
         parent_offset = token.head.i - i
@@ -296,14 +294,19 @@ def process_sentence5(sentence, parsed_data, strings, dict_unknown=None, concat_
         # add edge type embedding
         sen_data.append(mytools.getOrAdd(strings, PREFIX_DEP + token.dep_, dict_unknown))
         sen_parents.append(-1)
+        # add pos embedding
+        sen_data.append(mytools.getOrAdd(strings, PREFIX_POS + token.pos_, dict_unknown))
+        sen_parents.append(-2)
+        # check and append annotations, eventually. Append to token -> offset=2
+        annot_data, annot_parents = get_annotations_for_token(annotations=annotations, token=token, parent_offset=2)
+        sen_data.extend([mytools.getOrAdd(strings, s, dict_unknown) for s in annot_data])
+        sen_parents.extend(annot_parents)
 
-        if token.ent_type != 0 and (token.head == token or token.head.ent_type != token.ent_type):
-            sen_data.append(mytools.getOrAdd(strings, PREFIX_ENT + token.ent_type_, dict_unknown))
-            sen_parents.append(-2)
-
-    new_root_id = mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown)
-    sen_data, sen_parents, root_offsets = concat_roots(sen_data, sen_parents, root_offsets, root_parents, concat_mode,
-                                                       new_root_id=new_root_id)
+    sen_data, sen_parents, root_offsets = concat_roots(
+        sen_data, sen_parents, root_offsets, root_parents, concat_mode,
+        new_root_id=mytools.getOrAdd(strings, TYPE_SENTENCE, dict_unknown),
+        #new_root_annots=([mytools.getOrAdd(strings, PREFIX_DEP + TYPE_ARTIFICIAL, dict_unknown)], [-1])
+    )
     return sen_data, sen_parents, root_offsets
 
 

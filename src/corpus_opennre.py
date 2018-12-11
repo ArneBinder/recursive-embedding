@@ -220,6 +220,9 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     elif sentence_processor.strip() == 'process_sentence3':
         annotations = 'stanford_deprel'
         target_offset = 0
+    elif sentence_processor.strip() == 'process_sentence5':
+        annotations = 'stanford_deprel,stanford_pos'
+        target_offset = 0
     elif sentence_processor.strip() == 'process_sentence11':
         annotations = 'stanford_deprel'
         target_offset = 1
