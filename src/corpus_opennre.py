@@ -212,7 +212,7 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     unused='not used parameters'
 )
 def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False,
-          annotations='stanford_deprel,stanford_pos', target_offset=0, discard_relations='', *unused):
+          annotations='stanford_deprel,stanford_pos', target_offset=0, discard_relations='False', *unused):
     discard_relations = discard_relations.lower().strip() == 'true'
     out_path_merged = join(out_path, DIR_MERGED)
     if not os.path.exists(out_path_merged):
