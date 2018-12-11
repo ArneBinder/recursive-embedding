@@ -38,7 +38,8 @@ def distances_to_pos_and_length(distances, max_len):
     step = np.append([1], step)
     indices = _pos[step == 1][:, 1]
     u, c = np.unique(_pos[:, 0], return_counts=True)
-    assert len(indices) == len(c), 'number of indices does not match number of counts'
+    assert len(indices) == len(c), \
+        'number of indices [%i] does not match number of counts [%i]' % (len(indices), len(c))
     return indices, c
 
 
