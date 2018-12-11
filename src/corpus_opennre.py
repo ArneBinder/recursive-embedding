@@ -68,9 +68,12 @@ def get_argument_root(pos, length, heads, idx_root):
 
 
 def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_hash, context_hash, entity_hash,
-                    sentence_hash, annotation_keys, target_offset=0, head_root=-1):
+                    sentence_hash, annotation_keys, target_offset=0, head_root=-1, discard_relations=False):
     # load: _word, _len, _pos1, _pos2, _label, _stanford_head,
     # and if available: _stanford_deprel, _stanford_pos
+
+    if discard_relations:
+        logger.warning('discard relations')
 
     relation_mention_id = numpy_load(join(in_path, fn + '_relation_mention_id'))
 
@@ -101,74 +104,78 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     new_graph_list = []
     lexicon_root_data = Lexicon()
     skipped = 0
+    LEN_META = 3 # root_hash, id_hash, context_hash
     for i in range(len(data_converted['word'])):
         added = 0
         graph_tuples = []
         try:
             l = length[i]
             heads = head[i][:l]
-            indices_root = np.nonzero(heads == head_root)[0]
-            assert len(indices_root) == 1, 'number of roots has to be 1, but is %i' % len(indices_root)
-            try:
-                arg1_root = get_argument_root(pos=pos1[i], length=len1[i], heads=heads, idx_root=indices_root[0])
-                arg2_root = get_argument_root(pos=pos2[i], length=len2[i], heads=heads, idx_root=indices_root[0])
-            except IndexError as e:
-                raise AssertionError('could not get argument root: %s' % (str(e)))
-            #if not (pos1[i] <= arg1_root < pos1[i] + len1[i]):
-            #    logger.warning('ID:%s (#%i) arg1_root (%i) outside entity span [%i:%i]'
-            #                   % (relation_mention_id[i], i, arg1_root, pos1[i], pos1[i] + len1[i]))
-            #if not (pos2[i] <= arg2_root < pos2[i] + len2[i]):
-            #    logger.warning('ID:%s (#%i) arg2_root (%i) outside entity span [%i:%i]'
-            #                   % (relation_mention_id[i], i, arg2_root, pos2[i], pos2[i] + len2[i]))
-            assert arg1_root is not None, 'could not get arg1_root (None)'
-            assert arg2_root is not None, 'could not get arg2_root (None)'
-            try:
-                assert arg1_root != arg2_root, 'arg1_root == arg2_root (%i)' % arg1_root
-            except TypeError as e:
-                raise e
+            if not discard_relations:
+                indices_root = np.nonzero(heads == head_root)[0]
+                assert len(indices_root) == 1, 'number of roots has to be 1, but is %i' % len(indices_root)
+                try:
+                    arg1_root = get_argument_root(pos=pos1[i], length=len1[i], heads=heads, idx_root=indices_root[0])
+                    arg2_root = get_argument_root(pos=pos2[i], length=len2[i], heads=heads, idx_root=indices_root[0])
+                except IndexError as e:
+                    raise AssertionError('could not get argument root: %s' % (str(e)))
+                #if not (pos1[i] <= arg1_root < pos1[i] + len1[i]):
+                #    logger.warning('ID:%s (#%i) arg1_root (%i) outside entity span [%i:%i]'
+                #                   % (relation_mention_id[i], i, arg1_root, pos1[i], pos1[i] + len1[i]))
+                #if not (pos2[i] <= arg2_root < pos2[i] + len2[i]):
+                #    logger.warning('ID:%s (#%i) arg2_root (%i) outside entity span [%i:%i]'
+                #                   % (relation_mention_id[i], i, arg2_root, pos2[i], pos2[i] + len2[i]))
+                assert arg1_root is not None, 'could not get arg1_root (None)'
+                assert arg2_root is not None, 'could not get arg2_root (None)'
+                try:
+                    assert arg1_root != arg2_root, 'arg1_root == arg2_root (%i)' % arg1_root
+                except TypeError as e:
+                    raise e
+                pos_arg1 = arg1_root * len(data_keys) + LEN_META
+                pos_arg2 = arg2_root * len(data_keys) + LEN_META
 
             id_string = id_prefix + SEPARATOR + fn + SEPARATOR + relation_mention_id[i]
-            id_hash = Lexicon.hash_string(id_string)
+            # it is ok to already add the hash to lexicon_root_data because it gets cleaned later via root_data
+            id_hash = lexicon_root_data.add_and_get(id_string, data_as_hashes=True)
 
             # meta data
             _new_data = np.array([root_hash, id_hash, context_hash], dtype=DTYPE_HASH)
             new_data_list.append(_new_data)
             added += len(_new_data)
             graph_tuples.extend([(0, 1), (0, 2)])
-            len_meta = added
 
-            pos_arg1 = arg1_root * len(data_keys) + len_meta
-            pos_arg2 = arg2_root * len(data_keys) + len_meta
             # real data (per token)
             _new_data = np.stack([data_converted[k][i][:l] for k in data_keys], axis=-1).flatten()
             new_data_list.append(_new_data)
             added += len(_new_data)
             root = None
             for i2, h in enumerate(heads):
-                pos_self = i2 * len(data_keys) + len_meta
+                pos_self = i2 * len(data_keys) + LEN_META
                 # head? connect with context node
                 if h == head_root:
                     root = pos_self + target_offset
                 else:
                     assert h < len(heads), 'head points outside'
-                    pos_head = h * len(data_keys) + len_meta
+                    pos_head = h * len(data_keys) + LEN_META
                     graph_tuples.append((pos_head, pos_self + target_offset))
                 graph_tuples.extend([(pos_self, pos_self + i3) if i3 != target_offset else (pos_self + i3, pos_self) for i3 in range(1, len(data_keys))])
             assert root is not None, 'root not found'
 
             # remaining data (entities, relation)
-            _new_data = np.array([sentence_hash, entity_hash, entity_hash, data_converted['label'][i]], dtype=DTYPE_HASH)
             graph_tuples.append((2, added))
             graph_tuples.append((added, root))
-            graph_tuples.append((pos_arg1, added + 1))
-            graph_tuples.append((pos_arg2, added + 2))
-            graph_tuples.append((pos_arg1, added + 3))
-            graph_tuples.append((added + 3, pos_arg2))
+            _new_dat_list = [sentence_hash]
+            if not discard_relations:
+                _new_dat_list.extend([entity_hash, entity_hash, data_converted['label'][i]])
+                graph_tuples.append((pos_arg1, added + 1))
+                graph_tuples.append((pos_arg2, added + 2))
+                graph_tuples.append((pos_arg1, added + 3))
+                graph_tuples.append((added + 3, pos_arg2))
+            _new_data = np.array(_new_dat_list, dtype=DTYPE_HASH)
             added += len(_new_data)
 
             row, col = zip(*graph_tuples)
             current_graph = coo_matrix((np.ones(len(graph_tuples), dtype=bool), (row, col))).transpose().tocsc()
-            lexicon_root_data.add(id_string)
             new_data_list.append(_new_data)
             new_graph_list.append(current_graph)
         except AssertionError as e:
@@ -199,10 +206,11 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     dump_batches=('dump batches', 'flag', 'b', bool),
     annotations=('comma separated list of annotation keys', 'option', 'a', str),
     target_offset=('offset to link descendant elements to', 'option', 't', int),
+    discard_relations=('do not use relation data', 'flag', 'r', bool),
     unused='not used parameters'
 )
 def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False,
-          annotations='stanford_deprel,stanford_pos', target_offset=0, *unused):
+          annotations='stanford_deprel,stanford_pos', target_offset=0, discard_relations=False, *unused):
     out_path_merged = join(out_path, DIR_MERGED)
     if not os.path.exists(out_path_merged):
         os.makedirs(out_path_merged)
@@ -262,7 +270,8 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
                                                  fn, lexicon, id2data=id2data, annotation_keys=annotation_keys,
                                                  target_offset=target_offset,
                                                  id_prefix=root_string, root_hash=root_hash, context_hash=context_hash,
-                                                 entity_hash=entity_hash, sentence_hash=sentence_hash)
+                                                 entity_hash=entity_hash, sentence_hash=sentence_hash,
+                                                 discard_relations=discard_relations)
             logger.info('created graph with %i components' % len(current_data_graph.roots))
             data_graph_list.append(current_data_graph)
         except IOError as e:

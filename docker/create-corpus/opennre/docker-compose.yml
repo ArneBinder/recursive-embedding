@@ -14,6 +14,7 @@ services:
                                   --out-path /root/corpora_out/${DATASET_ID}
                                   --sentence-processor ${SENTENCE_PROCESSOR}
                                   --dataset-id ${DATASET_ID}
+                                  --discard-relations ${DISCARD_RELATIONS}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
