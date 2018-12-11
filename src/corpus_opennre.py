@@ -208,11 +208,12 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     dump_batches=('dump batches', 'flag', 'b', bool),
     annotations=('comma separated list of annotation keys', 'option', 'a', str),
     target_offset=('offset to link descendant elements to', 'option', 't', int),
-    discard_relations=('do not use relation data', 'option', 'r', bool),
+    discard_relations=('do not use relation data', 'option', 'r', str),
     unused='not used parameters'
 )
 def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False,
-          annotations='stanford_deprel,stanford_pos', target_offset=0, discard_relations=False, *unused):
+          annotations='stanford_deprel,stanford_pos', target_offset=0, discard_relations='', *unused):
+    discard_relations = discard_relations.lower().strip() == 'true'
     out_path_merged = join(out_path, DIR_MERGED)
     if not os.path.exists(out_path_merged):
         os.makedirs(out_path_merged)
