@@ -95,9 +95,10 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     # structural data
     max_len = data['word'].shape[-1]
     length = numpy_load(join(in_path, fn + '_len'))
-    #if not discard_relations:
-    pos1, len1 = distances_to_pos_and_length(numpy_load(join(in_path, fn + '_pos1')), max_len)
-    pos2, len2 = distances_to_pos_and_length(numpy_load(join(in_path, fn + '_pos2')), max_len)
+    # TODO: check error when including that for NYT
+    if not discard_relations:
+        pos1, len1 = distances_to_pos_and_length(numpy_load(join(in_path, fn + '_pos1')), max_len)
+        pos2, len2 = distances_to_pos_and_length(numpy_load(join(in_path, fn + '_pos2')), max_len)
     head = numpy_load(join(in_path, fn + '_stanford_head'))
 
     # construct the data and graph
