@@ -1781,14 +1781,17 @@ if __name__ == '__main__':
         logdir_continue = None
     else:
         logdir_continue = FLAGS.logdir_continue
+    logger.debug('logdir_continue: %s' % str(logdir_continue))
     if FLAGS.logdir_pretrained is not None and FLAGS.logdir_pretrained.strip() == '/root/train/':
         logdir_pretrained = None
     else:
         logdir_pretrained = FLAGS.logdir_pretrained
+    logger.debug('logdir_pretrained: %s' % str(logdir_pretrained))
     if FLAGS.vecs_pretrained is not None and FLAGS.vecs_pretrained.strip() == '/root/train/':
         vecs_pretrained = None
     else:
         vecs_pretrained = FLAGS.vecs_pretrained
+    logger.debug('vecs_pretrained: %s' % str(vecs_pretrained))
 
 
     # Handle multiple logdir_continue's
