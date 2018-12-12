@@ -9,7 +9,7 @@ import plac
 from scipy.sparse import coo_matrix
 
 from constants import TYPE_RELATION, LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, TYPE_LEXEME, TYPE_POS_TAG, \
-    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, TYPE_SENTENCE, DTYPE_VECS
+    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, TYPE_SENTENCE, DTYPE_VECS, TYPE_TOKEN
 from corpus import save_class_ids, create_index_files, DIR_BATCHES, DIR_MERGED, \
     annotate_file_w_stanford
 from lexicon import Lexicon
@@ -69,7 +69,8 @@ def get_argument_root(pos, length, heads, idx_root):
 
 
 def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_hash, context_hash, entity_hash,
-                    sentence_hash, annotation_keys, target_offset=0, head_root=-1, discard_relations=False):
+                    sentence_hash, annotation_keys, target_offset=0, head_root=-1, discard_relations=False,
+                    use_structure_token=False):
     # load: _word, _len, _pos1, _pos2, _label, _stanford_head,
     # and if available: _stanford_deprel, _stanford_pos
 
@@ -103,6 +104,12 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
 
     # construct the data and graph
     data_keys = ['word'] + annotation_keys
+    len_data_entry = len(data_keys)
+    if use_structure_token:
+        len_data_entry += 1
+        hash_structure_token = lexicon.add_and_get(TYPE_TOKEN, data_as_hashes=True)
+    else:
+        hash_structure_token = None
     new_data_list = []
     new_graph_list = []
     lexicon_root_data = Lexicon()
@@ -134,8 +141,8 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
                     assert arg1_root != arg2_root, 'arg1_root == arg2_root (%i)' % arg1_root
                 except TypeError as e:
                     raise e
-                pos_arg1 = arg1_root * len(data_keys) + LEN_META
-                pos_arg2 = arg2_root * len(data_keys) + LEN_META
+                pos_arg1 = arg1_root * len_data_entry + LEN_META
+                pos_arg2 = arg2_root * len_data_entry + LEN_META
 
             id_string = id_prefix + SEPARATOR + fn + SEPARATOR + relation_mention_id[i]
             # it is ok to already add the hash to lexicon_root_data because it gets cleaned later via root_data
@@ -148,20 +155,23 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
             graph_tuples.extend([(0, 1), (0, 2)])
 
             # real data (per token)
-            _new_data = np.stack([data_converted[k][i][:l] for k in data_keys], axis=-1).flatten()
+            _data_list = [data_converted[k][i][:l] for k in data_keys]
+            if use_structure_token:
+                _data_list = [np.ones(l, dtype=DTYPE_HASH) * hash_structure_token] + _data_list
+            _new_data = np.stack(_data_list, axis=-1).flatten()
             new_data_list.append(_new_data)
             added += len(_new_data)
             root = None
             for i2, h in enumerate(heads):
-                pos_self = i2 * len(data_keys) + LEN_META
+                pos_self = i2 * len_data_entry + LEN_META
                 # head? connect with context node
                 if h == head_root:
                     root = pos_self + target_offset
                 else:
                     assert h < len(heads), 'head points outside'
-                    pos_head = h * len(data_keys) + LEN_META
+                    pos_head = h * len_data_entry + LEN_META
                     graph_tuples.append((pos_head, pos_self + target_offset))
-                graph_tuples.extend([(pos_self, pos_self + i3) if i3 != target_offset else (pos_self + i3, pos_self) for i3 in range(1, len(data_keys))])
+                graph_tuples.extend([(pos_self, pos_self + i3) if i3 != target_offset else (pos_self + i3, pos_self) for i3 in range(1, len_data_entry)])
             assert root is not None, 'root not found'
 
             # remaining data (entities, relation)
@@ -210,10 +220,12 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     annotations=('comma separated list of annotation keys', 'option', 'a', str),
     target_offset=('offset to link descendant elements to', 'option', 't', int),
     discard_relations=('do not use relation data', 'option', 'r', str),
+    use_structure_token=('add a structure token to every word that links to head / child words', 'flag', 'u', bool),
     unused='not used parameters'
 )
 def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump_batches=False,
-          annotations='stanford_deprel,stanford_pos', target_offset=0, discard_relations='False', *unused):
+          annotations='stanford_deprel,stanford_pos', target_offset=0, discard_relations='False',
+          use_structure_token=False, *unused):
     discard_relations = discard_relations.lower().strip() == 'true'
     out_path_merged = join(out_path, DIR_MERGED)
     if not os.path.exists(out_path_merged):
@@ -228,19 +240,25 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     # default to process_sentence1
     if sentence_processor.strip() == 'process_sentence1':
         annotations = ''
-        target_offset = 0
     elif sentence_processor.strip() == 'process_sentence3':
         annotations = 'stanford_deprel'
-        target_offset = 0
     elif sentence_processor.strip() == 'process_sentence5':
         annotations = 'stanford_deprel,stanford_pos'
-        target_offset = 0
     elif sentence_processor.strip() == 'process_sentence11':
         annotations = 'stanford_deprel'
         target_offset = 1
     elif sentence_processor.strip() == 'process_sentence12':
         annotations = 'stanford_deprel,stanford_pos'
         target_offset = 1
+    elif sentence_processor.strip() == 'process_sentence21':
+        annotations = ''
+        use_structure_token = True
+    elif sentence_processor.strip() == 'process_sentence23':
+        annotations = 'stanford_deprel'
+        use_structure_token = True
+    elif sentence_processor.strip() == 'process_sentence25':
+        annotations = 'stanford_deprel,stanford_pos'
+        use_structure_token = True
     else:
         raise NotImplementedError('sentence_processor: %s not implemented for parsing opennre' % sentence_processor)
     logger.info('use %s' % sentence_processor)
@@ -275,7 +293,8 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
                                                  target_offset=target_offset,
                                                  id_prefix=root_string, root_hash=root_hash, context_hash=context_hash,
                                                  entity_hash=entity_hash, sentence_hash=sentence_hash,
-                                                 discard_relations=discard_relations)
+                                                 discard_relations=discard_relations,
+                                                 use_structure_token=use_structure_token)
             logger.info('created graph with %i components' % len(current_data_graph.roots))
             data_graph_list.append(current_data_graph)
         except IOError as e:
