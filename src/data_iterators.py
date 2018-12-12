@@ -1,4 +1,6 @@
 import logging
+import traceback
+
 import numpy as np
 import os
 import sys
@@ -473,6 +475,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         #logger.debug('created %i trees' % n)
     except Exception as e:
         logger.error('exception occurred in tree_iterator:\n%s' % str(e))
+        traceback.print_exc()
         raise e
 
 
@@ -618,6 +621,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
             yield tree
     except Exception as e:
         logger.error('exception occurred in reroot_wrapper:\n%s' % str(e))
+        traceback.print_exc()
         raise e
 
 
