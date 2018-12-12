@@ -542,7 +542,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
             logger.debug('calculate nearest neighbours (batch_size: %i; #batches: %i)...'
                          % (bs, len(lexicon_indices_transformed) // bs + 1))
             for start in range(0, len(lexicon_indices_transformed), bs):
-                logger.debug('calc batch #%i ...' % (start // bs))
+                #logger.debug('calc batch #%i ...' % (start // bs))
                 lex_indices_batch = lexicon_indices_transformed[start:start+bs]
                 new_nn = get_nearest_neighbor_samples_batched(lex_indices_batch, lexicon_indices_transformed, embedder,
                                                               session, nbr=neg_samples)
