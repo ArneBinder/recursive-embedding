@@ -1568,7 +1568,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                     config.neg_samples = new_neg_samples
             else:
                 data_indices_selected = data_indices_full_trees
-            indices_mapping_dict[None] = data_indices_selected
+            lexicon_indices_selected = np.unique(forest.data[data_indices_selected])
+            indices_mapping_dict[None] = (data_indices_selected, lexicon_indices_selected)
 
             nbr_indices = int(config.nbr_trees or 0)
             if m == M_TEST and config.nbr_trees_test:

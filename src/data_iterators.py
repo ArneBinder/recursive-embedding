@@ -474,7 +474,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             raise ValueError('unknown concat_mode=%s' % concat_mode)
         #logger.debug('created %i trees' % n)
     except Exception as e:
-        logger.error('exception occurred in tree_iterator:\n%s' % str(e))
+        logger.error('exception occurred in tree_iterator:')
         traceback.print_exc()
         raise e
 
@@ -527,17 +527,17 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
                                % str(sample_method_backup))
                 sample_method = sample_method_backup
         if sample_method in [SAMPLE_METHOD_UNIFORM_ALL, SAMPLE_METHOD_FREQUENCY_ALL, SAMPLE_METHOD_NEAREST_ALL]:
-            data_indices_all = indices_mapping[None]
+            data_indices_all, lexicon_indices_all = indices_mapping[None]
             indices_mapping = None
             assert data_indices_all is not None, 'not class-wise sampling requires data_indices_all, but it is None'
         else:
             assert indices_mapping is not None, 'class-wise sampling requires indices_mapping, but it is None'
             data_indices_all = None
+            lexicon_indices_all = None
 
         # pre-calculate nearest neighbors in batches
         if sample_method == SAMPLE_METHOD_NEAREST_ALL:
-            lexicon_indices = np.unique(forest.data[data_indices_all])
-            lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
+            lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices_all))
             bs = 100
             logger.debug('calculate nearest neighbours (batch_size: %i; #batches: %i)...'
                          % (bs, len(lexicon_indices_transformed) // bs + 1))
@@ -555,12 +555,9 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
             head_transformed_back, was_reverted = forest.lexicon.transform_idx_back(tree[KEY_HEAD])
             # get selected data
             if indices_mapping is None:
-                data_indices = data_indices_all
-                nbr_lex_indices = len(forest.lexicon)
-                lexicon_indices = None
+                data_indices, lexicon_indices = data_indices_all, lexicon_indices_all
             else:
                 data_indices, lexicon_indices = indices_mapping[head_transformed_back]
-                nbr_lex_indices = len(lexicon_indices)
 
             # use all lexicon_indices as samples (exhaustive sampling without repetitions), if its number matches neg_samples
             if sample_method in [SAMPLE_METHOD_UNIFORM, SAMPLE_METHOD_UNIFORM_ALL]:
@@ -583,17 +580,17 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
                 sample_indices = np.random.choice(data_indices, size=neg_samples + 1)
                 samples = forest.data[sample_indices]
                 # replace samples that equal the head/root: sample replacement element
-                rep = np.random.randint(nbr_lex_indices - 1)
+                rep = np.random.randint(len(lexicon_indices) - 1)
                 # map replacement element from class index to lexicon index, if lexicon_indices are given
-                if lexicon_indices is not None:
-                    if lexicon_indices[rep] == head_transformed_back:
-                        rep = lexicon_indices[-1]
-                    else:
-                        rep = lexicon_indices[rep]
+                #if lexicon_indices is not None:
+                if lexicon_indices[rep] == head_transformed_back:
+                    rep = lexicon_indices[-1]
                 else:
-                    # otherwise just use as index to lexicon
-                    if rep == head_transformed_back:
-                        rep = nbr_lex_indices - 1
+                    rep = lexicon_indices[rep]
+                #else:
+                #    # otherwise just use as index to lexicon
+                #    if rep == head_transformed_back:
+                #        rep = len(lexicon_indices) - 1
 
                 samples[samples == head_transformed_back] = rep
                 # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
@@ -604,8 +601,6 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
                 #samples[0] = tree[KEY_HEAD]
             elif sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
                 if tree[KEY_HEAD] not in nearest_neighbors_transformed:
-                    if lexicon_indices is None:
-                        lexicon_indices = np.unique(forest.data[data_indices])
                     assert len(lexicon_indices) > neg_samples, \
                         'not enough data_indices (%i) to get neg_samples=%i nearest neighbors' % (data_indices, neg_samples)
                     lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
@@ -620,7 +615,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
             tree[KEY_HEAD] = None
             yield tree
     except Exception as e:
-        logger.error('exception occurred in reroot_wrapper:\n%s' % str(e))
+        logger.error('exception occurred in reroot_wrapper:')
         traceback.print_exc()
         raise e
 
