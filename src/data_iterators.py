@@ -23,7 +23,7 @@ SAMPLE_METHOD_UNIFORM = 'U'
 SAMPLE_METHOD_UNIFORM_ALL = 'UA'
 SAMPLE_METHOD_FREQUENCY = 'F'
 SAMPLE_METHOD_FREQUENCY_ALL = 'FA'
-SAMPLE_METHOD_NEAREST = 'NA'
+SAMPLE_METHOD_NEAREST = 'N'
 SAMPLE_METHOD_NEAREST_ALL = 'NA'
 
 #OFFSET_CONTEXT_ROOT = 2
@@ -490,7 +490,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
     nearest_neighbors_transformed = {}
     logger.debug('default sample_method=%s' % str(sample_method))
     sample_method_backup = SAMPLE_METHOD_FREQUENCY_ALL
-    if sample_method == SAMPLE_METHOD_NEAREST_ALL:
+    if sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
         if embedder is None and session is None:
             logger.warning('embedder or session not available, but required for sample_method=nearest. Use "%s" instead.'
                            % str(sample_method_backup))
