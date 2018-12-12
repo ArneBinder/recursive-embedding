@@ -562,9 +562,11 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
                 samples = nearest_neighbors_transformed[tree[KEY_HEAD]]
             else:
                 #all_candidate_indices = np.unique(forest.data[data_indices])
-                assert len(data_indices) > neg_samples, \
+                if lexicon_indices is None:
+                    lexicon_indices = np.unique(forest.data[data_indices])
+                assert len(lexicon_indices) > neg_samples, \
                     'not enough data_indices (%i) to get neg_samples=%i nearest neighbors' % (data_indices, neg_samples)
-                samples = get_nearest_neighbor_samples(tree[KEY_HEAD], data_indices, forest.lexicon, embedder, session,
+                samples = get_nearest_neighbor_samples(tree[KEY_HEAD], lexicon_indices, forest.lexicon, embedder, session,
                                                        nbr=neg_samples)
                 nearest_neighbors_transformed[tree[KEY_HEAD]] = samples
         else:
