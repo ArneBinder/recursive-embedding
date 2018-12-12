@@ -259,14 +259,10 @@ class TreeEmbedding(object):
                                          name=VAR_PREFIX_FC_REVERSE + '_%d' % self._dim_embeddings)
 
         # implemented for batches
-        self._reference_idx = tf.placeholder(dtype=tf.int32)
+        self._reference_indices = tf.placeholder(dtype=tf.int32)
         self._candidate_indices = tf.placeholder(dtype=tf.int32)
-        reference_embedding = tf.nn.l2_normalize(tf.gather(self.lexicon, self.reference_idx), dim=-1)
-        candidate_embeddings = tf.nn.l2_normalize(tf.gather(self.lexicon, self.candidate_indices), dim=-1)
-        reference_embedding_tiled = tf.tile(reference_embedding, multiples=[1, tf.shape(candidate_embeddings)[1]])
-        reference_embedding_tiled_reshaped = tf.reshape(reference_embedding_tiled, tf.shape(candidate_embeddings))
-        _mul = candidate_embeddings * reference_embedding_tiled_reshaped
-        self._reference_vs_candidates = tf.reduce_sum(_mul, axis=-1)
+        self._reference_vs_candidate = self.calc_reference_vs_candidate(reference_indices=self.reference_indices,
+                                                                        candidate_indices=self.candidate_indices)
 
     def embed(self):
         # get the head embedding from id
@@ -287,9 +283,21 @@ class TreeEmbedding(object):
     def children(self, name=KEY_CHILDREN):
         return td.InputTransform(lambda x: x.get(KEY_CHILDREN, []), name=name)
 
+    def calc_reference_vs_candidate(self, reference_indices, candidate_indices):
+        reference_embedding = tf.nn.l2_normalize(tf.gather(self.lexicon, reference_indices), dim=-1)
+        candidate_embedding = tf.nn.l2_normalize(tf.gather(self.lexicon, candidate_indices), dim=-1)
+        _shape = [tf.shape(reference_embedding)[0], tf.shape(candidate_embedding)[0], self.dimension_embeddings]
+        reference_embedding_tiled = tf.tile(reference_embedding, multiples=[1, tf.shape(candidate_embedding)[0]])
+        candidate_embedding_tiled = tf.tile(candidate_embedding, multiples=[tf.shape(reference_embedding)[0], 1])
+        reference_embedding_tiled_reshaped = tf.reshape(reference_embedding_tiled, _shape)
+        candidate_embedding_tiled_reshaped = tf.reshape(candidate_embedding_tiled, _shape)
+
+        _mul = candidate_embedding_tiled_reshaped * reference_embedding_tiled_reshaped
+        return tf.reduce_sum(_mul, axis=-1)
+
     @property
-    def reference_vs_candidates(self):
-        return self._reference_vs_candidates
+    def reference_vs_candidate(self):
+        return self._reference_vs_candidate
 
     @property
     def state_size(self):
@@ -368,8 +376,8 @@ class TreeEmbedding(object):
         raise NotImplementedError
 
     @property
-    def reference_idx(self):
-        return self._reference_idx
+    def reference_indices(self):
+        return self._reference_indices
 
     @property
     def candidate_indices(self):

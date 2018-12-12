@@ -472,15 +472,35 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     #logger.debug('created %i trees' % n)
 
 
+# DEPRECATED use get_nearest_neighbor_samples_batched
 def get_nearest_neighbor_samples(idx_transformed, all_candidate_indices, lexicon, embedder, session, nbr):
     all_candidate_indices_transformed = np.array(lexicon.transform_indices(indices=all_candidate_indices))
-    feed_dict = {embedder.reference_idx: [idx_transformed], embedder.candidate_indices: [all_candidate_indices_transformed]}
-    sims = session.run(embedder.reference_vs_candidates, feed_dict)[0]
-    max_indices_indices = np.argpartition(sims, -(nbr + 1))[-(nbr + 1):]
+    feed_dict = {embedder.reference_indices: [idx_transformed],
+                 embedder.candidate_indices: all_candidate_indices_transformed}
+    all_sims = session.run(embedder.reference_vs_candidate, feed_dict)
+    max_indices_indices = np.argpartition(all_sims[0], -(nbr + 1))[-(nbr + 1):]
     max_indices = all_candidate_indices_transformed[max_indices_indices]
     max_indices[max_indices == idx_transformed] = max_indices[0]
     max_indices[0] = idx_transformed
     return max_indices
+
+
+def get_nearest_neighbor_samples_batched(reference_indices_transformed, candidate_indices_transformed, embedder,
+                                         session, nbr):
+    #logger.debug('calc sims (batch_size: %i) ...' % len(reference_indices_transformed))
+    feed_dict = {embedder.reference_indices: reference_indices_transformed,
+                 embedder.candidate_indices: candidate_indices_transformed}
+    all_sims = session.run(embedder.reference_vs_candidate, feed_dict)
+    res = {}
+    #logger.debug('calc nearest neighbor indices (batch_size: %i) ...' % len(reference_indices_transformed))
+    max_indices_indices = np.argpartition(all_sims, -(nbr + 1))[:,-(nbr + 1):]
+    #logger.debug('calc nearest neighbors (batch_size: %i) ...' % len(reference_indices_transformed))
+    for i, ref_idx in enumerate(reference_indices_transformed):
+        max_indices = candidate_indices_transformed[max_indices_indices[i]]
+        max_indices[max_indices == ref_idx] = max_indices[0]
+        max_indices[0] = ref_idx
+        res[ref_idx] = max_indices
+    return res
 
 
 def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None, #data_indices_all=None,
@@ -488,6 +508,9 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
                    sample_method='', embedder=None, session=None, **kwargs):
     d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     nearest_neighbors_transformed = {}
+    _sm_split = sample_method.split('.')
+    sample_method = _sm_split[0]
+    sample_method_value = float('0.'+_sm_split[1]) if len(_sm_split) > 1 else 1.0
     logger.debug('default sample_method=%s' % str(sample_method))
     sample_method_backup = SAMPLE_METHOD_FREQUENCY_ALL
     if sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
@@ -495,7 +518,6 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
             logger.warning('embedder or session not available, but required for sample_method=nearest. Use "%s" instead.'
                            % str(sample_method_backup))
             sample_method = sample_method_backup
-
     if sample_method in [SAMPLE_METHOD_UNIFORM_ALL, SAMPLE_METHOD_FREQUENCY_ALL, SAMPLE_METHOD_NEAREST_ALL]:
         data_indices_all = indices_mapping[None]
         indices_mapping = None
@@ -503,6 +525,21 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
     else:
         assert indices_mapping is not None, 'class-wise sampling requires indices_mapping, but it is None'
         data_indices_all = None
+
+    # pre-calculate nearest neighbors in batches
+    if sample_method == SAMPLE_METHOD_NEAREST_ALL:
+        lexicon_indices = np.unique(forest.data[data_indices_all])
+        lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
+        bs = 100
+        logger.debug('calculate nearest neighbours (batch_size: %i; #batches: %i)...'
+                     % (bs, len(lexicon_indices_transformed) // bs + 1))
+        for start in range(0, len(lexicon_indices_transformed), bs):
+            logger.debug('calc batch #%i ...' % (start // bs))
+            lex_indices_batch = lexicon_indices_transformed[start:start+bs]
+            new_nn = get_nearest_neighbor_samples_batched(lex_indices_batch, lexicon_indices_transformed, embedder,
+                                                          session, nbr=neg_samples)
+            nearest_neighbors_transformed.update(new_nn)
+        logger.debug('calculate nearest neighbours finished')
 
     #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
     for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
@@ -558,17 +595,16 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
             samples = forest.lexicon.transform_indices(samples)
             #samples[0] = tree[KEY_HEAD]
         elif sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
-            if tree[KEY_HEAD] in nearest_neighbors_transformed:
-                samples = nearest_neighbors_transformed[tree[KEY_HEAD]]
-            else:
-                #all_candidate_indices = np.unique(forest.data[data_indices])
+            if tree[KEY_HEAD] not in nearest_neighbors_transformed:
                 if lexicon_indices is None:
                     lexicon_indices = np.unique(forest.data[data_indices])
                 assert len(lexicon_indices) > neg_samples, \
                     'not enough data_indices (%i) to get neg_samples=%i nearest neighbors' % (data_indices, neg_samples)
-                samples = get_nearest_neighbor_samples(tree[KEY_HEAD], lexicon_indices, forest.lexicon, embedder, session,
-                                                       nbr=neg_samples)
-                nearest_neighbors_transformed[tree[KEY_HEAD]] = samples
+                lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
+                new_nn = get_nearest_neighbor_samples_batched([tree[KEY_HEAD]], lexicon_indices_transformed, embedder,
+                                                              session, nbr=neg_samples)
+                nearest_neighbors_transformed.update(new_nn)
+            samples = nearest_neighbors_transformed[tree[KEY_HEAD]]
         else:
             raise Exception('unknown sample_method: %s' % str(sample_method))
 
