@@ -538,7 +538,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
         # pre-calculate nearest neighbors in batches
         if sample_method == SAMPLE_METHOD_NEAREST_ALL:
             lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices_all))
-            bs = 100
+            bs = 50
             logger.debug('calculate nearest neighbours (batch_size: %i; #batches: %i)...'
                          % (bs, len(lexicon_indices_transformed) // bs + 1))
             for start in range(0, len(lexicon_indices_transformed), bs):
