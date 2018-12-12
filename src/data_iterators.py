@@ -316,160 +316,164 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     :param unused:
     :return:
     """
-    # use if and warning instead of assertion because of dummy concat modes
-    #if reroot and concat_mode != CM_TREE:
-    #    logger.warning('reroot requires concat_mode==%s, but found concat_mode: %s' % (CM_TREE, concat_mode))
-    if reroot:
-        assert concat_mode == CM_TREE, 'reroot requires concat_mode==%s, but found concat_mode: %s' \
-                                       % (CM_TREE, concat_mode)
+    try:
+        # use if and warning instead of assertion because of dummy concat modes
+        #if reroot and concat_mode != CM_TREE:
+        #    logger.warning('reroot requires concat_mode==%s, but found concat_mode: %s' % (CM_TREE, concat_mode))
+        if reroot:
+            assert concat_mode == CM_TREE, 'reroot requires concat_mode==%s, but found concat_mode: %s' \
+                                           % (CM_TREE, concat_mode)
 
-    # enable tree dict caching
-    #forest._dicts = {}
+        # enable tree dict caching
+        #forest._dicts = {}
 
-    #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
-    sys.setrecursionlimit(1000)
-    #print(resource.getrlimit(resource.RLIMIT_STACK))
+        #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
+        sys.setrecursionlimit(1000)
+        #print(resource.getrlimit(resource.RLIMIT_STACK))
 
-    lexicon = forest.lexicon
-    costs = {}
-    link_types = []
-    #root_types = []
-    # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
-    data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        lexicon = forest.lexicon
+        costs = {}
+        link_types = []
+        #root_types = []
+        # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
+        data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
 
-    # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
-    if TYPE_REF in lexicon.strings:
-        data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
-        link_types.append(data_ref)
-        if link_cost_ref is not None:
-            costs[data_ref] = link_cost_ref
-    if TYPE_REF_SEEALSO in lexicon.strings:
-        data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
-        costs[data_ref_seealso] = link_cost_ref_seealso
-        link_types.append(data_ref_seealso)
+        # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
+        if TYPE_REF in lexicon.strings:
+            data_ref = lexicon.get_d(TYPE_REF, data_as_hashes=forest.data_as_hashes)
+            link_types.append(data_ref)
+            if link_cost_ref is not None:
+                costs[data_ref] = link_cost_ref
+        if TYPE_REF_SEEALSO in lexicon.strings:
+            data_ref_seealso = lexicon.get_d(TYPE_REF_SEEALSO, data_as_hashes=forest.data_as_hashes)
+            costs[data_ref_seealso] = link_cost_ref_seealso
+            link_types.append(data_ref_seealso)
 
-    #if TYPE_PMID in lexicon.strings:
-    #    d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=forest.data_as_hashes)
-    #    root_types.append(d_pmid)
-    #if TYPE_DBPEDIA_RESOURCE in lexicon.strings:
-    #    d_dbpedia_resource = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=forest.data_as_hashes)
-    #    root_types.append(d_dbpedia_resource)
+        #if TYPE_PMID in lexicon.strings:
+        #    d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=forest.data_as_hashes)
+        #    root_types.append(d_pmid)
+        #if TYPE_DBPEDIA_RESOURCE in lexicon.strings:
+        #    d_dbpedia_resource = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=forest.data_as_hashes)
+        #    root_types.append(d_dbpedia_resource)
 
-    data_nif_context = lexicon.get_d(TYPE_CONTEXT, data_as_hashes=forest.data_as_hashes)
-    data_nif_context_transformed = data_nif_context
-    data_unknown_transformed = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    if transform:
-        data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context)
-        data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed)
+        data_nif_context = lexicon.get_d(TYPE_CONTEXT, data_as_hashes=forest.data_as_hashes)
+        data_nif_context_transformed = data_nif_context
+        data_unknown_transformed = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        if transform:
+            data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context)
+            data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed)
 
-    # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
-    remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
-                              TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
-    remove_types_naive = [lexicon.get_d(s, data_as_hashes=forest.data_as_hashes) for s in
-                          remove_types_naive_str]
+        # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
+        remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
+                                  TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
+        remove_types_naive = [lexicon.get_d(s, data_as_hashes=forest.data_as_hashes) for s in
+                              remove_types_naive_str]
 
-    n = 0
+        n = 0
 
-    #logger.debug('create trees with concat_mode=%s' % concat_mode)
-    #x = (1 + (len(indices) / 100))
-    if concat_mode == CM_TREE:
-        for idx in indices:
-            tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform or reroot,
-                                                costs=costs, link_types=link_types, data_blank=data_blanking,
-                                                keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                blank_types=blank_types, go_back=reroot)
-            yield tree_context
-            n += 1
-            # measure progress in percent
-            #if n % x == 0:
-            #    progress = n / x
-            #    logger.debug('%i%%' % progress)
+        #logger.debug('create trees with concat_mode=%s' % concat_mode)
+        #x = (1 + (len(indices) / 100))
+        if concat_mode == CM_TREE:
+            for idx in indices:
+                tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform or reroot,
+                                                    costs=costs, link_types=link_types, data_blank=data_blanking,
+                                                    keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
+                                                    blank_types=blank_types, go_back=reroot)
+                yield tree_context
+                n += 1
+                # measure progress in percent
+                #if n % x == 0:
+                #    progress = n / x
+                #    logger.debug('%i%%' % progress)
 
-    elif concat_mode == CM_AGGREGATE:
-        # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFSET behind the root and leafs are
-        # sequential and in order, especially root_ids occur in data only directly after link_types
-        #sizes = []
-        for idx in indices:
-            # follow to first element of sequential data
-            # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1. NOT NECESSARY: gets cleaned by
-            idx_start = forest.get_children(idx)[0]
+        elif concat_mode == CM_AGGREGATE:
+            # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFSET behind the root and leafs are
+            # sequential and in order, especially root_ids occur in data only directly after link_types
+            #sizes = []
+            for idx in indices:
+                # follow to first element of sequential data
+                # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1. NOT NECESSARY: gets cleaned by
+                idx_start = forest.get_children(idx)[0]
 
-            root_pos = idx - OFFSET_CONTEXT_ROOT
-            root_idx = forest.root_mapping[root_pos]
-            # get position of next root or end of sequence data
-            if root_idx == len(forest.roots) - 1:
-                idx_end = len(forest)
-            else:
-                idx_end = forest.roots[root_idx+1]
-            #debug
-            data_string = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1]
-                           for d in forest.data[idx_start:idx_end]]
-            data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
-                                                             link_types=link_types,
-                                                             remove_types=remove_types_naive, transform=transform)
-            #debug
-            data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1] for d in
-                                   data_span_cleaned]
-            #logger.debug(' '.join(data_string_cleaned))
-            if max_size_plain > 0:
-                if len(data_span_cleaned) > max_size_plain:
-                    logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
-                                   % (len(data_span_cleaned), max_size_plain, root_idx))
-                #sizes.append([root_idx, len(data_span_cleaned)])
-                data_span_cleaned = data_span_cleaned[:max_size_plain]
-            tree_context = {KEY_HEAD: data_nif_context_transformed,
-                            KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
-            yield tree_context
-            n += 1
-            # measure progress in percent
-            #if n % x == 0:
-            #    progress = n / x
-            #    logger.debug('%i%%' % progress)
-        # statistics
-        #sizes_np = np.array(sizes)
-        #sizes_fn = 'sizes_plain.npy'
-        #if os.path.exists(sizes_fn):
-        #    sizes_np_loaded = np.load(sizes_fn)
-        #    sizes_np = np.concatenate((sizes_np_loaded, sizes_np))
-        #    logger.debug('append sizes to: %s' % sizes_fn)
-        #else:
-        #    logger.debug('write sizes to: %s' % sizes_fn)
-        #sizes_np.dump(sizes_fn)
+                root_pos = idx - OFFSET_CONTEXT_ROOT
+                root_idx = forest.root_mapping[root_pos]
+                # get position of next root or end of sequence data
+                if root_idx == len(forest.roots) - 1:
+                    idx_end = len(forest)
+                else:
+                    idx_end = forest.roots[root_idx+1]
+                #debug
+                data_string = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1]
+                               for d in forest.data[idx_start:idx_end]]
+                data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
+                                                                 link_types=link_types,
+                                                                 remove_types=remove_types_naive, transform=transform)
+                #debug
+                data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1] for d in
+                                       data_span_cleaned]
+                #logger.debug(' '.join(data_string_cleaned))
+                if max_size_plain > 0:
+                    if len(data_span_cleaned) > max_size_plain:
+                        logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
+                                       % (len(data_span_cleaned), max_size_plain, root_idx))
+                    #sizes.append([root_idx, len(data_span_cleaned)])
+                    data_span_cleaned = data_span_cleaned[:max_size_plain]
+                tree_context = {KEY_HEAD: data_nif_context_transformed,
+                                KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
+                yield tree_context
+                n += 1
+                # measure progress in percent
+                #if n % x == 0:
+                #    progress = n / x
+                #    logger.debug('%i%%' % progress)
+            # statistics
+            #sizes_np = np.array(sizes)
+            #sizes_fn = 'sizes_plain.npy'
+            #if os.path.exists(sizes_fn):
+            #    sizes_np_loaded = np.load(sizes_fn)
+            #    sizes_np = np.concatenate((sizes_np_loaded, sizes_np))
+            #    logger.debug('append sizes to: %s' % sizes_fn)
+            #else:
+            #    logger.debug('write sizes to: %s' % sizes_fn)
+            #sizes_np.dump(sizes_fn)
 
-    elif concat_mode == CM_SEQUENCE:
-        # DEPRECATED
-        raise NotImplementedError('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
-        logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
-        # TODO: remove
-        # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
-        # root_ids occur only directly after link_types
-        for idx in indices:
-            # follow to first element of sequential data
-            context_child_offset = forest.get_children(idx)[0]
-            # find last element
-            idx_end = idx + context_child_offset
-            for idx_end in range(idx + context_child_offset, len(forest)):
-                if forest.data[idx_end] == data_root:
-                    break
+        elif concat_mode == CM_SEQUENCE:
+            # DEPRECATED
+            raise NotImplementedError('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
+            logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
+            # TODO: remove
+            # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
+            # root_ids occur only directly after link_types
+            for idx in indices:
+                # follow to first element of sequential data
+                context_child_offset = forest.get_children(idx)[0]
+                # find last element
+                idx_end = idx + context_child_offset
+                for idx_end in range(idx + context_child_offset, len(forest)):
+                    if forest.data[idx_end] == data_root:
+                        break
 
-            f = get_tree_naive(idx_start=idx+context_child_offset, idx_end=idx_end, forest=forest,
-                               concat_mode=concat_mode, link_types=link_types,
-                               remove_types=remove_types_naive, data_aggregator=data_nif_context)
-            #f.set_children_with_parents()
-            tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-            yield tree_context
-            n += 1
-    elif concat_mode == 'dummy_dbpedianif1000':
-        for idx in indices:
-            yield {'h': 12, 'c': [{'h': 14, 'c': [{'h': 16, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': -1952, 'c': [{'h': -1300, 'c': [{'h': 15, 'c': []}]}, {'h': -23, 'c': [{'h': -12238, 'c': [{'h': -15, 'c': []}, {'h': -12237, 'c': []}, {'h': -3650, 'c': []}, {'h': -1045, 'c': []}]}]}, {'h': -23, 'c': [{'h': -712, 'c': [{'h': -10, 'c': []}, {'h': -517, 'c': [{'h': 15, 'c': []}]}]}]}, {'h': -19, 'c': []}]}]}, {'h': -1275, 'c': [{'h': -2472, 'c': [{'h': -42, 'c': []}, {'h': -4600, 'c': []}]}, {'h': -21, 'c': []}, {'h': -32626, 'c': []}, {'h': -6, 'c': [{'h': -9978, 'c': [{'h': -15, 'c': []}, {'h': -2037, 'c': [{'h': -4600, 'c': []}]}, {'h': -4600, 'c': []}, {'h': -8127, 'c': []}, {'h': 15, 'c': []}, {'h': -1, 'c': []}, {'h': -66750, 'c': []}, {'h': -8, 'c': []}]}]}, {'h': -19, 'c': []}]}]}, {'h': -5279, 'c': [{'h': 0, 'c': []}, {'h': -1300, 'c': []}, {'h': -119, 'c': [{'h': -14, 'c': [{'h': -15, 'c': []}, {'h': -9665, 'c': [{'h': 0, 'c': []}, {'h': 15, 'c': []}, {'h': 0, 'c': []}]}, {'h': -10, 'c': []}, {'h': -1838, 'c': [{'h': -361, 'c': []}, {'h': -477, 'c': []}, {'h': -104, 'c': []}, {'h': -464, 'c': [{'h': -5244, 'c': [{'h': -20136, 'c': []}]}, {'h': -79, 'c': [{'h': -1503, 'c': []}]}]}]}]}]}, {'h': -19, 'c': []}]}]}]}]}]}
-            n += 1
-    elif concat_mode == 'dummy_unknown':
-        for idx in indices:
-            yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
-            n += 1
-    else:
-        raise ValueError('unknown concat_mode=%s' % concat_mode)
-    #logger.debug('created %i trees' % n)
+                f = get_tree_naive(idx_start=idx+context_child_offset, idx_end=idx_end, forest=forest,
+                                   concat_mode=concat_mode, link_types=link_types,
+                                   remove_types=remove_types_naive, data_aggregator=data_nif_context)
+                #f.set_children_with_parents()
+                tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
+                yield tree_context
+                n += 1
+        elif concat_mode == 'dummy_dbpedianif1000':
+            for idx in indices:
+                yield {'h': 12, 'c': [{'h': 14, 'c': [{'h': 16, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': -1952, 'c': [{'h': -1300, 'c': [{'h': 15, 'c': []}]}, {'h': -23, 'c': [{'h': -12238, 'c': [{'h': -15, 'c': []}, {'h': -12237, 'c': []}, {'h': -3650, 'c': []}, {'h': -1045, 'c': []}]}]}, {'h': -23, 'c': [{'h': -712, 'c': [{'h': -10, 'c': []}, {'h': -517, 'c': [{'h': 15, 'c': []}]}]}]}, {'h': -19, 'c': []}]}]}, {'h': -1275, 'c': [{'h': -2472, 'c': [{'h': -42, 'c': []}, {'h': -4600, 'c': []}]}, {'h': -21, 'c': []}, {'h': -32626, 'c': []}, {'h': -6, 'c': [{'h': -9978, 'c': [{'h': -15, 'c': []}, {'h': -2037, 'c': [{'h': -4600, 'c': []}]}, {'h': -4600, 'c': []}, {'h': -8127, 'c': []}, {'h': 15, 'c': []}, {'h': -1, 'c': []}, {'h': -66750, 'c': []}, {'h': -8, 'c': []}]}]}, {'h': -19, 'c': []}]}]}, {'h': -5279, 'c': [{'h': 0, 'c': []}, {'h': -1300, 'c': []}, {'h': -119, 'c': [{'h': -14, 'c': [{'h': -15, 'c': []}, {'h': -9665, 'c': [{'h': 0, 'c': []}, {'h': 15, 'c': []}, {'h': 0, 'c': []}]}, {'h': -10, 'c': []}, {'h': -1838, 'c': [{'h': -361, 'c': []}, {'h': -477, 'c': []}, {'h': -104, 'c': []}, {'h': -464, 'c': [{'h': -5244, 'c': [{'h': -20136, 'c': []}]}, {'h': -79, 'c': [{'h': -1503, 'c': []}]}]}]}]}]}, {'h': -19, 'c': []}]}]}]}]}]}
+                n += 1
+        elif concat_mode == 'dummy_unknown':
+            for idx in indices:
+                yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
+                n += 1
+        else:
+            raise ValueError('unknown concat_mode=%s' % concat_mode)
+        #logger.debug('created %i trees' % n)
+    except Exception as e:
+        logger.error('exception occurred in tree_iterator:\n%s' % str(e))
+        raise e
 
 
 # DEPRECATED use get_nearest_neighbor_samples_batched
@@ -506,111 +510,115 @@ def get_nearest_neighbor_samples_batched(reference_indices_transformed, candidat
 def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None, #data_indices_all=None,
                    transform=True, debug=False,
                    sample_method='', embedder=None, session=None, **kwargs):
-    d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    nearest_neighbors_transformed = {}
-    _sm_split = sample_method.split('.')
-    sample_method = _sm_split[0]
-    sample_method_value = float('0.'+_sm_split[1]) if len(_sm_split) > 1 else 1.0
-    logger.debug('default sample_method=%s' % str(sample_method))
-    sample_method_backup = SAMPLE_METHOD_FREQUENCY_ALL
-    if sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
-        if embedder is None and session is None:
-            logger.warning('embedder or session not available, but required for sample_method=nearest. Use "%s" instead.'
-                           % str(sample_method_backup))
-            sample_method = sample_method_backup
-    if sample_method in [SAMPLE_METHOD_UNIFORM_ALL, SAMPLE_METHOD_FREQUENCY_ALL, SAMPLE_METHOD_NEAREST_ALL]:
-        data_indices_all = indices_mapping[None]
-        indices_mapping = None
-        assert data_indices_all is not None, 'not class-wise sampling requires data_indices_all, but it is None'
-    else:
-        assert indices_mapping is not None, 'class-wise sampling requires indices_mapping, but it is None'
-        data_indices_all = None
-
-    # pre-calculate nearest neighbors in batches
-    if sample_method == SAMPLE_METHOD_NEAREST_ALL:
-        lexicon_indices = np.unique(forest.data[data_indices_all])
-        lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
-        bs = 100
-        logger.debug('calculate nearest neighbours (batch_size: %i; #batches: %i)...'
-                     % (bs, len(lexicon_indices_transformed) // bs + 1))
-        for start in range(0, len(lexicon_indices_transformed), bs):
-            logger.debug('calc batch #%i ...' % (start // bs))
-            lex_indices_batch = lexicon_indices_transformed[start:start+bs]
-            new_nn = get_nearest_neighbor_samples_batched(lex_indices_batch, lexicon_indices_transformed, embedder,
-                                                          session, nbr=neg_samples)
-            nearest_neighbors_transformed.update(new_nn)
-        logger.debug('calculate nearest neighbours finished')
-
-    #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-    for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
-        #samples = np.random.choice(forest.data, size=neg_samples + 1)
-        head_transformed_back, was_reverted = forest.lexicon.transform_idx_back(tree[KEY_HEAD])
-        # get selected data
-        if indices_mapping is None:
-            data_indices = data_indices_all
-            nbr_lex_indices = len(forest.lexicon)
-            lexicon_indices = None
+    try:
+        d_target = forest.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        nearest_neighbors_transformed = {}
+        _sm_split = sample_method.split('.')
+        sample_method = _sm_split[0]
+        sample_method_value = float('0.'+_sm_split[1]) if len(_sm_split) > 1 else 1.0
+        logger.debug('default sample_method=%s' % str(sample_method))
+        sample_method_backup = SAMPLE_METHOD_FREQUENCY_ALL
+        if sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
+            if embedder is None and session is None:
+                logger.warning('embedder or session not available, but required for sample_method=nearest. Use "%s" instead.'
+                               % str(sample_method_backup))
+                sample_method = sample_method_backup
+        if sample_method in [SAMPLE_METHOD_UNIFORM_ALL, SAMPLE_METHOD_FREQUENCY_ALL, SAMPLE_METHOD_NEAREST_ALL]:
+            data_indices_all = indices_mapping[None]
+            indices_mapping = None
+            assert data_indices_all is not None, 'not class-wise sampling requires data_indices_all, but it is None'
         else:
-            data_indices, lexicon_indices = indices_mapping[head_transformed_back]
-            nbr_lex_indices = len(lexicon_indices)
+            assert indices_mapping is not None, 'class-wise sampling requires indices_mapping, but it is None'
+            data_indices_all = None
 
-        # use all lexicon_indices as samples (exhaustive sampling without repetitions), if its number matches neg_samples
-        if sample_method in [SAMPLE_METHOD_UNIFORM, SAMPLE_METHOD_UNIFORM_ALL]:
-            # ATTENTION: lexicon_indices might get shuffled
-            samples = lexicon_indices
-            if neg_samples + 1 < len(samples):
-                np.random.shuffle(samples)
-                samples = samples[:neg_samples + 1]
-            elif neg_samples + 1 > len(samples):
-                raise Exception('not enough lexicon_indices (%i) for uniform sampling with (neg_samples+1)=%i'
-                                % (len(samples), neg_samples + 1))
-
-            # swap head to front
-            samples[samples == head_transformed_back] = samples[0]
-            samples[0] = head_transformed_back
-            samples = forest.lexicon.transform_indices(samples)
-            #samples[0] = tree[KEY_HEAD]
-        elif sample_method in [SAMPLE_METHOD_FREQUENCY, SAMPLE_METHOD_FREQUENCY_ALL]:
-            # sample only from selected data
-            sample_indices = np.random.choice(data_indices, size=neg_samples + 1)
-            samples = forest.data[sample_indices]
-            # replace samples that equal the head/root: sample replacement element
-            rep = np.random.randint(nbr_lex_indices - 1)
-            # map replacement element from class index to lexicon index, if lexicon_indices are given
-            if lexicon_indices is not None:
-                if lexicon_indices[rep] == head_transformed_back:
-                    rep = lexicon_indices[-1]
-                else:
-                    rep = lexicon_indices[rep]
-            else:
-                # otherwise just use as index to lexicon
-                if rep == head_transformed_back:
-                    rep = nbr_lex_indices - 1
-
-            samples[samples == head_transformed_back] = rep
-            # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
-            # replaced by IDENTITY in train_fold.execute_run.
-            samples[samples < 0] = d_target
-            samples[0] = head_transformed_back
-            samples = forest.lexicon.transform_indices(samples)
-            #samples[0] = tree[KEY_HEAD]
-        elif sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
-            if tree[KEY_HEAD] not in nearest_neighbors_transformed:
-                if lexicon_indices is None:
-                    lexicon_indices = np.unique(forest.data[data_indices])
-                assert len(lexicon_indices) > neg_samples, \
-                    'not enough data_indices (%i) to get neg_samples=%i nearest neighbors' % (data_indices, neg_samples)
-                lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
-                new_nn = get_nearest_neighbor_samples_batched([tree[KEY_HEAD]], lexicon_indices_transformed, embedder,
+        # pre-calculate nearest neighbors in batches
+        if sample_method == SAMPLE_METHOD_NEAREST_ALL:
+            lexicon_indices = np.unique(forest.data[data_indices_all])
+            lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
+            bs = 100
+            logger.debug('calculate nearest neighbours (batch_size: %i; #batches: %i)...'
+                         % (bs, len(lexicon_indices_transformed) // bs + 1))
+            for start in range(0, len(lexicon_indices_transformed), bs):
+                logger.debug('calc batch #%i ...' % (start // bs))
+                lex_indices_batch = lexicon_indices_transformed[start:start+bs]
+                new_nn = get_nearest_neighbor_samples_batched(lex_indices_batch, lexicon_indices_transformed, embedder,
                                                               session, nbr=neg_samples)
                 nearest_neighbors_transformed.update(new_nn)
-            samples = nearest_neighbors_transformed[tree[KEY_HEAD]]
-        else:
-            raise Exception('unknown sample_method: %s' % str(sample_method))
+            logger.debug('calculate nearest neighbours finished')
 
-        tree[KEY_CANDIDATES] = samples
-        tree[KEY_HEAD] = None
-        yield tree
+        #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
+            #samples = np.random.choice(forest.data, size=neg_samples + 1)
+            head_transformed_back, was_reverted = forest.lexicon.transform_idx_back(tree[KEY_HEAD])
+            # get selected data
+            if indices_mapping is None:
+                data_indices = data_indices_all
+                nbr_lex_indices = len(forest.lexicon)
+                lexicon_indices = None
+            else:
+                data_indices, lexicon_indices = indices_mapping[head_transformed_back]
+                nbr_lex_indices = len(lexicon_indices)
+
+            # use all lexicon_indices as samples (exhaustive sampling without repetitions), if its number matches neg_samples
+            if sample_method in [SAMPLE_METHOD_UNIFORM, SAMPLE_METHOD_UNIFORM_ALL]:
+                # ATTENTION: lexicon_indices might get shuffled
+                samples = lexicon_indices
+                if neg_samples + 1 < len(samples):
+                    np.random.shuffle(samples)
+                    samples = samples[:neg_samples + 1]
+                elif neg_samples + 1 > len(samples):
+                    raise Exception('not enough lexicon_indices (%i) for uniform sampling with (neg_samples+1)=%i'
+                                    % (len(samples), neg_samples + 1))
+
+                # swap head to front
+                samples[samples == head_transformed_back] = samples[0]
+                samples[0] = head_transformed_back
+                samples = forest.lexicon.transform_indices(samples)
+                #samples[0] = tree[KEY_HEAD]
+            elif sample_method in [SAMPLE_METHOD_FREQUENCY, SAMPLE_METHOD_FREQUENCY_ALL]:
+                # sample only from selected data
+                sample_indices = np.random.choice(data_indices, size=neg_samples + 1)
+                samples = forest.data[sample_indices]
+                # replace samples that equal the head/root: sample replacement element
+                rep = np.random.randint(nbr_lex_indices - 1)
+                # map replacement element from class index to lexicon index, if lexicon_indices are given
+                if lexicon_indices is not None:
+                    if lexicon_indices[rep] == head_transformed_back:
+                        rep = lexicon_indices[-1]
+                    else:
+                        rep = lexicon_indices[rep]
+                else:
+                    # otherwise just use as index to lexicon
+                    if rep == head_transformed_back:
+                        rep = nbr_lex_indices - 1
+
+                samples[samples == head_transformed_back] = rep
+                # set all IDs to TARGET. That should affect only IDs mentioned under links, ID mentions under roots are
+                # replaced by IDENTITY in train_fold.execute_run.
+                samples[samples < 0] = d_target
+                samples[0] = head_transformed_back
+                samples = forest.lexicon.transform_indices(samples)
+                #samples[0] = tree[KEY_HEAD]
+            elif sample_method in [SAMPLE_METHOD_NEAREST, SAMPLE_METHOD_NEAREST_ALL]:
+                if tree[KEY_HEAD] not in nearest_neighbors_transformed:
+                    if lexicon_indices is None:
+                        lexicon_indices = np.unique(forest.data[data_indices])
+                    assert len(lexicon_indices) > neg_samples, \
+                        'not enough data_indices (%i) to get neg_samples=%i nearest neighbors' % (data_indices, neg_samples)
+                    lexicon_indices_transformed = np.array(forest.lexicon.transform_indices(indices=lexicon_indices))
+                    new_nn = get_nearest_neighbor_samples_batched([tree[KEY_HEAD]], lexicon_indices_transformed, embedder,
+                                                                  session, nbr=neg_samples)
+                    nearest_neighbors_transformed.update(new_nn)
+                samples = nearest_neighbors_transformed[tree[KEY_HEAD]]
+            else:
+                raise Exception('unknown sample_method: %s' % str(sample_method))
+
+            tree[KEY_CANDIDATES] = samples
+            tree[KEY_HEAD] = None
+            yield tree
+    except Exception as e:
+        logger.error('exception occurred in reroot_wrapper:\n%s' % str(e))
+        raise e
 
 
 def embeddings_tfidf(aggregated_trees, d_unknown, vocabulary=None):
