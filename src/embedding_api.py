@@ -1193,8 +1193,9 @@ def load_data_source():
         logging.info('Reload requested')
         params = get_params(request)
         path = params['path']
+        path_pretrained = params.get('path_pretrained', None)
         nbr_candidates = params.get('nbr_candidates', None)
-        main(path)
+        main(path, logdir_pretrained=path_pretrained)
 
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
@@ -1271,7 +1272,7 @@ def init_forest(data_path):
             tfidf_root_ids = None
 
 
-def main(data_source):
+def main(data_source, logdir_pretrained=None):
     global sess, model_tree, model_main, lexicon, data_path, forest, tfidf_data, tfidf_indices, tfidf_root_ids, \
         embedding_indices, embeddings, model_config, nbr_candidates
     sess = None
@@ -1291,7 +1292,8 @@ def main(data_source):
         logging.info('Start api without data source. Use /api/load before any other request.')
         return
 
-    lexicon, checkpoint_fn, _ = get_lexicon(logdir=data_source, train_data_path=data_source, dont_dump=True)
+    lexicon, checkpoint_fn, loaded_config = get_lexicon(logdir=data_source, train_data_path=data_source,
+                                                        logdir_pretrained=logdir_pretrained, dont_dump=True)
     if checkpoint_fn:
         assert lexicon.vecs is None or lexicon.is_filled, \
             'lexicon: not all vecs for all types are set (len(types): %i, len(vecs): %i)' \
@@ -1300,8 +1302,17 @@ def main(data_source):
     # load model
     if checkpoint_fn:
         import model_fold
-        model_config = Config(logdir=data_source)
-        data_path = model_config.train_data_path
+        # model_config = Config(logdir=data_source)
+        # should not happen
+        assert loaded_config is not None, 'config was not loaded correctly from data_source=%s or logdir_pretrained=%s' \
+                                          % (data_source, str(logdir_pretrained))
+        model_config = loaded_config
+
+        if logdir_pretrained is not None:
+            data_path = data_source
+        else:
+            data_path = model_config.train_data_path
+        logger.info('use data_path=%s' % data_path)
 
         with tf.Graph().as_default() as graph:
             with tf.device(tf.train.replica_device_setter(FLAGS.ps_tasks)):
