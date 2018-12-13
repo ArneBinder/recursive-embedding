@@ -28,7 +28,7 @@ done
 set +a
 
 ## set cpu_set
-NBR_CPUS=4
+NBR_CPUS=3
 echo "NBR_CPUS: $NBR_CPUS"
 CPU_SET=$(($NVIDIA_VISIBLE_DEVICES * $NBR_CPUS))-$(($NVIDIA_VISIBLE_DEVICES * $NBR_CPUS + $NBR_CPUS - 1))
 
