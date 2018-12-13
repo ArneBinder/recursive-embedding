@@ -172,6 +172,7 @@ TYPE_LONG = {'REL': TYPE_RELATION,
              'DAT': TYPE_DATASET,
              'CON': [TYPE_CONTEXT],
              'SEN': [TYPE_SENTENCE],
+             'ENT': [TYPE_NAMED_ENTITY]
              # collides with TYPE_LEXEME because of UNKNOWN is added for TYPE_LEXEME:
              #'MAN': vocab_manual.values()
              }
