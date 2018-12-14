@@ -592,13 +592,15 @@ def init_model_type(config, logdir):
         config.batch_iter = batch_iter_naive.__name__
     # language model (reroot)
     elif config.model_type == MT_CANDIDATES:
-        if config.tree_embedder.strip() not in ['HTU_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapCCFC']:
+        if config.tree_embedder.strip() == 'HTU_reduceSUM_mapGRU':
+            # set tree_embedder to batched head version
+            config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU'
+        elif config.tree_embedder.strip() == 'HTU_reduceSUM_mapGRU_wd':
+            config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU_wd'
+        if config.tree_embedder.strip() not in ['HTUBatchedHead_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapCCFC', 'HTUBatchedHead_reduceSUM_mapGRU_wd']:
             raise NotImplementedError('reroot model only implemented for tree_embedder == '
                                       'HTU_reduceSUM_mapGRU, but it is: %s'
                                       % config.tree_embedder.strip())
-        if config.tree_embedder.strip()  == 'HTU_reduceSUM_mapGRU':
-            # set tree_embedder to batched head version
-            config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU'
 
         config.batch_iter = batch_iter_reroot.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)

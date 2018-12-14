@@ -277,8 +277,17 @@ class TreeEmbedding(object):
                                >> self._reverse_fc,
                         })
 
+    def embed_w_direction(self):
+        # translate id into head embedding and direction (0 / 1)
+        return td.AllOf(td.Scalar(dtype='int32')
+                               >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size))),
+                        td.InputTransform(lambda x: x // self.lexicon_size))
+
     def head(self, name='head_embed'):
         return td.Pipe(td.GetItem(KEY_HEAD), self.embed(), self.leaf_fc, name=name)
+
+    def head_w_direction(self, name='head_embed_w_direction'):
+        return td.Pipe(td.GetItem(KEY_HEAD), self.embed_w_direction(), name=name)
 
     def children(self, name=KEY_CHILDREN):
         return td.InputTransform(lambda x: x.get(KEY_CHILDREN, []), name=name)
@@ -482,6 +491,25 @@ class TreeEmbedding_mapGRU(TreeEmbedding_map):
     @property
     def map(self):
         return self._rnn_cell >> td.GetItem(1)
+
+
+class TreeEmbedding_mapGRU_w_direction(TreeEmbedding_map):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_mapGRU_w_direction, self).__init__(name='mapGRU_w_direction' + name, **kwargs)
+        with tf.variable_scope(self.scope):
+            with tf.variable_scope('map/forward') as scope:
+                self._rnn_cell_fw = gru_cell(scope, self.state_size, self.keep_prob, self.head_size)
+            with tf.variable_scope('map/backward') as scope:
+                self._rnn_cell_bw = gru_cell(scope, self.state_size, self.keep_prob, self.head_size)
+
+    @property
+    def map(self):
+        return td.OneOf(key_fn=td.GetItem(0) >> td.GetItem(1),
+                        case_blocks={
+                            0: td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1)) >> self._rnn_cell_fw,
+                            1: td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1)) >> self._rnn_cell_bw
+                        }) >> td.GetItem(1)
+
 
 
 class TreeEmbedding_mapGRU2(TreeEmbedding_map):
@@ -737,6 +765,18 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
         return ot.shape[-1]
 
 
+class TreeEmbedding_HTU_w_direction(TreeEmbedding_HTU):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTU_w_direction, self).__init__(name=name, **kwargs)
+
+    def __call__(self):
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
+        children = self.children() >> td.Map(embed_tree())
+        state = self.new_state(self.head_w_direction, children)
+        embed_tree.resolve_to(state)
+        return state
+
+
 class TreeEmbedding_HTU_mapIDENTITY(TreeEmbedding_reduce):
     """Calculates an embedding over a (recursive) SequenceNode."""
 
@@ -866,6 +906,34 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         return self.head_size + self.state_size + 1
 
 
+class TreeEmbedding_HTUBatchedHead_w_direction(TreeEmbedding_HTU_w_direction):
+    """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTUBatchedHead_w_direction, self).__init__(name=name, **kwargs)
+
+    def __call__(self):
+        _htu_model = super(TreeEmbedding_HTUBatchedHead_w_direction, self).__call__()
+        trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
+        # dummy_head is just passed through reduce, shouldn't be touched
+        #dummy_head = td.Zeros(output_type=_htu_model.output_type), td.Void()
+        dummy_head = td.Void()
+        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1)
+        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(td.AllOf(self.embed_w_direction() >> td.GetItem(0),
+                                                                       td.InputTransform(lambda x: [x]) >> td.Vector(size=1)) >> td.Concat())
+        model = td.AllOf(reduced_children >> td.Broadcast(), heads_embedded) >> td.Zip() \
+                  >> td.Map(td.Function(lambda x, y: tf.concat((x, y), axis=-1)))
+
+        if model.output_type is None:
+            model.set_output_type(tdt.SequenceType(tdt.TensorType(shape=(self.output_size,), dtype='float32')))
+
+        return model
+
+    @property
+    def output_size(self):
+        return self.head_size + self.state_size + 1
+
+
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
     """
         FLAT TreeEmbedding models take all first level children of the root as input and reduce them.
@@ -990,6 +1058,10 @@ class TreeEmbedding_HTU_reduceSUM_mapGRU2(TreeEmbedding_reduceSUM, TreeEmbedding
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapGRU2, self).__init__(name=name, **kwargs)
 
+class TreeEmbedding_HTU_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTU_w_direction):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_mapGRU_wd, self).__init__(name=name, **kwargs)
+
 
 class TreeEmbedding_HTU_reduceSUM_mapLSTM(TreeEmbedding_reduceSUM, TreeEmbedding_mapLSTM, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
@@ -1111,9 +1183,15 @@ class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU(TreeEmbedding_reduceSUM, Tre
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU, self).__init__(name=name, **kwargs)
 
+
 class TreeEmbedding_HTUBatchedHead_reduceSUM_mapCCFC(TreeEmbedding_reduceSUM, TreeEmbedding_mapCCFC, TreeEmbedding_HTUBatchedHead):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapCCFC, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHead_w_direction):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU_wd, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
