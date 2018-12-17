@@ -233,13 +233,9 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
     transformed = params.get('reroot', False) or transform
 
     blank_ids = set()
-    blank_strings = set()
     if 'blank' in params:
         blank_ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['blank'],
                                                                          data_as_hashes=current_forest.data_as_hashes)
-    logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
-    blank_types = set([current_forest.lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
-
     tree_dicts = []
     for tree_dict in data_iterators.tree_iterator(
             indices, current_forest, concat_mode=params.get('concat_mode', constants.CM_TREE), context=context,
@@ -247,7 +243,7 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
             link_cost_ref=params.get('link_cost_ref', None),
             link_cost_ref_seealso=params.get('link_cost_ref_seealso', None), reroot=params.get('reroot', False),
             max_size_plain=1000, keep_prob_blank=params.get('keep_prob_blank', 1.0), keep_prob_node=params.get('keep_prob_node', 1.0),
-            blank_types=blank_types):
+            blank_types=blank_ids):
         tree_dicts.append(tree_dict)
 
     return tree_dicts, transformed
