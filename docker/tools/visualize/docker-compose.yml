@@ -20,3 +20,5 @@ services:
       /root/set-user-with-folder.sh /root/recursive-embedding/src python embedding_api.py
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
+    network_mode: "bridge"
+
