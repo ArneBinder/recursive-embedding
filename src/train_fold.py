@@ -1256,9 +1256,10 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
             recompile_thread = None
 
         # NOTE: this depends on metric (pearson/mse/roc/...)
-        METRIC_MIN_INIT = -1
+        METRIC_MIN_INIT = 0
+        METRIC_MAX = 1.0
         # if stats_dict is available and stats_dict[metric] is not NaN...
-        if stats_dict is not None and stats_dict[metric] == stats_dict[metric]:
+        if stats_dict is not None and stats_dict[metric] == stats_dict[metric] and stats_dict[metric] < METRIC_MAX:
             stat_queue = [stats_dict]
         else:
             logger.warning('no initial test result available, init previous result (metric: %s) with METRIC_MIN_INIT=%f'
