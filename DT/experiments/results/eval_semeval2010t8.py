@@ -2,6 +2,8 @@ import os
 import subprocess
 import numpy as np
 
+from src.constants import TYPE_RELATION
+
 
 def format_rel(rel):
     rel_split = rel.strip().split('/')
@@ -11,6 +13,8 @@ def format_rel(rel):
         return '%s(e1,e2)' % rel_split[-1]
     if rel_split[-2] == 'BW':
         return '%s(e2,e1)' % rel_split[-1]
+    if rel_split[0] == TYPE_RELATION:
+        return rel_split[1]
     raise Exception('unknown format for relation: %s' % rel)
 
 
