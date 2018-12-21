@@ -303,7 +303,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
                   link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000,
-                  keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(),
+                  keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(), concat_types=(),
                   **unused):
     """
     create trees rooted at indices
@@ -380,7 +380,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform or reroot,
                                                     costs=costs, link_types=link_types, data_blank=data_blanking,
                                                     keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                    blank_types=blank_types, go_back=reroot)
+                                                    blank_types=blank_types, go_back=reroot, concat_types=concat_types)
                 yield tree_context
                 n += 1
                 # measure progress in percent
@@ -388,6 +388,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #    progress = n / x
                 #    logger.debug('%i%%' % progress)
 
+        # TODO: add concat_types functionality
+        # TODO: further rework
         elif concat_mode == CM_AGGREGATE:
             # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFSET behind the root and leafs are
             # sequential and in order, especially root_ids occur in data only directly after link_types

@@ -8,7 +8,7 @@ from scipy.sparse import csr_matrix, csc_matrix
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
-    OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT_ROOT, LINK_TYPES
+    OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT_ROOT, LINK_TYPES, KEY_HEAD_CONCAT
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -550,7 +550,7 @@ class Forest(object):
     # TODO(graph): test!
     def get_tree_dict(self, idx, visited=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0,
-                      revert=False, blank_types=(), go_back=False):
+                      revert=False, blank_types=(), go_back=False, concat_types=()):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -624,6 +624,10 @@ class Forest(object):
                 if (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()) or data_target in blank_types:
                     continue
 
+                if data_target in concat_types:
+                    seq_node.setdefault(KEY_HEAD_CONCAT, []).append(data_target)
+                    continue
+
                 seq_node[KEY_CHILDREN].append(self.get_tree_dict(idx=target,
                                                                  visited=visited,
                                                                  max_depth=max_depth - cost,
@@ -635,6 +639,7 @@ class Forest(object):
                                                                  keep_prob_blank=keep_prob_blank,
                                                                  keep_prob_node=keep_prob_node,
                                                                  blank_types=blank_types,
+                                                                 concat_types=concat_types,
                                                                  go_back=go_back))
         if go_back:
             if self.nbr_in[idx] > 0 and 0 <= cost <= max_depth:
@@ -658,6 +663,7 @@ class Forest(object):
                                                                      keep_prob_blank=keep_prob_blank,
                                                                      keep_prob_node=keep_prob_node,
                                                                      blank_types=blank_types,
+                                                                     concat_types=concat_types,
                                                                      go_back=go_back))
         if context > 0:
             for target_back in targets(self.graph_in, idx):
@@ -677,6 +683,7 @@ class Forest(object):
                                                                  data_blank=data_blank,
                                                                  keep_prob_blank=keep_prob_blank,
                                                                  keep_prob_node=keep_prob_node,
+                                                                 concat_types=concat_types,
                                                                  blank_types=blank_types))
 
         return seq_node

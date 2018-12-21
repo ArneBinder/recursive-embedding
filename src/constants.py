@@ -121,6 +121,7 @@ DTYPE_PROBS = np.float32
 KEY_HEAD = 'h'
 KEY_CHILDREN = 'c'
 KEY_CANDIDATES = 'ca'
+KEY_HEAD_CONCAT = 'hc'
 
 # model types
 MT_MULTICLASS = 'multiclass'

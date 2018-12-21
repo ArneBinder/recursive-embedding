@@ -236,6 +236,10 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
     if 'blank' in params:
         blank_ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['blank'],
                                                                          data_as_hashes=current_forest.data_as_hashes)
+    concat_ids = set()
+    if 'concat' in params:
+        concat_ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['concat'],
+                                                                          data_as_hashes=current_forest.data_as_hashes)
     tree_dicts = []
     for tree_dict in data_iterators.tree_iterator(
             indices, current_forest, concat_mode=params.get('concat_mode', constants.CM_TREE), context=context,
@@ -243,7 +247,7 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
             link_cost_ref=params.get('link_cost_ref', None),
             link_cost_ref_seealso=params.get('link_cost_ref_seealso', None), reroot=params.get('reroot', False),
             max_size_plain=1000, keep_prob_blank=params.get('keep_prob_blank', 1.0), keep_prob_node=params.get('keep_prob_node', 1.0),
-            blank_types=blank_ids):
+            blank_types=blank_ids, concat_types=concat_ids):
         tree_dicts.append(tree_dict)
 
     return tree_dicts, transformed
@@ -387,7 +391,7 @@ def get_or_calc_tree_dicts_or_forests(params):
         _forests = [current_forest.get_slice(indices=np.arange(start=idx_start, stop=idx_end))]
     elif 'idx' in params:
         params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(
-            indices=[params['idx']], current_forest=current_forest,params=params, transform=False)
+            indices=[params['idx']], current_forest=current_forest, params=params, transform=False)
         params['indices'] = [params['idx']]
     elif 'indices' in params:
         params['tree_dicts'], params['transformed_idx'] = get_tree_dicts_for_indices_from_forest(
