@@ -928,7 +928,7 @@ def prepare_embeddings_tfidf(tree_iterators, d_unknown, indices, cache_dir=None,
 def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices=None, data_dir=None,
                   use_inception_tree_model=False, index_file_names=None, index_file_sizes=None,
                   precompile=True, create_tfidf_embeddings=False, discard_tree_embeddings=False,
-                  discard_prepared_embeddings=False, model_kwargs={}): #nbr_classes=None, nbr_embeddings_in=None, exclusive_classes=False):
+                  discard_prepared_embeddings=False, model_kwargs={}, embedding_model_kwargs={}): #nbr_classes=None, nbr_embeddings_in=None, exclusive_classes=False):
 
     if discard_tree_embeddings:
         logger.warning('discard tree embeddings')
@@ -968,23 +968,22 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
 
     else:
         tree_embedder = getattr(model_fold, TREE_EMBEDDER_PREFIX + config.tree_embedder)
-        kwargs = {}
         if issubclass(tree_embedder, model_fold.TreeEmbedding_FLATconcat) or issubclass(tree_embedder, model_fold.TreeEmbedding_FLAT):
-            kwargs['sequence_length'] = config.sequence_length #or 500
+            embedding_model_kwargs['sequence_length'] = config.sequence_length #or 500
             if config.merge_factor:
-                kwargs['merge_factor'] = int(config.merge_factor)
-                kwargs['sequence_length'] = kwargs['sequence_length'] * kwargs['merge_factor']
+                embedding_model_kwargs['merge_factor'] = int(config.merge_factor)
+                embedding_model_kwargs['sequence_length'] = embedding_model_kwargs['sequence_length'] * embedding_model_kwargs['merge_factor']
             for k in tree_iterators.keys():
-                tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
+                tree_iterators[k] = partial(tree_iterators[k], max_size_plain=embedding_model_kwargs['sequence_length'])
             _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
-            kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
+            embedding_model_kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
 
         #elif issubclass(tree_embedder, model_fold.TreeEmbedding_FLAT):
-        #    kwargs['sequence_length'] = 10000
+        #    embedding_model_kwargs['sequence_length'] = 10000
         #    for k in tree_iterators.keys():
-        #        tree_iterators[k] = partial(tree_iterators[k], max_size_plain=kwargs['sequence_length'])
+        #        tree_iterators[k] = partial(tree_iterators[k], max_size_plain=embedding_model_kwargs['sequence_length'])
         #    _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
-        #    kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
+        #    embedding_model_kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
 
         # nbr_trees_out has to be defined for the reroot model because TreeEmbedding_HTUBatchedHead generates a
         # sequence of trees with unspecified length
@@ -1010,7 +1009,7 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
                                                   discard_prepared_embeddings=discard_prepared_embeddings,
                                                   # data_transfomed=data_transformed
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
-                                                  **kwargs
+                                                  **embedding_model_kwargs
                                                   )
         cache_dir = None
         if config.model_type != MT_CANDIDATES and data_dir is not None:
@@ -1431,6 +1430,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     if not (fnames_test is None or len(fnames_test) == 0):
         meta[M_TEST] = {M_FNAMES: fnames_test}
 
+    embedding_model_kwargs = {}
     tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs = init_model_type(config, logdir=logdir)
     tree_iterator_args_tfidf = None
     if config.use_tfidf or config.tree_embedder == 'tfidf':
@@ -1467,6 +1467,16 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             blank_strings.update(_id_strings)
         logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
         tree_iterator_args['blank_types'] = set([lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
+
+    if config.add_heads and config.add_heads.strip():
+        logger.info('add heads with prefixes to their parent: %s' % config.add_heads)
+        tree_iterator_args['add_heads_types'] = lexicon.get_ids_for_prefixes_or_types(
+            prefixes_or_types=config.add_heads.split(','), data_as_hashes=False)
+        nbr_add_heads = len(config.add_heads.split(','))
+        tree_iterator_args['additional_heads'] = nbr_add_heads
+        #embedding_model_kwargs['additional_heads'] = nbr_add_heads
+        embedding_model_kwargs['additional_heads_dims'] = [50] * nbr_add_heads
+        logger.debug('collected %i add_heads types for %i prefixes' % (len(tree_iterator_args['add_heads_types']), nbr_add_heads))
 
     #if config.model_type == MT_REROOT:
     logger.debug('set ids to IDENTITY')
@@ -1657,7 +1667,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 create_tfidf_embeddings=config.use_tfidf,
                 discard_tree_embeddings=discard_tree_embeddings,
                 discard_prepared_embeddings=discard_prepared_embeddings,
-                model_kwargs=model_kwargs
+                model_kwargs=model_kwargs,
+                embedding_model_kwargs=embedding_model_kwargs
             )
 
             #models_nearest = create_models_nearest(model_tree=model_tree,

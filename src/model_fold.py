@@ -12,7 +12,7 @@ import numpy as np
 import math
 from scipy.sparse import csr_matrix
 
-from constants import KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, LOGGING_FORMAT
+from constants import KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, LOGGING_FORMAT, KEY_HEAD_CONCAT
 
 # DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
@@ -112,7 +112,7 @@ def nth(n):
         x = td.InputTransform(z)
         nth_ = td.Nth().reads(c.input, x)
         c.output.reads(nth_)
-    return
+    return c
 
 
 def nth_py(n):
@@ -216,10 +216,12 @@ def AttentionReduce(name=None):  # pylint: disable=invalid-name
 class TreeEmbedding(object):
     def __init__(self, name, lex_size_fix, lex_size_var, dimension_embeddings, keep_prob_placeholder=None,
                  state_size=None, leaf_fc_size=0,
-                 keep_prob_fixed=1.0, **unused):
+                 keep_prob_fixed=1.0, additional_heads_dims=(), **unused):
         self._lex_size_fix = lex_size_fix
         self._lex_size_var = lex_size_var
         self._dim_embeddings = dimension_embeddings
+        #self._additional_heads = additional_heads
+        self._additional_heads_dims = additional_heads_dims
 
         self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
                                                                                                   dimension_embeddings=self._dim_embeddings,
@@ -264,9 +266,9 @@ class TreeEmbedding(object):
         self._reference_vs_candidate = self.calc_reference_vs_candidate(reference_indices=self.reference_indices,
                                                                         candidate_indices=self.candidate_indices)
 
-    def embed(self):
+    def embed(self, max_dims=None):
         # get the head embedding from id
-        return td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
+        res = td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
                         case_blocks={
                             # normal embedding
                             0: td.Scalar(dtype='int32')
@@ -276,6 +278,10 @@ class TreeEmbedding(object):
                                >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size)))
                                >> self._reverse_fc,
                         })
+        if max_dims is not None:
+            res = td.Pipe(res, td.Function(lambda x: x[:, :max_dims]))
+            res.set_output_type(tdt.TensorType(shape=[max_dims], dtype='float32'))
+        return res
 
     def embed_w_direction(self):
         # translate id into head embedding and direction (0 / 1)
@@ -287,7 +293,29 @@ class TreeEmbedding(object):
         return td.Pipe(td.GetItem(KEY_HEAD), self.embed(), self.leaf_fc, name=name)
 
     def head_w_direction(self, name='head_embed_w_direction'):
-        return td.Pipe(td.GetItem(KEY_HEAD), self.embed_w_direction(), name=name)
+        #return td.Pipe(td.GetItem(KEY_HEAD), self.embed_w_direction(), name=name)
+        comp = td.Composition(name=name)
+        with comp.scope():
+            head = td.GetItem(KEY_HEAD).reads(comp.input)
+            head_embedded_w_direction = self.embed_w_direction().reads(head)
+            head_embedded = td.GetItem(0).reads(head_embedded_w_direction)
+            direction = td.GetItem(1).reads(head_embedded_w_direction)
+            nbr_additional_heads = len(self._additional_heads_dims)
+            if nbr_additional_heads > 0:
+                def _get_additional_heads(x):
+                    # NOTE: don't use 0 as padding id!
+                    #_res = x.get(KEY_HEAD_CONCAT, [0] * nbr_additional_heads)
+                    _res = x[KEY_HEAD_CONCAT]
+                    #return _res + [0] * (nbr_additional_heads - len(_res))
+                    return _res
+
+                heads_other = td.InputTransform(_get_additional_heads).reads(comp.input)
+                heads_other_embedded = [self.embed(max_dims=dims).reads(td.GetItem(i).reads(heads_other)) for i, dims in enumerate(self._additional_heads_dims)]
+                heads_embedded = td.Concat().reads(head_embedded, *heads_other_embedded)
+                comp.output.reads(heads_embedded >> self.leaf_fc, direction)
+            else:
+                comp.output.reads(head_embedded >> self.leaf_fc, direction)
+        return comp
 
     def children(self, name=KEY_CHILDREN):
         return td.InputTransform(lambda x: x.get(KEY_CHILDREN, []), name=name)
@@ -378,7 +406,7 @@ class TreeEmbedding(object):
 
     @property
     def head_size(self):
-        return self.leaf_fc_size or self._dim_embeddings
+        return self.leaf_fc_size or (self.dimension_embeddings + sum(self._additional_heads_dims))
 
     @property
     def output_size(self):
@@ -888,7 +916,8 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         #print('reduced_children: %s' % str(reduced_children.output_type))
         #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
         #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc >> self._fc)
-        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(td.AllOf(self.embed() >> self.leaf_fc, td.InputTransform(lambda x: [x]) >> td.Vector(size=1)) >> td.Concat())
+        # do not use leaf_fc for candidates!
+        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1)) >> td.Concat())
         #print('heads_embedded: %s' % str(heads_embedded.output_type))
         #model = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
 
@@ -903,7 +932,8 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
     @property
     def output_size(self):
         #return self._fc.output_size * 2 + 1
-        return self.head_size + self.state_size + 1
+        #return self.head_size + self.state_size + 1
+        return self.dimension_embeddings + self.state_size + 1
 
 
 class TreeEmbedding_HTUBatchedHead_w_direction(TreeEmbedding_HTU_w_direction):
@@ -931,7 +961,8 @@ class TreeEmbedding_HTUBatchedHead_w_direction(TreeEmbedding_HTU_w_direction):
 
     @property
     def output_size(self):
-        return self.head_size + self.state_size + 1
+        #return self.head_size + self.state_size + 1
+        return self.dimension_embeddings + self.state_size + 1
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
@@ -983,6 +1014,7 @@ class TreeEmbedding_FLAT2levels(TreeEmbedding_FLAT):
         return self.leaf_fc_size or (self.dimension_embeddings * 2)
 
 
+#TODO: respect KEY_HEAD_CONCAT (and self.additional_heads_dims)!
 class TreeEmbedding_FLATconcat(TreeEmbedding):
     """
         FLAT TreeEmbedding models take all first level children of the root as input and reduce them.
@@ -1715,7 +1747,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         #    'dimension of concatenated embeddings has to be multiple of two, but it is: %i' % _shape[-1]
         #final_vecs_split = tf.reshape(final_vecs, shape=(-1, 2, concat_embeddings_dim // 2))
         vecs_reshaped = tf.reshape(final_vecs, shape=(-1, concat_embeddings_dim))
-        candidate_dims = tree_model.embedder.head_size
+        candidate_dims = tree_model.embedder.dimension_embeddings
         reference_dims = concat_embeddings_dim - candidate_dims
         vecs_reference = vecs_reshaped[:, :reference_dims]
         vecs_candidate = tf.expand_dims(vecs_reshaped[:, reference_dims:], axis=1)

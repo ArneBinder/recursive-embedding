@@ -236,10 +236,10 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
     if 'blank' in params:
         blank_ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['blank'],
                                                                          data_as_hashes=current_forest.data_as_hashes)
-    concat_ids = set()
-    if 'concat' in params:
-        concat_ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['concat'],
-                                                                          data_as_hashes=current_forest.data_as_hashes)
+    add_head_ids = set()
+    if 'add_heads' in params:
+        add_head_ids = current_forest.lexicon.get_ids_for_prefixes_or_types(prefixes_or_types=params['add_heads'],
+                                                                            data_as_hashes=current_forest.data_as_hashes)
     tree_dicts = []
     for tree_dict in data_iterators.tree_iterator(
             indices, current_forest, concat_mode=params.get('concat_mode', constants.CM_TREE), context=context,
@@ -247,7 +247,7 @@ def get_tree_dicts_for_indices_from_forest(indices, current_forest, params, tran
             link_cost_ref=params.get('link_cost_ref', None),
             link_cost_ref_seealso=params.get('link_cost_ref_seealso', None), reroot=params.get('reroot', False),
             max_size_plain=1000, keep_prob_blank=params.get('keep_prob_blank', 1.0), keep_prob_node=params.get('keep_prob_node', 1.0),
-            blank_types=blank_ids, concat_types=concat_ids):
+            blank_types=blank_ids, add_heads_types=add_head_ids):
         tree_dicts.append(tree_dict)
 
     return tree_dicts, transformed
@@ -803,8 +803,8 @@ def embed():
             if not os.path.exists(dump_dir):
                 os.makedirs(dump_dir)
             dims_all = _embeddings.shape[-1]
-            # ATTENTION: this is only correct if no leaf_fc is used!
-            dims_context = dims_all - model_tree.embedder.head_size - 1
+
+            dims_context = dims_all - model_tree.embedder.dimension_embeddings - 1
             numpy_dump(os.path.join(dump_dir, 'embeddings.context'), _embeddings[:, :dims_context])
             numpy_dump(os.path.join(dump_dir, 'embeddings.head'), _embeddings[:, dims_context:-1])
             numpy_dump(os.path.join(dump_dir, 'embeddings.id'), _embeddings[:, -1].astype(dtype=DTYPE_IDX))

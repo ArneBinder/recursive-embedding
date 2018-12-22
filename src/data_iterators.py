@@ -12,7 +12,8 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     TYPE_SECTION_SEEALSO, UNKNOWN_EMBEDDING, vocab_manual, KEY_CHILDREN, TYPE_DBPEDIA_RESOURCE, TYPE_CONTEXT, \
     TYPE_PARAGRAPH, TYPE_TITLE, TYPE_SENTENCE, TYPE_SECTION, LOGGING_FORMAT, CM_TREE, CM_AGGREGATE, \
     CM_SEQUENCE, TARGET_EMBEDDING, OFFSET_ID, TYPE_RELATEDNESS_SCORE, SEPARATOR, OFFSET_CONTEXT_ROOT, \
-    OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING
+    OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
+    KEY_HEAD_CONCAT
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -303,7 +304,7 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
                   link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000,
-                  keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(), concat_types=(),
+                  keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(), add_heads_types=(), additional_heads=0,
                   **unused):
     """
     create trees rooted at indices
@@ -380,7 +381,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform or reroot,
                                                     costs=costs, link_types=link_types, data_blank=data_blanking,
                                                     keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                    blank_types=blank_types, go_back=reroot, concat_types=concat_types)
+                                                    blank_types=blank_types, go_back=reroot, add_heads_types=add_heads_types)
                 yield tree_context
                 n += 1
                 # measure progress in percent
@@ -388,7 +389,6 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #    progress = n / x
                 #    logger.debug('%i%%' % progress)
 
-        # TODO: add concat_types functionality
         # TODO: further rework
         elif concat_mode == CM_AGGREGATE:
             # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFSET behind the root and leafs are
@@ -423,7 +423,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                     #sizes.append([root_idx, len(data_span_cleaned)])
                     data_span_cleaned = data_span_cleaned[:max_size_plain]
                 tree_context = {KEY_HEAD: data_nif_context_transformed,
-                                KEY_CHILDREN: [{KEY_HEAD: d, KEY_CHILDREN: []} for d in data_span_cleaned]}
+                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i], KEY_CHILDREN: [], KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+additional_heads]} for i in range(0, len(data_span_cleaned), additional_heads + 1)]}
                 yield tree_context
                 n += 1
                 # measure progress in percent
