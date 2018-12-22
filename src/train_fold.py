@@ -1454,28 +1454,22 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
 
     if config.blank and config.blank.strip():
         logger.info('blank tokens with prefixes: %s' % config.blank)
-        blank_ids = set()
-        blank_strings = set()
-        for prefix in config.blank.strip().split(','):
-            types_or_prefix = TYPE_LONG.get(prefix.strip(), prefix.strip())
-            if isinstance(types_or_prefix, list):
-                _id_strings = types_or_prefix
-                _ids = [lexicon.get_d(s=s, data_as_hashes=False) for s in _id_strings]
-            else:
-                _ids, _id_strings = lexicon.get_ids_for_prefix(types_or_prefix)
-            blank_ids.update(_ids)
-            blank_strings.update(_id_strings)
-        logging.info('blank %i types: %s' % (len(blank_ids), ', '.join(blank_strings)))
-        tree_iterator_args['blank_types'] = set([lexicon.get_d(s=s, data_as_hashes=False) for s in blank_strings])
+        blank_ids = lexicon.get_ids_for_prefixes_or_types(
+            prefixes_or_types=config.blank.split(','), data_as_hashes=False)
+        tree_iterator_args['blank_types'] = set(blank_ids)
 
     if config.add_heads and config.add_heads.strip():
         logger.info('add heads with prefixes to their parent: %s' % config.add_heads)
-        tree_iterator_args['add_heads_types'] = lexicon.get_ids_for_prefixes_or_types(
-            prefixes_or_types=config.add_heads.split(','), data_as_hashes=False)
-        nbr_add_heads = len(config.add_heads.split(','))
+        add_heads_split = config.add_heads.split(',')
+        add_heads_ids = lexicon.get_ids_for_prefixes_or_types(
+            prefixes_or_types=add_heads_split, data_as_hashes=False)
+        if config.blank and config.blank.strip():
+            assert not any([_id in tree_iterator_args['blank_types'] for _id in add_heads_ids]), 'found id for add_heads in blank_ids'
+        tree_iterator_args['add_heads_types'] = set(add_heads_ids)
+        nbr_add_heads = len(add_heads_split)
         tree_iterator_args['additional_heads'] = nbr_add_heads
         #embedding_model_kwargs['additional_heads'] = nbr_add_heads
-        embedding_model_kwargs['additional_heads_dims'] = [50] * nbr_add_heads
+        embedding_model_kwargs['additional_heads_dims'] = [300] * nbr_add_heads
         logger.debug('collected %i add_heads types for %i prefixes' % (len(tree_iterator_args['add_heads_types']), nbr_add_heads))
 
     #if config.model_type == MT_REROOT:
