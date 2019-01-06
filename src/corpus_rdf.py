@@ -1,16 +1,11 @@
 import json
-import subprocess
 
 import spacy
 #from datetime import datetime
-#from spacy import language
-
 #import plac
 from nltk.parse.corenlp import CoreNLPDependencyParser
-# requires: pip install git+https://github.com/RDFLib/rdflib-jsonld.git
-from rdflib import Graph
 
-from src.constants import TYPE_CONTEXT
+from constants import TYPE_CONTEXT
 
 
 TACRED_CONLL_RECORD = '''
@@ -71,13 +66,10 @@ TACRED_RECORD_JSON = u'[{"id": "e7798fb926b9403cfcd2", "docid": "APW_ENG_2010110
 TACRED_RECORD_TOKEN_FEATURES = {"token": ["At", "the", "same", "time", ",", "Chief", "Financial", "Officer", "Douglas", "Flint", "will", "become", "chairman", ",", "succeeding", "Stephen", "Green", "who", "is", "leaving", "to", "take", "a", "government", "job", "." ], "stanford_pos": [ "IN", "DT", "JJ", "NN", ",", "NNP", "NNP", "NNP", "NNP", "NNP", "MD", "VB", "NN", ",", "VBG", "NNP", "NNP", "WP", "VBZ", "VBG", "TO", "VB", "DT", "NN", "NN", "." ], "stanford_ner": [ "O", "O", "O", "O", "O", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "O", "O", "O", "O" ], "stanford_deprel": [ "case", "det", "amod", "nmod", "punct", "compound", "compound", "compound", "compound", "nsubj", "aux", "ROOT", "xcomp", "punct", "xcomp", "compound", "dobj", "nsubj", "aux", "acl:relcl", "mark", "xcomp", "det", "compound", "dobj", "punct" ], "stanford_head": [ 4, 4, 4, 12, 12, 10, 10, 10, 10, 12, 12, 0, 12, 12, 12, 17, 15, 20, 20, 17, 22, 20, 25, 25, 22, 12 ]}
 
 TACRED_RECORD_ID = PREFIX_TACRED + u'train/e7798fb926b9403cfcd2'
-# annotation format: ((sentence_idx, (token_start, token_end)), annotation)
-#TACRED_RECORD_TOKEN_ANNOTATIONS = [(0, (8, 9), PREFIX_TACRED + u'subj'), (0, (12, 12), PREFIX_TACRED + u'obj')]
 TACRED_RECORD_TOKEN_ANNOTATIONS = [{u'@id': TACRED_RECORD_ID + u'#r1',
                                     u'@type': [PREFIX_TACRED + u'vocab#relation:per:title'],
                                     PREFIX_TACRED + u'vocab#subj': [{u'@id': TACRED_RECORD_ID + u'#s1_9'}, {u'@id': TACRED_RECORD_ID + u'#s1_10'}],
                                     PREFIX_TACRED + u'vocab#obj': [{u'@id': TACRED_RECORD_ID + u'#s1_13'}],
-                                    #PREFIX_TACRED + u'vocab#hasRelation': [{u'@value': PREFIX_TACRED + u'vocab#relation:per:title'}]
                                     }]
 TACRED_RECORD = {'record_id': TACRED_RECORD_ID,
                  'token_features': TACRED_RECORD_TOKEN_FEATURES,
@@ -112,26 +104,6 @@ SEMEVAL_RECORD = {'record_id': SEMEVAL_RECORD_ID,
                   'context_string': u"The system as described above has its greatest application in an arrayed configuration of antenna elements.",
                   'character_annotations': SEMEVAL_RECORD_CHARACTER_ANNOTATIONS,
                   }
-
-
-# deprecated
-def convert_conll_to_rdf_extern(input_content, base_uri=u'https://github.com/UniversalDependencies/UD_English#',
-                                columns=('ID', 'WORD', 'LEMMA', 'UPOS', 'POS', 'FEAT', 'HEAD', 'EDGE', 'DEPS', 'MISC')):
-    # TODO: move script to somewhere else
-    script_location = '/home/arne/devel/Java/conll-rdf/run.sh'
-    cmd = '%s CoNLLStreamExtractor %s %s' % (script_location, base_uri, ' '.join(columns))
-    ps = subprocess.Popen(cmd, shell=True, stdin=subprocess.PIPE, stdout=subprocess.PIPE)#, stderr=subprocess.STDOUT)
-    result = ps.communicate(input_content)[0]
-    return result
-
-
-# deprecated
-def convert_turtle_to_jsonld(turtle_data):
-    g = Graph().parse(data=turtle_data, format='turtle')
-    x = g.serialize(format='json-ld')
-    g_json = json.loads(x)
-    #print(json.dumps(g_json, indent=2))
-    return g_json
 
 
 def parse_spacy_to_conll(text, nlp=spacy.load('en')):
@@ -181,16 +153,11 @@ def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser
             else:
                 previous_end = idx + len(node['word'])
             l = template.format(i=i, idx=idx, **node)
-
-        #lines_conll = [template.format(i=i, **node) for i, node in sorted(sent.nodes.items()) if node['tag'] != 'TOP']
-        #lines_conll = sent.to_conll(10).split('\n') #NOTE: remove:  yield '\n'
-        #for l in lines_conll:
             yield l
         yield '\n'
 
 
 def record_to_conll(sentence_record, captions, key_mapping):
-    #for sent_record in sentence_records:
     selected_entries = {k: sentence_record[key_mapping[k]] for k in key_mapping if key_mapping[k] in sentence_record}
     l = [dict(zip(selected_entries, t)) for t in zip(*selected_entries.values())]
     for i, d in enumerate(l):
@@ -290,14 +257,11 @@ def parse_and_convert_record(record_id,
 
     conll_columns = ('WORD', 'LEMMA', 'UPOS', 'POS', 'FEAT', 'HEAD', 'EDGE', 'DEPS', 'MISC')
     if isinstance(parser, spacy.language.Language):
-        print('SPACY')
         conll_lines = list(parse_spacy_to_conll(context_string, parser))
     elif isinstance(parser, CoreNLPDependencyParser):
-        print('CORENLP')
         conll_lines = list(parse_corenlp_to_conll(context_string, dep_parser=parser))
     elif parser is None:
-        print('NONE')
-        assert token_features is not None, 'parser==pass requires token_features, but they are None'
+        assert token_features is not None, 'parser==None requires token_features, but it is None'
         conll_lines = list(record_to_conll(token_features, captions=conll_columns,
                                            key_mapping={'WORD': 'token', 'POS': 'stanford_pos',
                                                       'HEAD': 'stanford_head', 'EDGE': 'stanford_deprel'}))
@@ -308,33 +272,15 @@ def parse_and_convert_record(record_id,
     print('convert conll to rdf...')
     tokens_jsonld = convert_conll_to_rdf('\n'.join(conll_lines), base_uri=record_id + u'#', columns=conll_columns)
 
-    if False:
-        ## check conversion
-        tokens_turtle_dep = convert_conll_to_rdf_extern('\n'.join(conll_lines), base_uri=record_id + u'#', columns=('ID',) + conll_columns)
-        print('convert turtle to json-ld...')
-        tokens_jsonld_dep = convert_turtle_to_jsonld(tokens_turtle_dep)
-        tokens_jsonld_dep_sorted = sorted(tokens_jsonld_dep, key=lambda x: x[u'@id'])
-        tokens_jsonld_sorted = sorted(tokens_jsonld, key=lambda x: x[u'@id'])
-        assert len(tokens_jsonld_dep_sorted) == len(tokens_jsonld_sorted), 'len mismatch: %i vs %i' % (len(tokens_jsonld_dep_sorted), len(tokens_jsonld_sorted))
-        for i in range(len(tokens_jsonld_sorted)):
-            e = tokens_jsonld_sorted[i]
-            e_dep = tokens_jsonld_dep_sorted[i]
-            assert e == e_dep, 'mismatch:\n%s\n%s' % (json.dumps(e, indent=2), json.dumps(e_dep, indent=2))
-        ##
-
     res = {u'@id': record_id, u'@type': [REC_EMB_RECORD], REC_EMB_PARSE: tokens_jsonld}
     if global_annotations is not None:
         global_annotations[u'@id'] = record_id + u'#ga'
         global_annotations[u'@type'] = [REC_EMB_GLOBAL_ANNOTATION]
         res[REC_EMB_HAS_GLOBAL_ANNOTATION] = [global_annotations]
     if context_string is not None:
-        #res[REC_EMB_HAS_CONTEXT] = _to_rdf({NIF_IS_STRING: context_string})
         res[REC_EMB_HAS_CONTEXT] = [{u'@id': record_id + u'?nif=context',
                                     u'@type': [TYPE_CONTEXT],
                                     NIF_IS_STRING: [{u'@value': context_string}]}]
-        #res[REC_EMB_HAS_CONTEXT][u'@type'] = [TYPE_CONTEXT]
-        #res[REC_EMB_HAS_CONTEXT][u'@id'] = record_id + u'?nif=context'
-        #res[REC_EMB_HAS_CONTEXT][NIF_IS_STRING] = [{u'@value': context_string}]
 
     # if available, convert character_annotations to token_annotations
     if character_annotations is not None:
@@ -370,8 +316,4 @@ def main():
 
 
 if __name__ == "__main__":
-    #res = convert_conll_to_rdf(input_content=open('/home/arne/devel/Java/conll-rdf/examples/en-ud-dev_2.conllu').read())
-    #print(res)
-    #test()
-    #plac.call(main4)
     main()
