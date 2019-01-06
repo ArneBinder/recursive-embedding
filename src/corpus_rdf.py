@@ -52,7 +52,7 @@ PREFIX_SEMEVAL = u'http://semeval2.fbk.eu/task8/'
 REC_EMB_GLOBAL_ANNOTATION = PREFIX_REC_EMB + u'GlobalAnnotation'
 REC_EMB_HAS_GLOBAL_ANNOTATION = PREFIX_REC_EMB + u'hasGlobalAnnotation'
 REC_EMB_RECORD = PREFIX_REC_EMB + u'Record'
-REC_EMB_PARSE = PREFIX_REC_EMB + u'Parse'
+REC_EMB_HAS_PARSE = PREFIX_REC_EMB + u'hasParse'
 REC_EMB_HAS_PARSE_ANNOTATION = PREFIX_REC_EMB + u'hasParseAnnotation'
 REC_EMB_HAS_CONTEXT = PREFIX_REC_EMB + u'hasContext'
 NIF_WORD = PREFIX_NIF + u'Word'
@@ -272,7 +272,7 @@ def parse_and_convert_record(record_id,
     print('convert conll to rdf...')
     tokens_jsonld = convert_conll_to_rdf('\n'.join(conll_lines), base_uri=record_id + u'#', columns=conll_columns)
 
-    res = {u'@id': record_id, u'@type': [REC_EMB_RECORD], REC_EMB_PARSE: tokens_jsonld}
+    res = {u'@id': record_id, u'@type': [REC_EMB_RECORD], REC_EMB_HAS_PARSE: tokens_jsonld}
     if global_annotations is not None:
         global_annotations[u'@id'] = record_id + u'#ga'
         global_annotations[u'@type'] = [REC_EMB_GLOBAL_ANNOTATION]
