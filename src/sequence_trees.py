@@ -4,7 +4,7 @@ import logging
 import os
 
 import pydot
-from scipy.sparse import csr_matrix, csc_matrix
+from scipy.sparse import csr_matrix, csc_matrix, dok_matrix
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
@@ -46,6 +46,16 @@ def graph_in_from_parents(parents):
     data = np.ones(shape=len(indices), dtype=bool)
     graph = csr_matrix((data, indices, indptr), shape=(len(parents), len(parents)))
     return graph
+
+
+def graph_out_from_children_dict(children, size):
+    m = dok_matrix((size, size), dtype=bool)
+    for _from, _to in children.items():
+        # (row, col)
+        m[_to, _from] = True
+    graph = m.tocsc()
+    return graph
+
 
 # unused
 def _calc_depth(children, parents, depth, start):
