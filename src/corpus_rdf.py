@@ -1,12 +1,14 @@
 import json
+import numpy as np
 
 import spacy
 #from datetime import datetime
 #import plac
 from nltk.parse.corenlp import CoreNLPDependencyParser
 
-from constants import TYPE_CONTEXT
-
+from sequence_trees import graph_out_from_children_dict, Forest
+from constants import TYPE_CONTEXT, DTYPE_IDX
+from lexicon import Lexicon
 
 TACRED_CONLL_RECORD = '''
 # index	token	subj	subj_type	obj	obj_type	stanford_pos	stanford_ner	stanford_deprel	stanford_head
@@ -355,11 +357,15 @@ def serialize_jsonld(jsonld, discard_predicates=(), sort_map={}):
         jsonld = [jsonld]
     ser, ids, refs = [], {}, {}
     for jsonld_dict in jsonld:
-        # insert the id directly after the root (offset +1; _ser.insert(1, _id);  _ids[_id] = len(ser))
+        ## insert the id directly after the root (offset +1; _ser.insert(1, _id);  _ids[_id] = len(ser); ...)
+        _ser, _ids, _refs = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates,
+                                                  offset=len(ser) + 1, sort_map=sort_map)
         _id = u'' + jsonld_dict[u'@id']
-        _ser, _ids, _refs = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates, offset=len(ser)+1, sort_map=sort_map)
         _ser.insert(1, _id)
         _ids[_id] = len(ser)
+        _refs[len(ser)] = [len(ser) + 1] + _refs[len(ser)+1]
+        del _refs[len(ser)+1]
+        ## insert end
         ser.extend(_ser)
         ids.update(_ids)
         refs.update(_refs)
