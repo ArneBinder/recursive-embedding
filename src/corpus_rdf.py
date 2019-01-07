@@ -140,7 +140,7 @@ def parse_spacy_to_conll(text, nlp=spacy.load('en')):
     for sent in doc.sents:
 
         for i, word in enumerate(sent):
-            if word.head is word:
+            if word.head.i == word.i:
                 head_idx = 0
             else:
                 #head_idx = doc[i].head.i + 1
@@ -274,7 +274,7 @@ def parse_and_convert_record(record_id,
 
     conll_columns = ('WORD', 'LEMMA', 'UPOS', 'POS', 'FEAT', 'HEAD', 'EDGE', 'DEPS', 'MISC')
     if isinstance(parser, spacy.language.Language):
-        conll_lines = list(parse_spacy_to_conll(context_string, parser))
+        conll_lines = list(parse_spacy_to_conll(context_string, nlp=parser))
     elif isinstance(parser, CoreNLPDependencyParser):
         conll_lines = list(parse_corenlp_to_conll(context_string, dep_parser=parser))
     elif parser is None:
