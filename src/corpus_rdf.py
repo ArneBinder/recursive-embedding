@@ -219,7 +219,7 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
 
             row = line.split('\t')
             row_dict = {RDF_PREFIXES_MAP[PREFIX_CONLL] + columns[i]:
-                            (row[i+1] if columns[i] != 'HEAD' else (u'id@', sent_prefix + row[i+1])) for i, k in enumerate(columns)
+                            (row[i+1] if columns[i] != 'HEAD' else (u'@id', sent_prefix + row[i+1])) for i, k in enumerate(columns)
                         if i+1 < len(row) and row[i+1] != '_'}
             row_dict[RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID'] = row[0]
             row_rdf = _to_rdf(row_dict)
@@ -242,8 +242,8 @@ def _to_rdf(element):
     # tuple indicates marked (@id or @value) entry
     elif isinstance(element, tuple):
         marker, content = element
-        assert marker in [u'value@',  u'id@'], 'WARNING: Unknown value marker: %s for content: %s. use ' \
-                                               '"value@" or "id@" as first tuple entry to mark value as value or id.' \
+        assert marker in [u'@value',  u'@id'], 'WARNING: Unknown value marker: %s for content: %s. use ' \
+                                               '"@value" or "@id" as first tuple entry to mark value as lateral or id.' \
                                                % (marker, content)
         res = [{marker: content}]
     else:
