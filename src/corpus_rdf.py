@@ -355,7 +355,11 @@ def serialize_jsonld(jsonld, discard_predicates=(), sort_map={}):
         jsonld = [jsonld]
     ser, ids, refs = [], {}, {}
     for jsonld_dict in jsonld:
-        _ser, _ids, _refs = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates, offset=len(ser), sort_map=sort_map)
+        # insert the id directly after the root (offset +1; _ser.insert(1, _id);  _ids[_id] = len(ser))
+        _id = u'' + jsonld_dict[u'@id']
+        _ser, _ids, _refs = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates, offset=len(ser)+1, sort_map=sort_map)
+        _ser.insert(1, _id)
+        _ids[_id] = len(ser)
         ser.extend(_ser)
         ids.update(_ids)
         refs.update(_refs)
