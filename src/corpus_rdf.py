@@ -399,10 +399,13 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
     edges = []
     preds = sort_map.get(_type, sorted(jsonld))
     for pred in preds:
-        if pred not in discard_predicates and pred[0] != u'@' and pred in jsonld:
-            idx_pred = len(ser)
+        if pred[0] != u'@' and pred in jsonld:
             value_objects = []
-            ser.append(u'' + pred)
+            if pred not in discard_predicates:
+                idx_pred = len(ser)
+                ser.append(u'' + pred)
+            else:
+                idx_pred = None
             for obj_dict in jsonld[pred]:
                 if u'@type' in obj_dict:
                     assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
@@ -413,7 +416,8 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
                     ser.extend(obj_ser)
                     ids.update(obj_ids)
                     edges.extend(ob_edges)
-                    edges.append((idx_pred + offset, obj_dict[u'@id']))
+                    if idx_pred is not None:
+                        edges.append((idx_pred + offset, obj_dict[u'@id']))
                 elif u'@id' in obj_dict:
                     assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
                     if pred in skip_predicates:
@@ -421,16 +425,17 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
                             edges.append((obj_dict[u'@id'], offset))
                         else:
                             edges.append((offset, obj_dict[u'@id']))
-                        if idx_pred < len(ser):
+                        if idx_pred is not None and idx_pred < len(ser):
                             del ser[idx_pred]
                     else:
-                        if pred in save_id_predicates:
-                            edges.append((idx_pred + offset, len(ser) + offset))
-                            ser.append(u'' + obj_dict[u'@id'])
-                        else:
-                            edges.append((idx_pred + offset, obj_dict[u'@id']))
+                        if idx_pred is not None:
+                            if pred in save_id_predicates:
+                                edges.append((idx_pred + offset, len(ser) + offset))
+                                ser.append(u'' + obj_dict[u'@id'])
+                            else:
+                                edges.append((idx_pred + offset, obj_dict[u'@id']))
                 elif u'@value' in obj_dict:
-                    assert len(ser) == idx_pred + 1, \
+                    assert idx_pred is None or len(ser) == idx_pred + 1, \
                         'laterals (@value) are mixed with complex elements (@type / @id)'
                     value_objects.append(obj_dict[u'@value'])
                 else:
@@ -440,9 +445,11 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
                 del ser[-1]
                 new_entries = [u'%s=%s' % (pred, v) for v in value_objects]
                 ser.extend(new_entries)
-                edges.extend([(offset, i) for i in range(idx_pred + offset, idx_pred + offset + len(new_entries))])
+                if idx_pred is not None:
+                    edges.extend([(offset, i) for i in range(idx_pred + offset, idx_pred + offset + len(new_entries))])
             else:
-                edges.append((offset, idx_pred + offset))
+                if idx_pred is not None:
+                    edges.append((offset, idx_pred + offset))
 
     return ser, ids, edges
 
@@ -495,7 +502,7 @@ def create_dummy_record_rdf():
     return res
 
 
-def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy/train.jsonl'):
+def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SEMEVAL2010T8_RDF/spacy/train.jsonl'):
     with io.open(p) as f:
         l = f.readline()
     return json.loads(l)
@@ -511,7 +518,12 @@ def main():
                                                      # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                                                      RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord',
                                                      #RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
-                                                     RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext'),
+                                                     RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext',
+                                                     RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
+                                                     # TODO: check that!
+                                                     RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString',
+                                                     ),
+                                 # TODO: eventually rework (dict for SICK)
                                  save_id_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other'),
                                  skip_predicates={RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD': True,
                                                   RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence': False}
