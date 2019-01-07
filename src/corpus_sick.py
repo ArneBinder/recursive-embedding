@@ -13,6 +13,7 @@ from mytools import make_parent_dir, numpy_dump
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
 from corpus_rdf import parse_and_convert_record
 import preprocessing
+from corpus_rdf import parse_to_rdf
 
 logger = logging.getLogger('corpus_sick')
 logger.setLevel(logging.DEBUG)
@@ -201,48 +202,7 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
 )
 def parse_rdf(in_path, out_path, parser='spacy'):
     file_names = {'sick_test_annotated/SICK_test_annotated.txt': 'test.jsonl', 'sick_train/SICK_train.txt': 'train.jsonl'}
-    logger.info('load parser...')
-    if parser.strip() == 'spacy':
-        _parser = spacy.load('en')
-    elif parser.strip() == 'corenlp':
-        _parser = CoreNLPDependencyParser(url='http://localhost:9000')
-    else:
-        raise NotImplementedError('parser=%s not implemented' % parser)
-    logger.info('loaded parser %s' % type(_parser))
-    n_failed = {}
-    n_total = {}
-    out_path = os.path.join(out_path, parser)
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-    for fn in file_names:
-        fn_out = os.path.join(out_path, file_names[fn])
-        logger.info('process file %s, save result to %s' % (fn, fn_out))
-        n_failed[fn_out] = 0
-        already_processed = {}
-        if os.path.exists(fn_out):
-            with open(fn_out) as fout:
-                for l in fout.readlines():
-                    _l = json.loads(l)
-                    already_processed[_l['@id']] = l
-        n_total[fn_out] = len(already_processed)
-        logger.info('read %i already processed records' % len(already_processed))
-
-        with open(fn_out, 'w') as fout:
-            for i, record in enumerate(reader_rdf(in_path, fn)):
-                if record['record_id'] in already_processed:
-                    parsed_rdf_json = already_processed[record['record_id']]
-                else:
-                    try:
-                        parsed_rdf = parse_and_convert_record(parser=_parser, **record)
-                        parsed_rdf_json = json.dumps(parsed_rdf, ensure_ascii=False).encode('utf8') + u'\n'
-                    except Exception as e:
-                        logger.warning('failed to parse record=%s: %s' % (record['record_id'], str(e)))
-                        n_failed[fn_out] += 1
-                        continue
-                fout.write(parsed_rdf_json)
-        for fn_out in n_failed:
-            logger.info('%s: failed to process %i of total %i records' % (fn_out, n_failed[fn_out], n_total[fn_out]))
-    logger.debug('done')
+    parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names)
 
 
 @plac.annotations(

@@ -11,13 +11,14 @@ from spacy.strings import hash_string
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATION, TYPE_NAMED_ENTITY, \
     TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_HASH, \
-    TYPE_RELATION, TYPE_RELATION_FORWARD, TYPE_RELATION_BACKWARD
+    TYPE_RELATION, TYPE_RELATION_FORWARD, TYPE_RELATION_BACKWARD, PREFIX_SEMEVAL
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids, \
     annotate_file_w_stanford
 import preprocessing
 from preprocessing import KEY_ANNOTATIONS
 from sequence_trees import Forest, slice_graph, concatenate_graphs, empty_graph_from_graph, targets
+from corpus_rdf import parse_to_rdf
 
 logger = logging.getLogger('corpus_semeval2010task8')
 logger.setLevel(logging.DEBUG)
@@ -43,6 +44,29 @@ DUMMY_RECORD = {
                     (98, 106, [u'http://purl.org/olia/olia.owl#NamedEntity/e2'], [0])],
     KEY_TEXT: u'The system as described above has its greatest application in an arrayed configuration of antenna elements.'
 }
+
+
+def reader_rdf(base_path, file_name):
+    with open(os.path.join(base_path, file_name)) as f:
+        lines = f.readlines()
+    n = 0
+    for i in range(0, len(lines) - 3, 4):
+        id_w_text = lines[i].split('\t')
+        text = id_w_text[1].strip()[1:-1]
+        text, positions = extract_positions(text, ('<e1>', '</e1>', '<e2>', '</e2>'))
+        record_id = u'%sTRAIN_FILE.TXT/%s' % (PREFIX_SEMEVAL, id_w_text[0])
+        character_annotations = [{u'@id': record_id + u'#r1',
+                                  u'@type': [PREFIX_SEMEVAL + u'vocab#relation:' + lines[i + 1].strip()],
+                                  PREFIX_SEMEVAL + u'vocab#subj': (positions[0], positions[1]),
+                                  PREFIX_SEMEVAL + u'vocab#obj': (positions[2], positions[3]),
+                                  }]
+        record = {'record_id': record_id,
+                  'context_string': u'' + text,
+                  'character_annotations': character_annotations,
+                  }
+        yield record
+        n += 1
+    logger.info('read %i records from %s' % (n, file_name))
 
 
 def reader(records, keys_text=(KEY_TEXT,), root_string=TYPE_SEMEVAL2010TASK8_ID,
@@ -529,8 +553,22 @@ def convert_to_tacred_format(in_path, out_path, server_url='http://localhost:900
 
 
 @plac.annotations(
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+    #n_threads=('number of threads for replacement operations', 'option', 't', int),
+    #parser_batch_size=('parser batch size', 'option', 'b', int)
+    parser=('parser: spacy or corenlp', 'option', 'p', str),
+)
+def parse_rdf(in_path, out_path, parser='spacy'):
+    file_names = {'SemEval2010_task8_training/TRAIN_FILE_fixed.TXT': 'train.jsonl',
+                  'SemEval2010_task8_testing_keys/TEST_FILE_FULL_fixed.TXT': 'test.jsonl'}
+    parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names)
+
+
+@plac.annotations(
     mode=('processing mode', 'positional', None, str,
-          ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL', 'CONVERT_OPENNRE', 'CONVERT_TACRED']),
+          ['PARSE', 'PARSE_DUMMY', 'TEST', 'MERGE', 'CREATE_INDICES', 'ALL', 'CONVERT_OPENNRE', 'CONVERT_TACRED',
+           'PARSE_RDF']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -559,6 +597,8 @@ def main(mode, *args):
         plac.call(convert_to_opennre_format, args)
     elif mode == 'CONVERT_TACRED':
         plac.call(convert_to_tacred_format, args)
+    elif mode == 'PARSE_RDF':
+        plac.call(parse_rdf, args)
     else:
         raise ValueError('unknown mode')
 

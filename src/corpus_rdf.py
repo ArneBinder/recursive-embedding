@@ -1,4 +1,7 @@
 import json
+import logging
+import os
+
 import numpy as np
 
 import spacy
@@ -7,8 +10,20 @@ import spacy
 from nltk.parse.corenlp import CoreNLPDependencyParser
 
 from sequence_trees import graph_out_from_children_dict, Forest
-from constants import TYPE_CONTEXT, DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFIX_TACRED, PREFIX_SICK, PREFIX_IMDB, PREFIX_SEMEVAL, REC_EMB_GLOBAL_ANNOTATION, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_RECORD, REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_CONTEXT, REC_EMB_USED_PARSER, REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, NIF_NEXT_SENTENCE, NIF_IS_STRING
+from constants import TYPE_CONTEXT, DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFIX_TACRED, PREFIX_SICK, \
+    PREFIX_IMDB, PREFIX_SEMEVAL, REC_EMB_GLOBAL_ANNOTATION, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_RECORD, \
+    REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_CONTEXT, REC_EMB_USED_PARSER, \
+    REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
+    NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT
 from lexicon import Lexicon
+
+logger = logging.getLogger('corpus_rdf')
+logger.setLevel(logging.DEBUG)
+logger_streamhandler = logging.StreamHandler()
+logger_streamhandler.setLevel(logging.DEBUG)
+logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
+logger.addHandler(logger_streamhandler)
+
 
 TACRED_CONLL_RECORD = '''
 # index	token	subj	subj_type	obj	obj_type	stanford_pos	stanford_ner	stanford_deprel	stanford_head
@@ -92,8 +107,8 @@ SEMEVAL_RECORD = {'record_id': SEMEVAL_RECORD_ID,
 ##### DUMMY DATA END #####################
 
 
-# TODO: implement reader for SICK, IMDB, SEMEVAL, TARCED
-# DONE: SICK
+# TODO: implement reader for SICK, IMDB, SEMEVAL, TACRED
+# DONE: SICK, SEMEVAL
 
 # TODO: implement sentence_processors
 
@@ -291,6 +306,53 @@ def parse_and_convert_record(record_id,
         res[REC_EMB_HAS_PARSE_ANNOTATION] = token_annotations
 
     return res
+
+
+def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
+    #file_names = {'sick_test_annotated/SICK_test_annotated.txt': 'test.jsonl', 'sick_train/SICK_train.txt': 'train.jsonl'}
+    logger.info('load parser...')
+    if parser.strip() == 'spacy':
+        _parser = spacy.load('en')
+    elif parser.strip() == 'corenlp':
+        _parser = CoreNLPDependencyParser(url='http://localhost:9000')
+    else:
+        raise NotImplementedError('parser=%s not implemented' % parser)
+    logger.info('loaded parser %s' % type(_parser))
+    n_failed = {}
+    n_total = {}
+    out_path = os.path.join(out_path, parser)
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    for fn in file_names:
+        fn_out = os.path.join(out_path, file_names[fn])
+        logger.info('process file %s, save result to %s' % (fn, fn_out))
+        n_failed[fn_out] = 0
+        already_processed = {}
+        if os.path.exists(fn_out):
+            with open(fn_out) as fout:
+                for l in fout.readlines():
+                    _l = json.loads(l)
+                    already_processed[_l['@id']] = l
+        n_total[fn_out] = len(already_processed)
+        logger.info('read %i already processed records' % len(already_processed))
+
+        with open(fn_out, 'w') as fout:
+            for i, record in enumerate(reader_rdf(in_path, fn)):
+                if record['record_id'] in already_processed:
+                    parsed_rdf_json = already_processed[record['record_id']]
+                else:
+                    try:
+                        parsed_rdf = parse_and_convert_record(parser=_parser, **record)
+                        parsed_rdf_json = json.dumps(parsed_rdf, ensure_ascii=False).encode('utf8') + u'\n'
+                    except Exception as e:
+                        logger.warning('failed to parse record=%s: %s' % (record['record_id'], str(e)))
+                        n_failed[fn_out] += 1
+                        continue
+                fout.write(parsed_rdf_json)
+                n_total[fn_out] += 1
+        for fn_out in n_failed:
+            logger.info('%s: failed to process %i of total %i records' % (fn_out, n_failed[fn_out], n_total[fn_out]))
+    logger.debug('done')
 
 
 def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, save_id_predicates=()):
