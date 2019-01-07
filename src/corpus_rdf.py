@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import os
@@ -124,7 +125,7 @@ def parse_spacy_to_conll(text, nlp=spacy.load('en')):
                 #head_idx = doc[i].head.i + 1
                 head_idx = word.head.i - sent[0].i + 1
 
-            yield "%d\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%i" % (
+            yield u"%d\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%i" % (
                 # data          conllu      notes
                 i + 1,          # ID        There's a word.i attr that's position in *doc*
                 word,           # FORM
@@ -137,7 +138,7 @@ def parse_spacy_to_conll(text, nlp=spacy.load('en')):
                 '_',            # DEPS
                 word.idx,       # MISC      character offset
             )
-        yield ''
+        yield u''
 
 
 def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser(url='http://localhost:9000')):
@@ -146,7 +147,7 @@ def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser
     else:
         parsed_sents = dep_parser.parse_text(text)
 
-    template = '{i}\t{word}\t{lemma}\t{ctag}\t{tag}\t{feats}\t{head}\t{rel}\t_\t{idx}'
+    template = u'{i}\t{word}\t{lemma}\t{ctag}\t{tag}\t{feats}\t{head}\t{rel}\t_\t{idx}'
     previous_end = 0
     for sent in parsed_sents:
         for i, node in sorted(sent.nodes.items()):
@@ -161,7 +162,7 @@ def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser
                 previous_end = idx + len(node['word'])
             l = template.format(i=i, idx=idx, **node)
             yield l
-        yield ''
+        yield u''
 
 
 def record_to_conll(sentence_record, captions, key_mapping):
@@ -329,21 +330,23 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
         n_failed[fn_out] = 0
         already_processed = {}
         if os.path.exists(fn_out):
-            with open(fn_out) as fout:
+            with io.open(fn_out, encoding='utf8') as fout:
                 for l in fout.readlines():
                     _l = json.loads(l)
                     already_processed[_l['@id']] = l
         n_total[fn_out] = len(already_processed)
         logger.info('read %i already processed records' % len(already_processed))
 
-        with open(fn_out, 'w') as fout:
+        with io.open(fn_out, 'w', encoding='utf8') as fout:
             for i, record in enumerate(reader_rdf(in_path, fn)):
                 if record['record_id'] in already_processed:
                     parsed_rdf_json = already_processed[record['record_id']]
                 else:
                     try:
                         parsed_rdf = parse_and_convert_record(parser=_parser, **record)
-                        parsed_rdf_json = json.dumps(parsed_rdf, ensure_ascii=False).encode('utf8') + u'\n'
+                        # NOTE: "+ u'\n'" is important to convert to unicode, because of json bug in python 2
+                        # (the ensure_ascii=False flag can produce a mix of unicode and str objects)
+                        parsed_rdf_json = json.dumps(parsed_rdf, ensure_ascii=False) + u'\n'
                     except Exception as e:
                         logger.warning('failed to parse record=%s: %s' % (record['record_id'], str(e)))
                         n_failed[fn_out] += 1
