@@ -1,14 +1,17 @@
 import csv
+import json
 import logging
 import os
 import spacy
 
 import plac
+from nltk import CoreNLPDependencyParser
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATEDNESS_SCORE, \
-    TYPE_ENTAILMENT, TYPE_REF_TUPLE
+    TYPE_ENTAILMENT, TYPE_REF_TUPLE, PREFIX_SICK
 from mytools import make_parent_dir, numpy_dump
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
+from corpus_rdf import parse_and_convert_record
 import preprocessing
 
 logger = logging.getLogger('corpus_sick')
@@ -29,6 +32,33 @@ DUMMY_RECORD = {
     KEYS_SENTENCE[1]: u"A group of boys in a yard is playing and a man is standing in the background",
     TYPE_SICK_ID: u"1"
 }
+
+
+def create_record_rdf(row, record_id_prefix, A_or_B, A_or_B_other):
+    global_annotations = {PREFIX_SICK + u'vocab#relatedness_score': [{u'@value': float(row['relatedness_score'])}],
+                          PREFIX_SICK + u'vocab#entailment_judgment': [{u'@value': row['entailment_judgment']}],
+                          PREFIX_SICK + u'vocab#other': [{u'@id': record_id_prefix + A_or_B_other}]
+                          }
+    record = {'record_id': record_id_prefix + A_or_B,
+              # ATTENTION: punctuation "." is added!
+              'context_string': row['sentence_%s' % A_or_B] + u'.',
+              'global_annotations': global_annotations
+              }
+    return record
+
+
+def reader_rdf(base_path, file_name):
+    n = 0
+    with open(os.path.join(base_path, file_name)) as tsvin:
+        tsv = csv.DictReader(tsvin, delimiter='\t')
+        for row in tsv:
+            record_id_prefix = u'%s%s/%s/' % (PREFIX_SICK, file_name, row['pair_ID'])
+            record_A = create_record_rdf(row, record_id_prefix=record_id_prefix, A_or_B=u'A', A_or_B_other=u'B')
+            record_B = create_record_rdf(row, record_id_prefix=record_id_prefix, A_or_B=u'B', A_or_B_other=u'A')
+            yield record_A
+            yield record_B
+            n += 1
+    logger.info('read %i records from %s resulting in %i rdf records' % (n, base_path, n * 2))
 
 
 def reader(records, keys_text=KEYS_SENTENCE, root_string=TYPE_SICK_ID,
@@ -163,7 +193,60 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES']),
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+    #n_threads=('number of threads for replacement operations', 'option', 't', int),
+    #parser_batch_size=('parser batch size', 'option', 'b', int)
+    parser=('parser: spacy or corenlp', 'option', 'p', str),
+)
+def parse_rdf(in_path, out_path, parser='spacy'):
+    file_names = {'sick_test_annotated/SICK_test_annotated.txt': 'test.jsonl', 'sick_train/SICK_train.txt': 'train.jsonl'}
+    logger.info('load parser...')
+    if parser.strip() == 'spacy':
+        _parser = spacy.load('en')
+    elif parser.strip() == 'corenlp':
+        _parser = CoreNLPDependencyParser(url='http://localhost:9000')
+    else:
+        raise NotImplementedError('parser=%s not implemented' % parser)
+    logger.info('loaded parser %s' % type(_parser))
+    n_failed = {}
+    n_total = {}
+    out_path = os.path.join(out_path, parser)
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    for fn in file_names:
+        fn_out = os.path.join(out_path, file_names[fn])
+        logger.info('process file %s, save result to %s' % (fn, fn_out))
+        n_failed[fn_out] = 0
+        already_processed = {}
+        if os.path.exists(fn_out):
+            with open(fn_out) as fout:
+                for l in fout.readlines():
+                    _l = json.loads(l)
+                    already_processed[_l['@id']] = l
+        n_total[fn_out] = len(already_processed)
+        logger.info('read %i already processed records' % len(already_processed))
+
+        with open(fn_out, 'w') as fout:
+            for i, record in enumerate(reader_rdf(in_path, fn)):
+                if record['record_id'] in already_processed:
+                    parsed_rdf_json = already_processed[record['record_id']]
+                else:
+                    try:
+                        parsed_rdf = parse_and_convert_record(parser=_parser, **record)
+                        parsed_rdf_json = json.dumps(parsed_rdf, ensure_ascii=False).encode('utf8') + u'\n'
+                    except Exception as e:
+                        logger.warning('failed to parse record=%s: %s' % (record['record_id'], str(e)))
+                        n_failed[fn_out] += 1
+                        continue
+                fout.write(parsed_rdf_json)
+        for fn_out in n_failed:
+            logger.info('%s: failed to process %i of total %i records' % (fn_out, n_failed[fn_out], n_total[fn_out]))
+    logger.debug('done')
+
+
+@plac.annotations(
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'PARSE_RDF']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -178,6 +261,8 @@ def main(mode, *args):
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_ENTAILMENT, classes_ids=entailment_ids)
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args + ('--step-root', '2'))
+    elif mode == 'PARSE_RDF':
+        plac.call(parse_rdf, args)
     else:
         raise ValueError('unknown mode')
 

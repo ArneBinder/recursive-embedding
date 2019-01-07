@@ -201,6 +201,44 @@ OFFSET_CLASS_ROOTS = {
     TYPE_RELATION: OFFSET_RELATION_ROOT
 }
 
+
+PREFIX_REC_EMB = u'https://github.com/ArneBinder/recursive-embedding#'
+PREFIX_CONLL = u'http://ufal.mff.cuni.cz/conll2009-st/task-description.html#'
+PREFIX_NIF = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#'
+
+PREFIX_TACRED = u'https://catalog.ldc.upenn.edu/LDC2018T24/'
+PREFIX_SICK = u'http://clic.cimec.unitn.it/composes/sick.html/'
+PREFIX_IMDB = u'http://ai.stanford.edu/~amaas/data/sentiment/'
+# correct url: http://semeval2.fbk.eu/semeval2.php?location=tasks#T11
+PREFIX_SEMEVAL = u'http://semeval2.fbk.eu/task8/'
+
+REC_EMB_GLOBAL_ANNOTATION = PREFIX_REC_EMB + u'GlobalAnnotation'
+REC_EMB_HAS_GLOBAL_ANNOTATION = PREFIX_REC_EMB + u'hasGlobalAnnotation'
+REC_EMB_RECORD = PREFIX_REC_EMB + u'Record'
+REC_EMB_HAS_PARSE = PREFIX_REC_EMB + u'hasParse'
+REC_EMB_HAS_PARSE_ANNOTATION = PREFIX_REC_EMB + u'hasParseAnnotation'
+REC_EMB_HAS_CONTEXT = PREFIX_REC_EMB + u'hasContext'
+REC_EMB_USED_PARSER = PREFIX_REC_EMB + u'usedParser'
+REC_EMB_SUFFIX_GLOBAL_ANNOTATION = u'#GlobalAnnotation'
+REC_EMB_SUFFIX_NIF_CONTEXT = u'?nif=context'
+
+NIF_WORD = PREFIX_NIF + u'Word'
+NIF_NEXT_WORD = PREFIX_NIF + u'nextWord'
+NIF_SENTENCE = PREFIX_NIF + u'Sentence'
+NIF_NEXT_SENTENCE = PREFIX_NIF + u'nextSentence'
+NIF_IS_STRING = PREFIX_NIF + u'isString'
+
+
+
+
+
+
+
+
+
+
+
+
 #DEPRECATED
 
 # edges
