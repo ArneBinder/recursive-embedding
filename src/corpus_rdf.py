@@ -15,7 +15,7 @@ from constants import TYPE_CONTEXT, DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PRE
     PREFIX_IMDB, PREFIX_SEMEVAL, REC_EMB_GLOBAL_ANNOTATION, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_RECORD, \
     REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_CONTEXT, REC_EMB_USED_PARSER, \
     REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
-    NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT
+    NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP
 from lexicon import Lexicon
 
 logger = logging.getLogger('corpus_rdf')
@@ -109,9 +109,30 @@ SEMEVAL_RECORD = {'record_id': SEMEVAL_RECORD_ID,
 
 
 # TODO: implement reader for SICK, IMDB, SEMEVAL, TACRED
-# DONE: SICK, SEMEVAL
+# DONE: SICK, SEMEVAL, IMDB
 
 # TODO: implement sentence_processors
+
+RDF_PREFIXES_MAP_REV = {short: long for long, short in RDF_PREFIXES_MAP.items()}
+
+
+def shorten(uri):
+    if uri in RDF_PREFIXES_MAP:
+        return RDF_PREFIXES_MAP[uri]
+    for long, short in RDF_PREFIXES_MAP.items():
+        if uri.startswith(long):
+            return short + uri[len(long):]
+    return uri
+
+
+def enlarge(uri):
+    if u':' not in uri:
+        return uri
+    parts = uri.split(u':')
+    short = parts[0] + u':'
+    if short not in RDF_PREFIXES_MAP_REV:
+        return uri
+    return RDF_PREFIXES_MAP_REV[short] + u':'.join(parts[1:])
 
 
 def parse_spacy_to_conll(text, nlp=spacy.load('en')):
@@ -169,12 +190,12 @@ def record_to_conll(sentence_record, captions, key_mapping):
     selected_entries = {k: sentence_record[key_mapping[k]] for k in key_mapping if key_mapping[k] in sentence_record}
     l = [dict(zip(selected_entries, t)) for t in zip(*selected_entries.values())]
     for i, d in enumerate(l):
-        y = '\t'.join([str(i + 1)] + [str(d[c]) if c in d else '_' for c in captions])
+        y = u'\t'.join([str(i + 1)] + [str(d[c]) if c in d else '_' for c in captions])
         yield y
-    yield ''
+    yield u''
 
 
-def convert_conll_to_rdf(conll_data, base_uri=u'https://github.com/UniversalDependencies/UD_English#',
+def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH],
                          # ATTENTION: ID column has to be the first column, but should not occur in  "columns"!
                          columns=('WORD', 'LEMMA', 'UPOS', 'POS', 'FEAT', 'HEAD', 'EDGE', 'DEPS', 'MISC')):
     res = []
@@ -197,10 +218,10 @@ def convert_conll_to_rdf(conll_data, base_uri=u'https://github.com/UniversalDepe
                 continue
 
             row = line.split('\t')
-            row_dict = {PREFIX_CONLL + columns[i]:
+            row_dict = {RDF_PREFIXES_MAP[PREFIX_CONLL] + columns[i]:
                             (row[i+1] if columns[i] != 'HEAD' else (u'id@', sent_prefix + row[i+1])) for i, k in enumerate(columns)
                         if i+1 < len(row) and row[i+1] != '_'}
-            row_dict[PREFIX_CONLL + u'ID'] = row[0]
+            row_dict[RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID'] = row[0]
             row_rdf = _to_rdf(row_dict)
             row_rdf[u'@id'] = sent_prefix + str(row[0])
             row_rdf[u'@type'] = [NIF_WORD]
@@ -230,7 +251,8 @@ def _to_rdf(element):
     return res
 
 
-def get_token_ids_in_span(tokens, start, end, idx_key=PREFIX_CONLL + 'MISC', word_key=PREFIX_CONLL + 'WORD'):
+def get_token_ids_in_span(tokens, start, end, idx_key=RDF_PREFIXES_MAP[PREFIX_CONLL] + 'MISC',
+                          word_key=RDF_PREFIXES_MAP[PREFIX_CONLL] + 'WORD'):
     res = []
     for t in tokens:
         if idx_key in t and word_key in t:
@@ -322,7 +344,8 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
                     _l = json.loads(l)
                     already_processed[_l['@id']] = l
         n_total[fn_out] = len(already_processed)
-        logger.info('read %i already processed records' % len(already_processed))
+        if len(already_processed) > 0:
+            logger.info('found %i already processed records' % len(already_processed))
 
         with io.open(fn_out, 'w', encoding='utf8') as fout:
             for i, record in enumerate(reader_rdf(in_path, fn)):
@@ -458,12 +481,12 @@ def create_dummy_record_rdf():
 def main():
     dummy_jsonld = create_dummy_record_rdf()
     ser, refs = serialize_jsonld(dummy_jsonld,
-                                 discard_predicates=(PREFIX_CONLL + u'MISC', PREFIX_CONLL + u'ID',
-                                                     PREFIX_CONLL + u'LEMMA', PREFIX_CONLL + u'POS',
-                                                     PREFIX_CONLL + u'HEAD',
-                                                     PREFIX_NIF + u'nextWord', PREFIX_NIF + u'nextSentence',
-                                                     PREFIX_REC_EMB + u'hasContext'),
-                                 save_id_predicates=(u'http://clic.cimec.unitn.it/composes/sick.html/vocab#other')
+                                 discard_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC', RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
+                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA', RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
+                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
+                                                     RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord', RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
+                                                     RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext'),
+                                 save_id_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other')
                                  )
 
     # create rec-emb

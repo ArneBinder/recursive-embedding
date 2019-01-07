@@ -6,12 +6,11 @@ import plac
 import logging
 
 import preprocessing
-from mytools import numpy_dump, make_parent_dir
-from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
+from mytools import make_parent_dir
+from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 from constants import TYPE_SECTION, SEPARATOR, LOGGING_FORMAT, TYPE_CONTEXT, TYPE_PARAGRAPH, TYPE_POLARITY, \
-    TYPE_RATING, PREFIX_IMDB
+    TYPE_RATING, PREFIX_IMDB, RDF_PREFIXES_MAP
 from corpus_rdf import parse_to_rdf
-
 TYPE_ACLIMDB_ID = u'http://ai.stanford.edu/~amaas/data/sentiment/aclimdb_v1'
 
 logger = logging.getLogger('corpus_imdb')
@@ -36,10 +35,10 @@ def reader_rdf(base_path, file_name):
         logger.info('%s: process %i files...' % (sd, len(file_names)))
         for _fn in file_names:
             fn = os.path.join(sd, _fn)
-            record_id = u'%s%s/%s/%s' % (PREFIX_IMDB, file_name, sentiment_dir, _fn)
+            record_id = u'%s%s/%s/%s' % (RDF_PREFIXES_MAP[PREFIX_IMDB], file_name, sentiment_dir, _fn)
             rating = int(_fn.split('.')[0].split('_')[1])
-            global_anntotations = {PREFIX_IMDB + u'vocab#sentiment': [{u'@value': u'' + sentiment_dir}],
-                                   PREFIX_IMDB + u'vocab#rating': [{u'@value': rating}]}
+            global_anntotations = {RDF_PREFIXES_MAP[PREFIX_IMDB] + u'vocab#sentiment': [{u'@value': u'' + sentiment_dir}],
+                                   RDF_PREFIXES_MAP[PREFIX_IMDB] + u'vocab#rating': [{u'@value': rating}]}
             with io.open(fn, encoding='utf8') as f:
                 text = f.read()
             record = {'record_id': record_id,

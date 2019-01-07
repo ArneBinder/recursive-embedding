@@ -5,13 +5,11 @@ import os
 import spacy
 
 import plac
-from nltk import CoreNLPDependencyParser
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATEDNESS_SCORE, \
-    TYPE_ENTAILMENT, TYPE_REF_TUPLE, PREFIX_SICK
-from mytools import make_parent_dir, numpy_dump
-from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
-from corpus_rdf import parse_and_convert_record
+    TYPE_ENTAILMENT, TYPE_REF_TUPLE, PREFIX_SICK, RDF_PREFIXES_MAP
+from mytools import make_parent_dir
+from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
 from corpus_rdf import parse_to_rdf
 
@@ -36,9 +34,9 @@ DUMMY_RECORD = {
 
 
 def create_record_rdf(row, record_id_prefix, A_or_B, A_or_B_other):
-    global_annotations = {PREFIX_SICK + u'vocab#relatedness_score': [{u'@value': float(row['relatedness_score'])}],
-                          PREFIX_SICK + u'vocab#entailment_judgment': [{u'@value': row['entailment_judgment']}],
-                          PREFIX_SICK + u'vocab#other': [{u'@id': record_id_prefix + A_or_B_other}]
+    global_annotations = {RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#relatedness_score': [{u'@value': float(row['relatedness_score'])}],
+                          RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#entailment_judgment': [{u'@value': row['entailment_judgment']}],
+                          RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other': [{u'@id': record_id_prefix + A_or_B_other}]
                           }
     record = {'record_id': record_id_prefix + A_or_B,
               # ATTENTION: punctuation "." is added!
@@ -53,7 +51,7 @@ def reader_rdf(base_path, file_name):
     with open(os.path.join(base_path, file_name)) as tsvin:
         tsv = csv.DictReader(tsvin, delimiter='\t')
         for row in tsv:
-            record_id_prefix = u'%s%s/%s/' % (PREFIX_SICK, file_name, row['pair_ID'])
+            record_id_prefix = u'%s%s/%s/' % (RDF_PREFIXES_MAP[PREFIX_SICK], file_name, row['pair_ID'])
             record_A = create_record_rdf(row, record_id_prefix=record_id_prefix, A_or_B=u'A', A_or_B_other=u'B')
             record_B = create_record_rdf(row, record_id_prefix=record_id_prefix, A_or_B=u'B', A_or_B_other=u'A')
             yield record_A
