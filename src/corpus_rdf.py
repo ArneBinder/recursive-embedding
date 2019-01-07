@@ -368,20 +368,35 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
     logger.debug('done')
 
 
-def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, save_id_predicates=()):
+def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, save_id_predicates=(),
+                          skip_predicates=()):
     """
     Serializes a json-ld dict object.
-    Returns a list of all types (additional types are created from value entries),
+    Returns a list of all _types_ (additional types are created from value entries),
     a mapping from all ids to the index of the corresponding type int type list and,
-    a mapping from all elements that reference other elements as: source index to types list -> id
+    a list of edges (source, target), where source and target may be ids or indices to the final serialization.
+
+    For every triple (subject, predicate, object) the edges (subject, predicate) and (predicate, object) are created,
+    but lateral values (have only @value entry) are collapsed with their predicates (e.g. with the predicate types).
+
     ATTENTION: only the first type per entry is used!
-    :param jsonld:
+
+    :param jsonld: input json-ld object
+    :param discard_predicates: these predicates including their targets are discarded
+    :param offset: offset for id positions
+    :param sort_map: a map from node types to lists of predicates that determine their ordering. If the current type t is
+        in sort_map, all predicates not in sort_map[t] are discarded
+    :param save_id_predicates: ids linked with these predicates are included into the final serialization and no target
+        edge will be created
+    :param skip_predicates: a map, whose keys are predicates, that will be skipped: edges go directly from subject to
+        object (instead of (subject, predicate) and (predicate, object)). The value indicates, if the edge should be
+        reverted, e.g. if True, (object, subject) will be added, else (subject, object).
     :return: types, ids, refs
     """
     _type = u'' + jsonld[u'@type'][0]
     ser = [_type]
     ids = {u'' + jsonld[u'@id']: offset}
-    refs = {}
+    edges = []
     preds = sort_map.get(_type, sorted(jsonld))
     for pred in preds:
         if pred not in discard_predicates and pred[0] != u'@' and pred in jsonld:
@@ -391,22 +406,32 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
             for obj_dict in jsonld[pred]:
                 if u'@type' in obj_dict:
                     assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
-                    obj_ser, obj_ids, ob_refs = serialize_jsonld_dict(obj_dict, discard_predicates=discard_predicates,
+                    obj_ser, obj_ids, ob_edges = serialize_jsonld_dict(obj_dict, discard_predicates=discard_predicates,
                                                                       offset=len(ser)+offset, sort_map=sort_map,
-                                                                      save_id_predicates=save_id_predicates)
+                                                                      save_id_predicates=save_id_predicates,
+                                                                      skip_predicates=skip_predicates)
                     ser.extend(obj_ser)
                     ids.update(obj_ids)
-                    refs.update(ob_refs)
-                    refs.setdefault(idx_pred + offset, []).append(obj_dict[u'@id'])
+                    edges.extend(ob_edges)
+                    edges.append((idx_pred + offset, obj_dict[u'@id']))
                 elif u'@id' in obj_dict:
                     assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
-                    if pred in save_id_predicates:
-                        refs.setdefault(idx_pred + offset, []).append(len(ser) + offset)
-                        ser.append(u'' + obj_dict[u'@id'])
+                    if pred in skip_predicates:
+                        if skip_predicates[pred]:
+                            edges.append((obj_dict[u'@id'], offset))
+                        else:
+                            edges.append((offset, obj_dict[u'@id']))
+                        if idx_pred < len(ser):
+                            del ser[idx_pred]
                     else:
-                        refs.setdefault(idx_pred + offset, []).append(obj_dict[u'@id'])
+                        if pred in save_id_predicates:
+                            edges.append((idx_pred + offset, len(ser) + offset))
+                            ser.append(u'' + obj_dict[u'@id'])
+                        else:
+                            edges.append((idx_pred + offset, obj_dict[u'@id']))
                 elif u'@value' in obj_dict:
-                    assert len(ser) == idx_pred + 1, 'laterals (@value) are mixed with complex elements (@type / @id)'
+                    assert len(ser) == idx_pred + 1, \
+                        'laterals (@value) are mixed with complex elements (@type / @id)'
                     value_objects.append(obj_dict[u'@value'])
                 else:
                     raise AssertionError('unknown situation')
@@ -415,14 +440,14 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
                 del ser[-1]
                 new_entries = [u'%s=%s' % (pred, v) for v in value_objects]
                 ser.extend(new_entries)
-                refs.setdefault(offset, []).extend(list(range(idx_pred + offset, idx_pred + offset + len(new_entries))))
+                edges.extend([(offset, i) for i in range(idx_pred + offset, idx_pred + offset + len(new_entries))])
             else:
-                refs.setdefault(offset, []).append(idx_pred + offset)
+                edges.append((offset, idx_pred + offset))
 
-    return ser, ids, refs
+    return ser, ids, edges
 
 
-def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, save_id_predicates=()):
+def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, save_id_predicates=(), skip_predicates=()):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_PARSE]}
@@ -430,10 +455,16 @@ def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, save_id_predi
         jsonld = [jsonld]
     ser, ids, refs = [], {}, {}
     for jsonld_dict in jsonld:
-        ## insert the id directly after the root (offset +1; _ser.insert(1, _id);  _ids[_id] = len(ser); ...)
-        _ser, _ids, _refs = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates,
-                                                  offset=len(ser) + 1, sort_map=sort_map,
-                                                  save_id_predicates=save_id_predicates)
+        # see below for: + 1 (offset=len(ser) + 1)
+        _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates,
+                                                   offset=len(ser) + 1, sort_map=sort_map,
+                                                   save_id_predicates=save_id_predicates,
+                                                   skip_predicates=skip_predicates)
+        _refs = {}
+        for s, t in _edges:
+            _refs.setdefault(_ids.get(s, s), []).append(_ids.get(t, t))
+
+        ## insert the id directly after the root (offset +1 (above); _ser.insert(1, _id);  _ids[_id] = len(ser); ...)
         _id = u'' + jsonld_dict[u'@id']
         _ser.insert(1, _id)
         _ids[_id] = len(ser)
@@ -441,20 +472,6 @@ def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, save_id_predi
         del _refs[len(ser)+1]
         ## insert end
 
-        for r_key in _refs:
-            r_targets = _refs[r_key]
-            #_refs[r_key] = [_ids.get(r, r) for r in r_targets]
-            new_r_targets = []
-            for i, r_t in enumerate(r_targets):
-                if isinstance(r_t, int):
-                    new_r_targets.append(r_t)
-                elif r_t in _ids:
-                    new_r_targets.append(_ids[r_t])
-                # append not-resolvable refs to predicate
-                else:
-                    _ser[r_key] = u'%s=%s' % (_ser[r_key], r_t)
-
-            _refs[r_key] = new_r_targets
         ser.extend(_ser)
         ids.update(_ids)
         refs.update(_refs)
@@ -478,16 +495,33 @@ def create_dummy_record_rdf():
     return res
 
 
+def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy/train.jsonl'):
+    with io.open(p) as f:
+        l = f.readline()
+    return json.loads(l)
+
+
 def main():
-    dummy_jsonld = create_dummy_record_rdf()
+    dummy_jsonld = load_dummy_record()
     ser, refs = serialize_jsonld(dummy_jsonld,
-                                 discard_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC', RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
-                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA', RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
-                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                                                     RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord', RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
+                                 discard_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
+                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
+                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
+                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
+                                                     # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
+                                                     RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord',
+                                                     #RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
                                                      RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext'),
-                                 save_id_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other')
+                                 save_id_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other'),
+                                 skip_predicates={RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD': True,
+                                                  RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence': False}
                                  )
+
+
+    # remove all children of parse, except to first sentence element
+    idx_hasParse = ser.index(u'rem:hasParse')
+    refs[idx_hasParse] = [idx_hasParse + 1]
+    #del refs[idx_hasParse]
 
     # create rec-emb
     lex = Lexicon()
