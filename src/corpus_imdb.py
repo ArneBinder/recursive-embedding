@@ -1,3 +1,4 @@
+import io
 import os
 import spacy
 
@@ -8,8 +9,8 @@ import preprocessing
 from mytools import numpy_dump, make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, FE_CLASS_IDS, save_class_ids
 from constants import TYPE_SECTION, SEPARATOR, LOGGING_FORMAT, TYPE_CONTEXT, TYPE_PARAGRAPH, TYPE_POLARITY, \
-    TYPE_RATING
-
+    TYPE_RATING, PREFIX_IMDB
+from corpus_rdf import parse_to_rdf
 
 TYPE_ACLIMDB_ID = u'http://ai.stanford.edu/~amaas/data/sentiment/aclimdb_v1'
 
@@ -25,6 +26,28 @@ DUMMY_RECORD = {TYPE_POLARITY: u"neg",
                 TYPE_RATING: u"2",
                 u"content": u"Once again Mr. Costner has dragged out a movie for far longer than necessary. Aside from the terrific sea rescue sequences, of which there are very few I just did not care about any of the characters. Most of us have ghosts in the closet, and Costner's character are realized early on, and then forgotten until much later, by which time I did not care. The character we should really care about is a very cocky, overconfident Ashton Kutcher. The problem is he comes off as kid who thinks he's better than anyone else around him and shows no signs of a cluttered closet. His only obstacle appears to be winning over Costner. Finally when we are well past the half way point of this stinker, Costner tells us all about Kutcher's ghosts. We are told why Kutcher is driven to be the best with no prior inkling or foreshadowing. No magic here, it was all I could do to keep from turning it off an hour in.",
                 TYPE_ACLIMDB_ID: u"test/neg/0_2.txt"}
+
+
+def reader_rdf(base_path, file_name):
+    sentiment_dirs = ['pos', 'neg']
+    for sentiment_dir in sentiment_dirs:
+        sd = os.path.join(base_path, file_name, sentiment_dir)
+        file_names = os.listdir(sd)
+        logger.info('%s: process %i files...' % (sd, len(file_names)))
+        for _fn in file_names:
+            fn = os.path.join(sd, _fn)
+            record_id = u'%s%s/%s/%s' % (PREFIX_IMDB, file_name, sentiment_dir, _fn)
+            rating = int(_fn.split('.')[0].split('_')[1])
+            global_anntotations = {PREFIX_IMDB + u'vocab#sentiment': [{u'@value': u'' + sentiment_dir}],
+                                   PREFIX_IMDB + u'vocab#rating': [{u'@value': rating}]}
+            with io.open(fn, encoding='utf8') as f:
+                text = f.read()
+            record = {'record_id': record_id,
+                      # strip last "\n"
+                      'context_string': u'' + text[:-1],
+                      'global_annotations': global_anntotations,
+                      }
+            yield record
 
 
 def reader(records, key_text='content', root_string=TYPE_ACLIMDB_ID,
@@ -144,7 +167,17 @@ def parse_dirs(in_path, out_path, sentence_processor=None, n_threads=4, parser_b
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES']),
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+    parser=('parser: spacy or corenlp', 'option', 'p', str),
+)
+def parse_rdf(in_path, out_path, parser='spacy'):
+    file_names = {'test': 'test.jsonl', 'train': 'train.jsonl'}
+    parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names)
+
+
+@plac.annotations(
+    mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'PARSE_RDF']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -163,6 +196,8 @@ def main(mode, *args):
         save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_POLARITY, classes_ids=polarity_ids[:-1])
     elif mode == 'CREATE_INDICES':
         plac.call(create_index_files, args)
+    elif mode == 'PARSE_RDF':
+        plac.call(parse_rdf, args)
     else:
         raise ValueError('unknown mode. use one of PROCESS_DUMMY or PROCESS_SINGLE.')
 
