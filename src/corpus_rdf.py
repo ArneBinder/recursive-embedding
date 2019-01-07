@@ -198,7 +198,7 @@ def convert_conll_to_rdf(conll_data, base_uri=u'https://github.com/UniversalDepe
 
             row = line.split('\t')
             row_dict = {PREFIX_CONLL + columns[i]:
-                            ('' if columns[i] != 'HEAD' else 'id@' + sent_prefix) + row[i+1] for i, k in enumerate(columns)
+                            (row[i+1] if columns[i] != 'HEAD' else (u'id@', sent_prefix + row[i+1])) for i, k in enumerate(columns)
                         if i+1 < len(row) and row[i+1] != '_'}
             row_dict[PREFIX_CONLL + u'ID'] = row[0]
             row_rdf = _to_rdf(row_dict)
@@ -218,28 +218,15 @@ def _to_rdf(element):
         res = {k: _to_rdf(element[k]) for k in element}
     elif isinstance(element, list):
         res = [_to_rdf(e) for e in element]
+    # tuple indicates marked (@id or @value) entry
+    elif isinstance(element, tuple):
+        marker, content = element
+        assert marker in [u'value@',  u'id@'], 'WARNING: Unknown value marker: %s for content: %s. use ' \
+                                               '"value@" or "id@" as first tuple entry to mark value as value or id.' \
+                                               % (marker, content)
+        res = [{marker: content}]
     else:
-        # check, if value is marked as
-        try:
-            parts = element.split(u'@')
-            if len(parts) == 1 or parts[0].strip() == u'value':
-                res = [{u'@value': element}]
-            else:
-                if parts[0] == u'id':
-                    res = [{u'@' + parts[0]: u'@'.join(parts[1:])}]
-                # elif parts[0] == u'type':
-                # does not work like this
-                #    res =
-                else:
-                    raise AssertionError(
-                        'unknown value marker: %s. use "value@" or "id@" as prefix to mark value as value or id.' %
-                        parts[0])
-        # if element is not a string (no split method)
-        except AttributeError:
-            res = [{u'@value': element}]
-
-    #if rdf_type is not None:
-    #    res[u'@type'] = rdf_type
+        res = [{u'@value': element}]
     return res
 
 
@@ -464,7 +451,7 @@ def create_dummy_record_rdf():
     #record = IMDB_RECORD
     res = parse_and_convert_record(parser=parser, **record)
     #res_str = json.dumps(res)
-    #print(json.dumps(res, indent=2))
+    print(json.dumps(res, indent=2))
     return res
 
 
