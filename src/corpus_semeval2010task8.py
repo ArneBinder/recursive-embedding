@@ -54,7 +54,7 @@ def reader_rdf(base_path, file_name):
         id_w_text = lines[i].split('\t')
         text = id_w_text[1].strip()[1:-1]
         text, positions = extract_positions(text, ('<e1>', '</e1>', '<e2>', '</e2>'))
-        record_id = u'%sTRAIN_FILE.TXT/%s' % (PREFIX_SEMEVAL, id_w_text[0])
+        record_id = u'%s%s/%s' % (PREFIX_SEMEVAL, file_name, id_w_text[0])
         character_annotations = [{u'@id': record_id + u'#r1',
                                   u'@type': [PREFIX_SEMEVAL + u'vocab#relation:' + lines[i + 1].strip()],
                                   PREFIX_SEMEVAL + u'vocab#subj': (positions[0], positions[1]),
