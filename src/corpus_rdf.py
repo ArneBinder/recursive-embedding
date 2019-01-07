@@ -58,6 +58,8 @@ REC_EMB_HAS_PARSE = PREFIX_REC_EMB + u'hasParse'
 REC_EMB_HAS_PARSE_ANNOTATION = PREFIX_REC_EMB + u'hasParseAnnotation'
 REC_EMB_HAS_CONTEXT = PREFIX_REC_EMB + u'hasContext'
 REC_EMB_USED_PARSER = PREFIX_REC_EMB + u'usedParser'
+REC_EMB_SUFFIX_GLOBAL_ANNOTATION = u'#GlobalAnnotation'
+REC_EMB_SUFFIX_NIF_CONTEXT = u'?nif=context'
 
 NIF_WORD = PREFIX_NIF + u'Word'
 NIF_NEXT_WORD = PREFIX_NIF + u'nextWord'
@@ -285,11 +287,11 @@ def parse_and_convert_record(record_id,
     res = {u'@id': record_id, u'@type': [REC_EMB_RECORD], REC_EMB_HAS_PARSE: tokens_jsonld,
            REC_EMB_USED_PARSER: [{u'@value': u'%s.%s' % (type(parser).__module__, type(parser).__name__)}]}
     if global_annotations is not None:
-        global_annotations[u'@id'] = record_id + u'#ga'
+        global_annotations[u'@id'] = record_id + REC_EMB_SUFFIX_GLOBAL_ANNOTATION
         global_annotations[u'@type'] = [REC_EMB_GLOBAL_ANNOTATION]
         res[REC_EMB_HAS_GLOBAL_ANNOTATION] = [global_annotations]
     if context_string is not None:
-        res[REC_EMB_HAS_CONTEXT] = [{u'@id': record_id + u'?nif=context',
+        res[REC_EMB_HAS_CONTEXT] = [{u'@id': record_id + REC_EMB_SUFFIX_NIF_CONTEXT,
                                     u'@type': [TYPE_CONTEXT],
                                     NIF_IS_STRING: [{u'@value': context_string}]}]
 
@@ -312,7 +314,7 @@ def parse_and_convert_record(record_id,
     return res
 
 
-def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}):
+def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, save_id_predicates=()):
     """
     Serializes a json-ld dict object.
     Returns a list of all types (additional types are created from value entries),
@@ -334,22 +336,27 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}):
             ser.append(u'' + pred)
             for obj_dict in jsonld[pred]:
                 if u'@type' in obj_dict:
-                    assert len(value_objects) == 0, 'plain elements (@value) are mixed with complex elements (@type / @id)'
+                    assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
                     obj_ser, obj_ids, ob_refs = serialize_jsonld_dict(obj_dict, discard_predicates=discard_predicates,
-                                                                      offset=len(ser)+offset)
+                                                                      offset=len(ser)+offset, sort_map=sort_map,
+                                                                      save_id_predicates=save_id_predicates)
                     ser.extend(obj_ser)
                     ids.update(obj_ids)
                     refs.update(ob_refs)
                     refs.setdefault(idx_pred + offset, []).append(obj_dict[u'@id'])
                 elif u'@id' in obj_dict:
-                    assert len(value_objects) == 0, 'plain elements (@value) are mixed with complex elements (@type / @id)'
-                    refs.setdefault(idx_pred + offset, []).append(obj_dict[u'@id'])
+                    assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
+                    if pred in save_id_predicates:
+                        refs.setdefault(idx_pred + offset, []).append(len(ser) + offset)
+                        ser.append(u'' + obj_dict[u'@id'])
+                    else:
+                        refs.setdefault(idx_pred + offset, []).append(obj_dict[u'@id'])
                 elif u'@value' in obj_dict:
-                    assert len(ser) == idx_pred + 1, 'plain elements (@value) are mixed with complex elements (@type / @id)'
+                    assert len(ser) == idx_pred + 1, 'laterals (@value) are mixed with complex elements (@type / @id)'
                     value_objects.append(obj_dict[u'@value'])
                 else:
                     raise AssertionError('unknown situation')
-            # collapse value entries with predicate
+            # collapse laterals with predicate
             if len(value_objects) > 0:
                 del ser[-1]
                 new_entries = [u'%s=%s' % (pred, v) for v in value_objects]
@@ -361,7 +368,7 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}):
     return ser, ids, refs
 
 
-def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None):
+def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, save_id_predicates=()):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_PARSE]}
@@ -371,7 +378,8 @@ def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None):
     for jsonld_dict in jsonld:
         ## insert the id directly after the root (offset +1; _ser.insert(1, _id);  _ids[_id] = len(ser); ...)
         _ser, _ids, _refs = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates,
-                                                  offset=len(ser) + 1, sort_map=sort_map)
+                                                  offset=len(ser) + 1, sort_map=sort_map,
+                                                  save_id_predicates=save_id_predicates)
         _id = u'' + jsonld_dict[u'@id']
         _ser.insert(1, _id)
         _ids[_id] = len(ser)
@@ -423,7 +431,8 @@ def main2():
                                                      PREFIX_CONLL + u'LEMMA', PREFIX_CONLL + u'POS',
                                                      PREFIX_CONLL + u'HEAD',
                                                      PREFIX_NIF + u'nextWord', PREFIX_NIF + u'nextSentence',
-                                                     PREFIX_REC_EMB + u'hasContext')
+                                                     PREFIX_REC_EMB + u'hasContext'),
+                                 save_id_predicates=(u'http://clic.cimec.unitn.it/composes/sick.html/vocab#other')
                                  )
 
     # create rec-emb
@@ -441,4 +450,4 @@ def main2():
 
 
 if __name__ == "__main__":
-    main()
+    main2()
