@@ -534,7 +534,8 @@ def main():
                                                      ),
                                  id_as_value_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other'),
                                  skip_predicates={RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD': True,
-                                                  RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence': False},
+                                                  # TODO: test this!
+                                                  RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence': True},
                                  swap_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD')
                                  )
 
