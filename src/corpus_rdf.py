@@ -697,6 +697,23 @@ def debug_main2():
 
 
 @plac.annotations(
+    merged_forest_path=('path to merged forest', 'option', 'o', str),
+    split_count=('count of produced index files', 'option', 'c', int),
+    step_root=('root step', 'option', 's', int),
+    args='the parameters for the underlying processing method')
+def _create_index_files(merged_forest_path, split_count, step_root=1, *args):
+    sizes = json.load(open(merged_forest_path+'.sizes.json'))
+    start = 0
+    for fn, s in sizes:
+        end = start + s / step_root
+        other_args = ('-o', merged_forest_path, '--split-count', str(split_count if fn != 'test.jsonl' else 1),
+                      '--start-root', str(start), '--end-root', str(end), '--step-root', str(step_root),
+                      '--suffix', fn.split('.')[0])
+        plac.call(create_index_files, args + other_args)
+        start = end
+
+
+@plac.annotations(
     mode=('processing mode', 'positional', None, str, ['CONVERT', 'ADD_VECS', 'CREATE_INDICES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
@@ -705,7 +722,7 @@ def main(mode, *args):
     elif mode == 'ADD_VECS':
         plac.call(add_glove_vecs, args)
     elif mode == 'CREATE_INDICES':
-        plac.call(create_index_files, args)
+        plac.call(_create_index_files, args)
 
     logger.info('done')
 
