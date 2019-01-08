@@ -368,8 +368,8 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
     logger.debug('done')
 
 
-def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, save_id_predicates=(),
-                          skip_predicates=()):
+def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, id_as_value_predicates=(),
+                          skip_predicates=(), swap_predicates=()):
     """
     Serializes a json-ld dict object.
     Returns a list of all _types_ (additional types are created from value entries),
@@ -386,11 +386,11 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
     :param offset: offset for id positions
     :param sort_map: a map from node types to lists of predicates that determine their ordering. If the current type t is
         in sort_map, all predicates not in sort_map[t] are discarded
-    :param save_id_predicates: ids linked with these predicates are included into the final serialization and no target
-        edge will be created
+    :param id_as_value_predicates: for these predicates, take @id values as plain literals
     :param skip_predicates: a map, whose keys are predicates, that will be skipped: edges go directly from subject to
         object (instead of (subject, predicate) and (predicate, object)). The value indicates, if the edge should be
         reverted, e.g. if True, (object, subject) will be added, else (subject, object).
+    :param swap_predicates: swap positions of subject and predicate=literal-object in final serialization
     :return: types, ids, refs
     """
     _type = u'' + jsonld[u'@type'][0]
@@ -410,16 +410,18 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
                 if u'@type' in obj_dict:
                     assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
                     obj_ser, obj_ids, ob_edges = serialize_jsonld_dict(obj_dict, discard_predicates=discard_predicates,
-                                                                      offset=len(ser)+offset, sort_map=sort_map,
-                                                                      save_id_predicates=save_id_predicates,
-                                                                      skip_predicates=skip_predicates)
+                                                                       offset=len(ser)+offset, sort_map=sort_map,
+                                                                       id_as_value_predicates=id_as_value_predicates,
+                                                                       skip_predicates=skip_predicates,
+                                                                       swap_predicates=swap_predicates)
                     ser.extend(obj_ser)
                     ids.update(obj_ids)
                     edges.extend(ob_edges)
                     if idx_pred is not None:
                         edges.append((idx_pred + offset, obj_dict[u'@id']))
                 elif u'@id' in obj_dict:
-                    assert len(value_objects) == 0, 'laterals (@value) are mixed with complex elements (@type / @id)'
+                    assert len(value_objects) == 0 or pred in id_as_value_predicates, \
+                        'laterals (@value) are mixed with complex elements (@type / @id)'
                     if pred in skip_predicates:
                         if skip_predicates[pred]:
                             edges.append((obj_dict[u'@id'], offset))
@@ -427,13 +429,13 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
                             edges.append((offset, obj_dict[u'@id']))
                         if idx_pred is not None and idx_pred < len(ser):
                             del ser[idx_pred]
+                    elif pred in id_as_value_predicates:
+                        assert idx_pred is None or len(ser) == idx_pred + 1, \
+                            'laterals (@value) are mixed with complex elements (@type / @id)'
+                        value_objects.append(obj_dict[u'@id'])
                     else:
                         if idx_pred is not None:
-                            if pred in save_id_predicates:
-                                edges.append((idx_pred + offset, len(ser) + offset))
-                                ser.append(u'' + obj_dict[u'@id'])
-                            else:
-                                edges.append((idx_pred + offset, obj_dict[u'@id']))
+                            edges.append((idx_pred + offset, obj_dict[u'@id']))
                 elif u'@value' in obj_dict:
                     assert idx_pred is None or len(ser) == idx_pred + 1, \
                         'laterals (@value) are mixed with complex elements (@type / @id)'
@@ -445,6 +447,11 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
                 del ser[-1]
                 new_entries = [u'%s=%s' % (pred, v) for v in value_objects]
                 ser.extend(new_entries)
+                if pred in swap_predicates:
+                    assert len(new_entries) == 1, 'can swap only single pred+value, but found %i' % len(new_entries)
+                    subj = ser[0]
+                    ser[0] = ser[-1]
+                    ser[-1] = subj
                 if idx_pred is not None:
                     edges.extend([(offset, i) for i in range(idx_pred + offset, idx_pred + offset + len(new_entries))])
             else:
@@ -454,7 +461,8 @@ def serialize_jsonld_dict(jsonld, discard_predicates=(), offset=0, sort_map={}, 
     return ser, ids, edges
 
 
-def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, save_id_predicates=(), skip_predicates=()):
+def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, id_as_value_predicates=(), skip_predicates=(),
+                     swap_predicates=()):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_PARSE]}
@@ -465,8 +473,9 @@ def serialize_jsonld(jsonld, discard_predicates=(), sort_map=None, save_id_predi
         # see below for: + 1 (offset=len(ser) + 1)
         _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, discard_predicates=discard_predicates,
                                                    offset=len(ser) + 1, sort_map=sort_map,
-                                                   save_id_predicates=save_id_predicates,
-                                                   skip_predicates=skip_predicates)
+                                                   id_as_value_predicates=id_as_value_predicates,
+                                                   skip_predicates=skip_predicates,
+                                                   swap_predicates=swap_predicates)
         _refs = {}
         for s, t in _edges:
             _refs.setdefault(_ids.get(s, s), []).append(_ids.get(t, t))
@@ -502,7 +511,7 @@ def create_dummy_record_rdf():
     return res
 
 
-def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SEMEVAL2010T8_RDF/spacy/train.jsonl'):
+def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy/train.jsonl'):
     with io.open(p) as f:
         l = f.readline()
     return json.loads(l)
@@ -523,15 +532,16 @@ def main():
                                                      # TODO: check that!
                                                      RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString',
                                                      ),
-                                 # TODO: eventually rework (dict for SICK)
-                                 save_id_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other'),
+                                 id_as_value_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other'),
                                  skip_predicates={RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD': True,
-                                                  RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence': False}
+                                                  RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence': False},
+                                 swap_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD')
                                  )
 
 
     # remove all children of parse, except to first sentence element
     idx_hasParse = ser.index(u'rem:hasParse')
+    # TODO: link to _last_ sentence
     refs[idx_hasParse] = [idx_hasParse + 1]
     #del refs[idx_hasParse]
 
