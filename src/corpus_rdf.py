@@ -603,7 +603,7 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
     refs[idx_hasParse] = [idx_last_sentence]
 
     # create rec-emb
-    lex = Lexicon()
+    lex = Lexicon(add_vocab_manual=True)
     data = [Lexicon.hash_string(s) for s in ser]
     lex.add_all(ser)
     graph_out = graph_out_from_children_dict(refs, len(ser))
@@ -616,16 +616,19 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
 @plac.annotations(
     in_path=('corpora input path, should contain .jsonl or .jl files', 'option', 'i', str),
     out_path=('corpora output path', 'option', 'o', str),
+    glove_file=('glove vector file', 'option', 'g', str),
+    word_prefix=('prefix of words in lexicon', 'option', 'w', str),
     params_json=('optional parameters as json string', 'option', 'a', str),
 )
-def convert_corpus_jsonld_to_recemb(in_path, out_path, params_json=''):
+def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
+                                    word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', params_json=''):
     params = {}
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
 
     recembs_all = []
     lex_all = []
-    sizes = {}
+    sizes = []
     for fn in os.listdir(in_path):
         if fn.endswith('.jsonl') or fn.endswith('.jl'):
             path = os.path.join(in_path, fn)
@@ -642,20 +645,38 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, params_json=''):
                     lex_all.append(lex)
                     n += 1
             logger.info('converted %i records from %s' % (n, path))
-            sizes[fn] = n
+            sizes.append((fn, n))
     recemb = Forest.concatenate(recembs_all)
     lex = Lexicon.merge_strings(lex_all)
     recemb.set_lexicon(lex)
     recemb.split_lexicon_to_lexicon_and_lexicon_roots()
     recemb.hashes_to_indices()
+    if glove_file is not None and glove_file.strip() != '':
+        logger.info('init vecs with glove file: %s...' % glove_file)
+        recemb.lexicon.init_vecs_with_glove_file(filename=glove_file, prefix=word_prefix + u'')
+    else:
+        recemb.lexicon.init_vecs()
     #return recemb, sizes
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     fn = os.path.join(out_path, 'forest')
     recemb.dump(filename=fn)
-    recemb.lexicon.dump(filename=fn, strings_only=True)
+    recemb.lexicon.dump(filename=fn, strings_only=not recemb.lexicon.has_vecs)
     recemb.lexicon_roots.dump(filename=fn + '.root.id', strings_only=True)
     json.dump(sizes, open(fn+'.sizes.json', 'w'))
+
+
+@plac.annotations(
+    out_path=('corpora output path', 'option', 'o', str),
+    glove_file=('glove vector file', 'option', 'g', str),
+    word_prefix=('prefix of words in lexicon', 'option', 'w', str),
+)
+def add_glove_vecs(out_path, glove_file, word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD='):
+    fn = os.path.join(out_path, 'forest')
+    lex = Lexicon(filename=fn, load_vecs=False)
+    logger.info('init vecs with glove file: %s...' % glove_file)
+    lex.init_vecs_with_glove_file(filename=glove_file, prefix=word_prefix + u'')
+    lex.dump(fn)
 
 
 def debug_main():
@@ -674,5 +695,19 @@ def debug_main2():
     #recemb_all.visualize('test.svg')
 
 
+@plac.annotations(
+    mode=('processing mode', 'positional', None, str, ['CONVERT', 'ADD_VECS', 'CREATE_INDICES']),
+    args='the parameters for the underlying processing method')
+def main(mode, *args):
+    if mode == 'CONVERT':
+        plac.call(convert_corpus_jsonld_to_recemb, args)
+    elif mode == 'ADD_VECS':
+        plac.call(add_glove_vecs, args)
+    elif mode == 'CREATE_INDICES':
+        raise NotImplementedError('implement this')
+
+    logger.info('done')
+
+
 if __name__ == "__main__":
-    plac.call(convert_corpus_jsonld_to_recemb)
+    plac.call(main)
