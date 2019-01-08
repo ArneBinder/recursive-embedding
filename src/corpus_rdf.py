@@ -6,8 +6,8 @@ import os
 import numpy as np
 
 import spacy
-#from datetime import datetime
-#import plac
+# from datetime import datetime
+# import plac
 from nltk.parse.corenlp import CoreNLPDependencyParser
 
 from sequence_trees import graph_out_from_children_dict, Forest
@@ -25,7 +25,6 @@ logger_streamhandler = logging.StreamHandler()
 logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
-
 
 TACRED_CONLL_RECORD = '''
 # index	token	subj	subj_type	obj	obj_type	stanford_pos	stanford_ner	stanford_deprel	stanford_head
@@ -58,16 +57,28 @@ TACRED_CONLL_RECORD = '''
 26	.	_	_	_	_	.	O	punct	12
 '''
 
-
 ##### DUMMY DATA #####################
 
 TACRED_RECORD_JSON = u'[{"id": "e7798fb926b9403cfcd2", "docid": "APW_ENG_20101103.0539", "relation": "per:title", "token": ["At", "the", "same", "time", ",", "Chief", "Financial", "Officer", "Douglas", "Flint", "will", "become", "chairman", ",", "succeeding", "Stephen", "Green", "who", "is", "leaving", "to", "take", "a", "government", "job", "."], "subj_start": 8, "subj_end": 9, "obj_start": 12, "obj_end": 12, "subj_type": "PERSON", "obj_type": "TITLE", "stanford_pos": ["IN", "DT", "JJ", "NN", ",", "NNP", "NNP", "NNP", "NNP", "NNP", "MD", "VB", "NN", ",", "VBG", "NNP", "NNP", "WP", "VBZ", "VBG", "TO", "VB", "DT", "NN", "NN", "."], "stanford_ner": ["O", "O", "O", "O", "O", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "O", "O", "O", "O"], "stanford_head": [4, 4, 4, 12, 12, 10, 10, 10, 10, 12, 12, 0, 12, 12, 12, 17, 15, 20, 20, 17, 22, 20, 25, 25, 22, 12], "stanford_deprel": ["case", "det", "amod", "nmod", "punct", "compound", "compound", "compound", "compound", "nsubj", "aux", "ROOT", "xcomp", "punct", "xcomp", "compound", "dobj", "nsubj", "aux", "acl:relcl", "mark", "xcomp", "det", "compound", "dobj", "punct"]}, {"id": "e779865fb96bbbcc4ca4", "docid": "APW_ENG_20080229.1401.LDC2009T13", "relation": "no_relation", "token": ["U.S.", "District", "Court", "Judge", "Jeffrey", "White", "in", "mid-February", "issued", "an", "injunction", "against", "Wikileaks", "after", "the", "Zurich-based", "Bank", "Julius", "Baer", "accused", "the", "site", "of", "posting", "sensitive", "account", "information", "stolen", "by", "a", "disgruntled", "former", "employee", "."], "subj_start": 17, "subj_end": 18, "obj_start": 4, "obj_end": 5, "subj_type": "PERSON", "obj_type": "PERSON", "stanford_pos": ["NNP", "NNP", "NNP", "NNP", "NNP", "NNP", "IN", "NNP", "VBD", "DT", "NN", "IN", "NNP", "IN", "DT", "JJ", "NNP", "NNP", "NNP", "VBD", "DT", "NN", "IN", "VBG", "JJ", "NN", "NN", "VBN", "IN", "DT", "JJ", "JJ", "NN", "."], "stanford_ner": ["LOCATION", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "O", "ORGANIZATION", "O", "O", "MISC", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O"], "stanford_head": [6, 6, 6, 6, 6, 9, 8, 6, 0, 11, 9, 13, 11, 20, 19, 19, 19, 19, 20, 9, 22, 20, 24, 20, 27, 27, 24, 27, 33, 33, 33, 33, 28, 9], "stanford_deprel": ["compound", "compound", "compound", "compound", "compound", "nsubj", "case", "nmod", "ROOT", "det", "dobj", "case", "nmod", "mark", "det", "amod", "compound", "compound", "nsubj", "advcl", "det", "dobj", "mark", "advcl", "amod", "compound", "dobj", "acl", "case", "det", "amod", "amod", "nmod", "punct"]}, {"id": "e7798ae9c0adbcdc81e7", "docid": "APW_ENG_20090707.0488", "relation": "per:city_of_death", "token": ["PARIS", "2009-07-07", "11:07:32", "UTC", "French", "media", "earlier", "reported", "that", "Montcourt", ",", "ranked", "119", ",", "was", "found", "dead", "by", "his", "girlfriend", "in", "the", "stairwell", "of", "his", "Paris", "apartment", "."], "subj_start": 9, "subj_end": 9, "obj_start": 0, "obj_end": 0, "subj_type": "PERSON", "obj_type": "CITY", "stanford_pos": ["NNP", "CD", "CD", "NNP", "NNP", "NNS", "RBR", "VBD", "IN", "NNP", ",", "VBD", "CD", ",", "VBD", "VBN", "JJ", "IN", "PRP$", "NN", "IN", "DT", "NN", "IN", "PRP$", "NNP", "NN", "."], "stanford_ner": ["LOCATION", "TIME", "TIME", "TIME", "MISC", "O", "O", "O", "O", "PERSON", "O", "O", "NUMBER", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "LOCATION", "O", "O"], "stanford_head": [6, 6, 6, 6, 6, 8, 8, 0, 16, 16, 10, 10, 12, 10, 16, 8, 16, 20, 20, 17, 23, 23, 16, 27, 27, 27, 23, 8], "stanford_deprel": ["compound", "nummod", "nummod", "compound", "compound", "nsubj", "advmod", "ROOT", "mark", "nsubjpass", "punct", "acl", "dobj", "punct", "auxpass", "ccomp", "xcomp", "case", "nmod:poss", "nmod", "case", "det", "nmod", "case", "nmod:poss", "compound", "nmod", "punct"]}]'
-TACRED_RECORD_TOKEN_FEATURES = {"token": ["At", "the", "same", "time", ",", "Chief", "Financial", "Officer", "Douglas", "Flint", "will", "become", "chairman", ",", "succeeding", "Stephen", "Green", "who", "is", "leaving", "to", "take", "a", "government", "job", "." ], "stanford_pos": [ "IN", "DT", "JJ", "NN", ",", "NNP", "NNP", "NNP", "NNP", "NNP", "MD", "VB", "NN", ",", "VBG", "NNP", "NNP", "WP", "VBZ", "VBG", "TO", "VB", "DT", "NN", "NN", "." ], "stanford_ner": [ "O", "O", "O", "O", "O", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "O", "O", "O", "O" ], "stanford_deprel": [ "case", "det", "amod", "nmod", "punct", "compound", "compound", "compound", "compound", "nsubj", "aux", "ROOT", "xcomp", "punct", "xcomp", "compound", "dobj", "nsubj", "aux", "acl:relcl", "mark", "xcomp", "det", "compound", "dobj", "punct" ], "stanford_head": [ 4, 4, 4, 12, 12, 10, 10, 10, 10, 12, 12, 0, 12, 12, 12, 17, 15, 20, 20, 17, 22, 20, 25, 25, 22, 12 ]}
+TACRED_RECORD_TOKEN_FEATURES = {
+    "token": ["At", "the", "same", "time", ",", "Chief", "Financial", "Officer", "Douglas", "Flint", "will", "become",
+              "chairman", ",", "succeeding", "Stephen", "Green", "who", "is", "leaving", "to", "take", "a",
+              "government", "job", "."],
+    "stanford_pos": ["IN", "DT", "JJ", "NN", ",", "NNP", "NNP", "NNP", "NNP", "NNP", "MD", "VB", "NN", ",", "VBG",
+                     "NNP", "NNP", "WP", "VBZ", "VBG", "TO", "VB", "DT", "NN", "NN", "."],
+    "stanford_ner": ["O", "O", "O", "O", "O", "O", "O", "O", "PERSON", "PERSON", "O", "O", "O", "O", "O", "PERSON",
+                     "PERSON", "O", "O", "O", "O", "O", "O", "O", "O", "O"],
+    "stanford_deprel": ["case", "det", "amod", "nmod", "punct", "compound", "compound", "compound", "compound", "nsubj",
+                        "aux", "ROOT", "xcomp", "punct", "xcomp", "compound", "dobj", "nsubj", "aux", "acl:relcl",
+                        "mark", "xcomp", "det", "compound", "dobj", "punct"],
+    "stanford_head": [4, 4, 4, 12, 12, 10, 10, 10, 10, 12, 12, 0, 12, 12, 12, 17, 15, 20, 20, 17, 22, 20, 25, 25, 22,
+                      12]}
 
 TACRED_RECORD_ID = PREFIX_TACRED + u'train/e7798fb926b9403cfcd2'
 TACRED_RECORD_TOKEN_ANNOTATIONS = [{u'@id': TACRED_RECORD_ID + u'#r1',
                                     u'@type': [PREFIX_TACRED + u'vocab#relation:per:title'],
-                                    PREFIX_TACRED + u'vocab#subj': [{u'@id': TACRED_RECORD_ID + u'#s1_9'}, {u'@id': TACRED_RECORD_ID + u'#s1_10'}],
+                                    PREFIX_TACRED + u'vocab#subj': [{u'@id': TACRED_RECORD_ID + u'#s1_9'},
+                                                                    {u'@id': TACRED_RECORD_ID + u'#s1_10'}],
                                     PREFIX_TACRED + u'vocab#obj': [{u'@id': TACRED_RECORD_ID + u'#s1_13'}],
                                     }]
 TACRED_RECORD = {'record_id': TACRED_RECORD_ID,
@@ -100,7 +111,7 @@ SEMEVAL_RECORD_CHARACTER_ANNOTATIONS = [{u'@id': SEMEVAL_RECORD_ID + u'#r1',
                                          u'@type': [PREFIX_SEMEVAL + u'vocab#relation:Component-Whole(e2,e1)'],
                                          PREFIX_SEMEVAL + u'vocab#subj': (73, 89),
                                          PREFIX_SEMEVAL + u'vocab#obj': (98, 106),
-                                        }]
+                                         }]
 SEMEVAL_RECORD = {'record_id': SEMEVAL_RECORD_ID,
                   'context_string': u"The system as described above has its greatest application in an arrayed configuration of antenna elements.",
                   'character_annotations': SEMEVAL_RECORD_CHARACTER_ANNOTATIONS,
@@ -144,21 +155,21 @@ def parse_spacy_to_conll(text, nlp=spacy.load('en')):
             if word.head.i == word.i:
                 head_idx = 0
             else:
-                #head_idx = doc[i].head.i + 1
+                # head_idx = doc[i].head.i + 1
                 head_idx = word.head.i - sent[0].i + 1
 
             yield u"%d\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%s\t%i" % (
                 # data          conllu      notes
-                i + 1,          # ID        There's a word.i attr that's position in *doc*
-                word,           # FORM
-                word.lemma_,    # LEMMA
-                word.pos_,      # UPOS      Coarse-grained tag
-                word.tag_,      # XPOS      Fine-grained tag
-                '_',            # FEATS
-                head_idx,       # HEAD (ID or 0)
-                word.dep_,      # DEPREL    Relation
-                '_',            # DEPS
-                word.idx,       # MISC      character offset
+                i + 1,  # ID        There's a word.i attr that's position in *doc*
+                word,  # FORM
+                word.lemma_,  # LEMMA
+                word.pos_,  # UPOS      Coarse-grained tag
+                word.tag_,  # XPOS      Fine-grained tag
+                '_',  # FEATS
+                head_idx,  # HEAD (ID or 0)
+                word.dep_,  # DEPREL    Relation
+                '_',  # DEPS
+                word.idx,  # MISC      character offset
             )
         yield u''
 
@@ -176,7 +187,7 @@ def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser
             if node['tag'] == 'TOP':
                 continue
             idx = text.find(node['word'], previous_end)
-            #assert idx >= 0, 'word="%s" not found in text="%s"' % (node['word'], text)
+            # assert idx >= 0, 'word="%s" not found in text="%s"' % (node['word'], text)
             if idx < 0:
                 print('WARNING: word="%s" not found in text="%s"' % (node['word'], text))
                 idx = '_'
@@ -220,8 +231,9 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
 
             row = line.split('\t')
             row_dict = {RDF_PREFIXES_MAP[PREFIX_CONLL] + columns[i]:
-                            (row[i+1] if columns[i] != 'HEAD' else (u'@id', sent_prefix + row[i+1])) for i, k in enumerate(columns)
-                        if i+1 < len(row) and row[i+1] != '_'}
+                            (row[i + 1] if columns[i] != 'HEAD' else (u'@id', sent_prefix + row[i + 1])) for i, k in
+                        enumerate(columns)
+                        if i + 1 < len(row) and row[i + 1] != '_'}
             row_dict[RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID'] = row[0]
             row_rdf = _to_rdf(row_dict)
             row_rdf[u'@id'] = sent_prefix + str(row[0])
@@ -243,9 +255,9 @@ def _to_rdf(element):
     # tuple indicates marked (@id or @value) entry
     elif isinstance(element, tuple):
         marker, content = element
-        assert marker in [u'@value',  u'@id'], 'WARNING: Unknown value marker: %s for content: %s. use ' \
-                                               '"@value" or "@id" as first tuple entry to mark value as lateral or id.' \
-                                               % (marker, content)
+        assert marker in [u'@value', u'@id'], 'WARNING: Unknown value marker: %s for content: %s. use ' \
+                                              '"@value" or "@id" as first tuple entry to mark value as lateral or id.' \
+                                              % (marker, content)
         res = [{marker: content}]
     else:
         res = [{u'@value': element}]
@@ -272,7 +284,6 @@ def parse_and_convert_record(record_id,
                              token_annotations=None,
                              parser=None,
                              ):
-
     conll_columns = ('WORD', 'LEMMA', 'UPOS', 'POS', 'FEAT', 'HEAD', 'EDGE', 'DEPS', 'MISC')
     if isinstance(parser, spacy.language.Language):
         conll_lines = list(parse_spacy_to_conll(context_string, nlp=parser))
@@ -282,8 +293,8 @@ def parse_and_convert_record(record_id,
         assert token_features is not None, 'parser==None requires token_features, but it is None'
         conll_lines = list(record_to_conll(token_features, captions=conll_columns,
                                            key_mapping={'WORD': 'token', 'POS': 'stanford_pos',
-                                                      'HEAD': 'stanford_head', 'EDGE': 'stanford_deprel'}))
-        #conll_columns = ('index', 'token', 'subj', 'subj_type', 'obj', 'obj_type', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head')
+                                                        'HEAD': 'stanford_head', 'EDGE': 'stanford_deprel'}))
+        # conll_columns = ('index', 'token', 'subj', 'subj_type', 'obj', 'obj_type', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head')
     else:
         raise NotImplementedError('parser %s not implemented' % parser)
 
@@ -297,8 +308,8 @@ def parse_and_convert_record(record_id,
         res[REC_EMB_HAS_GLOBAL_ANNOTATION] = [global_annotations]
     if context_string is not None:
         res[REC_EMB_HAS_CONTEXT] = [{u'@id': record_id + REC_EMB_SUFFIX_NIF_CONTEXT,
-                                    u'@type': [NIF_CONTEXT],
-                                    NIF_IS_STRING: [{u'@value': context_string}]}]
+                                     u'@type': [NIF_CONTEXT],
+                                     NIF_IS_STRING: [{u'@value': context_string}]}]
 
     # if available, convert character_annotations to token_annotations
     if character_annotations is not None:
@@ -320,7 +331,6 @@ def parse_and_convert_record(record_id,
 
 
 def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
-    #file_names = {'sick_test_annotated/SICK_test_annotated.txt': 'test.jsonl', 'sick_train/SICK_train.txt': 'train.jsonl'}
     logger.info('load parser...')
     if parser.strip() == 'spacy':
         _parser = spacy.load('en')
@@ -427,23 +437,25 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
             for obj_dict in jsonld[pred]:
                 # lateral object
                 if u'@value' in obj_dict:
-                    #assert idx_edge_source is None or len(ser) == idx_edge_source + 1, \
+                    # assert idx_edge_source is None or len(ser) == idx_edge_source + 1, \
                     #    'laterals (@value) are mixed with complex elements (@type / @id)'
                     object_literals.append(obj_dict[u'@value'])
                 # complex object
                 else:
-                    #assert len(object_literals) == 0 or pred in id_as_value_predicates, \
+                    # assert len(object_literals) == 0 or pred in id_as_value_predicates, \
                     #    'laterals (@value) are mixed with complex elements (@type / @id)'
                     if pred in id_as_value_predicates:
                         object_literals.append(obj_dict[u'@id'])
                         continue
 
                     if idx_edge_source is not None:
-                        new_edge = (obj_dict[u'@id'], idx_edge_source) if revert_edge else (idx_edge_source, obj_dict[u'@id'])
+                        new_edge = (obj_dict[u'@id'], idx_edge_source) if revert_edge else (
+                            idx_edge_source, obj_dict[u'@id'])
                         edges.append(new_edge)
 
                     if u'@type' in obj_dict:
-                        obj_ser, obj_ids, obj_edges = serialize_jsonld_dict(obj_dict, offset=len(ser)+offset, sort_map=sort_map,
+                        obj_ser, obj_ids, obj_edges = serialize_jsonld_dict(obj_dict, offset=len(ser) + offset,
+                                                                            sort_map=sort_map,
                                                                             discard_predicates=discard_predicates,
                                                                             discard_types=discard_types,
                                                                             id_as_value_predicates=id_as_value_predicates,
@@ -488,6 +500,7 @@ def serialize_jsonld(jsonld, sort_map=None, discard_predicates=(), discard_types
     if not isinstance(jsonld, list):
         jsonld = [jsonld]
     ser, ids, refs = [], {}, {}
+    id_indices = []
     for jsonld_dict in jsonld:
         # see below for: + 1 (offset=len(ser) + 1)
         _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map,
@@ -505,85 +518,105 @@ def serialize_jsonld(jsonld, sort_map=None, discard_predicates=(), discard_types
         _id = u'' + jsonld_dict[u'@id']
         _ser.insert(1, _id)
         _ids[_id] = len(ser)
-        _refs[len(ser)] = [len(ser) + 1] + _refs[len(ser)+1]
-        del _refs[len(ser)+1]
+        _refs[len(ser)] = [len(ser) + 1] + _refs[len(ser) + 1]
+        del _refs[len(ser) + 1]
         ## insert end
+        id_indices.append(len(ser) + 1)
 
         ser.extend(_ser)
         ids.update(_ids)
         refs.update(_refs)
 
-    return ser, refs
+    return ser, refs, id_indices
 
 
 def create_dummy_record_rdf():
     print('load parser...')
-    #parser = spacy.load('en')
+    # parser = spacy.load('en')
     parser = CoreNLPDependencyParser(url='http://localhost:9000')
-    #parser = None
+    # parser = None
     print('loaded parser: %s' % str(type(parser)))
-    #record = TACRED_RECORD
-    #record = SEMEVAL_RECORD
+    # record = TACRED_RECORD
+    # record = SEMEVAL_RECORD
     record = SICK_RECORD
-    #record = IMDB_RECORD
+    # record = IMDB_RECORD
     res = parse_and_convert_record(parser=parser, **record)
-    #res_str = json.dumps(res)
+    # res_str = json.dumps(res)
     print(json.dumps(res, indent=2))
     return res
 
 
-def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SEMEVAL2010T8_RDF/spacy/test.jsonl'):
+def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/IMDB_RDF/spacy/test.jsonl'):
     with io.open(p) as f:
         l = f.readline()
     return json.loads(l)
 
 
-def main():
-    dummy_jsonld = load_dummy_record()
-    ser, refs = serialize_jsonld(dummy_jsonld,
-                                 discard_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
-                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
-                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
-                                                     RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
-                                                     RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord',
-                                                     RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext',
-                                                     #RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
-                                                     RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString'
-                                                     ),
-                                 discard_types=(RDF_PREFIXES_MAP[PREFIX_NIF] + u'Context'),
-                                 id_as_value_predicates=(RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other'),
-                                 skip_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                                                  RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
-                                                  RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                                                  RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj'
-                                                  ),
-                                 revert_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                                                    RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
-                                                    RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj'
-                                                    ),
-                                 swap_predicates=(RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'),
-                                 )
+def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None, id_as_value_predicates=None,
+                             skip_predicates=None, revert_predicates=None, swap_predicates=None):
+    if discard_predicates is None:
+        discard_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
+                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
+                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
+                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
+                              RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord',
+                              RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext',
+                              # RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
+                              RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString'
+                              )
+    if discard_types is None:
+        discard_types = (RDF_PREFIXES_MAP[PREFIX_NIF] + u'Context')
+    if skip_predicates is None:
+        skip_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
+                           RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
+                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
+                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj'
+                           #TODO: add TACRED subj / obj?
+                           )
+    if revert_predicates is None:
+        revert_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
+                             # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
+                             RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
+                             RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj'
+                             # TODO: add TACRED subj?
+                             )
+    if swap_predicates is None:
+        swap_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD')
 
+    ser, refs, ids_indices = serialize_jsonld(jsonld,
+                                              discard_predicates=discard_predicates,
+                                              discard_types=discard_types,
+                                              id_as_value_predicates=id_as_value_predicates,
+                                              skip_predicates=skip_predicates,
+                                              revert_predicates=revert_predicates,
+                                              swap_predicates=swap_predicates)
 
-    # remove all children of parse, except to first sentence element
-    idx_hasParse = ser.index(u'rem:hasParse')
-    # TODO: link to _last_ sentence
-    refs[idx_hasParse] = [idx_hasParse + 1]
-    #del refs[idx_hasParse]
+    # remove all children of parse, except to last sentence element
+    idx_hasParse = ser.index(RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParse')
+    idx_last_sentence = len(ser) - ser[::-1].index(RDF_PREFIXES_MAP[PREFIX_NIF] + u'Sentence') - 1
+    # link to _last_ sentence
+    refs[idx_hasParse] = [idx_last_sentence]
 
     # create rec-emb
     lex = Lexicon()
     lex_ids = Lexicon()
-    lex.add_all([ser[0]] + ser[2:])
-    lex_ids.add(ser[1])
-    data = [lex.get_d(s=s, data_as_hashes=False) if s in lex else -lex_ids.get_d(s=s, data_as_hashes=False) -1 for s in ser]
+    data = [Lexicon.hash_string(s) for s in ser]
+    for idx in ids_indices:
+        lex_ids.add(ser[idx])
+    for idx in range(len(ser)):
+        if idx not in ids_indices:
+            lex.add(ser[idx])
     graph_out = graph_out_from_children_dict(refs, len(ser))
-    forest = Forest(data=data, data_as_hashes=False, lexicon=lex, lexicon_roots=lex_ids, structure=graph_out, root_pos=np.array([1], dtype=DTYPE_IDX))
-    # visualize
-    forest.visualize('test.svg')
-    forest_str = forest.get_text_plain()
-    print('done')
+    recemb = Forest(data=data, data_as_hashes=True, lexicon=lex, lexicon_roots=lex_ids, structure=graph_out,
+                    root_pos=np.array([1], dtype=DTYPE_IDX))
+    # recemb.set_root_data_by_offset()
+
+    return recemb
 
 
 if __name__ == "__main__":
-    main()
+    recemb = convert_jsonld_to_recemb(jsonld=load_dummy_record())
+    # visualize
+    recemb.visualize('test.svg')
+    forest_str = recemb.get_text_plain()
+    print('done')
