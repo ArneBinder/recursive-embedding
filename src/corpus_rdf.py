@@ -11,11 +11,12 @@ import spacy
 from nltk.parse.corenlp import CoreNLPDependencyParser
 
 from sequence_trees import graph_out_from_children_dict, Forest
-from constants import TYPE_CONTEXT, DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFIX_TACRED, PREFIX_SICK, \
+from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFIX_TACRED, PREFIX_SICK, \
     PREFIX_IMDB, PREFIX_SEMEVAL, REC_EMB_GLOBAL_ANNOTATION, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_RECORD, \
     REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_CONTEXT, REC_EMB_USED_PARSER, \
     REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
-    NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP
+    NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
+    NIF_CONTEXT
 from lexicon import Lexicon
 
 logger = logging.getLogger('corpus_rdf')
@@ -296,7 +297,7 @@ def parse_and_convert_record(record_id,
         res[REC_EMB_HAS_GLOBAL_ANNOTATION] = [global_annotations]
     if context_string is not None:
         res[REC_EMB_HAS_CONTEXT] = [{u'@id': record_id + REC_EMB_SUFFIX_NIF_CONTEXT,
-                                    u'@type': [TYPE_CONTEXT],
+                                    u'@type': [NIF_CONTEXT],
                                     NIF_IS_STRING: [{u'@value': context_string}]}]
 
     # if available, convert character_annotations to token_annotations
