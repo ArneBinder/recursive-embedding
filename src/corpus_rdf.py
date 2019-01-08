@@ -530,7 +530,7 @@ def serialize_jsonld(jsonld, sort_map=None, discard_predicates=(), discard_types
     return ser, refs, id_indices
 
 
-def create_dummy_record_rdf():
+def debug_create_dummy_record_rdf():
     print('load parser...')
     # parser = spacy.load('en')
     parser = CoreNLPDependencyParser(url='http://localhost:9000')
@@ -546,7 +546,7 @@ def create_dummy_record_rdf():
     return res
 
 
-def load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/IMDB_RDF/spacy/test.jsonl'):
+def debug_load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/IMDB_RDF/spacy/test.jsonl'):
     with io.open(p) as f:
         l = f.readline()
     return json.loads(l)
@@ -655,10 +655,11 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, params_json=''):
     recemb.dump(filename=fn)
     recemb.lexicon.dump(filename=fn, strings_only=True)
     recemb.lexicon_roots.dump(filename=fn + '.root.id', strings_only=True)
+    json.dump(sizes, open(fn+'.sizes.json', 'w'))
 
 
-def dummy_main():
-    recemb, lex = convert_jsonld_to_recemb(jsonld=load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy/test.jsonl'))
+def debug_main():
+    recemb, lex = convert_jsonld_to_recemb(jsonld=debug_load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy/test.jsonl'))
     # visualize
     recemb.set_lexicon(lex)
     recemb.split_lexicon_to_lexicon_and_lexicon_roots()
@@ -667,7 +668,7 @@ def dummy_main():
     print('done')
 
 
-def dummy_main2():
+def debug_main2():
     convert_corpus_jsonld_to_recemb(in_path='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy',
                                     out_path='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy_recemb')
     #recemb_all.visualize('test.svg')
