@@ -18,6 +18,7 @@ from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFI
     NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
     NIF_CONTEXT
 from lexicon import Lexicon
+from corpus import create_index_files
 
 logger = logging.getLogger('corpus_rdf')
 logger.setLevel(logging.DEBUG)
@@ -704,9 +705,13 @@ def main(mode, *args):
     elif mode == 'ADD_VECS':
         plac.call(add_glove_vecs, args)
     elif mode == 'CREATE_INDICES':
-        raise NotImplementedError('implement this')
+        plac.call(create_index_files, args)
 
     logger.info('done')
+
+    # TODO:
+    #  * create index files
+    #  *
 
 
 if __name__ == "__main__":
