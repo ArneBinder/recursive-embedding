@@ -1,4 +1,5 @@
 import csv
+import io
 
 import numpy as np
 from spacy.strings import StringStore, hash_string
@@ -482,6 +483,8 @@ class Lexicon(object):
         if ids_fixed is None:
             ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
         self._ids_fixed = ids_fixed
+        if not isinstance(self._ids_fixed, np.ndarray):
+            self._ids_fixed = np.array(self._ids_fixed, dtype=DTYPE_IDX)
         self._ids_fixed_dict = None
         self._ids_var_dict = None
         self._ids_var = None
@@ -601,6 +604,35 @@ class Lexicon(object):
             return ids_added
         else:
             raise ValueError('unknown mode=%s' % mode)
+
+    def init_vecs_with_glove_file(self, filename, prefix=u''):
+        with io.open(filename, encoding='utf8') as f:
+            first_line = f.readline()
+            dims = len(first_line.split()) -1
+            logger.debug('number of dims: %i' % dims)
+            f.seek(0)
+            # NOTE: unpack does not work with different column datatypes for genfromtxt
+            #_dtypes = 'U%i,' % max_characters + ','.join(['f'] * dims)
+            #_loaded = np.genfromtxt(f, dtype='U%i' % max_characters, unpack=True, invalid_raise=False)
+            #_loaded = np.genfromtxt(f, dtype='U%i' % max_characters, unpack=True, invalid_raise=False)
+
+            ids_added = []
+            vecs_new = np.zeros(shape=[len(self), dims], dtype=DTYPE_VECS)
+            for idx_source, line in enumerate(f):
+                parts = line.split()
+                if len(parts) != dims + 1:
+                    logger.warning('line %i has wrong number of columns (%i), skip it: %s...' % (idx_source, len(parts), line[:100]))
+                    continue
+                word = prefix + parts[0]
+                if word in self.strings:
+                    _hash = hash_string(word)
+                    idx = self.mapping[_hash]
+                    vecs_new[idx] = np.asarray(parts[1:], dtype=DTYPE_VECS)
+                    ids_added.append(idx)
+        logger.debug('set %i vecs (total lex size: %i) with loaded vecs' % (len(ids_added), len(self)))
+        self.init_ids_fixed(ids_fixed=ids_added)
+        self._vecs = vecs_new
+        self.freeze()
 
     def sort_and_cut_and_fill_dict(self, data, keep_values, count_threshold=10):
         assert self.frozen is False, 'can not sort and cut frozen lexicon'
