@@ -566,6 +566,8 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
                               )
     if discard_types is None:
         discard_types = (RDF_PREFIXES_MAP[PREFIX_NIF] + u'Context')
+    if id_as_value_predicates is None:
+        id_as_value_predicates = (RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other')
     if skip_predicates is None:
         skip_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                            RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
