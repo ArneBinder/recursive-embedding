@@ -958,6 +958,21 @@ class Lexicon(object):
         self.clear_cached_values()
         self._hashes = hashes
 
+    def create_subset_with_hashes(self, hashes):
+        new_strings = StringStore()
+        for h in hashes:
+            new_strings.add(self.strings[h])
+        return Lexicon(strings=new_strings)
+
+    @staticmethod
+    def merge_strings(lexica):
+        new_strings = StringStore()
+        for lex in lexica:
+            for s in lex.strings:
+                new_strings.add(s)
+        new_lex = Lexicon(strings=new_strings)
+        return new_lex
+
     @staticmethod
     def hash_string(string):
         return hash_string(string)

@@ -7,7 +7,7 @@ import numpy as np
 
 import spacy
 # from datetime import datetime
-# import plac
+import plac
 from nltk.parse.corenlp import CoreNLPDependencyParser
 
 from sequence_trees import graph_out_from_children_dict, Forest
@@ -496,7 +496,7 @@ def serialize_jsonld(jsonld, sort_map=None, discard_predicates=(), discard_types
                      skip_predicates=(), swap_predicates=(), revert_predicates=()):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
-                                     REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_PARSE]}
+                                     REC_EMB_HAS_PARSE_ANNOTATION,  REC_EMB_USED_PARSER, REC_EMB_HAS_PARSE]}
     if not isinstance(jsonld, list):
         jsonld = [jsonld]
     ser, ids, refs = [], {}, {}
@@ -572,15 +572,18 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
         skip_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                            RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
                            RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj'
+                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj',
                            #TODO: add TACRED subj / obj?
+                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj',
+                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#obj'
                            )
     if revert_predicates is None:
         revert_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                              # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
                              RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
-                             RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj'
+                             RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
                              # TODO: add TACRED subj?
+                             RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
                              )
     if swap_predicates is None:
         swap_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD')
@@ -601,24 +604,74 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
 
     # create rec-emb
     lex = Lexicon()
-    lex_ids = Lexicon()
     data = [Lexicon.hash_string(s) for s in ser]
-    for idx in ids_indices:
-        lex_ids.add(ser[idx])
-    for idx in range(len(ser)):
-        if idx not in ids_indices:
-            lex.add(ser[idx])
+    lex.add_all(ser)
     graph_out = graph_out_from_children_dict(refs, len(ser))
-    recemb = Forest(data=data, data_as_hashes=True, lexicon=lex, lexicon_roots=lex_ids, structure=graph_out,
-                    root_pos=np.array([1], dtype=DTYPE_IDX))
-    # recemb.set_root_data_by_offset()
+    recemb = Forest(data=data, data_as_hashes=True, structure=graph_out,
+                    root_pos=np.array([0], dtype=DTYPE_IDX))
 
-    return recemb
+    return recemb, lex
 
 
-if __name__ == "__main__":
-    recemb = convert_jsonld_to_recemb(jsonld=load_dummy_record())
+@plac.annotations(
+    in_path=('corpora input path, should contain .jsonl or .jl files', 'option', 'i', str),
+    out_path=('corpora output path', 'option', 'o', str),
+    params_json=('optional parameters as json string', 'option', 'a', str),
+)
+def convert_corpus_jsonld_to_recemb(in_path, out_path, params_json=''):
+    params = {}
+    if params_json is not None and params_json.strip() != '':
+        params = json.loads(params_json)
+
+    recembs_all = []
+    lex_all = []
+    sizes = {}
+    for fn in os.listdir(in_path):
+        if fn.endswith('.jsonl') or fn.endswith('.jl'):
+            path = os.path.join(in_path, fn)
+            logger.info('process %s...' % path)
+            n = 0
+            with io.open(path) as f:
+                for line in f:
+                    l = line.strip()
+                    if l == '' or l[0] == '#':
+                        continue
+                    jsonld = json.loads(l)
+                    recemb, lex = convert_jsonld_to_recemb(jsonld, **params)
+                    recembs_all.append(recemb)
+                    lex_all.append(lex)
+                    n += 1
+            logger.info('converted %i records from %s' % (n, path))
+            sizes[fn] = n
+    recemb = Forest.concatenate(recembs_all)
+    lex = Lexicon.merge_strings(lex_all)
+    recemb.set_lexicon(lex)
+    recemb.split_lexicon_to_lexicon_and_lexicon_roots()
+    recemb.hashes_to_indices()
+    #return recemb, sizes
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    fn = os.path.join(out_path, 'forest')
+    recemb.dump(filename=fn)
+    recemb.lexicon.dump(filename=fn, strings_only=True)
+    recemb.lexicon_roots.dump(filename=fn + '.root.id', strings_only=True)
+
+
+def dummy_main():
+    recemb, lex = convert_jsonld_to_recemb(jsonld=load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy/test.jsonl'))
     # visualize
+    recemb.set_lexicon(lex)
+    recemb.split_lexicon_to_lexicon_and_lexicon_roots()
     recemb.visualize('test.svg')
     forest_str = recemb.get_text_plain()
     print('done')
+
+
+def dummy_main2():
+    convert_corpus_jsonld_to_recemb(in_path='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy',
+                                    out_path='/mnt/DATA/ML/data/corpora_out/SICK_RDF/spacy_recemb')
+    #recemb_all.visualize('test.svg')
+
+
+if __name__ == "__main__":
+    plac.call(convert_corpus_jsonld_to_recemb)

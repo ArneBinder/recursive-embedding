@@ -355,6 +355,17 @@ class Forest(object):
         self._lexicon_roots = lexicon_roots
         self._root_strings = None
 
+    def split_lexicon_to_lexicon_and_lexicon_roots(self):
+        assert self.data_as_hashes, 'can not split lexicon to lexicon and lexicon_roots if data_as_hashes == False'
+        mask_no_ids = np.ones_like(self.data, dtype=bool)
+        mask_no_ids[self.roots + OFFSET_ID] = False
+        hashes = self.data[mask_no_ids]
+        hashes_ids = self.data[self.roots + OFFSET_ID]
+        lex = self.lexicon.create_subset_with_hashes(hashes)
+        lex_ids = self.lexicon.create_subset_with_hashes(hashes_ids)
+        self.set_lexicon(lex)
+        self.set_lexicon_roots(lex_ids)
+
     # deprecated
     def set_root_ids(self, root_ids):
         assert len(root_ids) == len(self.roots), 'wrong amount of root ids=%i (amount of roots=%i)' \
