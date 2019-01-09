@@ -1080,6 +1080,25 @@ def show_enhanced_tree_dict():
     return response
 
 
+@app.route("/api/show_tree_dict_string", methods=['POST'])
+def show_tree_dict_string():
+    try:
+        start = time.time()
+        logging.info('Reroot requested')
+        params = get_params(request)
+        init_forest(data_path)
+        idx = params.get('idx', forest.roots[params['idx_root']])
+        params['result'] = forest.get_tree_dict_string(idx=idx, stop_types=params.get('stop_types', ()))
+
+        return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
+        json_data = json.dumps(make_serializable(filter_result(params)))
+        response = Response(json_data, mimetype=return_type)
+        logging.info("Time spent handling the request: %f" % (time.time() - start))
+    except Exception as e:
+        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
+    return response
+
+
 @app.route("/api/roots", methods=['GET'])
 def show_roots():
     try:

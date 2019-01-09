@@ -825,6 +825,39 @@ class Forest(object):
         else:
             return data[mask]
 
+    def get_tree_dict_string(self, idx, stop_types=(), delete_target_types=True, merge_target_dict=True):
+        res = {}
+        if idx-OFFSET_ID in self.roots:
+            res['@id'] = self.lexicon_roots.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
+            return res
+        data_str = self.lexicon.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
+        target_indices = targets(self.graph_out, idx)
+        # ATTENTION: may cause unintended result if uri contains "=" (see nif:Context instances)
+        type_parts = data_str.split('=')
+        res['@type'] = type_parts[0]
+        if res['@type'] in stop_types:
+            return {}
+        if len(type_parts) > 1:
+            res['@value'] = '='.join(type_parts[1:])
+        targed_elements = [self.get_tree_dict_string(idx=idx_target, stop_types=stop_types) for idx_target in target_indices]
+        target_dict = {}
+        for t_elem in targed_elements:
+            if '@type' in t_elem:
+                _t = t_elem['@type']
+                if delete_target_types:
+                    del t_elem['@type']
+                target_dict.setdefault(_t, []).append(t_elem)
+            elif '@id' in t_elem:
+                res['@id'] = t_elem['@id']
+
+        if merge_target_dict:
+            res.update(target_dict)
+        else:
+            if len(target_dict) > 0:
+                res['@outgoing'] = target_dict
+
+        return res
+
     @staticmethod
     def meta_matches(a, b, operation):
         assert a.lexicon == b.lexicon or b.lexicon is None, 'lexica do not match, can not %s.' % operation
