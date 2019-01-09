@@ -826,34 +826,35 @@ class Forest(object):
             return data[mask]
 
     def get_tree_dict_string(self, idx, stop_types=(), index_types=()): #, delete_target_types=True, merge_target_dict=True):
+        # TODO: use constants
         res = {}
         if idx - OFFSET_ID in self.roots:
-            res['@id'] = self.lexicon_roots.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
+            res[u'@id'] = self.lexicon_roots.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
             return res
         data_str = self.lexicon.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
         target_indices = targets(self.graph_out, idx)
         # ATTENTION: may cause unintended result if uri contains "=" (see nif:Context instances)
-        type_parts = data_str.split('=')
-        res['@type'] = type_parts[0]
-        if res['@type'] in index_types:
-            res['@idx'] = int(idx)
+        type_parts = data_str.split(u'=')
+        res[u'@type'] = type_parts[0]
+        if res[u'@type'] in index_types:
+            res[u'@idx'] = int(idx)
             #return res
-        if res['@type'] in stop_types:
+        if res[u'@type'] in stop_types:
             return res
         if len(type_parts) > 1:
-            res['@value'] = '='.join(type_parts[1:])
+            res[u'@value'] = u'='.join(type_parts[1:])
         targed_elements = [self.get_tree_dict_string(idx=idx_target, stop_types=stop_types, index_types=index_types) for idx_target in target_indices]
         target_dict = {}
         for t_elem in targed_elements:
-            if '@type' in t_elem:
-                _t = t_elem['@type']
+            if u'@type' in t_elem:
+                _t = t_elem[u'@type']
                 #if delete_target_types:
-                del t_elem['@type']
+                del t_elem[u'@type']
                 l = target_dict.setdefault(_t, [])
                 if len(t_elem) > 0:
                     l.append(t_elem)
-            elif '@id' in t_elem:
-                res['@id'] = t_elem['@id']
+            elif u'@id' in t_elem:
+                res[u'@id'] = t_elem[u'@id']
 
         #if merge_target_dict:
         res.update(target_dict)

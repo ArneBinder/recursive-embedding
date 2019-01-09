@@ -804,39 +804,74 @@ def get_classes_ids(indices_classes_root, classes_all_ids, forest):
     return classes_ids
 
 
-def indices_sick(index_files, forest, **unused):
+def indices_sick(index_files, forest, rdf_based_format=True, meta_getter=None, **unused):
 
     # get root indices from files
     indices_per_file = load_indices(index_files)
     indices = np.concatenate(indices_per_file)
+    if rdf_based_format:
+        if meta_getter is None:
+            meta_getter = lambda x: float(x[u'rem:hasGlobalAnnotation'][0][u'rem:GlobalAnnotation'][0]
+                                          [u'sck:vocab#relatedness_score'][0][u'@value'])
+        nbr_embeddings_in = 2
+        assert nbr_embeddings_in >=1, 'nbr_embeddings_in has to be at least 1, but is %s' % str(nbr_embeddings_in)
+        relatedness_scores = np.empty_like(indices, dtype=np.float32)
+        all_indices = np.empty(shape=len(indices) * nbr_embeddings_in, dtype=DTYPE_IDX)
+        for j in range(nbr_embeddings_in):
+            for i, idx in enumerate(indices):
+                # TODO: use constants
+                meta = forest.get_tree_dict_string(idx=forest.roots[idx+j], stop_types=(u'rem:hasParse'),
+                                                   index_types=(u'rem:hasParse'))
+                all_indices[nbr_embeddings_in * i + j] = int(meta[u'rem:hasParse'][0][u'@idx'])
+                if j == 0:
+                    relatedness_scores[i] = meta_getter(meta)
+    else:
+        indices_score = forest.roots[indices] + OFFSET_RELATEDNESS_SCORE_ROOT + 1
+        relatedness_scores_list = get_scores_list_from_indices(indices_score, forest, type_prefix=TYPE_RELATEDNESS_SCORE)
+        relatedness_scores = np.array(relatedness_scores_list, dtype=np.float32)
 
-    indices_score = forest.roots[indices] + OFFSET_RELATEDNESS_SCORE_ROOT + 1
-    relatedness_scores_list = get_scores_list_from_indices(indices_score, forest, type_prefix=TYPE_RELATEDNESS_SCORE)
+        indices_context_root = get_context_roots(indices, forest)
+        indices_other = forest.roots[indices] + OFFSET_OTHER_ENTRY_ROOT + 1
+        all_indices = get_and_merge_other_context_roots(indices_context_root, indices_other, forest)
+
     # shift original score range [1.0..5.0] into range [0.0..1.0]
-    relatedness_scores = (np.array(relatedness_scores_list, dtype=np.float32) - 1) / 4.0
-
-    indices_context_root = get_context_roots(indices, forest)
-    indices_other = forest.roots[indices] + OFFSET_OTHER_ENTRY_ROOT + 1
-    all_indices = get_and_merge_other_context_roots(indices_context_root, indices_other, forest)
-    return all_indices, relatedness_scores, [len(indices) * 2 for indices in indices_per_file]
+    return all_indices, (relatedness_scores - 1) / 4.0, [len(indices) * 2 for indices in indices_per_file]
 
 
-def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset, other_offset=None, **unused):
+def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset, other_offset=None, nbr_embeddings_in=1,
+                       rdf_based_format=True, meta_getter=None, **unused):
     # get root indices from files
     indices_per_file = load_indices(index_files)
     indices = np.concatenate(indices_per_file)
+    if rdf_based_format:
+        assert nbr_embeddings_in >= 1, 'nbr_embeddings_in has to be at least 1, but is %s' % str(nbr_embeddings_in)
+        assert meta_getter is not None, 'meta_getter is None'
+        #relatedness_scores = np.empty_like(indices, dtype=np.float32)
+        classes_ids = None
+        indices_context_root = np.empty(shape=len(indices) * nbr_embeddings_in, dtype=DTYPE_IDX)
+        for j in range(nbr_embeddings_in):
+            for i, idx in enumerate(indices):
+                # TODO: use constants
+                meta = forest.get_tree_dict_string(idx=forest.roots[idx + j], stop_types=(u'rem:hasParse'),
+                                                   index_types=(u'rem:hasParse'))
+                indices_context_root[nbr_embeddings_in * i + j] = int(meta[u'rem:hasParse'][0][u'@idx'])
+                if j == 0:
+                    #classes_ids[i] = meta_getter(meta)
+                    current_class_ids = meta_getter(meta)
+                    # TODO: Implement!
+                    raise NotImplementedError('not yet implemented')
+                    classes_ids[i] = None
+    else:
+        indices_context_root = forest.roots[indices] + OFFSET_CONTEXT_ROOT
+        indices_classes_root = forest.roots[indices] + classes_root_offset
+        classes_ids = get_classes_ids(indices_classes_root, classes_all_ids, forest)
 
-    indices_context_root = forest.roots[indices] + OFFSET_CONTEXT_ROOT
-    indices_classes_root = forest.roots[indices] + classes_root_offset
-    classes_ids = get_classes_ids(indices_classes_root, classes_all_ids, forest)
+        if other_offset is not None:
+            indices_other = forest.roots[indices] + other_offset
+            indices_context_root = get_and_merge_other_context_roots(indices_context_root=indices_context_root,
+                                                                     indices_other=indices_other, forest=forest)
 
-    if other_offset is not None:
-        indices_other = forest.roots[indices] + other_offset
-        indices_context_root = get_and_merge_other_context_roots(indices_context_root=indices_context_root,
-                                                                 indices_other=indices_other, forest=forest)
-
-    return indices_context_root, classes_ids, \
-           [len(indices) * (2 if other_offset is not None else 1) for indices in indices_per_file]
+    return indices_context_root, classes_ids, [len(indices) * nbr_embeddings_in for indices in indices_per_file]
 
 
 def indices_reroot(index_files, **unused):

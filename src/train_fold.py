@@ -633,6 +633,7 @@ def init_model_type(config, logdir):
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_multiclass.__name__
         other_offset = None
+        meta_getter = None
         model_kwargs['nbr_embeddings_in'] = 1
 
         # MESH prediction
@@ -645,6 +646,8 @@ def init_model_type(config, logdir):
         elif config.task == TASK_ENTAILMENT_PREDICTION:
             model_kwargs['exclusive_classes'] = True
             model_kwargs['nbr_embeddings_in'] = 2
+            meta_getter = lambda x: int(x[u'rem:hasGlobalAnnotation'][0][u'rem:GlobalAnnotation'][0]
+                                        [u'sck:vocab#entailment_judgment'][0][u'@value'])
             other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
         # SEMEVAL2010TASK8 RELATION prediction
         elif config.task == TASK_RELATION_EXTRACTION:
@@ -659,7 +662,9 @@ def init_model_type(config, logdir):
         classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
 
         indices_getter = partial(diters.indices_multiclass, classes_all_ids=classes_ids,
-                                 classes_root_offset=classes_root_offset, other_offset=other_offset)
+                                 classes_root_offset=classes_root_offset, other_offset=other_offset,
+                                 nbr_embeddings_in=model_kwargs['nbr_embeddings_in'], meta_getter=meta_getter,
+                                 rdf_based_format=False)
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
