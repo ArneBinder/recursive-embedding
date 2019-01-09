@@ -1088,10 +1088,12 @@ def show_tree_dict_string():
         params = get_params(request)
         init_forest(data_path)
         idx = params.get('idx', forest.roots[params['idx_root']])
-        params['result'] = forest.get_tree_dict_string(idx=idx, stop_types=params.get('stop_types', ()))
+        params['result'] = forest.get_tree_dict_string(idx=idx, stop_types=params.get('stop_types', ()),
+                                                       index_types=params.get('index_types', ()))
 
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-        json_data = json.dumps(make_serializable(filter_result(params)))
+        _temp = make_serializable(filter_result(params))
+        json_data = json.dumps(_temp)
         response = Response(json_data, mimetype=return_type)
         logging.info("Time spent handling the request: %f" % (time.time() - start))
     except Exception as e:
