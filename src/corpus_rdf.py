@@ -553,43 +553,8 @@ def debug_load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/IMDB_RDF/spacy/test
     return json.loads(l)
 
 
-def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None, id_as_value_predicates=None,
-                             skip_predicates=None, revert_predicates=None, swap_predicates=None):
-    if discard_predicates is None:
-        discard_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
-                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
-                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
-                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
-                              NIF_NEXT_WORD,
-                              REC_EMB_HAS_CONTEXT,
-                              # RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
-                              NIF_IS_STRING,
-                              # not needed, just spams the lexicon
-                              SICK_OTHER,
-                              )
-    if discard_types is None:
-        discard_types = (NIF_CONTEXT)
-    if id_as_value_predicates is None:
-        id_as_value_predicates = (SICK_OTHER)
-    if skip_predicates is None:
-        skip_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                           NIF_NEXT_SENTENCE,
-                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj',
-                           #TODO: add TACRED subj / obj?
-                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj',
-                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#obj'
-                           )
-    if revert_predicates is None:
-        revert_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                             # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
-                             NIF_NEXT_SENTENCE,
-                             RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                             # TODO: add TACRED subj?
-                             RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
-                             )
-    if swap_predicates is None:
-        swap_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD')
+def convert_jsonld_to_recemb(jsonld, discard_predicates=(), discard_types=(), id_as_value_predicates=(),
+                             skip_predicates=(), revert_predicates=(), swap_predicates=()):
 
     ser, refs, ids_indices = serialize_jsonld(jsonld,
                                               discard_predicates=discard_predicates,
@@ -631,6 +596,43 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
 
+    # set defaults
+    if 'discard_predicates' not in params:
+        params['discard_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
+                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
+                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
+                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
+                              NIF_NEXT_WORD,
+                              REC_EMB_HAS_CONTEXT,
+                              # RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
+                              NIF_IS_STRING,
+                              # not needed, just spams the lexicon
+                              SICK_OTHER,
+                              )
+    if 'discard_types' not in params:
+        params['discard_types'] = (NIF_CONTEXT)
+    if 'id_as_value_predicates' not in params:
+        params['id_as_value_predicates'] = (SICK_OTHER)
+    if 'skip_predicates' not in params:
+        params['skip_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
+                           NIF_NEXT_SENTENCE,
+                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
+                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj',
+                           #TODO: add TACRED subj / obj?
+                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj',
+                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#obj'
+                           )
+    if 'revert_predicates' not in params:
+        params['revert_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
+                             # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
+                             NIF_NEXT_SENTENCE,
+                             RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
+                             # TODO: add TACRED subj?
+                             RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
+                             )
+    if 'swap_predicates' not in params:
+        params['swap_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD')
+
     recembs_all = []
     lex_all = []
     sizes = []
@@ -639,17 +641,23 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
             path = os.path.join(in_path, fn)
             logger.info('process %s...' % path)
             n = 0
+            n_failed = 0
             with io.open(path) as f:
-                for line in f:
+                for line_i, line in enumerate(f):
                     l = line.strip()
                     if l == '' or l[0] == '#':
                         continue
-                    jsonld = json.loads(l)
-                    recemb, lex = convert_jsonld_to_recemb(jsonld, **params)
-                    recembs_all.append(recemb)
-                    lex_all.append(lex)
+                    try:
+                        jsonld = json.loads(l)
+                        recemb, lex = convert_jsonld_to_recemb(jsonld, **params)
+                        recembs_all.append(recemb)
+                        lex_all.append(lex)
+                    except Exception as e:
+                        logger.warning('line %i: failed to process: %s' % (line_i, str(e)))
+                        n_failed += 1
+                        continue
                     n += 1
-            logger.info('converted %i records from %s' % (n, path))
+            logger.info('successfully converted %i records (%i failed) from %s' % (n, n_failed, path))
             sizes.append((fn, n))
     recemb = Forest.concatenate(recembs_all)
     lex = Lexicon.merge_strings(lex_all)
