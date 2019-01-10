@@ -377,6 +377,7 @@ class Lexicon(object):
         self._mapping = None
         self._hashes = None
         self._strings = strings
+        self._vecs = None
         self.init_ids_fixed(ids_fixed=ids_fixed)
         if filename is not None:
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
@@ -453,6 +454,8 @@ class Lexicon(object):
             numpy_dump(fn_vecs, self.vecs)
 
         if len(self.ids_fixed) > 0:
+            u = np.unique(self.ids_fixed)
+            assert len(u) == len(self.ids_fixed), 'ids_fixed contains replicated entries'
             numpy_dump('%s.%s' % (filename, FE_IDS_VECS_FIXED), self.ids_fixed)
 
     @staticmethod
@@ -480,6 +483,8 @@ class Lexicon(object):
             ids_fixed = numpy_load('%s.%s' % (filename, FE_IDS_VECS_FIXED), assert_exists=assert_exists)
             if ids_fixed is not None:
                 logger.debug('loaded ids_fixed from "%s.%s"' % (filename, FE_IDS_VECS_FIXED))
+                u = np.unique(ids_fixed)
+                assert len(u) == len(ids_fixed), 'ids_fixed contains replicated entries'
         if ids_fixed is None:
             ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
         self._ids_fixed = ids_fixed
@@ -616,7 +621,7 @@ class Lexicon(object):
             #_loaded = np.genfromtxt(f, dtype='U%i' % max_characters, unpack=True, invalid_raise=False)
             #_loaded = np.genfromtxt(f, dtype='U%i' % max_characters, unpack=True, invalid_raise=False)
 
-            ids_added = []
+            ids_added = {}
             vecs_new = np.zeros(shape=[len(self), dims], dtype=DTYPE_VECS)
             for idx_source, line in enumerate(f):
                 parts = line.split()
@@ -628,9 +633,11 @@ class Lexicon(object):
                     _hash = hash_string(word)
                     idx = self.mapping[_hash]
                     vecs_new[idx] = np.asarray(parts[1:], dtype=DTYPE_VECS)
-                    ids_added.append(idx)
+                    if idx in ids_added:
+                        logger.warning('vector for word: %s was already added before (%s)' % (word, ids_added[idx]))
+                    ids_added[idx] = word
         logger.debug('set %i vecs (total lex size: %i) with loaded vecs' % (len(ids_added), len(self)))
-        self.init_ids_fixed(ids_fixed=ids_added)
+        self.init_ids_fixed(ids_fixed=sorted(ids_added.keys()))
         self._vecs = vecs_new
         self.freeze()
 
@@ -992,8 +999,11 @@ class Lexicon(object):
         self.clear_cached_values()
         self._hashes = hashes
 
-    def create_subset_with_hashes(self, hashes):
+    def create_subset_with_hashes(self, hashes, add_vocab_manual=False):
         new_strings = StringStore()
+        if add_vocab_manual:
+            for v in vocab_manual.values():
+                new_strings.add(v)
         for h in hashes:
             new_strings.add(self.strings[h])
         return Lexicon(strings=new_strings)
@@ -1086,6 +1096,7 @@ class Lexicon(object):
             return self.strings[self.hashes[abs(item)]]
 
     def __len__(self):
+        #assert self.vecs is None or self.vecs.shape[0] == 0 or self.vecs.shape[0] == len(self.strings), 'nbr of vecs (%i) does not match nbr of strings (%i)' % (self.vecs.shape[0], len(self.strings))
         return len(self.strings)
 
     def __contains__(self, item):
@@ -1102,7 +1113,10 @@ class Lexicon(object):
 
     @property
     def len_var(self):
-        return len(self) - self.len_fixed
+        x = len(self) - self.len_fixed
+        #assert x == len(self.ids_var), \
+        #    'len(self) - self.len_fixed [%i] does not match len(self.ids_var) [%i]' % (x, len(self.ids_var))
+        return x
 
     @property
     def vecs(self):
@@ -1139,7 +1153,13 @@ class Lexicon(object):
     def ids_var(self):
         if self._ids_var is None:
             logger.debug('lexicon: create ids_var with ids_fixed (%i)' % len(self.ids_fixed))
-            self._ids_var = np.array([i for i in range(len(self)) if i not in self._ids_fixed])
+            #self._ids_var = np.array([i for i in range(len(self)) if i not in self._ids_fixed])
+            mask = np.ones(len(self), dtype=bool)
+            mask[self.ids_fixed] = False
+            self._ids_var = np.arange(len(self), dtype=DTYPE_IDX)[mask]
+            #assert len(self._ids_var) == self.len_var, \
+            #    'len(self._ids_var) [%i] does not equal len(self) [%i] - len(self.ids_fix)[%i] == self.len_var [%i]; len(self.ids_fixed) [%i]' \
+            #    % (len(self._ids_var), len(self), len(self.ids_fixed), self.len_var, len(self.ids_fixed))
         return self._ids_var
 
     @property
