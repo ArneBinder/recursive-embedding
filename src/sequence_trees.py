@@ -8,7 +8,8 @@ from scipy.sparse import csr_matrix, csc_matrix, dok_matrix
 
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
-    OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT_ROOT, LINK_TYPES, KEY_HEAD_CONCAT
+    OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT_ROOT, LINK_TYPES, KEY_HEAD_CONCAT, JSONLD_ID, JSONLD_TYPE, JSONLD_IDX, \
+    JSONLD_DATA, JSONLD_VALUE
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -217,6 +218,7 @@ class Forest(object):
         self._graph_out = None
         self._nbr_out = None
         self._nbr_in = None
+        self._pos_ids = None
 
         if filename is not None:
             self.load(filename=filename, load_root_ids=load_root_ids, load_root_pos=load_root_pos)
@@ -355,13 +357,16 @@ class Forest(object):
         self._lexicon_roots = lexicon_roots
         self._root_strings = None
 
-    def split_lexicon_to_lexicon_and_lexicon_roots(self):
+    def split_lexicon_to_lexicon_and_lexicon_roots(self, min_count=1):
         assert self.data_as_hashes, 'can not split lexicon to lexicon and lexicon_roots if data_as_hashes == False'
         mask_no_ids = np.ones_like(self.data, dtype=bool)
-        mask_no_ids[self.roots + OFFSET_ID] = False
+        mask_no_ids[self.pos_ids] = False
         hashes = self.data[mask_no_ids]
-        hashes_ids = self.data[self.roots + OFFSET_ID]
-        lex = self.lexicon.create_subset_with_hashes(hashes)
+        u, c = np.unique(hashes, return_counts=True)
+        indices_min = np.argwhere(c >= min_count).flatten()
+        logger.info('take %i of %i lexicon entries (min_count: %i)' % (len(indices_min), len(u), min_count))
+        hashes_ids = self.data[self.pos_ids]
+        lex = self.lexicon.create_subset_with_hashes(u[indices_min], add_vocab_manual=True)
         lex_ids = self.lexicon.create_subset_with_hashes(hashes_ids)
         self.set_lexicon(lex)
         self.set_lexicon_roots(lex_ids)
@@ -829,35 +834,35 @@ class Forest(object):
         # TODO: use constants
         res = {}
         if idx - OFFSET_ID in self.roots:
-            res[u'@id'] = self.get_text_plain_idx(idx)
+            res[JSONLD_ID] = self.get_text_plain_idx(idx)
             return res
         data_str = self.lexicon.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
         target_indices = targets(self.graph_out, idx)
         # ATTENTION: may cause unintended result if uri contains "=" (see nif:Context instances)
         type_parts = data_str.split(u'=')
-        res[u'@type'] = type_parts[0]
-        if res[u'@type'] in index_types:
-            res[u'@idx'] = int(idx)
+        res[JSONLD_TYPE] = type_parts[0]
+        if res[JSONLD_TYPE] in index_types:
+            res[JSONLD_IDX] = int(idx)
             #return res
-        if res[u'@type'] in stop_types:
+        if res[JSONLD_TYPE] in data_types:
+            res[JSONLD_DATA] = int(self.data[idx])
+        if res[JSONLD_TYPE] in stop_types:
             return res
-        if res[u'@type'] in data_types:
-            res[u'@data'] = int(self.data[idx])
         if len(type_parts) > 1:
-            res[u'@value'] = u'='.join(type_parts[1:])
+            res[JSONLD_VALUE] = u'='.join(type_parts[1:])
         targed_elements = [self.get_tree_dict_string(idx=idx_target, stop_types=stop_types, index_types=index_types,
                                                      data_types=data_types) for idx_target in target_indices]
         target_dict = {}
         for t_elem in targed_elements:
-            if u'@type' in t_elem:
-                _t = t_elem[u'@type']
+            if JSONLD_TYPE in t_elem:
+                _t = t_elem[JSONLD_TYPE]
                 #if delete_target_types:
-                del t_elem[u'@type']
+                del t_elem[JSONLD_TYPE]
                 l = target_dict.setdefault(_t, [])
                 if len(t_elem) > 0:
                     l.append(t_elem)
-            elif u'@id' in t_elem:
-                res[u'@id'] = t_elem[u'@id']
+            elif JSONLD_ID in t_elem:
+                res[JSONLD_ID] = t_elem[JSONLD_ID]
 
         #if merge_target_dict:
         res.update(target_dict)
@@ -1377,3 +1382,9 @@ class Forest(object):
         if self._nbr_in is None:
             self._nbr_in = self.graph_in.indptr[1:] - self.graph_in.indptr[:-1]
         return self._nbr_in
+
+    @property
+    def pos_ids(self):
+        if self._pos_ids is None:
+            self._pos_ids = self.roots + OFFSET_ID
+        return self._pos_ids

@@ -587,11 +587,12 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=(), discard_types=(), id
     glove_file=('glove vector file', 'option', 'g', str),
     word_prefix=('prefix of words in lexicon', 'option', 'w', str),
     classes_prefix=('prefix for lex entries that will be saved as class ids', 'option', 'c', str),
+    min_count=('minimal count a token has to be in the corpus', 'option', 'm', int),
     params_json=('optional parameters as json string', 'option', 'a', str),
 )
 def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
                                     word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
-                                    params_json=''):
+                                    min_count=1, params_json=''):
     params = {}
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
@@ -665,7 +666,7 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
     lex = Lexicon.merge_strings(lex_all)
     recemb.set_lexicon(lex)
     logger.debug('split lexicon into data and ids...')
-    recemb.split_lexicon_to_lexicon_and_lexicon_roots()
+    recemb.split_lexicon_to_lexicon_and_lexicon_roots(min_count=min_count)
     logger.debug('convert data (hashes to lexicon indices)...')
     recemb.hashes_to_indices()
     if glove_file is not None and glove_file.strip() != '':

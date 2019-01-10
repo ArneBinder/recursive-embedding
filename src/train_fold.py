@@ -52,7 +52,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
     OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
     RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_GLOBAL_ANNOTATION, JSONLD_DATA, \
-    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT
+    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -656,7 +656,7 @@ def init_model_type(config, logdir):
                 classes_ids = classes_ids[:1]
                 classes_strings = classes_strings[:1]
                 # create @data entries for sentiment
-                meta_args = {'data_types': (IMDB_SENTIMENT)}
+                meta_args = {'data_types': (IMDB_SENTIMENT,)}
                 # get all @data entries of entailment_judgment
                 meta_getter = lambda x: [int(y[JSONLD_DATA]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT]]
         # SICK ENTAILMENT prediction
@@ -666,13 +666,18 @@ def init_model_type(config, logdir):
             other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
             if RDF_BASED_FORMAT:
                 # create @data entries for entailment_judgment
-                meta_args = {'data_types': (SICK_ENTAILMENT_JUDGMENT)}
+                meta_args = {'data_types': (SICK_ENTAILMENT_JUDGMENT,)}
                 # get all @data entries of entailment_judgment
                 meta_getter = lambda x: [int(y[JSONLD_DATA]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT]]
                 #type_class = SICK_ENTAILMENT_JUDGMENT
         # SEMEVAL2010TASK8 RELATION prediction
         elif config.task == TASK_RELATION_EXTRACTION:
             model_kwargs['exclusive_classes'] = True
+            # TODO: finish this!
+            if RDF_BASED_FORMAT:
+                raise NotImplementedError('not yet finally implemented')
+                meta_args = {'data_types': (REC_EMB_HAS_PARSE_ANNOTATION,)}
+                meta_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][JSONLD_DATA]]
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
 
