@@ -1129,7 +1129,7 @@ def batch_iter_all(forest_indices, forest_indices_targets, batch_size):
             yield forest_indices[sampled_indices], current_probs, None
 
 
-def batch_iter_multiclass(forest_indices, indices_targets, nbr_embeddings_in, shuffle=True):
+def batch_iter_default(forest_indices, indices_targets, nbr_embeddings_in, shuffle=True):
     """
     For every index in forest_indices, yield it and the respective values of indices_targets
     :param forest_indices: indices to the forest
@@ -1148,7 +1148,7 @@ def batch_iter_multiclass(forest_indices, indices_targets, nbr_embeddings_in, sh
         yield [forest_indices[i * nbr_embeddings_in + j] for j in range(nbr_embeddings_in)], indices_targets[i]
 
 
-def batch_iter_reroot(forest_indices, number_of_samples):
+def batch_iter_fixed_probs(forest_indices, number_of_samples):
     """
         For every _dummy_ index in forest_indices, yield its index and an array of probabilities of
         number_of_samples + 1 entries where only the first is one and all other are zero.
@@ -1165,7 +1165,8 @@ def batch_iter_reroot(forest_indices, number_of_samples):
         yield [idx], probs
 
 
-def batch_iter_simtuple(forest_indices, indices_targets, nbr_embeddings_in, shuffle=True):
+# deprecated. use batch_iter instead
+def batch_iter_simtuple_dep(forest_indices, indices_targets, nbr_embeddings_in, shuffle=True):
     """
     For every index in forest_indices, yield it and the respective values of indices_targets
     :param forest_indices: indices to the forest

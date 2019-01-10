@@ -55,7 +55,7 @@ from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
 import data_iterators as diters
-from data_iterators import batch_iter_naive, batch_iter_all, batch_iter_reroot, batch_iter_multiclass, batch_iter_simtuple
+from data_iterators import batch_iter_naive, batch_iter_all, batch_iter_fixed_probs, batch_iter_default, batch_iter_simtuple_dep
 from corpus import FE_CLASS_IDS, load_class_ids, save_class_ids
 from concurrency import RunnerThread, compile_batches_simple, create_trees_simple, prepare_batch, RecompileThread, process_batch
 
@@ -320,9 +320,10 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
                  #                     model.tree_model, highest_sims_model, dataset_trees, tree_model_batch_size,
                  #                     indices_forest_to_tree],
                  batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
-                 batch_iter_reroot: [forest_indices, number_of_samples],
-                 batch_iter_multiclass: [forest_indices, indices_targets, nbr_embeddings_in, not debug],
-                 batch_iter_simtuple: [forest_indices, indices_targets, nbr_embeddings_in, not debug]}
+                 batch_iter_fixed_probs: [forest_indices, number_of_samples],
+                 batch_iter_default: [forest_indices, indices_targets, nbr_embeddings_in, not debug],
+                 #batch_iter_simtuple_dep: [forest_indices, indices_targets, nbr_embeddings_in, not debug]
+                 }
 
     assert batch_iter.strip() != '', 'empty batch_iter'
     _iter = globals()[batch_iter]
@@ -579,7 +580,7 @@ def init_model_type(config, logdir):
         tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_sick
         load_parents = (tree_iterator_args['context'] > 0)
-        config.batch_iter = batch_iter_simtuple.__name__
+        config.batch_iter = batch_iter_default.__name__
     # seeAlso prediction (dbpedianif)
     elif config.model_type == MT_CANDIDATES_W_REF:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
@@ -602,7 +603,7 @@ def init_model_type(config, logdir):
                                       'HTU_reduceSUM_mapGRU, but it is: %s'
                                       % config.tree_embedder.strip())
 
-        config.batch_iter = batch_iter_reroot.__name__
+        config.batch_iter = batch_iter_fixed_probs.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
         tree_iterator_args = {
                               'max_depth': config.max_depth, 'concat_mode': CM_TREE,
@@ -631,7 +632,7 @@ def init_model_type(config, logdir):
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
         tree_iterator = diters.tree_iterator
         load_parents = (tree_iterator_args['context'] > 0)
-        config.batch_iter = batch_iter_multiclass.__name__
+        config.batch_iter = batch_iter_default.__name__
         other_offset = None
         meta_getter = None
         model_kwargs['nbr_embeddings_in'] = 1
