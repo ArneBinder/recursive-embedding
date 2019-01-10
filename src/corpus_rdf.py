@@ -563,7 +563,9 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
                               RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord',
                               RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext',
                               # RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
-                              RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString'
+                              RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString',
+                              # not needed, just spams the lexicon
+                              RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other',
                               )
     if discard_types is None:
         discard_types = (RDF_PREFIXES_MAP[PREFIX_NIF] + u'Context')
