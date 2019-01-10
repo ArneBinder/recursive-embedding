@@ -659,10 +659,14 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
                     n += 1
             logger.info('successfully converted %i records (%i failed) from %s' % (n, n_failed, path))
             sizes.append((fn, n))
+    logger.debug('concatenate data...')
     recemb = Forest.concatenate(recembs_all)
+    logger.debug('merge lexica...')
     lex = Lexicon.merge_strings(lex_all)
     recemb.set_lexicon(lex)
+    logger.debug('split lexicon into data and ids...')
     recemb.split_lexicon_to_lexicon_and_lexicon_roots()
+    logger.debug('convert data (hashes to lexicon indices)...')
     recemb.hashes_to_indices()
     if glove_file is not None and glove_file.strip() != '':
         logger.info('init vecs with glove file: %s...' % glove_file)
