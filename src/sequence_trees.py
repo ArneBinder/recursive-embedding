@@ -825,11 +825,11 @@ class Forest(object):
         else:
             return data[mask]
 
-    def get_tree_dict_string(self, idx, stop_types=(), index_types=()): #, delete_target_types=True, merge_target_dict=True):
+    def get_tree_dict_string(self, idx, stop_types=(), index_types=(), data_types=()): #, delete_target_types=True, merge_target_dict=True):
         # TODO: use constants
         res = {}
         if idx - OFFSET_ID in self.roots:
-            res[u'@id'] = self.lexicon_roots.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
+            res[u'@id'] = self.get_text_plain_idx(idx)
             return res
         data_str = self.lexicon.get_s(d=self.data[idx], data_as_hashes=self.data_as_hashes)
         target_indices = targets(self.graph_out, idx)
@@ -841,9 +841,12 @@ class Forest(object):
             #return res
         if res[u'@type'] in stop_types:
             return res
+        if res[u'@type'] in data_types:
+            res[u'@data'] = int(self.data[idx])
         if len(type_parts) > 1:
             res[u'@value'] = u'='.join(type_parts[1:])
-        targed_elements = [self.get_tree_dict_string(idx=idx_target, stop_types=stop_types, index_types=index_types) for idx_target in target_indices]
+        targed_elements = [self.get_tree_dict_string(idx=idx_target, stop_types=stop_types, index_types=index_types,
+                                                     data_types=data_types) for idx_target in target_indices]
         target_dict = {}
         for t_elem in targed_elements:
             if u'@type' in t_elem:
