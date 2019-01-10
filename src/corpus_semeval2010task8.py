@@ -11,7 +11,8 @@ from spacy.strings import hash_string
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_NAMED_ENTITY, \
     TYPE_DEPENDENCY_RELATION, TYPE_ARTIFICIAL, OFFSET_ID, OFFSET_RELATION_ROOT, DTYPE_OFFSET, DTYPE_HASH, \
-    TYPE_RELATION, TYPE_RELATION_FORWARD, TYPE_RELATION_BACKWARD, PREFIX_SEMEVAL, RDF_PREFIXES_MAP
+    TYPE_RELATION, TYPE_RELATION_FORWARD, TYPE_RELATION_BACKWARD, PREFIX_SEMEVAL, RDF_PREFIXES_MAP, JSONLD_ID, \
+    JSONLD_TYPE
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids, \
     annotate_file_w_stanford
@@ -55,8 +56,8 @@ def reader_rdf(base_path, file_name):
         text = id_w_text[1].strip()[1:-1]
         text, positions = extract_positions(text, ('<e1>', '</e1>', '<e2>', '</e2>'))
         record_id = u'%s%s/%s' % (RDF_PREFIXES_MAP[PREFIX_SEMEVAL], file_name, id_w_text[0])
-        character_annotations = [{u'@id': record_id + u'#r1',
-                                  u'@type': [RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#relation:' + lines[i + 1].strip()],
+        character_annotations = [{JSONLD_ID: record_id + u'#r1',
+                                  JSONLD_TYPE: [RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#relation:' + lines[i + 1].strip()],
                                   RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj': (positions[0], positions[1]),
                                   RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj': (positions[2], positions[3]),
                                   }]

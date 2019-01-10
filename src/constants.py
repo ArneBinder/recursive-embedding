@@ -123,6 +123,8 @@ SICK_OTHER = SICK_VOCAB + u'other'
 SICK_RELATEDNESS_SCORE = SICK_VOCAB + u'relatedness_score'
 SICK_ENTAILMENT_JUDGMENT = SICK_VOCAB + u'entailment_judgment'
 IMDB_SENTIMENT = RDF_PREFIXES_MAP[PREFIX_IMDB] + u'vocab#sentiment'
+IMDB_RATING = RDF_PREFIXES_MAP[PREFIX_IMDB] + u'vocab#rating'
+SEMEVAL_RELATION = RDF_PREFIXES_MAP[PREFIX_SEMEVAL]
 
 # these entries have to start with "@" (see corpus_rdf)
 JSONLD_ID = u'@id'

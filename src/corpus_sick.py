@@ -7,7 +7,8 @@ import spacy
 import plac
 
 from constants import LOGGING_FORMAT, TYPE_CONTEXT, SEPARATOR, TYPE_PARAGRAPH, TYPE_RELATEDNESS_SCORE, \
-    TYPE_ENTAILMENT, TYPE_REF_TUPLE, PREFIX_SICK, RDF_PREFIXES_MAP
+    TYPE_ENTAILMENT, TYPE_REF_TUPLE, PREFIX_SICK, RDF_PREFIXES_MAP, SICK_RELATEDNESS_SCORE, SICK_ENTAILMENT_JUDGMENT, \
+    SICK_OTHER, JSONLD_ID, JSONLD_VALUE
 from mytools import make_parent_dir
 from corpus import process_records, merge_batches, create_index_files, DIR_BATCHES, save_class_ids
 import preprocessing
@@ -34,9 +35,9 @@ DUMMY_RECORD = {
 
 
 def create_record_rdf(row, record_id_prefix, A_or_B, A_or_B_other):
-    global_annotations = {RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#relatedness_score': [{u'@value': float(row['relatedness_score'])}],
-                          RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#entailment_judgment': [{u'@value': row['entailment_judgment']}],
-                          RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other': [{u'@id': record_id_prefix + A_or_B_other}]
+    global_annotations = {SICK_RELATEDNESS_SCORE: [{JSONLD_VALUE: float(row['relatedness_score'])}],
+                          SICK_ENTAILMENT_JUDGMENT: [{JSONLD_VALUE: row['entailment_judgment']}],
+                          SICK_OTHER: [{JSONLD_ID: record_id_prefix + A_or_B_other}]
                           }
     record = {'record_id': record_id_prefix + A_or_B,
               # ATTENTION: punctuation "." is added!
