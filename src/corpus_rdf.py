@@ -695,7 +695,7 @@ def extract_class_ids(out_path, classes_prefix):
     fn = os.path.join(out_path, 'forest')
     lexicon = Lexicon(filename=fn)
     classes_ids, classes_strings = lexicon.get_ids_for_prefix(classes_prefix, add_separator=False)
-    save_class_ids(dir_path=fn, prefix_type=classes_prefix, classes_ids=classes_strings,
+    save_class_ids(dir_path=fn, prefix_type=classes_prefix, classes_ids=classes_ids,
                    classes_strings=classes_strings)
 
 
