@@ -1089,7 +1089,8 @@ def show_tree_dict_string():
         init_forest(data_path)
         idx = params.get('idx', forest.roots[params['idx_root']])
         params['result'] = forest.get_tree_dict_string(idx=idx, stop_types=params.get('stop_types', ()),
-                                                       index_types=params.get('index_types', ()))
+                                                       index_types=params.get('index_types', ()),
+                                                       data_types=params.get('data_types', ()))
 
         return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
         _temp = make_serializable(filter_result(params))
