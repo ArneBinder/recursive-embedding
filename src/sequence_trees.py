@@ -1084,6 +1084,16 @@ class Forest(object):
         else:
             return l
 
+    def get_text_plain_idx(self, idx):
+        d = self.data[idx]
+        if self.lexicon_roots is not None \
+                and (d < 0 or (self.data_as_hashes and self.lexicon_roots.get_s(d, data_as_hashes=True) != vocab_manual[
+            UNKNOWN_EMBEDDING])):
+            s = self.lexicon_roots.get_s(d if self.data_as_hashes else -d - 1, self.data_as_hashes)
+        else:
+            s = self.lexicon.get_s(d, self.data_as_hashes)
+        return s
+
     def get_text_plain(self, blacklist=None, start=0, end=None, transformed=False):
         assert self.lexicon is not None, 'lexicon is not set'
         if end is None:
