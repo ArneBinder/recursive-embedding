@@ -849,7 +849,7 @@ def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset
     if rdf_based_format:
         assert nbr_embeddings_in >= 1, 'nbr_embeddings_in has to be at least 1, but is %s' % str(nbr_embeddings_in)
         assert meta_getter is not None, 'meta_getter is None'
-        meta_args_default = {'stop_types': (REC_EMB_HAS_PARSE), 'index_types': (REC_EMB_HAS_PARSE)}
+        meta_args_default = {'stop_types': (REC_EMB_HAS_PARSE,), 'index_types': (REC_EMB_HAS_PARSE,)}
         meta_args_default.update(meta_args)
         #relatedness_scores = np.empty_like(indices, dtype=np.float32)
         classes_mapping = {cd: i for i, cd in enumerate(classes_all_ids)}

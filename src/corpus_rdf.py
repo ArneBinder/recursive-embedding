@@ -599,39 +599,39 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
     # set defaults
     if 'discard_predicates' not in params:
         params['discard_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
-                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
-                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
-                              RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
-                              NIF_NEXT_WORD,
-                              REC_EMB_HAS_CONTEXT,
-                              # RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
-                              NIF_IS_STRING,
-                              # not needed, just spams the lexicon
-                              SICK_OTHER,
-                              )
+                                        RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
+                                        RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
+                                        RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
+                                        NIF_NEXT_WORD,
+                                        REC_EMB_HAS_CONTEXT,
+                                        # RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
+                                        NIF_IS_STRING,
+                                        # not needed, just spams the lexicon
+                                        SICK_OTHER,
+                                        )
     if 'discard_types' not in params:
-        params['discard_types'] = (NIF_CONTEXT)
+        params['discard_types'] = (NIF_CONTEXT,)
     if 'id_as_value_predicates' not in params:
-        params['id_as_value_predicates'] = (SICK_OTHER)
+        params['id_as_value_predicates'] = (SICK_OTHER,)
     if 'skip_predicates' not in params:
         params['skip_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                           NIF_NEXT_SENTENCE,
-                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                           RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj',
-                           #TODO: add TACRED subj / obj?
-                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj',
-                           #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#obj'
-                           )
+                                     NIF_NEXT_SENTENCE,
+                                     RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
+                                     RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj',
+                                     #TODO: add TACRED subj / obj?
+                                     #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj',
+                                     #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#obj'
+                                     )
     if 'revert_predicates' not in params:
         params['revert_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                             # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
-                             NIF_NEXT_SENTENCE,
-                             RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                             # TODO: add TACRED subj?
-                             RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
-                             )
+                                       # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
+                                       NIF_NEXT_SENTENCE,
+                                       RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
+                                       # TODO: add TACRED subj?
+                                       RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
+                                       )
     if 'swap_predicates' not in params:
-        params['swap_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD')
+        params['swap_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD', )
 
     recembs_all = []
     lex_all = []
