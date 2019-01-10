@@ -16,7 +16,7 @@ from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFI
     REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_CONTEXT, REC_EMB_USED_PARSER, \
     REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
     NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
-    NIF_CONTEXT
+    NIF_CONTEXT, SICK_OTHER, JSONLD_ID, JSONLD_TYPE, JSONLD_VALUE
 from lexicon import Lexicon
 from corpus import create_index_files, save_class_ids
 
@@ -217,10 +217,10 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
     previous_sentence = None
     for conll_sent in conll_sentences:
         sent_prefix = u'%ss%i_' % (base_uri, sent_id)
-        row_rdf = {u'@id': sent_prefix + u'0', u'@type': [NIF_SENTENCE]}
+        row_rdf = {JSONLD_ID: sent_prefix + u'0', JSONLD_TYPE: [NIF_SENTENCE]}
         res.append(row_rdf)
         if previous_sentence is not None:
-            previous_sentence[NIF_NEXT_SENTENCE] = [{u'@id': row_rdf[u'@id']}]
+            previous_sentence[NIF_NEXT_SENTENCE] = [{JSONLD_ID: row_rdf[JSONLD_ID]}]
         previous_sentence = row_rdf
 
         conll_lines = conll_sent.split('\n')
@@ -232,16 +232,16 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
 
             row = line.split('\t')
             row_dict = {RDF_PREFIXES_MAP[PREFIX_CONLL] + columns[i]:
-                            (row[i + 1] if columns[i] != 'HEAD' else (u'@id', sent_prefix + row[i + 1])) for i, k in
+                            (row[i + 1] if columns[i] != 'HEAD' else (JSONLD_ID, sent_prefix + row[i + 1])) for i, k in
                         enumerate(columns)
                         if i + 1 < len(row) and row[i + 1] != '_'}
             row_dict[RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID'] = row[0]
             row_rdf = _to_rdf(row_dict)
-            row_rdf[u'@id'] = sent_prefix + str(row[0])
-            row_rdf[u'@type'] = [NIF_WORD]
+            row_rdf[JSONLD_ID] = sent_prefix + str(row[0])
+            row_rdf[JSONLD_TYPE] = [NIF_WORD]
             res.append(row_rdf)
             if previous_word is not None:
-                previous_word[NIF_NEXT_WORD] = [{u'@id': row_rdf[u'@id']}]
+                previous_word[NIF_NEXT_WORD] = [{JSONLD_ID: row_rdf[JSONLD_ID]}]
             previous_word = row_rdf
             token_id += 1
         sent_id += 1
@@ -256,12 +256,12 @@ def _to_rdf(element):
     # tuple indicates marked (@id or @value) entry
     elif isinstance(element, tuple):
         marker, content = element
-        assert marker in [u'@value', u'@id'], 'WARNING: Unknown value marker: %s for content: %s. use ' \
+        assert marker in [JSONLD_VALUE, JSONLD_ID], 'WARNING: Unknown value marker: %s for content: %s. use ' \
                                               '"@value" or "@id" as first tuple entry to mark value as lateral or id.' \
                                               % (marker, content)
         res = [{marker: content}]
     else:
-        res = [{u'@value': element}]
+        res = [{JSONLD_VALUE: element}]
     return res
 
 
@@ -270,10 +270,10 @@ def get_token_ids_in_span(tokens, start, end, idx_key=RDF_PREFIXES_MAP[PREFIX_CO
     res = []
     for t in tokens:
         if idx_key in t and word_key in t:
-            token_start = int(t[idx_key][0][u'@value'])
-            token_end = token_start + len(t[word_key][0][u'@value'])
+            token_start = int(t[idx_key][0][JSONLD_VALUE])
+            token_end = token_start + len(t[word_key][0][JSONLD_VALUE])
             if start <= token_start < end or start < token_end <= end:
-                res.append({u'@id': t[u'@id']})
+                res.append({JSONLD_ID: t[JSONLD_ID]})
     return res
 
 
@@ -301,16 +301,16 @@ def parse_and_convert_record(record_id,
 
     tokens_jsonld = convert_conll_to_rdf('\n'.join(conll_lines), base_uri=record_id + u'#', columns=conll_columns)
 
-    res = {u'@id': record_id, u'@type': [REC_EMB_RECORD], REC_EMB_HAS_PARSE: tokens_jsonld,
-           REC_EMB_USED_PARSER: [{u'@value': u'%s.%s' % (type(parser).__module__, type(parser).__name__)}]}
+    res = {JSONLD_ID: record_id, JSONLD_TYPE: [REC_EMB_RECORD], REC_EMB_HAS_PARSE: tokens_jsonld,
+           REC_EMB_USED_PARSER: [{JSONLD_VALUE: u'%s.%s' % (type(parser).__module__, type(parser).__name__)}]}
     if global_annotations is not None:
-        global_annotations[u'@id'] = record_id + REC_EMB_SUFFIX_GLOBAL_ANNOTATION
-        global_annotations[u'@type'] = [REC_EMB_GLOBAL_ANNOTATION]
+        global_annotations[JSONLD_ID] = record_id + REC_EMB_SUFFIX_GLOBAL_ANNOTATION
+        global_annotations[JSONLD_TYPE] = [REC_EMB_GLOBAL_ANNOTATION]
         res[REC_EMB_HAS_GLOBAL_ANNOTATION] = [global_annotations]
     if context_string is not None:
-        res[REC_EMB_HAS_CONTEXT] = [{u'@id': record_id + REC_EMB_SUFFIX_NIF_CONTEXT,
-                                     u'@type': [NIF_CONTEXT],
-                                     NIF_IS_STRING: [{u'@value': context_string}]}]
+        res[REC_EMB_HAS_CONTEXT] = [{JSONLD_ID: record_id + REC_EMB_SUFFIX_NIF_CONTEXT,
+                                     JSONLD_TYPE: [NIF_CONTEXT],
+                                     NIF_IS_STRING: [{JSONLD_VALUE: context_string}]}]
 
     # if available, convert character_annotations to token_annotations
     if character_annotations is not None:
@@ -412,11 +412,11 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
     ids = {}
     edges = []
     # consider only first type
-    _type = u'' + jsonld[u'@type'][0]
+    _type = u'' + jsonld[JSONLD_TYPE][0]
     if _type in discard_types:
         return ser, ids, edges
     ser.append(_type)
-    ids[u'' + jsonld[u'@id']] = offset
+    ids[u'' + jsonld[JSONLD_ID]] = offset
     preds = sort_map.get(_type, sorted(jsonld))
     for pred in preds:
         if pred[0] != u'@' and pred in jsonld:
@@ -437,24 +437,24 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
 
             for obj_dict in jsonld[pred]:
                 # lateral object
-                if u'@value' in obj_dict:
+                if JSONLD_VALUE in obj_dict:
                     # assert idx_edge_source is None or len(ser) == idx_edge_source + 1, \
                     #    'laterals (@value) are mixed with complex elements (@type / @id)'
-                    object_literals.append(obj_dict[u'@value'])
+                    object_literals.append(obj_dict[JSONLD_VALUE])
                 # complex object
                 else:
                     # assert len(object_literals) == 0 or pred in id_as_value_predicates, \
                     #    'laterals (@value) are mixed with complex elements (@type / @id)'
                     if pred in id_as_value_predicates:
-                        object_literals.append(obj_dict[u'@id'])
+                        object_literals.append(obj_dict[JSONLD_ID])
                         continue
 
                     if idx_edge_source is not None:
-                        new_edge = (obj_dict[u'@id'], idx_edge_source) if revert_edge else (
-                            idx_edge_source, obj_dict[u'@id'])
+                        new_edge = (obj_dict[JSONLD_ID], idx_edge_source) if revert_edge else (
+                            idx_edge_source, obj_dict[JSONLD_ID])
                         edges.append(new_edge)
 
-                    if u'@type' in obj_dict:
+                    if JSONLD_TYPE in obj_dict:
                         obj_ser, obj_ids, obj_edges = serialize_jsonld_dict(obj_dict, offset=len(ser) + offset,
                                                                             sort_map=sort_map,
                                                                             discard_predicates=discard_predicates,
@@ -516,7 +516,7 @@ def serialize_jsonld(jsonld, sort_map=None, discard_predicates=(), discard_types
             _refs.setdefault(_ids.get(s, s), []).append(_ids.get(t, t))
 
         ## insert the id directly after the root (offset +1 (above); _ser.insert(1, _id);  _ids[_id] = len(ser); ...)
-        _id = u'' + jsonld_dict[u'@id']
+        _id = u'' + jsonld_dict[JSONLD_ID]
         _ser.insert(1, _id)
         _ids[_id] = len(ser)
         _refs[len(ser)] = [len(ser) + 1] + _refs[len(ser) + 1]
@@ -560,20 +560,20 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
                               RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
                               RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
                               RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
-                              RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord',
-                              RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext',
+                              NIF_NEXT_WORD,
+                              REC_EMB_HAS_CONTEXT,
                               # RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation',
-                              RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString',
+                              NIF_IS_STRING,
                               # not needed, just spams the lexicon
-                              RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other',
+                              SICK_OTHER,
                               )
     if discard_types is None:
-        discard_types = (RDF_PREFIXES_MAP[PREFIX_NIF] + u'Context')
+        discard_types = (NIF_CONTEXT)
     if id_as_value_predicates is None:
-        id_as_value_predicates = (RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#other')
+        id_as_value_predicates = (SICK_OTHER)
     if skip_predicates is None:
         skip_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                           RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
+                           NIF_NEXT_SENTENCE,
                            RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
                            RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj',
                            #TODO: add TACRED subj / obj?
@@ -583,7 +583,7 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
     if revert_predicates is None:
         revert_predicates = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                              # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
-                             RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence',
+                             NIF_NEXT_SENTENCE,
                              RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
                              # TODO: add TACRED subj?
                              RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
@@ -600,8 +600,8 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
                                               swap_predicates=swap_predicates)
 
     # remove all children of parse, except to last sentence element
-    idx_hasParse = ser.index(RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParse')
-    idx_last_sentence = len(ser) - ser[::-1].index(RDF_PREFIXES_MAP[PREFIX_NIF] + u'Sentence') - 1
+    idx_hasParse = ser.index(REC_EMB_HAS_PARSE)
+    idx_last_sentence = len(ser) - ser[::-1].index(NIF_SENTENCE) - 1
     # link to _last_ sentence
     refs[idx_hasParse] = [idx_last_sentence]
 

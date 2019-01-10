@@ -50,7 +50,9 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, OFFSET_MESH_ROOT, \
     MT_TUPLE_CONTINOUES, TYPE_ENTAILMENT, TYPE_POLARITY, TASK_MESH_PREDICTION, TASK_ENTAILMENT_PREDICTION, TYPE_MESH, \
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
-    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG
+    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
+    RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_GLOBAL_ANNOTATION, JSONLD_DATA, \
+    TYPE_FOR_TASK_OLD
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -634,8 +636,14 @@ def init_model_type(config, logdir):
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_default.__name__
         other_offset = None
+        meta_args = {}
         meta_getter = None
         model_kwargs['nbr_embeddings_in'] = 1
+        if RDF_BASED_FORMAT:
+            type_class = TYPE_FOR_TASK[config.task]
+        else:
+            type_class = TYPE_FOR_TASK_OLD[config.task]
+        classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class)
 
         # MESH prediction
         if config.task == TASK_MESH_PREDICTION:
@@ -643,29 +651,40 @@ def init_model_type(config, logdir):
         # IMDB SENTIMENT prediction
         elif config.task == TASK_SENTIMENT_PREDICTION:
             model_kwargs['exclusive_classes'] = False
+            if RDF_BASED_FORMAT:
+                # take only one sentiment class
+                classes_ids = classes_ids[:1]
+                classes_strings = classes_strings[:1]
+                raise NotImplementedError('implement config.task == TASK_SENTIMENT_PREDICTION')
         # SICK ENTAILMENT prediction
         elif config.task == TASK_ENTAILMENT_PREDICTION:
             model_kwargs['exclusive_classes'] = True
             model_kwargs['nbr_embeddings_in'] = 2
-            meta_getter = lambda x: int(x[u'rem:hasGlobalAnnotation'][0][u'rem:GlobalAnnotation'][0]
-                                        [u'sck:vocab#entailment_judgment'][0][u'@value'])
             other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
+            if RDF_BASED_FORMAT:
+                # create @data entries for entailment_judgment
+                meta_args = {'data_types': (SICK_ENTAILMENT_JUDGMENT)}
+                # get all @data entries of entailment_judgment
+                meta_getter = lambda x: [int(y[JSONLD_DATA]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT]]
+                #type_class = SICK_ENTAILMENT_JUDGMENT
         # SEMEVAL2010TASK8 RELATION prediction
         elif config.task == TASK_RELATION_EXTRACTION:
             model_kwargs['exclusive_classes'] = True
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
-        type_class = TYPE_FOR_TASK[config.task]
-        classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class)
+
         save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=type_class, classes_ids=classes_ids,
                        classes_strings=classes_strings)
         model_kwargs['nbr_classes'] = len(classes_ids)
-        classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
+        if RDF_BASED_FORMAT:
+            classes_root_offset = None
+        else:
+            classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
 
         indices_getter = partial(diters.indices_multiclass, classes_all_ids=classes_ids,
                                  classes_root_offset=classes_root_offset, other_offset=other_offset,
-                                 nbr_embeddings_in=model_kwargs['nbr_embeddings_in'], meta_getter=meta_getter,
-                                 rdf_based_format=False)
+                                 nbr_embeddings_in=model_kwargs['nbr_embeddings_in'], meta_args=meta_args,
+                                 meta_getter=meta_getter)
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 

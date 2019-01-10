@@ -3,6 +3,8 @@ import numpy as np
 
 LOGGING_FORMAT = '%(asctime)s %(levelname)s %(message)s'
 
+###################### OLD TYPES ###########################
+
 SEPARATOR = u'/'
 
 # BASE TYPES
@@ -73,6 +75,64 @@ CLASSES_FNS = {TYPE_MESH: u'MESH',
                TYPE_DEPENDENCY_RELATION: u"DEP-REL",
                #STRUCTURE_TYPES: u"STRUCTURE"
                }
+
+##################### OLD TYPES END #################################
+
+##################### RDF BASED FORMAT ##############################
+
+# NOTE: prefixes should end with a separator like "#" or "/"
+PREFIX_REC_EMB = u'https://github.com/ArneBinder/recursive-embedding#'
+PREFIX_CONLL = u'http://ufal.mff.cuni.cz/conll2009-st/task-description.html#'
+PREFIX_NIF = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#'
+PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH = u'https://github.com/UniversalDependencies/UD_English#'
+# corpus related prefixes
+PREFIX_TACRED = u'https://catalog.ldc.upenn.edu/LDC2018T24/'
+PREFIX_SICK = u'http://clic.cimec.unitn.it/composes/sick.html/'
+PREFIX_IMDB = u'http://ai.stanford.edu/~amaas/data/sentiment/'
+# correct url: http://semeval2.fbk.eu/semeval2.php?location=tasks#T11
+PREFIX_SEMEVAL = u'http://semeval2.fbk.eu/task8/'
+
+RDF_PREFIXES_MAP = {PREFIX_REC_EMB: u'rem:',
+                    PREFIX_CONLL: u'conll:',
+                    PREFIX_NIF: u'nif:',
+                    PREFIX_TACRED: u'tac:',
+                    PREFIX_SICK: u'sck:',
+                    PREFIX_IMDB: u'imdb:',
+                    PREFIX_SEMEVAL: u'smvl:',
+                    PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH: u'ude:'}
+
+REC_EMB_GLOBAL_ANNOTATION = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'GlobalAnnotation'
+REC_EMB_HAS_GLOBAL_ANNOTATION = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasGlobalAnnotation'
+REC_EMB_RECORD = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'Record'
+REC_EMB_HAS_PARSE = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParse'
+REC_EMB_HAS_PARSE_ANNOTATION = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation'
+REC_EMB_HAS_CONTEXT = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext'
+REC_EMB_USED_PARSER = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'usedParser'
+REC_EMB_SUFFIX_GLOBAL_ANNOTATION = u'#GlobalAnnotation'
+REC_EMB_SUFFIX_NIF_CONTEXT = u'?nif=context'
+
+NIF_CONTEXT = RDF_PREFIXES_MAP[PREFIX_NIF] + u'Context'
+NIF_WORD = RDF_PREFIXES_MAP[PREFIX_NIF] + u'Word'
+NIF_NEXT_WORD = RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord'
+NIF_SENTENCE = RDF_PREFIXES_MAP[PREFIX_NIF] + u'Sentence'
+NIF_NEXT_SENTENCE = RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence'
+NIF_IS_STRING = RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString'
+
+SICK_VOCAB = RDF_PREFIXES_MAP[PREFIX_SICK] + u'vocab#'
+SICK_OTHER = SICK_VOCAB + u'other'
+SICK_RELATEDNESS_SCORE = SICK_VOCAB + u'relatedness_score'
+SICK_ENTAILMENT_JUDGMENT = SICK_VOCAB + u'entailment_judgment'
+
+# these entries have to start with "@" (see corpus_rdf)
+JSONLD_ID = u'@id'
+JSONLD_VALUE = u'@value'
+JSONLD_TYPE = u'@type'
+# added for rec-emb
+JSONLD_IDX = u'@idx'
+JSONLD_DATA = u'@data'
+
+##################### RDF BASED FORMAT END ##########################
+
 
 FN_TREE_INDICES = 'tree_indices'
 
@@ -158,10 +218,15 @@ TASK_ENTAILMENT_PREDICTION = 'entailment'
 TASK_RELATION_EXTRACTION = 'relation'
 TASK_LANGUAGE = 'language'
 
-TYPE_FOR_TASK = {TASK_MESH_PREDICTION: TYPE_MESH,
+TYPE_FOR_TASK_OLD = {TASK_MESH_PREDICTION: TYPE_MESH,
                  TASK_SENTIMENT_PREDICTION: TYPE_POLARITY,
                  TASK_ENTAILMENT_PREDICTION: TYPE_ENTAILMENT,
                  TASK_RELATION_EXTRACTION: TYPE_RELATION}
+TYPE_FOR_TASK = {#TASK_MESH_PREDICTION: TYPE_MESH,
+                 #TASK_SENTIMENT_PREDICTION: TYPE_POLARITY,
+                 TASK_ENTAILMENT_PREDICTION: SICK_ENTAILMENT_JUDGMENT,
+                 #TASK_RELATION_EXTRACTION: TYPE_RELATION
+}
 
 TYPE_LONG = {'REL': TYPE_RELATION,
              'RELF': TYPE_RELATION_FORWARD,
@@ -201,46 +266,9 @@ OFFSET_CLASS_ROOTS = {
     TYPE_RELATION: OFFSET_RELATION_ROOT
 }
 
-# NOTE: prefixes should end with a separator like "#" or "/"
-PREFIX_REC_EMB = u'https://github.com/ArneBinder/recursive-embedding#'
-PREFIX_CONLL = u'http://ufal.mff.cuni.cz/conll2009-st/task-description.html#'
-PREFIX_NIF = u'http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#'
-PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH = u'https://github.com/UniversalDependencies/UD_English#'
-# corpus related prefixes
-PREFIX_TACRED = u'https://catalog.ldc.upenn.edu/LDC2018T24/'
-PREFIX_SICK = u'http://clic.cimec.unitn.it/composes/sick.html/'
-PREFIX_IMDB = u'http://ai.stanford.edu/~amaas/data/sentiment/'
-# correct url: http://semeval2.fbk.eu/semeval2.php?location=tasks#T11
-PREFIX_SEMEVAL = u'http://semeval2.fbk.eu/task8/'
 
-RDF_PREFIXES_MAP = {PREFIX_REC_EMB: u'rem:',
-                    PREFIX_CONLL: u'conll:',
-                    PREFIX_NIF: u'nif:',
-                    PREFIX_TACRED: u'tac:',
-                    PREFIX_SICK: u'sck:',
-                    PREFIX_IMDB: u'imdb:',
-                    PREFIX_SEMEVAL: u'smvl:',
-                    PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH: u'ude:'}
-
-REC_EMB_GLOBAL_ANNOTATION = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'GlobalAnnotation'
-REC_EMB_HAS_GLOBAL_ANNOTATION = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasGlobalAnnotation'
-REC_EMB_RECORD = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'Record'
-REC_EMB_HAS_PARSE = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParse'
-REC_EMB_HAS_PARSE_ANNOTATION = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasParseAnnotation'
-REC_EMB_HAS_CONTEXT = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'hasContext'
-REC_EMB_USED_PARSER = RDF_PREFIXES_MAP[PREFIX_REC_EMB] + u'usedParser'
-REC_EMB_SUFFIX_GLOBAL_ANNOTATION = u'#GlobalAnnotation'
-REC_EMB_SUFFIX_NIF_CONTEXT = u'?nif=context'
-
-NIF_CONTEXT = RDF_PREFIXES_MAP[PREFIX_NIF] + u'Context'
-NIF_WORD = RDF_PREFIXES_MAP[PREFIX_NIF] + u'Word'
-NIF_NEXT_WORD = RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextWord'
-NIF_SENTENCE = RDF_PREFIXES_MAP[PREFIX_NIF] + u'Sentence'
-NIF_NEXT_SENTENCE = RDF_PREFIXES_MAP[PREFIX_NIF] + u'nextSentence'
-NIF_IS_STRING = RDF_PREFIXES_MAP[PREFIX_NIF] + u'isString'
-
-
-
+# global config
+RDF_BASED_FORMAT = True
 
 
 
