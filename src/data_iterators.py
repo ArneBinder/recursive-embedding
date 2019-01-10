@@ -836,6 +836,7 @@ def indices_sick(index_files, forest, rdf_based_format=RDF_BASED_FORMAT, meta_ge
         indices_other = forest.roots[indices] + OFFSET_OTHER_ENTRY_ROOT + 1
         all_indices = get_and_merge_other_context_roots(indices_context_root, indices_other, forest)
 
+    logger.debug('indices created')
     # shift original score range [1.0..5.0] into range [0.0..1.0]
     return all_indices, (relatedness_scores - 1) / 4.0, [len(indices) * 2 for indices in indices_per_file]
 
@@ -877,7 +878,7 @@ def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset
             indices_other = forest.roots[indices] + other_offset
             indices_context_root = get_and_merge_other_context_roots(indices_context_root=indices_context_root,
                                                                      indices_other=indices_other, forest=forest)
-
+    logger.debug('indices created')
     return indices_context_root, classes_ids, [len(indices) * nbr_embeddings_in for indices in indices_per_file]
 
 

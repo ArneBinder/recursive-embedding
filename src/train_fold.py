@@ -52,7 +52,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
     OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
     RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_GLOBAL_ANNOTATION, JSONLD_DATA, \
-    TYPE_FOR_TASK_OLD
+    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -655,7 +655,10 @@ def init_model_type(config, logdir):
                 # take only one sentiment class
                 classes_ids = classes_ids[:1]
                 classes_strings = classes_strings[:1]
-                raise NotImplementedError('implement config.task == TASK_SENTIMENT_PREDICTION')
+                # create @data entries for sentiment
+                meta_args = {'data_types': (IMDB_SENTIMENT)}
+                # get all @data entries of entailment_judgment
+                meta_getter = lambda x: [int(y[JSONLD_DATA]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT]]
         # SICK ENTAILMENT prediction
         elif config.task == TASK_ENTAILMENT_PREDICTION:
             model_kwargs['exclusive_classes'] = True
@@ -675,6 +678,7 @@ def init_model_type(config, logdir):
 
         save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=type_class, classes_ids=classes_ids,
                        classes_strings=classes_strings)
+        logger.debug('predict classes: %s' % ', '.join(classes_strings))
         model_kwargs['nbr_classes'] = len(classes_ids)
         if RDF_BASED_FORMAT:
             classes_root_offset = None
