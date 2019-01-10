@@ -18,7 +18,7 @@ from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFI
     NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
     NIF_CONTEXT
 from lexicon import Lexicon
-from corpus import create_index_files
+from corpus import create_index_files, save_class_ids
 
 logger = logging.getLogger('corpus_rdf')
 logger.setLevel(logging.DEBUG)
@@ -619,10 +619,12 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=None, discard_types=None
     out_path=('corpora output path', 'option', 'o', str),
     glove_file=('glove vector file', 'option', 'g', str),
     word_prefix=('prefix of words in lexicon', 'option', 'w', str),
+    classes_prefix=('prefix for lex entries that will be saved as class ids', 'option', 'c', str),
     params_json=('optional parameters as json string', 'option', 'a', str),
 )
 def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
-                                    word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', params_json=''):
+                                    word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
+                                    params_json=''):
     params = {}
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
@@ -666,6 +668,11 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
     recemb.lexicon_roots.dump(filename=fn + '.root.id', strings_only=True)
     json.dump(sizes, open(fn+'.sizes.json', 'w'))
 
+    if classes_prefix is not None and classes_prefix.strip() != '':
+        classes_ids, classes_strings = recemb.lexicon.get_ids_for_prefix(classes_prefix, add_separator=False)
+        save_class_ids(dir_path=fn, prefix_type=classes_prefix, classes_ids=classes_strings,
+                       classes_strings=classes_strings)
+
 
 @plac.annotations(
     out_path=('corpora output path', 'option', 'o', str),
@@ -678,6 +685,18 @@ def add_glove_vecs(out_path, glove_file, word_prefix=RDF_PREFIXES_MAP[PREFIX_CON
     logger.info('init vecs with glove file: %s...' % glove_file)
     lex.init_vecs_with_glove_file(filename=glove_file, prefix=word_prefix + u'')
     lex.dump(fn)
+
+
+@plac.annotations(
+    out_path=('corpora output path', 'option', 'o', str),
+    classes_prefix=('prefix for lex entries that will be saved as class ids', 'option', 'c', str),
+)
+def extract_class_ids(out_path, classes_prefix):
+    fn = os.path.join(out_path, 'forest')
+    lexicon = Lexicon(filename=fn)
+    classes_ids, classes_strings = lexicon.get_ids_for_prefix(classes_prefix, add_separator=False)
+    save_class_ids(dir_path=fn, prefix_type=classes_prefix, classes_ids=classes_strings,
+                   classes_strings=classes_strings)
 
 
 def debug_main():
@@ -714,7 +733,7 @@ def _create_index_files(merged_forest_path, split_count, step_root=1, *args):
 
 
 @plac.annotations(
-    mode=('processing mode', 'positional', None, str, ['CONVERT', 'ADD_VECS', 'CREATE_INDICES']),
+    mode=('processing mode', 'positional', None, str, ['CONVERT', 'ADD_VECS', 'CREATE_INDICES', 'EXTRACT_CLASSES']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'CONVERT':
@@ -723,7 +742,8 @@ def main(mode, *args):
         plac.call(add_glove_vecs, args)
     elif mode == 'CREATE_INDICES':
         plac.call(_create_index_files, args)
-
+    elif mode == 'EXTRACT_CLASSES':
+        plac.call(extract_class_ids, args)
     logger.info('done')
 
     # TODO:

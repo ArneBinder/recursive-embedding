@@ -658,9 +658,11 @@ class Lexicon(object):
 
         #return converter, new_counts
 
-    def get_ids_for_prefix(self, prefix):
-        res = [(self.mapping[self.strings[s]], s) for s in self.strings if s.startswith(prefix + SEPARATOR)]
-        if prefix == TYPE_LEXEME:
+    def get_ids_for_prefix(self, prefix, add_separator=True):
+        if add_separator:
+            prefix = prefix + SEPARATOR
+        res = [(self.mapping[self.strings[s]], s) for s in self.strings if s.startswith(prefix)]
+        if prefix == TYPE_LEXEME + SEPARATOR:
             logger.debug('add UNKNOWN for prefix %s' % TYPE_LEXEME)
             s = vocab_manual[UNKNOWN_EMBEDDING]
             res.append((self.mapping[self.strings[s]], s))
