@@ -290,6 +290,7 @@ class TreeEmbedding(object):
                         td.InputTransform(lambda x: x // self.lexicon_size))
 
     def head(self, name='head_embed'):
+        raise NotImplementedError('head() is deprecated, because it does not consider additional_heads. use head_w_direction() instead')
         return td.Pipe(td.GetItem(KEY_HEAD), self.embed(), self.leaf_fc, name=name)
 
     def head_w_direction(self, name='head_embed_w_direction'):
@@ -300,17 +301,10 @@ class TreeEmbedding(object):
             head_embedded_w_direction = self.embed_w_direction().reads(head)
             head_embedded = td.GetItem(0).reads(head_embedded_w_direction)
             direction = td.GetItem(1).reads(head_embedded_w_direction)
-            nbr_additional_heads = len(self._additional_heads_dims)
+            nbr_additional_heads = len(self.additional_heads_dims)
             if nbr_additional_heads > 0:
-                def _get_additional_heads(x):
-                    # NOTE: don't use 0 as padding id!
-                    #_res = x.get(KEY_HEAD_CONCAT, [0] * nbr_additional_heads)
-                    _res = x[KEY_HEAD_CONCAT]
-                    #return _res + [0] * (nbr_additional_heads - len(_res))
-                    return _res
-
-                heads_other = td.InputTransform(_get_additional_heads).reads(comp.input)
-                heads_other_embedded = [self.embed(max_dims=dims).reads(td.GetItem(i).reads(heads_other)) for i, dims in enumerate(self._additional_heads_dims)]
+                heads_other = td.InputTransform(lambda x: x[KEY_HEAD_CONCAT]).reads(comp.input)
+                heads_other_embedded = [self.embed(max_dims=dims).reads(td.GetItem(i).reads(heads_other)) for i, dims in enumerate(self.additional_heads_dims)]
                 heads_embedded = td.Concat().reads(head_embedded, *heads_other_embedded)
                 comp.output.reads(heads_embedded >> self.leaf_fc, direction)
             else:
@@ -406,7 +400,7 @@ class TreeEmbedding(object):
 
     @property
     def head_size(self):
-        return self.leaf_fc_size or (self.dimension_embeddings + sum(self._additional_heads_dims))
+        return self.leaf_fc_size or (self.dimension_embeddings + sum(self.additional_heads_dims))
 
     @property
     def output_size(self):
@@ -419,6 +413,10 @@ class TreeEmbedding(object):
     @property
     def candidate_indices(self):
         return self._candidate_indices
+
+    @property
+    def additional_heads_dims(self):
+        return self._additional_heads_dims
 
 
 def get_lexicon_vars():
@@ -537,7 +535,6 @@ class TreeEmbedding_mapGRU_w_direction(TreeEmbedding_map):
                             0: td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1)) >> self._rnn_cell_fw,
                             1: td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1)) >> self._rnn_cell_bw
                         }) >> td.GetItem(1)
-
 
 
 class TreeEmbedding_mapGRU2(TreeEmbedding_map):
@@ -777,12 +774,13 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
         super(TreeEmbedding_HTU, self).__init__(name='HTU_' + name, **kwargs)
 
     def new_state(self, head, children):
-        return td.AllOf(head(), children) >> self.reduce >> self.map
+        # discard direction
+        return td.AllOf(head() >> td.GetItem(0), children) >> self.reduce >> self.map
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
         children = self.children() >> td.Map(embed_tree())
-        state = self.new_state(self.head, children)
+        state = self.new_state(self.head_w_direction, children)
         embed_tree.resolve_to(state)
         return state
 
@@ -973,7 +971,7 @@ class TreeEmbedding_FLAT(TreeEmbedding_reduce):
         super(TreeEmbedding_FLAT, self).__init__(name='FLAT_' + name, **kwargs)
 
     def __call__(self):
-        model = self.children() >> td.Map(self.head()) >> td.AllOf(td.Void(), td.Identity()) >> self.reduce >> td.GetItem(1)
+        model = self.children() >> td.Map(self.head_w_direction() >> td.GetItem(0)) >> td.AllOf(td.Void(), td.Identity()) >> self.reduce >> td.GetItem(1)
         if model.output_type is None:
             model.set_output_type(tdt.TensorType(shape=(self.output_size,), dtype='float32'))
         return model
@@ -1014,7 +1012,6 @@ class TreeEmbedding_FLAT2levels(TreeEmbedding_FLAT):
         return self.leaf_fc_size or (self.dimension_embeddings * 2)
 
 
-#TODO: respect KEY_HEAD_CONCAT (and self.additional_heads_dims)!
 class TreeEmbedding_FLATconcat(TreeEmbedding):
     """
         FLAT TreeEmbedding models take all first level children of the root as input and reduce them.
@@ -1025,20 +1022,23 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
     def __init__(self, name, sequence_length, padding_id, merge_factor=1, **kwargs):
         self._merge_factor = merge_factor
         self._sequence_length = sequence_length
-        self._padding_element = {KEY_HEAD: padding_id, KEY_CHILDREN: []}
+        self._padding_id = padding_id
         super(TreeEmbedding_FLATconcat, self).__init__(name='FLATconcat_' + name, **kwargs)
 
     def __call__(self):
+        padding_element = {KEY_HEAD: self._padding_id, KEY_CHILDREN: [],
+                           KEY_HEAD_CONCAT: [0] * len(self.additional_heads_dims)}
+
         def adjust_length(l):
             if len(l) >= self.sequence_length:
                 new_l = l[:self.sequence_length]
             else:
-                new_l = l + [self.padding_element] * (self.sequence_length - len(l))
+                new_l = l + [padding_element] * (self.sequence_length - len(l))
             # return adjusted list and the length of valid entries
             return new_l, float(min(len(l), self.sequence_length))
 
         model = self.children() >> td.InputTransform(adjust_length) >> td.AllOf(
-            td.GetItem(0) >> td.Map(self.head()) >> SequenceToTuple(self.head().output_type, self.sequence_length)
+            td.GetItem(0) >> td.Map(self.head_w_direction() >> td.GetItem(0)) >> SequenceToTuple(tdt.TensorType(shape=[self.head_size], dtype='float32'), self.sequence_length)
             >> td.Concat(),
             td.GetItem(1) >> td.Scalar(dtype='float32')
         ) >> td.Concat()
@@ -1070,10 +1070,6 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
     @property
     def merge_factor(self):
         return self._merge_factor
-
-    @property
-    def padding_element(self):
-        return self._padding_element
 
 
 #######################################

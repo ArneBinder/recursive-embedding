@@ -14,7 +14,8 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     CM_SEQUENCE, TARGET_EMBEDDING, OFFSET_ID, TYPE_RELATEDNESS_SCORE, SEPARATOR, OFFSET_CONTEXT_ROOT, \
     OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
-    REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG
+    REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG, NIF_SENTENCE, NIF_NEXT_SENTENCE, \
+    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -341,6 +342,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         #root_types = []
         # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
         data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        data_padding = lexicon.get_d(s=vocab_manual[PADDING_EMBEDDING], data_as_hashes=forest.data_as_hashes)
 
         # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
         if TYPE_REF in lexicon.strings:
@@ -366,12 +368,16 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         if transform:
             data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context)
             data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed)
+            data_padding = lexicon.transform_idx(idx=data_padding)
 
         # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
-        remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
-                                  TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
+        if not RDF_BASED_FORMAT:
+            remove_types_naive_str = [TYPE_REF_SEEALSO, TYPE_REF, TYPE_DBPEDIA_RESOURCE, TYPE_SECTION_SEEALSO, TYPE_PARAGRAPH,
+                                      TYPE_TITLE, TYPE_SECTION, TYPE_SENTENCE]
+        else:
+            remove_types_naive_str = [REC_EMB_HAS_PARSE, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, NIF_NEXT_SENTENCE]
         remove_types_naive = [lexicon.get_d(s, data_as_hashes=forest.data_as_hashes) for s in
-                              remove_types_naive_str]
+                              remove_types_naive_str if s in forest.lexicon]
 
         n = 0
 
@@ -383,7 +389,9 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                     costs=costs, link_types=link_types, data_blank=data_blanking,
                                                     keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
                                                     blank_types=blank_types, go_back=reroot,
-                                                    add_heads_types=add_heads_types, return_strings=DEBUG)
+                                                    add_heads_types=add_heads_types,
+                                                    add_heads_dummies=[data_padding] * additional_heads,
+                                                    return_strings=DEBUG)
                 yield tree_context
                 n += 1
                 # measure progress in percent
@@ -399,33 +407,42 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             for idx in indices:
                 # follow to first element of sequential data
                 # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1. NOT NECESSARY: gets cleaned by
-                idx_start = forest.get_children(idx)[0]
+                #idx_start = forest.get_children(idx)[0]
 
-                root_pos = idx - OFFSET_CONTEXT_ROOT
-                root_idx = forest.root_mapping[root_pos]
+                #root_pos = idx - OFFSET_CONTEXT_ROOT
+                #root_idx = forest.root_mapping[root_pos]
                 # get position of next root or end of sequence data
-                if root_idx == len(forest.roots) - 1:
-                    idx_end = len(forest)
-                else:
-                    idx_end = forest.roots[root_idx+1]
-                #debug
-                data_string = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1]
-                               for d in forest.data[idx_start:idx_end]]
-                data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx_start, idx_end=idx_end,
+                #if root_idx == len(forest.roots) - 1:
+                #    idx_end = len(forest)
+                #else:
+                #    idx_end = forest.roots[root_idx+1]
+                idx_end = forest.pos_end(idx)
+                #data_string = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1]
+                #               for d in forest.data[idx:idx_end]]
+                data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
                                                                  link_types=link_types,
                                                                  remove_types=remove_types_naive, transform=transform)
-                #debug
-                data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1] for d in
-                                       data_span_cleaned]
+                if DEBUG:
+                    data_span_cleaned_not_transformed = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
+                                                                     link_types=link_types,
+                                                                     remove_types=remove_types_naive, transform=False)
+                    data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in
+                                           data_span_cleaned_not_transformed]
                 #logger.debug(' '.join(data_string_cleaned))
-                if max_size_plain > 0:
-                    if len(data_span_cleaned) > max_size_plain:
-                        logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
-                                       % (len(data_span_cleaned), max_size_plain, root_idx))
-                    #sizes.append([root_idx, len(data_span_cleaned)])
-                    data_span_cleaned = data_span_cleaned[:max_size_plain]
+                #if max_size_plain > 0:
+                if len(data_span_cleaned) > max_size_plain * (additional_heads + 1):
+                    logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
+                                   % (len(data_span_cleaned) / (additional_heads + 1), max_size_plain, idx))
+                #sizes.append([root_idx, len(data_span_cleaned)])
+                data_span_cleaned = data_span_cleaned[:max_size_plain * (additional_heads + 1)]
                 tree_context = {KEY_HEAD: data_nif_context_transformed,
-                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i], KEY_CHILDREN: [], KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+additional_heads]} for i in range(0, len(data_span_cleaned), additional_heads + 1)]}
+                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i], KEY_CHILDREN: [], KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+1+additional_heads]} for i in range(0, len(data_span_cleaned), additional_heads + 1)]}
+                if DEBUG:
+                    tree_context_string = {KEY_HEAD: data_nif_context_transformed,
+                                    KEY_CHILDREN: [{KEY_HEAD: data_string_cleaned[i], KEY_CHILDREN: [],
+                                                    KEY_HEAD_CONCAT: data_string_cleaned[i + 1:i + 1 + additional_heads]} for
+                                                   i in range(0, len(data_string_cleaned), additional_heads + 1)]}
+
                 yield tree_context
                 n += 1
                 # measure progress in percent
@@ -866,15 +883,18 @@ def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset
                 indices = np.sort(indices)
             for i, root_i in enumerate(indices):
                 idx_start = forest.roots[root_i + root_i_offset]
+
                 if not fixed_offsets or fixed_offset_parse is None or fixed_offsets_class is None:
                     meta = forest.get_tree_dict_string(idx=idx_start, **meta_args_default)
                     if fixed_offsets:
                         fixed_offset_parse = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX]) - idx_start
                         fixed_offsets_class = np.array(meta_class_indices_getter(meta), dtype=DTYPE_IDX) - idx_start
                 if fixed_offsets:
-                    indices_context_root[nbr_embeddings_in * i + root_i_offset] = idx_start + fixed_offset_parse
+                    idx_parse = idx_start + fixed_offset_parse
                 else:
-                    indices_context_root[nbr_embeddings_in * i + root_i_offset] = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
+                    idx_parse = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
+                indices_context_root[nbr_embeddings_in * i + root_i_offset] = idx_parse
+                forest.pos_to_component_mapping[idx_parse] = root_i
                 if root_i_offset == 0:
                     if fixed_offsets:
                         current_class_ids = forest.data[fixed_offsets_class + idx_start]
