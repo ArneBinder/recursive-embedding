@@ -299,7 +299,7 @@ def parse_and_convert_record(record_id,
     elif parser is None:
         assert token_features is not None, 'parser==None requires token_features, but it is None'
         conll_lines = list(record_to_conll(token_features, captions=conll_columns,
-                                           key_mapping={'WORD': 'token', 'POS': 'stanford_pos',
+                                           key_mapping={'WORD': 'token', 'UPOS': 'stanford_pos',
                                                         'HEAD': 'stanford_head', 'EDGE': 'stanford_deprel'}))
         parser_str = u'None'
         # conll_columns = ('index', 'token', 'subj', 'subj_type', 'obj', 'obj_type', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head')
