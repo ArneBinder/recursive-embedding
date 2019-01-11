@@ -657,23 +657,20 @@ def init_model_type(config, logdir):
                 # take only one sentiment class
                 classes_ids = classes_ids[:1]
                 classes_strings = classes_strings[:1]
-                # create @data entries for sentiment
+                # create @idx entries for sentiment
                 meta_args = {'index_types': (IMDB_SENTIMENT,)}
-                # get all @data entries of entailment_judgment
-                meta_class_indices_getter = lambda x: [int(y[JSONLD_IDX]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT]]
+                # get @idx entry of sentiment (has to be wrapped to a list)
+                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT][0][JSONLD_IDX]]
         # SICK ENTAILMENT prediction
         elif config.task == TASK_ENTAILMENT_PREDICTION:
             model_kwargs['exclusive_classes'] = True
             model_kwargs['nbr_embeddings_in'] = 2
             other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
             if RDF_BASED_FORMAT:
-                # create @data entries for entailment_judgment
-                #meta_args = {'data_types': (SICK_ENTAILMENT_JUDGMENT,)}
+                # create @idx entries for entailment_judgment
                 meta_args = {'index_types': (SICK_ENTAILMENT_JUDGMENT,)}
-                # get all @data entries of entailment_judgment
-                meta_class_indices_getter = lambda x: [int(y[JSONLD_IDX]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT]]
-                #meta_class_indices_getter = lambda x: x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT][0][JSONLD_IDX]
-                #type_class = SICK_ENTAILMENT_JUDGMENT
+                # get @idx entry of entailment_judgment (has to be wrapped to a list)
+                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT][0][JSONLD_IDX]]
         # SEMEVAL2010TASK8 RELATION prediction
         elif config.task == TASK_RELATION_EXTRACTION:
             model_kwargs['exclusive_classes'] = True
