@@ -219,6 +219,7 @@ class Forest(object):
         self._nbr_out = None
         self._nbr_in = None
         self._pos_ids = None
+        self._pos_to_component_mapping = {}
 
         if filename is not None:
             self.load(filename=filename, load_root_ids=load_root_ids, load_root_pos=load_root_pos)
@@ -576,7 +577,8 @@ class Forest(object):
     # TODO(graph): test!
     def get_tree_dict(self, idx, visited=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0,
-                      revert=False, blank_types=(), go_back=False, add_heads_types=(), return_strings=False):
+                      revert=False, blank_types=(), go_back=False, add_heads_types=(), add_heads_dummies=(),
+                      return_strings=False):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -632,9 +634,17 @@ class Forest(object):
 
         seq_node[KEY_HEAD] = data_head
         current_targets = targets(self.graph_out, idx)
-        current_additional_heads = [self.data[ad] for ad in current_targets if self.data[ad] in add_heads_types]
-        if len(current_additional_heads) > 0:
-            seq_node[KEY_HEAD_CONCAT] = current_additional_heads
+        if len(add_heads_dummies) > 0:
+            current_additional_heads = [self.data[ad] for ad in current_targets if self.data[ad] in add_heads_types]
+            if len(current_additional_heads) > 0:
+                seq_node[KEY_HEAD_CONCAT] = current_additional_heads
+            else:
+                seq_node[KEY_HEAD_CONCAT] = add_heads_dummies
+            assert len(current_additional_heads) == len(add_heads_dummies), \
+                'nbr of current_additional_heads [%i] does not match expected additional heads [%i]' \
+                % (len(current_additional_heads), len(add_heads_dummies))
+        else:
+            current_additional_heads = ()
         # ATTENTION: allows cost of 0!
         if self.nbr_out[idx] > 0 and 0 <= cost <= max_depth:
             for target in current_targets:
@@ -674,6 +684,7 @@ class Forest(object):
                                                                  keep_prob_node=keep_prob_node,
                                                                  blank_types=blank_types,
                                                                  add_heads_types=add_heads_types,
+                                                                 add_heads_dummies=add_heads_dummies,
                                                                  go_back=go_back,
                                                                  return_strings=return_strings))
         if go_back:
@@ -699,6 +710,7 @@ class Forest(object):
                                                                      keep_prob_node=keep_prob_node,
                                                                      blank_types=blank_types,
                                                                      add_heads_types=add_heads_types,
+                                                                     add_heads_dummies=add_heads_dummies,
                                                                      go_back=go_back,
                                                                      return_strings=return_strings))
         if context > 0:
@@ -720,6 +732,7 @@ class Forest(object):
                                                                  keep_prob_blank=keep_prob_blank,
                                                                  keep_prob_node=keep_prob_node,
                                                                  add_heads_types=add_heads_types,
+                                                                 add_heads_dummies=add_heads_dummies,
                                                                  blank_types=blank_types,
                                                                  return_strings=return_strings))
 
@@ -885,6 +898,8 @@ class Forest(object):
         assert a.lexicon == b.lexicon or b.lexicon is None, 'lexica do not match, can not %s.' % operation
         assert a.data.dtype == b.data.dtype, 'dtype of data arrays do not match, can not %s.' % operation
         assert a.data_as_hashes == b.data_as_hashes, 'data_as_hash do not match, can not %s.' % operation
+        assert len(a.pos_to_component_mapping) == 0, '%s not implemented for pos_to_start_mapping containting entries' % operation
+        assert len(b.pos_to_component_mapping) == 0, '%s not implemented for pos_to_start_mapping containting entries' % operation
         if a._graph_in is not None:
             assert b._graph_in is not None, 'if graph_in array of first forest is set, graph_in of second forest ' \
                                         'have to be set, too, can not %s.' % operation
@@ -1205,6 +1220,13 @@ class Forest(object):
             res.append(idx)
         return res
 
+    def pos_end(self, idx):
+        next_component_idx = self.pos_to_component_mapping[idx] + 1
+        if next_component_idx == len(self.roots):
+            return len(self)
+        else:
+            return self.pos_start[next_component_idx]
+
     def __str__(self):
         return self._data.__str__()
 
@@ -1396,3 +1418,13 @@ class Forest(object):
         if self._pos_ids is None:
             self._pos_ids = self.roots + OFFSET_ID
         return self._pos_ids
+
+    @property
+    def pos_to_component_mapping(self):
+        return self._pos_to_component_mapping
+
+    @property
+    def pos_start(self):
+        return self.roots
+
+
