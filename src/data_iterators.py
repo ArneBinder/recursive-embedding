@@ -842,26 +842,41 @@ def indices_sick(index_files, forest, rdf_based_format=RDF_BASED_FORMAT, meta_ge
 
 
 def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset, other_offset=None, nbr_embeddings_in=1,
-                       rdf_based_format=RDF_BASED_FORMAT, meta_getter=None, meta_args={}, **unused):
+                       rdf_based_format=RDF_BASED_FORMAT, meta_class_indices_getter=None, meta_args={}, fixed_offsets=False, **unused):
     # get root indices from files
     indices_per_file = load_indices(index_files)
     indices = np.concatenate(indices_per_file)
     if rdf_based_format:
         assert nbr_embeddings_in >= 1, 'nbr_embeddings_in has to be at least 1, but is %s' % str(nbr_embeddings_in)
-        assert meta_getter is not None, 'meta_getter is None'
+        assert meta_class_indices_getter is not None, 'meta_getter is None'
         meta_args_default = {'stop_types': (REC_EMB_HAS_PARSE,), 'index_types': (REC_EMB_HAS_PARSE,)}
+        for k in meta_args_default:
+            meta_args[k] = meta_args.get(k, ()) + meta_args_default[k]
         meta_args_default.update(meta_args)
         #relatedness_scores = np.empty_like(indices, dtype=np.float32)
         classes_mapping = {cd: i for i, cd in enumerate(classes_all_ids)}
         unknown_id = forest.lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
         classes_ids = []
         indices_context_root = np.empty(shape=len(indices) * nbr_embeddings_in, dtype=DTYPE_IDX)
-        for j in range(nbr_embeddings_in):
-            for i, idx in enumerate(indices):
-                meta = forest.get_tree_dict_string(idx=forest.roots[idx + j], **meta_args_default)
-                indices_context_root[nbr_embeddings_in * i + j] = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
-                if j == 0:
-                    current_class_ids = meta_getter(meta)
+        fixed_offset_parse = None
+        fixed_offsets_class = None
+        for root_i_offset in range(nbr_embeddings_in):
+            for i, root_i in enumerate(indices):
+                idx_start = forest.roots[root_i + root_i_offset]
+                if not fixed_offsets or fixed_offset_parse is None or fixed_offsets_class is None:
+                    meta = forest.get_tree_dict_string(idx=idx_start, **meta_args_default)
+                    if fixed_offsets:
+                        fixed_offset_parse = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX]) - idx_start
+                        fixed_offsets_class = np.array(meta_class_indices_getter(meta), dtype=DTYPE_IDX) - idx_start
+                if fixed_offsets:
+                    indices_context_root[nbr_embeddings_in * i + root_i_offset] = idx_start + fixed_offset_parse
+                else:
+                    indices_context_root[nbr_embeddings_in * i + root_i_offset] = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
+                if root_i_offset == 0:
+                    if fixed_offsets:
+                        current_class_ids = forest.data[fixed_offsets_class + idx_start]
+                    else:
+                        current_class_ids = [forest.data[_idx] for _idx in meta_class_indices_getter(meta)]
                     # exclude mesh ids that occurs less then min_count (these were mapped to UNKNOWN in merge_batches)
                     current_class_ids_mapped = [classes_mapping[c_id] for c_id in current_class_ids
                                                 if c_id != unknown_id and c_id in classes_mapping]

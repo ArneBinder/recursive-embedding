@@ -52,7 +52,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
     OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
     RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_GLOBAL_ANNOTATION, JSONLD_DATA, \
-    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION
+    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION, JSONLD_IDX, REC_EMB_HAS_PARSE, SEMEVAL_RELATION
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -637,17 +637,19 @@ def init_model_type(config, logdir):
         config.batch_iter = batch_iter_default.__name__
         other_offset = None
         meta_args = {}
-        meta_getter = None
+        meta_class_indices_getter = None
         model_kwargs['nbr_embeddings_in'] = 1
         if RDF_BASED_FORMAT:
             type_class = TYPE_FOR_TASK[config.task]
         else:
             type_class = TYPE_FOR_TASK_OLD[config.task]
         classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class)
+        fixed_offsets = True
 
         # MESH prediction
         if config.task == TASK_MESH_PREDICTION:
             model_kwargs['exclusive_classes'] = False
+            fixed_offsets = False
         # IMDB SENTIMENT prediction
         elif config.task == TASK_SENTIMENT_PREDICTION:
             model_kwargs['exclusive_classes'] = False
@@ -656,9 +658,9 @@ def init_model_type(config, logdir):
                 classes_ids = classes_ids[:1]
                 classes_strings = classes_strings[:1]
                 # create @data entries for sentiment
-                meta_args = {'data_types': (IMDB_SENTIMENT,)}
+                meta_args = {'index_types': (IMDB_SENTIMENT,)}
                 # get all @data entries of entailment_judgment
-                meta_getter = lambda x: [int(y[JSONLD_DATA]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT]]
+                meta_class_indices_getter = lambda x: [int(y[JSONLD_IDX]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT]]
         # SICK ENTAILMENT prediction
         elif config.task == TASK_ENTAILMENT_PREDICTION:
             model_kwargs['exclusive_classes'] = True
@@ -666,9 +668,11 @@ def init_model_type(config, logdir):
             other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
             if RDF_BASED_FORMAT:
                 # create @data entries for entailment_judgment
-                meta_args = {'data_types': (SICK_ENTAILMENT_JUDGMENT,)}
+                #meta_args = {'data_types': (SICK_ENTAILMENT_JUDGMENT,)}
+                meta_args = {'index_types': (SICK_ENTAILMENT_JUDGMENT,)}
                 # get all @data entries of entailment_judgment
-                meta_getter = lambda x: [int(y[JSONLD_DATA]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT]]
+                meta_class_indices_getter = lambda x: [int(y[JSONLD_IDX]) for y in x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT]]
+                #meta_class_indices_getter = lambda x: x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT][0][JSONLD_IDX]
                 #type_class = SICK_ENTAILMENT_JUDGMENT
         # SEMEVAL2010TASK8 RELATION prediction
         elif config.task == TASK_RELATION_EXTRACTION:
@@ -676,8 +680,8 @@ def init_model_type(config, logdir):
             # TODO: finish this!
             if RDF_BASED_FORMAT:
                 raise NotImplementedError('not yet finally implemented')
-                meta_args = {'data_types': (REC_EMB_HAS_PARSE_ANNOTATION,)}
-                meta_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][JSONLD_DATA]]
+                meta_args = {'index_types': (SEMEVAL_RELATION,), 'stop_types': (SEMEVAL_RELATION,)}
+                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][SEMEVAL_RELATION][0][JSONLD_IDX]]
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
 
@@ -693,7 +697,7 @@ def init_model_type(config, logdir):
         indices_getter = partial(diters.indices_multiclass, classes_all_ids=classes_ids,
                                  classes_root_offset=classes_root_offset, other_offset=other_offset,
                                  nbr_embeddings_in=model_kwargs['nbr_embeddings_in'], meta_args=meta_args,
-                                 meta_getter=meta_getter)
+                                 meta_class_indices_getter=meta_class_indices_getter, fixed_offsets=fixed_offsets)
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
