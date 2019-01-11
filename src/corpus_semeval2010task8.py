@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import os
@@ -48,21 +49,21 @@ DUMMY_RECORD = {
 
 
 def reader_rdf(base_path, file_name):
-    with open(os.path.join(base_path, file_name)) as f:
+    with io.open(os.path.join(base_path, file_name), encoding='utf8') as f:
         lines = f.readlines()
     n = 0
     for i in range(0, len(lines) - 3, 4):
-        id_w_text = lines[i].split('\t')
+        id_w_text = lines[i].split(u'\t')
         text = id_w_text[1].strip()[1:-1]
-        text, positions = extract_positions(text, ('<e1>', '</e1>', '<e2>', '</e2>'))
+        text, positions = extract_positions(text, (u'<e1>', u'</e1>', u'<e2>', u'</e2>'))
         record_id = u'%s%s/%s' % (RDF_PREFIXES_MAP[PREFIX_SEMEVAL], file_name, id_w_text[0])
         character_annotations = [{JSONLD_ID: record_id + u'#r1',
-                                  JSONLD_TYPE: [SEMEVAL_RELATION + u':' + lines[i + 1].strip()],
+                                  JSONLD_TYPE: [SEMEVAL_RELATION + u'=' + lines[i + 1].strip()],
                                   SEMEVAL_SUBJECT: (positions[0], positions[1]),
                                   SEMEVAL_OBJECT: (positions[2], positions[3]),
                                   }]
         record = {'record_id': record_id,
-                  'context_string': u'' + text,
+                  'context_string': text,
                   'character_annotations': character_annotations,
                   }
         yield record
@@ -162,7 +163,7 @@ def extract_positions(text, tags):
     res = []
     for t in tags:
         res.append(text.find(t))
-        text = text.replace(t, '', 1)
+        text = text.replace(t, u'', 1)
     return text, res
 
 
