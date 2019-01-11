@@ -399,41 +399,24 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #    progress = n / x
                 #    logger.debug('%i%%' % progress)
 
-        # TODO: further rework
         elif concat_mode == CM_AGGREGATE:
-            # ATTENTION: works only if idx points to a data_nif_context CONTEXT_ROOT_OFFSET behind the root and leafs are
-            # sequential and in order, especially root_ids occur in data only directly after link_types
-            #sizes = []
-            for idx in indices:
-                # follow to first element of sequential data
-                # throw away first node as it is an artificial (NLP-)root (like PARAGRAPH) -> +1. NOT NECESSARY: gets cleaned by
-                #idx_start = forest.get_children(idx)[0]
 
-                #root_pos = idx - OFFSET_CONTEXT_ROOT
-                #root_idx = forest.root_mapping[root_pos]
-                # get position of next root or end of sequence data
-                #if root_idx == len(forest.roots) - 1:
-                #    idx_end = len(forest)
-                #else:
-                #    idx_end = forest.roots[root_idx+1]
+            for idx in indices:
+                # ATTENTION: idx has to be added to forest.pos_to_component_mapping before!
                 idx_end = forest.pos_end(idx)
-                #data_string = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes).split('/')[-1]
-                #               for d in forest.data[idx:idx_end]]
                 data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
                                                                  link_types=link_types,
                                                                  remove_types=remove_types_naive, transform=transform)
                 if DEBUG:
                     data_span_cleaned_not_transformed = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
-                                                                     link_types=link_types,
-                                                                     remove_types=remove_types_naive, transform=False)
+                                                                                     link_types=link_types,
+                                                                                     remove_types=remove_types_naive,
+                                                                                     transform=False)
                     data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in
                                            data_span_cleaned_not_transformed]
-                #logger.debug(' '.join(data_string_cleaned))
-                #if max_size_plain > 0:
                 if len(data_span_cleaned) > max_size_plain * (additional_heads + 1):
                     logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
                                    % (len(data_span_cleaned) / (additional_heads + 1), max_size_plain, idx))
-                #sizes.append([root_idx, len(data_span_cleaned)])
                 data_span_cleaned = data_span_cleaned[:max_size_plain * (additional_heads + 1)]
                 tree_context = {KEY_HEAD: data_nif_context_transformed,
                                 KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i], KEY_CHILDREN: [], KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+1+additional_heads]} for i in range(0, len(data_span_cleaned), additional_heads + 1)]}
