@@ -242,13 +242,15 @@ TYPE_LONG = {'REL': TYPE_RELATION,
              'RELF': TYPE_RELATION_FORWARD,
              'RELB': TYPE_RELATION_BACKWARD,
              'DEP': TYPE_DEPENDENCY_RELATION,
-             'POS': TYPE_POS_TAG,
+             #'POS': TYPE_POS_TAG,
              'LEX': TYPE_LEXEME,
              'STR': STRUCTURE_TYPES,
              'DAT': TYPE_DATASET,
              'CON': [TYPE_CONTEXT],
              'SEN': [TYPE_SENTENCE],
-             'ENT': [TYPE_NAMED_ENTITY]
+             'ENT': [TYPE_NAMED_ENTITY],
+             'EDG': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'EDGE=',
+             'POS': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'UPOS='
              # collides with TYPE_LEXEME because of UNKNOWN is added for TYPE_LEXEME:
              #'MAN': vocab_manual.values()
              }
