@@ -16,7 +16,8 @@ from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFI
     REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_CONTEXT, REC_EMB_USED_PARSER, \
     REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
     NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
-    NIF_CONTEXT, SICK_OTHER, JSONLD_ID, JSONLD_TYPE, JSONLD_VALUE
+    NIF_CONTEXT, SICK_OTHER, JSONLD_ID, JSONLD_TYPE, JSONLD_VALUE, SEMEVAL_SUBJECT, SEMEVAL_OBJECT, TACRED_SUBJECT, \
+    TACRED_OBJECT
 from lexicon import Lexicon
 from corpus import create_index_files, save_class_ids
 
@@ -203,7 +204,10 @@ def record_to_conll(sentence_record, captions, key_mapping):
     selected_entries = {k: sentence_record[key_mapping[k]] for k in key_mapping if key_mapping[k] in sentence_record}
     l = [dict(zip(selected_entries, t)) for t in zip(*selected_entries.values())]
     for i, d in enumerate(l):
-        y = u'\t'.join([str(i + 1)] + [str(d[c]) if c in d else '_' for c in captions])
+        try:
+            y = u'\t'.join([unicode(i + 1)] + [unicode(d[c]) if c in d else u'_' for c in captions])
+        except Exception as e:
+            raise e
         yield y
     yield u''
 
@@ -212,7 +216,7 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
                          # ATTENTION: ID column has to be the first column, but should not occur in  "columns"!
                          columns=('WORD', 'LEMMA', 'UPOS', 'POS', 'FEAT', 'HEAD', 'EDGE', 'DEPS', 'MISC')):
     res = []
-    conll_sentences = conll_data.split('\n\n')
+    conll_sentences = conll_data.split(u'\n\n')
     sent_id = 1
     previous_sentence = None
     for conll_sent in conll_sentences:
@@ -223,21 +227,21 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
             previous_sentence[NIF_NEXT_SENTENCE] = [{JSONLD_ID: row_rdf[JSONLD_ID]}]
         previous_sentence = row_rdf
 
-        conll_lines = conll_sent.split('\n')
+        conll_lines = conll_sent.split(u'\n')
         token_id = 1
         previous_word = None
         for line in conll_lines:
-            if line.strip().startswith('#') or line.strip() == '':
+            if line.strip().startswith(u'#') or line.strip() == u'':
                 continue
 
-            row = line.split('\t')
+            row = line.split(u'\t')
             row_dict = {RDF_PREFIXES_MAP[PREFIX_CONLL] + columns[i]:
                             (row[i + 1] if columns[i] != 'HEAD' else (JSONLD_ID, sent_prefix + row[i + 1])) for i, k in
                         enumerate(columns)
-                        if i + 1 < len(row) and row[i + 1] != '_'}
+                        if i + 1 < len(row) and row[i + 1] != u'_'}
             row_dict[RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID'] = row[0]
             row_rdf = _to_rdf(row_dict)
-            row_rdf[JSONLD_ID] = sent_prefix + str(row[0])
+            row_rdf[JSONLD_ID] = sent_prefix + unicode(row[0])
             row_rdf[JSONLD_TYPE] = [NIF_WORD]
             res.append(row_rdf)
             if previous_word is not None:
@@ -288,21 +292,24 @@ def parse_and_convert_record(record_id,
     conll_columns = ('WORD', 'LEMMA', 'UPOS', 'POS', 'FEAT', 'HEAD', 'EDGE', 'DEPS', 'MISC')
     if isinstance(parser, spacy.language.Language):
         conll_lines = list(parse_spacy_to_conll(context_string, nlp=parser))
+        parser_str = u'%s.%s' % (type(parser).__module__, type(parser).__name__)
     elif isinstance(parser, CoreNLPDependencyParser):
         conll_lines = list(parse_corenlp_to_conll(context_string, dep_parser=parser))
+        parser_str = u'%s.%s' % (type(parser).__module__, type(parser).__name__)
     elif parser is None:
         assert token_features is not None, 'parser==None requires token_features, but it is None'
         conll_lines = list(record_to_conll(token_features, captions=conll_columns,
                                            key_mapping={'WORD': 'token', 'POS': 'stanford_pos',
                                                         'HEAD': 'stanford_head', 'EDGE': 'stanford_deprel'}))
+        parser_str = u'None'
         # conll_columns = ('index', 'token', 'subj', 'subj_type', 'obj', 'obj_type', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head')
     else:
         raise NotImplementedError('parser %s not implemented' % parser)
 
-    tokens_jsonld = convert_conll_to_rdf('\n'.join(conll_lines), base_uri=record_id + u'#', columns=conll_columns)
+    tokens_jsonld = convert_conll_to_rdf(u'\n'.join(conll_lines), base_uri=record_id + u'#', columns=conll_columns)
 
     res = {JSONLD_ID: record_id, JSONLD_TYPE: [REC_EMB_RECORD], REC_EMB_HAS_PARSE: tokens_jsonld,
-           REC_EMB_USED_PARSER: [{JSONLD_VALUE: u'%s.%s' % (type(parser).__module__, type(parser).__name__)}]}
+           REC_EMB_USED_PARSER: [{JSONLD_VALUE: parser_str}]}
     if global_annotations is not None:
         global_annotations[JSONLD_ID] = record_id + REC_EMB_SUFFIX_GLOBAL_ANNOTATION
         global_annotations[JSONLD_TYPE] = [REC_EMB_GLOBAL_ANNOTATION]
@@ -333,16 +340,19 @@ def parse_and_convert_record(record_id,
 
 def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
     logger.info('load parser...')
-    if parser.strip() == 'spacy':
-        _parser = spacy.load('en')
-    elif parser.strip() == 'corenlp':
-        _parser = CoreNLPDependencyParser(url='http://localhost:9000')
+    if parser is not None:
+        if parser.strip() == 'spacy':
+            _parser = spacy.load('en')
+        elif parser.strip() == 'corenlp':
+            _parser = CoreNLPDependencyParser(url='http://localhost:9000')
+        else:
+            raise NotImplementedError('parser=%s not implemented' % parser)
     else:
-        raise NotImplementedError('parser=%s not implemented' % parser)
+        _parser = None
     logger.info('loaded parser %s' % type(_parser))
     n_failed = {}
     n_total = {}
-    out_path = os.path.join(out_path, parser)
+    out_path = os.path.join(out_path, str(parser))
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     for fn in file_names:
@@ -617,19 +627,17 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
     if 'skip_predicates' not in params:
         params['skip_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                                      NIF_NEXT_SENTENCE,
-                                     RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                                     RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#obj',
-                                     #TODO: add TACRED subj / obj?
-                                     #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj',
-                                     #RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#obj'
+                                     SEMEVAL_SUBJECT,
+                                     SEMEVAL_OBJECT,
+                                     TACRED_SUBJECT,
+                                     TACRED_OBJECT,
                                      )
     if 'revert_predicates' not in params:
         params['revert_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                                        # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
                                        NIF_NEXT_SENTENCE,
-                                       RDF_PREFIXES_MAP[PREFIX_SEMEVAL] + u'vocab#subj',
-                                       # TODO: add TACRED subj?
-                                       RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
+                                       SEMEVAL_SUBJECT,
+                                       TACRED_SUBJECT
                                        )
     if 'swap_predicates' not in params:
         params['swap_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD', )
@@ -643,10 +651,10 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
             logger.info('process %s...' % path)
             n = 0
             n_failed = 0
-            with io.open(path) as f:
+            with io.open(path, encoding='utf8') as f:
                 for line_i, line in enumerate(f):
                     l = line.strip()
-                    if l == '' or l[0] == '#':
+                    if l == u'' or l[0] == u'#':
                         continue
                     try:
                         jsonld = json.loads(l)

@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import os
@@ -10,11 +11,13 @@ from scipy.sparse import csr_matrix, coo_matrix
 import plac
 
 from constants import LOGGING_FORMAT, TYPE_RELATION, TYPE_DATASET, SEPARATOR, TYPE_POS_TAG, TYPE_LEXEME, \
-    TYPE_DEPENDENCY_RELATION, TYPE_NAMED_ENTITY, TYPE_SENTENCE, TYPE_CONTEXT
+    TYPE_DEPENDENCY_RELATION, TYPE_NAMED_ENTITY, TYPE_SENTENCE, TYPE_CONTEXT, PREFIX_TACRED, JSONLD_TYPE, JSONLD_ID, \
+    TACRED_SUBJECT, TACRED_OBJECT, TACRED_RELATION
 from corpus import process_records, merge_batches, create_index_files, save_class_ids, DIR_BATCHES, \
     annotate_file_w_stanford, KEY_STANFORD_POS, KEY_STANFORD_TOKENS, KEY_STANFORD_DEPREL, KEY_STANFORD_RELATION, \
     KEY_ID, KEY_STANFORD_HEAD
 from mytools import make_parent_dir
+from corpus_rdf import parse_to_rdf
 
 logger = logging.getLogger('corpus_tacred')
 logger.setLevel(logging.DEBUG)
@@ -45,6 +48,29 @@ DUMMY_RECORD = {
     KEY_STANFORD_DEPREL: ["case", "det", "amod", "nmod", "punct", "compound", "compound", "compound", "compound", "nsubj", "aux", "ROOT", "xcomp", "punct", "xcomp", "compound", "dobj", "nsubj", "aux", "acl:relcl", "mark", "xcomp", "det", "compound", "dobj", "punct"],
     KEY_ID: "e7798fb926b9403cfcd2"
 }
+
+
+def reader_rdf(base_path, file_name):
+    with io.open(os.path.join(base_path, file_name), encoding='utf8') as f:
+        loaded = json.load(f)
+    n = 0
+    for record_loaded in loaded:
+        record_id = PREFIX_TACRED + u'%s/%s' % (file_name, record_loaded['id'])
+        token_annotations = [{JSONLD_ID: record_id + u'#r1',
+                              JSONLD_TYPE: [u'%s=%s' % (TACRED_RELATION, record_loaded['relation'])],
+                              TACRED_SUBJECT: [{JSONLD_ID: record_id + u'#s1_%i' % idx} for idx
+                                               in range(record_loaded['subj_start'], record_loaded['subj_end'] + 1)],
+                              TACRED_OBJECT: [{JSONLD_ID: record_id + u'#s1_%i' % idx} for idx
+                                              in range(record_loaded['obj_start'], record_loaded['obj_end'] + 1)],
+                              }]
+        token_features = {k: record_loaded[k] for k in ['token', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head']}
+        record = {'record_id': record_id,
+                  'token_features': token_features,
+                  'token_annotations': token_annotations
+                 }
+        yield record
+        n += 1
+    logger.info('read %i records from %s' % (n, file_name))
 
 
 def reader(records, key_main=KEY_STANFORD_TOKENS, key_rel=KEY_STANFORD_DEPREL, keys_annot=(KEY_STANFORD_POS,),
@@ -208,8 +234,19 @@ def convert_to_opennre_format(in_path, out_path, relation_na=RELATION_NA):
 
 
 @plac.annotations(
+    in_path=('corpora input folder', 'option', 'i', str),
+    out_path=('corpora output folder', 'option', 'o', str),
+)
+def parse_rdf(in_path, out_path):
+    file_names = {'data/json/train.json': 'train.jsonl',
+                  'data/json/dev.json': 'dev.jsonl',
+                  'data/json/test.json': 'test.jsonl'}
+    parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=None, file_names=file_names)
+
+
+@plac.annotations(
     mode=('processing mode', 'positional', None, str, ['PARSE', 'PARSE_DUMMY', 'MERGE', 'CREATE_INDICES', 'ALL',
-                                                       'ANNOTATE', 'CONVERT_OPENNRE']),
+                                                       'ANNOTATE', 'CONVERT_OPENNRE', 'PARSE_RDF']),
     args='the parameters for the underlying processing method')
 def main(mode, *args):
     if mode == 'PARSE_DUMMY':
@@ -234,6 +271,8 @@ def main(mode, *args):
         plac.call(annotate_file_w_stanford, args)
     elif mode == 'CONVERT_OPENNRE':
         plac.call(convert_to_opennre_format, args)
+    elif mode == 'PARSE_RDF':
+        plac.call(parse_rdf, args)
     else:
         raise ValueError('unknown mode')
 
