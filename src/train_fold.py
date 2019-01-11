@@ -50,9 +50,10 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, OFFSET_MESH_ROOT, \
     MT_TUPLE_CONTINOUES, TYPE_ENTAILMENT, TYPE_POLARITY, TASK_MESH_PREDICTION, TASK_ENTAILMENT_PREDICTION, TYPE_MESH, \
     OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
-    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
+    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION_SEMEVAL, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
     RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_GLOBAL_ANNOTATION, JSONLD_DATA, \
-    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION, JSONLD_IDX, REC_EMB_HAS_PARSE, SEMEVAL_RELATION
+    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION, JSONLD_IDX, REC_EMB_HAS_PARSE, SEMEVAL_RELATION, \
+    TACRED_RELATION, TASK_RELATION_EXTRACTION_TACRED
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -672,13 +673,12 @@ def init_model_type(config, logdir):
                 # get @idx entry of entailment_judgment (has to be wrapped to a list)
                 meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT][0][JSONLD_IDX]]
         # SEMEVAL2010TASK8 RELATION prediction
-        elif config.task == TASK_RELATION_EXTRACTION:
+        elif config.task in [TASK_RELATION_EXTRACTION_SEMEVAL, TASK_RELATION_EXTRACTION_TACRED]:
             model_kwargs['exclusive_classes'] = True
-            # TODO: finish this!
+            config.blank = ','.join((config.blank, type_class))
             if RDF_BASED_FORMAT:
-                raise NotImplementedError('not yet finally implemented')
-                meta_args = {'index_types': (SEMEVAL_RELATION,), 'stop_types': (SEMEVAL_RELATION,)}
-                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][SEMEVAL_RELATION][0][JSONLD_IDX]]
+                meta_args = {'index_types': (type_class,), 'stop_types': (type_class,)}
+                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][type_class][0][JSONLD_IDX]]
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
 

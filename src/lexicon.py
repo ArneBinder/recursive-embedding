@@ -686,7 +686,7 @@ class Lexicon(object):
                 _ids = [self.get_d(s=s, data_as_hashes=data_as_hashes) for s in
                         prefix_or_types]
             else:
-                _ids, _strings = self.get_ids_for_prefix(prefix=prefix_or_types)
+                _ids, _strings = self.get_ids_for_prefix(prefix=prefix_or_types, add_separator=False)
             assert len(_ids) > 0, ' no ids found for indices_prefix: %s' % ', '.join(prefix_or_types)
             logger.info('select %i different ids for prefix: %s' % (len(_ids), prefix_or_type.strip()))
             ids.extend(_ids)

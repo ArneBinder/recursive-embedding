@@ -14,7 +14,7 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     CM_SEQUENCE, TARGET_EMBEDDING, OFFSET_ID, TYPE_RELATEDNESS_SCORE, SEPARATOR, OFFSET_CONTEXT_ROOT, \
     OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
-    REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE
+    REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -382,7 +382,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform or reroot,
                                                     costs=costs, link_types=link_types, data_blank=data_blanking,
                                                     keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                    blank_types=blank_types, go_back=reroot, add_heads_types=add_heads_types)
+                                                    blank_types=blank_types, go_back=reroot,
+                                                    add_heads_types=add_heads_types, return_strings=DEBUG)
                 yield tree_context
                 n += 1
                 # measure progress in percent
@@ -861,6 +862,8 @@ def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset
         fixed_offset_parse = None
         fixed_offsets_class = None
         for root_i_offset in range(nbr_embeddings_in):
+            if DEBUG:
+                indices = np.sort(indices)
             for i, root_i in enumerate(indices):
                 idx_start = forest.roots[root_i + root_i_offset]
                 if not fixed_offsets or fixed_offset_parse is None or fixed_offsets_class is None:

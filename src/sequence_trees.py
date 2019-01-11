@@ -9,7 +9,7 @@ from scipy.sparse import csr_matrix, csc_matrix, dok_matrix
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
     OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT_ROOT, LINK_TYPES, KEY_HEAD_CONCAT, JSONLD_ID, JSONLD_TYPE, JSONLD_IDX, \
-    JSONLD_DATA, JSONLD_VALUE
+    JSONLD_DATA, JSONLD_VALUE, KEY_HEAD_STRING
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -576,7 +576,7 @@ class Forest(object):
     # TODO(graph): test!
     def get_tree_dict(self, idx, visited=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0,
-                      revert=False, blank_types=(), go_back=False, add_heads_types=()):
+                      revert=False, blank_types=(), go_back=False, add_heads_types=(), return_strings=False):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -622,10 +622,15 @@ class Forest(object):
                 ((keep_prob_blank < 1.0 and data_head not in link_types and keep_prob_blank < np.random.uniform())):
             data_head = data_blank
 
+        seq_node = {KEY_CHILDREN: []}
+
+        if return_strings:
+            seq_node = {KEY_HEAD_STRING: self.lexicon.get_s(d=data_head, data_as_hashes=self.data_as_hashes),
+                        KEY_CHILDREN: []}
         if transform:
             data_head = self.lexicon.transform_idx(data_head, revert=revert)
 
-        seq_node = {KEY_HEAD: data_head, KEY_CHILDREN: []}
+        seq_node[KEY_HEAD] = data_head
         current_targets = targets(self.graph_out, idx)
         current_additional_heads = [self.data[ad] for ad in current_targets if self.data[ad] in add_heads_types]
         if len(current_additional_heads) > 0:
@@ -669,7 +674,8 @@ class Forest(object):
                                                                  keep_prob_node=keep_prob_node,
                                                                  blank_types=blank_types,
                                                                  add_heads_types=add_heads_types,
-                                                                 go_back=go_back))
+                                                                 go_back=go_back,
+                                                                 return_strings=return_strings))
         if go_back:
             if self.nbr_in[idx] > 0 and 0 <= cost <= max_depth:
                 for target in targets(self.graph_in, idx):
@@ -693,7 +699,8 @@ class Forest(object):
                                                                      keep_prob_node=keep_prob_node,
                                                                      blank_types=blank_types,
                                                                      add_heads_types=add_heads_types,
-                                                                     go_back=go_back))
+                                                                     go_back=go_back,
+                                                                     return_strings=return_strings))
         if context > 0:
             for target_back in targets(self.graph_in, idx):
                 if visited is not None and target_back in visited:
@@ -713,7 +720,8 @@ class Forest(object):
                                                                  keep_prob_blank=keep_prob_blank,
                                                                  keep_prob_node=keep_prob_node,
                                                                  add_heads_types=add_heads_types,
-                                                                 blank_types=blank_types))
+                                                                 blank_types=blank_types,
+                                                                 return_strings=return_strings))
 
         return seq_node
 
