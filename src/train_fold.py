@@ -675,7 +675,10 @@ def init_model_type(config, logdir):
         # SEMEVAL2010TASK8 RELATION prediction
         elif config.task in [TASK_RELATION_EXTRACTION_SEMEVAL, TASK_RELATION_EXTRACTION_TACRED]:
             model_kwargs['exclusive_classes'] = True
-            config.blank = ','.join((config.blank, type_class))
+            if config.blank.strip() != '':
+                config.blank = ','.join((config.blank, type_class))
+            else:
+                config.blank = type_class
             if RDF_BASED_FORMAT:
                 meta_args = {'index_types': (type_class,), 'stop_types': (type_class,)}
                 meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][type_class][0][JSONLD_IDX]]
@@ -1504,7 +1507,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         nbr_add_heads = len(add_heads_split)
         tree_iterator_args['additional_heads'] = nbr_add_heads
         #embedding_model_kwargs['additional_heads'] = nbr_add_heads
-        embedding_model_kwargs['additional_heads_dims'] = [300] * nbr_add_heads
+        embedding_model_kwargs['additional_heads_dims'] = [50] * nbr_add_heads
         logger.debug('collected %i add_heads types for %i prefixes' % (len(tree_iterator_args['add_heads_types']), nbr_add_heads))
 
     #if config.model_type == MT_REROOT:
