@@ -59,9 +59,9 @@ def reader_rdf(base_path, file_name):
         token_annotations = [{JSONLD_ID: record_id + u'#r1',
                               JSONLD_TYPE: [u'%s=%s' % (TACRED_RELATION, record_loaded['relation'])],
                               TACRED_SUBJECT: [{JSONLD_ID: record_id + u'#s1_%i' % idx} for idx
-                                               in range(record_loaded['subj_start'], record_loaded['subj_end'] + 1)],
+                                               in range(record_loaded['subj_start'] + 1, record_loaded['subj_end'] + 2)],
                               TACRED_OBJECT: [{JSONLD_ID: record_id + u'#s1_%i' % idx} for idx
-                                              in range(record_loaded['obj_start'], record_loaded['obj_end'] + 1)],
+                                              in range(record_loaded['obj_start'] + 1, record_loaded['obj_end'] + 2)],
                               }]
         token_features = {k: record_loaded[k] for k in ['token', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head']}
         record = {'record_id': record_id,
@@ -238,8 +238,8 @@ def convert_to_opennre_format(in_path, out_path, relation_na=RELATION_NA):
     out_path=('corpora output folder', 'option', 'o', str),
 )
 def parse_rdf(in_path, out_path):
-    file_names = {'data/json/train.json': 'train.jsonl',
-                  'data/json/dev.json': 'dev.jsonl',
+    file_names = {#'data/json/train.json': 'train.jsonl',
+                  #'data/json/dev.json': 'dev.jsonl',
                   'data/json/test.json': 'test.jsonl'}
     parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=None, file_names=file_names)
 
