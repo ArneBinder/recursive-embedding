@@ -363,7 +363,7 @@ FE_STRINGS = 'string'
 
 class Lexicon(object):
     def __init__(self, filename=None, types=None, vecs=None, nlp_vocab=None, strings=None, checkpoint_reader=None,
-                 ids_fixed=None, load_vecs=True, load_ids_fixed=True, add_vocab_manual=False):
+                 ids_fixed=None, load_vecs=True, load_ids_fixed=True, add_vocab_manual=False, hashes=None):
         """
         Create a Lexicon from file, from types (and optionally from vecs), from spacy vocabulary or from spacy
         StringStore.
@@ -375,13 +375,13 @@ class Lexicon(object):
         """
         self._frozen = False
         self._mapping = None
-        self._hashes = None
+        self._hashes = hashes
         self._strings = strings
         self._vecs = None
-        self.init_ids_fixed(ids_fixed=ids_fixed)
+        self.init_ids_fixed(filename if load_ids_fixed else None, ids_fixed=ids_fixed, assert_exists=False)
         if filename is not None:
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
-            self.init_ids_fixed(filename if load_ids_fixed else None, ids_fixed=ids_fixed, assert_exists=False)
+            #self.init_ids_fixed(filename if load_ids_fixed else None, ids_fixed=ids_fixed, assert_exists=False)
             if add_vocab_manual:
                 self.add_all(vocab_manual.values())
             if checkpoint_reader is not None:
@@ -488,7 +488,7 @@ class Lexicon(object):
         if ids_fixed is None:
             ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
         self._ids_fixed = ids_fixed
-        if not isinstance(self._ids_fixed, np.ndarray):
+        if not isinstance(self._ids_fixed, np.ndarray) and self._ids_fixed is not None:
             self._ids_fixed = np.array(self._ids_fixed, dtype=DTYPE_IDX)
         self._ids_fixed_dict = None
         self._ids_var_dict = None
@@ -574,6 +574,17 @@ class Lexicon(object):
 
         if self._vecs is not None and self._vecs.shape[0] > 0:
             self.freeze()
+
+    def shrink_via_min_count(self, data_hashes, min_count=2):
+        # get current fixed hashes
+        hashes_fixed = self.hashes[self.ids_fixed]
+        hashes_unique, c = np.unique(data_hashes, return_counts=True)
+        # keep hashes that occur at least min_count times and entries in hashes_fixed
+        mask = np.logical_or(c >= min_count, np.isin(hashes_unique, hashes_fixed))
+        hashes_filtered = hashes_unique[mask]
+        logger.debug('keep %i of %i lexicon entries (removed %i; fixed entries are kept)'
+                     % (len(hashes_filtered), len(self), len(self) - len(hashes_filtered)))
+        self.create_subset_with_hashes(hashes=hashes_filtered, create_new=False, add_vocab_manual=True)
 
     def add_vecs_from_other(self, other, mode='concat', self_to_lowercase=True, flag_added=True):
         assert other.has_vecs, 'other lexicon has no vecs'
@@ -987,6 +998,7 @@ class Lexicon(object):
         return self.ids_fixed[idx - len(self.ids_var)], reverted
 
     def order_by_hashes(self, hashes):
+        logger.warning('order_by_hashes is deprecated. use create_subset_with_hashes instead!')
         assert not self.frozen, 'can not order frozen lexicon by hashes'
         assert len(hashes) == len(self), 'number of hashes (%i) does not match size of lexicon (%i), can not order by ' \
                                          'hashes' % (len(hashes), len(self))
@@ -998,15 +1010,38 @@ class Lexicon(object):
         self._strings = new_strings
         self.clear_cached_values()
         self._hashes = hashes
+        self._ids_fixed = None
 
-    def create_subset_with_hashes(self, hashes, add_vocab_manual=False):
+    def create_subset_with_hashes(self, hashes, keep_vecs=True, keep_fixed=True, add_vocab_manual=False, create_new=True):
         new_strings = StringStore()
+        new_hashes = hashes
         if add_vocab_manual:
+            # has to be reset, because we add additional entries
+            new_hashes = None
             for v in vocab_manual.values():
                 new_strings.add(v)
         for h in hashes:
             new_strings.add(self.strings[h])
-        return Lexicon(strings=new_strings)
+        new_ids_fixed = None
+        if keep_fixed:
+            hashes_fix = self.hashes[self.ids_fixed]
+            new_ids_fixed = np.nonzero(np.isin(hashes, hashes_fix))[0]
+
+        new_vecs = None
+        if keep_vecs and self.vecs is not None and len(self.vecs) > 0:
+            new_vecs = np.empty(shape=(len(hashes), self.vecs.shape[1]), dtype=self.vecs.dtype)
+            for target_idx, h in enumerate(hashes):
+                source_idx = self.mapping[h]
+                new_vecs[target_idx] = self.vecs[source_idx]
+
+        if create_new:
+            return Lexicon(strings=new_strings, vecs=new_vecs, hashes=new_hashes, ids_fixed=new_ids_fixed)
+        else:
+            self.clear_cached_values()
+            self._strings = new_strings
+            self._hashes = new_hashes
+            self._vecs = new_vecs
+            self._ids_fixed = new_ids_fixed
 
     @staticmethod
     def merge_strings(lexica):
@@ -1033,6 +1068,9 @@ class Lexicon(object):
         #assert not self.frozen, 'can not modify frozen lexicon'
         self._hashes = None
         self._mapping = None
+        self._ids_fixed_dict = None
+        self._ids_var_dict = None
+        self._ids_var = None
 
     def freeze(self):
         self._frozen = True
@@ -1171,6 +1209,8 @@ class Lexicon(object):
             self._hashes = np.zeros(shape=(len(self.strings),), dtype=DTYPE_HASH)
             for i, s in enumerate(self.strings):
                 self._hashes[i] = self.strings[s]
+        #assert len(self._hashes) == len(self), 'nbr of hashes [%i] does not match lexicon size [%i]' \
+        #                                       % (len(self._hashes), len(self))
         return self._hashes
 
     @property
@@ -1186,6 +1226,8 @@ class Lexicon(object):
             self._mapping = {}
             for i, s in enumerate(self.strings):
                 self._mapping[self.strings[s]] = i
+        #assert len(self._mapping) == len(self), 'nbr of mapping entries [%i] does not match lexicon size [%i]' \
+        #                                        % (len(self._mapping), len(self))
         return self._mapping
 
     @property

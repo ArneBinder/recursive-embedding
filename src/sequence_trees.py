@@ -358,16 +358,16 @@ class Forest(object):
         self._lexicon_roots = lexicon_roots
         self._root_strings = None
 
-    def split_lexicon_to_lexicon_and_lexicon_roots(self, min_count=1):
+    def split_lexicon_to_lexicon_and_lexicon_roots(self):#, min_count=1):
         assert self.data_as_hashes, 'can not split lexicon to lexicon and lexicon_roots if data_as_hashes == False'
         mask_no_ids = np.ones_like(self.data, dtype=bool)
         mask_no_ids[self.pos_ids] = False
         hashes = self.data[mask_no_ids]
         u, c = np.unique(hashes, return_counts=True)
-        indices_min = np.argwhere(c >= min_count).flatten()
-        logger.info('take %i of %i lexicon entries (min_count: %i)' % (len(indices_min), len(u), min_count))
+        #indices_min = np.argwhere(c >= min_count).flatten()
+        #logger.info('take %i of %i lexicon entries (min_count: %i)' % (len(indices_min), len(u), min_count))
         hashes_ids = self.data[self.pos_ids]
-        lex = self.lexicon.create_subset_with_hashes(u[indices_min], add_vocab_manual=True)
+        lex = self.lexicon.create_subset_with_hashes(u, add_vocab_manual=True)
         lex_ids = self.lexicon.create_subset_with_hashes(hashes_ids)
         self.set_lexicon(lex)
         self.set_lexicon_roots(lex_ids)

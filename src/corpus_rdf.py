@@ -674,15 +674,17 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
     lex = Lexicon.merge_strings(lex_all)
     recemb.set_lexicon(lex)
     logger.debug('split lexicon into data and ids...')
-    recemb.split_lexicon_to_lexicon_and_lexicon_roots(min_count=min_count)
+    recemb.split_lexicon_to_lexicon_and_lexicon_roots()
     logger.debug('convert data (hashes to lexicon indices)...')
-    recemb.hashes_to_indices()
     if glove_file is not None and glove_file.strip() != '':
         logger.info('init vecs with glove file: %s...' % glove_file)
         recemb.lexicon.init_vecs_with_glove_file(filename=glove_file, prefix=word_prefix + u'')
+        recemb.lexicon.shrink_via_min_count(data_hashes=recemb.data, min_count=min_count)
     else:
+        logger.warning('Do not filter with min_count because no vecs are added.')
         recemb.lexicon.init_vecs()
-    #return recemb, sizes
+
+    recemb.hashes_to_indices()
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     fn = os.path.join(out_path, 'forest')
