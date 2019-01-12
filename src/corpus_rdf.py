@@ -191,8 +191,8 @@ def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser
             idx = text.find(node['word'], previous_end)
             # assert idx >= 0, 'word="%s" not found in text="%s"' % (node['word'], text)
             if idx < 0:
-                print('WARNING: word="%s" not found in text="%s"' % (node['word'], text))
-                idx = '_'
+                print('WARNING: word="%s" not found in text' % node['word'])
+                idx = u'_'
             else:
                 previous_end = idx + len(node['word'])
             l = template.format(i=i, idx=idx, **node)
