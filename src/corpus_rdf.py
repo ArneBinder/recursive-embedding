@@ -391,7 +391,8 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
 
 
 def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), discard_types=(),
-                          id_as_value_predicates=(), skip_predicates=(), swap_predicates=(), revert_predicates=()):
+                          id_as_value_predicates=(), skip_predicates=(), swap_predicates=(), revert_predicates=(),
+                          offset_predicates={}):
     """
     Serializes a json-ld dict object.
     Returns a list of all _types_ (additional types are created from value entries),
@@ -430,6 +431,7 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
     preds = sort_map.get(_type, sorted(jsonld))
     for pred in preds:
         if pred[0] != u'@' and pred in jsonld:
+            offsets = offset_predicates.get(pred, (0, 0))
             object_literals = []
             # edge source: points to predicate, if it should be used, to subject, if predicate is skipped, or is None,
             # if no edge should be created at all
@@ -462,6 +464,10 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                     if idx_edge_source is not None:
                         new_edge = (obj_dict[JSONLD_ID], idx_edge_source) if revert_edge else (
                             idx_edge_source, obj_dict[JSONLD_ID])
+                        if offset == idx_edge_source:
+                            new_edge = new_edge + offsets
+                        else:
+                            new_edge = new_edge + (0, offsets[1])
                         edges.append(new_edge)
 
                     if JSONLD_TYPE in obj_dict:
@@ -472,7 +478,8 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                                                                             id_as_value_predicates=id_as_value_predicates,
                                                                             skip_predicates=skip_predicates,
                                                                             swap_predicates=swap_predicates,
-                                                                            revert_predicates=revert_predicates)
+                                                                            revert_predicates=revert_predicates,
+                                                                            offset_predicates=offset_predicates)
                         ser.extend(obj_ser)
                         ids.update(obj_ids)
                         edges.extend(obj_edges)
@@ -491,20 +498,19 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                         ser[0] = ser[-1]
                         ser[-1] = subj
                     if revert_edge:
-                        edges.extend([(idx_edge_source + i, offset) for i in range(len(new_entries))])
+                        edges.extend([(idx_edge_source + i, offset) + offsets for i in range(len(new_entries))])
                     else:
-                        edges.extend([(offset, idx_edge_source + i) for i in range(len(new_entries))])
+                        edges.extend([(offset, idx_edge_source + i) + offsets for i in range(len(new_entries))])
                 else:
                     if revert_edge:
-                        edges.append((idx_edge_source, offset))
+                        edges.append((idx_edge_source, offset) + (offsets[0], 0))
                     else:
-                        edges.append((offset, idx_edge_source))
+                        edges.append((offset, idx_edge_source) + (offsets[0], 0))
 
     return ser, ids, edges
 
 
-def serialize_jsonld(jsonld, sort_map=None, discard_predicates=(), discard_types=(), id_as_value_predicates=(),
-                     skip_predicates=(), swap_predicates=(), revert_predicates=()):
+def serialize_jsonld(jsonld, sort_map=None, **kwargs):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION,  REC_EMB_USED_PARSER, REC_EMB_HAS_PARSE]}
@@ -514,16 +520,16 @@ def serialize_jsonld(jsonld, sort_map=None, discard_predicates=(), discard_types
     id_indices = []
     for jsonld_dict in jsonld:
         # see below for: + 1 (offset=len(ser) + 1)
-        _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map,
-                                                   discard_predicates=discard_predicates,
-                                                   discard_types=discard_types,
-                                                   id_as_value_predicates=id_as_value_predicates,
-                                                   skip_predicates=skip_predicates,
-                                                   swap_predicates=swap_predicates,
-                                                   revert_predicates=revert_predicates)
+        _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map, **kwargs)
         _refs = {}
-        for s, t in _edges:
-            _refs.setdefault(_ids.get(s, s), []).append(_ids.get(t, t))
+        for edge in _edges:
+            s, t = edge[:2]
+            s = _ids.get(s, s)
+            t = _ids.get(t, t)
+            if len(edge) > 2:
+                s = s + edge[2]
+                t = t + edge[3]
+            _refs.setdefault(s, []).append(t)
 
         ## insert the id directly after the root (offset +1 (above); _ser.insert(1, _id);  _ids[_id] = len(ser); ...)
         _id = u'' + jsonld_dict[JSONLD_ID]
@@ -563,16 +569,9 @@ def debug_load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/IMDB_RDF/spacy/test
     return json.loads(l)
 
 
-def convert_jsonld_to_recemb(jsonld, discard_predicates=(), discard_types=(), id_as_value_predicates=(),
-                             skip_predicates=(), revert_predicates=(), swap_predicates=()):
+def convert_jsonld_to_recemb(jsonld, **kwargs):
 
-    ser, refs, ids_indices = serialize_jsonld(jsonld,
-                                              discard_predicates=discard_predicates,
-                                              discard_types=discard_types,
-                                              id_as_value_predicates=id_as_value_predicates,
-                                              skip_predicates=skip_predicates,
-                                              revert_predicates=revert_predicates,
-                                              swap_predicates=swap_predicates)
+    ser, refs, ids_indices = serialize_jsonld(jsonld, **kwargs)
 
     # remove all children of parse, except to last sentence element
     idx_hasParse = ser.index(REC_EMB_HAS_PARSE)
@@ -599,10 +598,11 @@ def convert_jsonld_to_recemb(jsonld, discard_predicates=(), discard_types=(), id
     classes_prefix=('prefix for lex entries that will be saved as class ids', 'option', 'c', str),
     min_count=('minimal count a token has to be in the corpus', 'option', 'm', int),
     params_json=('optional parameters as json string', 'option', 'a', str),
+    link_via_edges=('tokens via dependency edge nodes', 'flag', 'e', bool),
 )
 def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
                                     word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
-                                    min_count=1, params_json=''):
+                                    min_count=1, params_json='', link_via_edges=False):
     params = {}
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
@@ -634,13 +634,18 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
                                      )
     if 'revert_predicates' not in params:
         params['revert_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
-                                       # RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',
                                        NIF_NEXT_SENTENCE,
                                        SEMEVAL_SUBJECT,
                                        TACRED_SUBJECT
                                        )
     if 'swap_predicates' not in params:
-        params['swap_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD', )
+        params['swap_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD',)
+    if 'offset_predicates' not in params:
+        params['offset_predicates'] = {}
+    if link_via_edges:
+        logger.info('link via dependency edges')
+        params['revert_predicates'] = params['revert_predicates'] + (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',)
+        params['offset_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD'] = (0, 1)
 
     recembs_all = []
     lex_all = []
