@@ -397,7 +397,7 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
             with io.open(fn_out, encoding='utf8') as fout:
                 for l in fout.readlines():
                     _l = json.loads(l)
-                    already_processed[_l['@id']] = l
+                    already_processed[_l[JSONLD_ID]] = l
         n_total[fn_out] = len(already_processed)
         if len(already_processed) > 0:
             logger.info('found %i already processed records' % len(already_processed))
