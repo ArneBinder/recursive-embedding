@@ -1014,28 +1014,34 @@ class Lexicon(object):
 
     def create_subset_with_hashes(self, hashes, keep_vecs=True, keep_fixed=True, add_vocab_manual=False, create_new=True):
         new_strings = StringStore()
-        new_hashes = hashes
         if add_vocab_manual:
-            # has to be reset, because we add additional entries
-            new_hashes = None
             for v in vocab_manual.values():
                 new_strings.add(v)
         for h in hashes:
             new_strings.add(self.strings[h])
-        new_ids_fixed = None
-        if keep_fixed:
-            hashes_fix = self.hashes[self.ids_fixed]
-            new_ids_fixed = np.nonzero(np.isin(hashes, hashes_fix))[0]
 
         new_vecs = None
-        if keep_vecs and self.vecs is not None and len(self.vecs) > 0:
-            new_vecs = np.empty(shape=(len(hashes), self.vecs.shape[1]), dtype=self.vecs.dtype)
-            for target_idx, h in enumerate(hashes):
+        new_ids_fixed = None
+        new_hashes = None
+        if keep_fixed or (keep_vecs and self.vecs is not None and len(self.vecs) > 0):
+            new_hashes = np.empty(len(new_strings), dtype=DTYPE_HASH)
+            if keep_vecs and self.vecs is not None and len(self.vecs) > 0:
+                new_vecs = np.empty(shape=(len(new_strings), self.vecs.shape[1]), dtype=self.vecs.dtype)
+            if keep_fixed:
+                new_ids_fixed = []
+            for target_idx, s in enumerate(new_strings):
+                h = Lexicon.hash_string(s)
+                new_hashes[target_idx] = h
                 source_idx = self.mapping[h]
-                new_vecs[target_idx] = self.vecs[source_idx]
+                if new_vecs is not None:
+                    new_vecs[target_idx] = self.vecs[source_idx]
+                if new_ids_fixed is not None and source_idx in self.ids_fixed:
+                    new_ids_fixed.append(target_idx)
+        if new_ids_fixed is not None:
+            new_ids_fixed = np.array(new_ids_fixed, dtype=DTYPE_IDX)
 
         if create_new:
-            return Lexicon(strings=new_strings, vecs=new_vecs, hashes=new_hashes, ids_fixed=new_ids_fixed)
+            return Lexicon(strings=new_strings, hashes=new_hashes, vecs=new_vecs, ids_fixed=new_ids_fixed)
         else:
             self.clear_cached_values()
             self._strings = new_strings
