@@ -390,7 +390,7 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
         os.makedirs(out_path)
     for fn in file_names:
         fn_out = os.path.join(out_path, file_names[fn])
-        logger.info('process file %s, save result to %s' % (fn, fn_out))
+        logger.info('process %s, save result to %s' % (fn, fn_out))
         n_failed[fn_out] = 0
         already_processed = {}
         if os.path.exists(fn_out):
