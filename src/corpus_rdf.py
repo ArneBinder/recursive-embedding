@@ -433,9 +433,15 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy', no_n
     logger.debug('done (time: %s)' % (datetime.now() - t_start))
 
 
+def token_id_to_tuple(token_id):
+    if token_id is None:
+        return None
+    return [int(part) for part in token_id.split('#s')[-1].split('_')]
+
+
 def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), discard_types=(),
                           id_as_value_predicates=(), skip_predicates=(), swap_predicates=(), revert_predicates=(),
-                          offset_predicates={}, replace_literal_predicates={}):
+                          offset_predicates={}, replace_literal_predicates={}, min_max_predicates={}):
     """
     Serializes a json-ld dict object.
     Returns a list of all _types_ (additional types are created from value entries),
@@ -476,6 +482,9 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
         if pred[0] != u'@' and pred in jsonld:
             offsets = offset_predicates.get(pred, (0, 0))
             object_literals = []
+            min_id, max_id = min_max_predicates.get(pred, (None, None))
+            min_id = token_id_to_tuple(min_id)
+            max_id = token_id_to_tuple(max_id)
             # edge source: points to predicate, if it should be used, to subject, if predicate is skipped, or is None,
             # if no edge should be created at all
             idx_edge_source = None
@@ -498,6 +507,11 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                     object_literals.append(obj_dict[JSONLD_VALUE])
                 # complex object
                 else:
+                    if min_id is not None and token_id_to_tuple(obj_dict[JSONLD_ID]) < min_id:
+                        continue
+                    if max_id is not None and token_id_to_tuple(obj_dict[JSONLD_ID]) > max_id:
+                        continue
+
                     # assert len(object_literals) == 0 or pred in id_as_value_predicates, \
                     #    'laterals (@value) are mixed with complex elements (@type / @id)'
                     if pred in id_as_value_predicates:
@@ -523,7 +537,8 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                                                                             swap_predicates=swap_predicates,
                                                                             revert_predicates=revert_predicates,
                                                                             offset_predicates=offset_predicates,
-                                                                            replace_literal_predicates=replace_literal_predicates)
+                                                                            replace_literal_predicates=replace_literal_predicates,
+                                                                            min_max_predicates=min_max_predicates)
                         ser.extend(obj_ser)
                         ids.update(obj_ids)
                         edges.extend(obj_edges)
@@ -554,7 +569,7 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
     return ser, ids, edges
 
 
-def serialize_jsonld(jsonld, sort_map=None, **kwargs):
+def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, **kwargs):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION,  REC_EMB_USED_PARSER, REC_EMB_HAS_PARSE]}
@@ -563,13 +578,27 @@ def serialize_jsonld(jsonld, sort_map=None, **kwargs):
     ser, ids, refs = [], {}, {}
     id_indices = []
     for jsonld_dict in jsonld:
+        min_max_predicates = {}
+        if restrict_span_with_annots:
+            assert REC_EMB_HAS_PARSE_ANNOTATION in jsonld_dict, 'restrict_span_with_annots, but no hasParseAnnotation found'
+            _subject_ids = jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(SEMEVAL_SUBJECT, []) + \
+                          jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_SUBJECT, [])
+            _object_ids = jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(SEMEVAL_OBJECT, []) + \
+                          jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_OBJECT, [])
+            min_parse_id = sorted([x[JSONLD_ID] for x in _subject_ids])[0]
+            max_parse_id = sorted([x[JSONLD_ID] for x in _object_ids])[-1]
+            min_max_predicates[REC_EMB_HAS_PARSE] = (min_parse_id, max_parse_id)
         # see below for: + 1 (offset=len(ser) + 1)
-        _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map, **kwargs)
+        _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map,
+                                                   min_max_predicates=min_max_predicates, **kwargs)
         _refs = {}
         for edge in _edges:
             s, t = edge[:2]
             s = _ids.get(s, s)
             t = _ids.get(t, t)
+            if not (isinstance(s, int) and isinstance(t, int)):
+                # skip edge if it points to unresolved id
+                continue
             if len(edge) > 2:
                 s = s + edge[2]
                 t = t + edge[3]
@@ -587,6 +616,26 @@ def serialize_jsonld(jsonld, sort_map=None, **kwargs):
         ser.extend(_ser)
         ids.update(_ids)
         refs.update(_refs)
+
+    idx_hasParse = ser.index(REC_EMB_HAS_PARSE)
+    if restrict_span_with_annots:
+        parse_annot_indices = refs[idx_hasParse]
+        # revert edges in parse_annot_indices
+        refs_rev = {}
+        for idx_source in parse_annot_indices:
+            for idx_target in refs[idx_source]:
+                refs_rev.setdefault(idx_target, []).append(idx_source)
+        # entries without other incoming entries are root(s)
+        roots = [idx for idx in parse_annot_indices if idx not in refs_rev]
+        refs[idx_hasParse] = roots
+        assert len(roots) > 0, 'no root(s) found'
+        if len(roots) != 1:
+            logger.warning('wrong number of roots [%i], expected 1' % len(roots))
+    else:
+        # remove all children of parse, except to last sentence element
+        idx_last_sentence = len(ser) - ser[::-1].index(NIF_SENTENCE) - 1
+        # link to _last_ sentence
+        refs[idx_hasParse] = [idx_last_sentence]
 
     return ser, refs, id_indices
 
@@ -613,15 +662,9 @@ def debug_load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/IMDB_RDF/spacy/test
     return json.loads(l)
 
 
-def convert_jsonld_to_recemb(jsonld, **kwargs):
+def convert_jsonld_to_recemb(jsonld, restrict_span_with_annots=False, **kwargs):
 
-    ser, refs, ids_indices = serialize_jsonld(jsonld, **kwargs)
-
-    # remove all children of parse, except to last sentence element
-    idx_hasParse = ser.index(REC_EMB_HAS_PARSE)
-    idx_last_sentence = len(ser) - ser[::-1].index(NIF_SENTENCE) - 1
-    # link to _last_ sentence
-    refs[idx_hasParse] = [idx_last_sentence]
+    ser, refs, ids_indices = serialize_jsonld(jsonld, restrict_span_with_annots=restrict_span_with_annots, **kwargs)
 
     # create rec-emb
     lex = Lexicon(add_vocab_manual=True)
@@ -644,10 +687,12 @@ def convert_jsonld_to_recemb(jsonld, **kwargs):
     params_json=('optional parameters as json string', 'option', 'a', str),
     link_via_edges=('tokens via dependency edge nodes', 'flag', 'e', bool),
     mask_with_entity_type=('replace words with entity type, if available', 'flag', 't', bool),
+    restrict_span_with_annots=('replace words with entity type, if available', 'flag', 'r', bool),
 )
 def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
                                     word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
-                                    min_count=1, params_json='', link_via_edges=False, mask_with_entity_type=False):
+                                    min_count=1, params_json='', link_via_edges=False, mask_with_entity_type=False,
+                                    restrict_span_with_annots=False):
     params = {}
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
@@ -697,6 +742,10 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
     if mask_with_entity_type:
         logger.info('replace words with entity type, if available')
         params['replace_literal_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'
+    if 'restrict_span_with_annots' not in params:
+        params['restrict_span_with_annots'] = restrict_span_with_annots
+    if params['restrict_span_with_annots']:
+        logger.info('restrict span with annots')
 
     recembs_all = []
     lex_all = []
