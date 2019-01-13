@@ -238,8 +238,8 @@ def convert_to_opennre_format(in_path, out_path, relation_na=RELATION_NA):
     out_path=('corpora output folder', 'option', 'o', str),
 )
 def parse_rdf(in_path, out_path):
-    file_names = {#'data/json/train.json': 'train.jsonl',
-                  #'data/json/dev.json': 'dev.jsonl',
+    file_names = {'data/json/train.json': 'train.jsonl',
+                  'data/json/dev.json': 'dev.jsonl',
                   'data/json/test.json': 'test.jsonl'}
     parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=None, file_names=file_names)
 

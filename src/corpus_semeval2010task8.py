@@ -557,14 +557,14 @@ def convert_to_tacred_format(in_path, out_path, server_url='http://localhost:900
 @plac.annotations(
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
-    #n_threads=('number of threads for replacement operations', 'option', 't', int),
-    #parser_batch_size=('parser batch size', 'option', 'b', int)
     parser=('parser: spacy or corenlp', 'option', 'p', str),
+    no_ner=('avoid named entity recognition', 'flag', 'n', bool),
 )
-def parse_rdf(in_path, out_path, parser='spacy'):
+def parse_rdf(in_path, out_path, parser='spacy', no_ner=False):
     file_names = {'SemEval2010_task8_training/TRAIN_FILE_fixed.TXT': 'train.jsonl',
                   'SemEval2010_task8_testing_keys/TEST_FILE_FULL_fixed.TXT': 'test.jsonl'}
-    parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names)
+    parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names,
+                 no_ner=no_ner)
 
 
 @plac.annotations(

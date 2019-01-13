@@ -327,7 +327,7 @@ def parse_and_convert_record(record_id,
         parser_str = u'None'
         # conll_columns = ('index', 'token', 'subj', 'subj_type', 'obj', 'obj_type', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head')
     elif isinstance(parsers[0], spacy.language.Language):
-        conll_lines = list(parse_spacy_to_conll(context_string, nlp=parsers[0]))
+        conll_lines = list(parse_spacy_to_conll(context_string, nlp=parsers[0], do_ner=parsers[1]))
         parser_str = u'%s.%s' % (type(parsers[0]).__module__, type(parsers[0]).__name__)
     elif isinstance(parsers[0], CoreNLPDependencyParser):
         conll_lines = list(parse_corenlp_to_conll(context_string, dep_parser=parsers[0], ner_tagger=parsers[1]))
@@ -367,17 +367,25 @@ def parse_and_convert_record(record_id,
     return res
 
 
-def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
+def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy', no_ner=False):
     t_start = datetime.now()
     logger.info('load parser...')
     if parser is not None:
+        if no_ner:
+            logger.info('avoid NER')
         if parser.strip() == 'spacy':
-            _parsers = (spacy.load('en'),)
+            _parsers = (spacy.load('en'), not no_ner)
         elif parser.strip() == 'corenlp':
-            # a distinct NER tagger returns more types (and is faster)
-            ner_tagger = CoreNLPParser(url='http://localhost:9000', tagtype='ner')
-            dep_parser = CoreNLPDependencyParser(url='http://localhost:9000')
-            _parsers = (dep_parser, ner_tagger)
+            if no_ner:
+                dep_parser = CoreNLPDependencyParser(url='http://localhost:9000')
+                _parsers = (dep_parser, None)
+            else:
+                # a distinct NER tagger returns more types (and is faster)
+                ner_tagger = CoreNLPParser(url='http://localhost:9000', tagtype='ner')
+                dep_parser = CoreNLPDependencyParser(url='http://localhost:9000')
+                #dep_parser = CoreNLPDependencyParser(url='http://localhost:9000', tagtype='ner')
+                #ner_tagger = dep_parser
+                _parsers = (dep_parser, ner_tagger)
         else:
             raise NotImplementedError('parser=%s not implemented' % parser)
     else:
@@ -386,6 +394,8 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy'):
     n_failed = {}
     n_total = {}
     out_path = os.path.join(out_path, str(parser))
+    if no_ner:
+        out_path = out_path + '_noner'
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     for fn in file_names:
