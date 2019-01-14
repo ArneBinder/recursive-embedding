@@ -507,9 +507,12 @@ class Forest(object):
         # because of graph structure indices could double
         return np.unique(leafs)
 
-    def get_slice(self, root=None, indices=None, root_exclude=None, show_links=True):
+    def get_slice(self, root=None, indices=None, root_exclude=None):
         if indices is None:
-            indices = np.sort(self.get_descendant_indices(root, show_links=show_links))
+            #indices = np.sort(self.get_descendant_indices(root, show_links=show_links))
+            idx_start = self.roots[root]
+            idx_end = self.pos_end(component_idx=root)
+            indices = np.arange(idx_start, idx_end)
         if root_exclude is not None:
             assert root != root_exclude, 'root==root_exclude (%i)' % root
             assert root_exclude in indices, 'root_exclude=%i is not in indices' % root_exclude
@@ -1257,8 +1260,10 @@ class Forest(object):
             res.append(idx)
         return res
 
-    def pos_end(self, idx):
-        next_component_idx = self.pos_to_component_mapping[idx] + 1
+    def pos_end(self, idx=None, component_idx=None):
+        if component_idx is None:
+            component_idx = self.pos_to_component_mapping[idx]
+        next_component_idx = component_idx + 1
         if next_component_idx == len(self.roots):
             return len(self)
         else:
