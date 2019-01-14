@@ -27,11 +27,11 @@ MAX_DEPTH = 9999
 
 logger = logging.getLogger('sequence_trees')
 logger.setLevel(logging.DEBUG)
-logger_streamhandler = logging.StreamHandler()
-logger_streamhandler.setLevel(logging.DEBUG)
-logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
-logger.addHandler(logger_streamhandler)
-logger.propagate = False
+#logger_streamhandler = logging.StreamHandler()
+#logger_streamhandler.setLevel(logging.DEBUG)
+#logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
+#logger.addHandler(logger_streamhandler)
+#logger.propagate = False
 
 
 def targets(g, idx):

@@ -26,7 +26,7 @@ logger.setLevel(logging.DEBUG)
 logger_streamhandler = logging.StreamHandler()
 logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
-logger.addHandler(logger_streamhandler)
+logging.getLogger('').addHandler(logger_streamhandler)
 
 TACRED_CONLL_RECORD = '''
 # index	token	subj	subj_type	obj	obj_type	stanford_pos	stanford_ner	stanford_deprel	stanford_head
@@ -737,6 +737,37 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
 
+    if 'restrict_span_with_annots' not in params:
+        params['restrict_span_with_annots'] = restrict_span_with_annots
+    else:
+        restrict_span_with_annots = params['restrict_span_with_annots']
+
+    if out_path is None:
+        out_path = in_path + '_recemb'
+    if restrict_span_with_annots:
+        out_path += '_span'
+    if mask_with_entity_type:
+        out_path += '_ner'
+    if link_via_edges:
+        out_path += '_edges'
+    if min_count > 1:
+        out_path += '_mc' + str(min_count)
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+    else:
+        logger.warning('%s already exists, skip it!' % out_path)
+        return
+
+    logger_fh = logging.FileHandler(out_path + '.info.log')
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logging.getLogger('').addHandler(logger_fh)
+
+    logger_fh = logging.FileHandler(out_path + '.debug.log')
+    logger_fh.setLevel(logging.DEBUG)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logging.getLogger('').addHandler(logger_fh)
+
     # set defaults
     if 'discard_predicates' not in params:
         params['discard_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
@@ -782,36 +813,9 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     if mask_with_entity_type:
         logger.info('replace words with entity type, if available')
         params['replace_literal_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'
-    if 'restrict_span_with_annots' not in params:
-        params['restrict_span_with_annots'] = restrict_span_with_annots
-    else:
-        restrict_span_with_annots = params['restrict_span_with_annots']
     if restrict_span_with_annots:
         logger.info('restrict span with annots')
         assert not relink_relation, 'can not relink relation if restrict_span_with_annots'
-
-    if out_path is None:
-        out_path = in_path + '_recemb'
-    if restrict_span_with_annots:
-        out_path += '_span'
-    if mask_with_entity_type:
-        out_path += '_ner'
-    if link_via_edges:
-        out_path += '_edges'
-    if min_count > 1:
-        out_path += '_mc' + str(min_count)
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
-
-    logger_fh = logging.FileHandler(out_path + '.info.log')
-    logger_fh.setLevel(logging.INFO)
-    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
-    logger.addHandler(logger_fh)
-
-    logger_fh = logging.FileHandler(out_path + '.debug.log')
-    logger_fh.setLevel(logging.DEBUG)
-    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
-    logger.addHandler(logger_fh)
 
     recembs_all = []
     lex_all = []
