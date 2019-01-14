@@ -196,12 +196,13 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
     in_path=('corpora input folder', 'option', 'i', str),
     out_path=('corpora output folder', 'option', 'o', str),
     parser=('parser: spacy or corenlp', 'option', 'p', str),
-    no_ner=('avoid named entity recognition', 'flag', 'n', bool),
+    do_ner=('enable named entity recognition', 'flag', 'n', bool),
 )
-def parse_rdf(in_path, out_path, parser='spacy', no_ner=False):
-    file_names = {'sick_test_annotated/SICK_test_annotated.txt': 'test.jsonl', 'sick_train/SICK_train.txt': 'train.jsonl'}
+def parse_rdf(in_path, out_path, parser='spacy', do_ner=False):
+    file_names = {'sick_test_annotated/SICK_test_annotated.txt': 'test.jsonl',
+                  'sick_train/SICK_train.txt': 'train.jsonl'}
     parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names,
-                 no_ner=no_ner)
+                 no_ner=not do_ner)
 
 
 @plac.annotations(
