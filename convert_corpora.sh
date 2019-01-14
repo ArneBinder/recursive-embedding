@@ -14,8 +14,8 @@ python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/SICK_RDF/corenlp_noner -c sck
 
 #TODO: execute!
 ## convert IMDB
-#python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/spacy_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 2
-#python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/corenlp_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 2
+python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/spacy_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 2
+python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/corenlp_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 2
 
 ## convert SEMEVAL
 # entity masking; re-linked entities

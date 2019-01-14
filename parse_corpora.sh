@@ -11,8 +11,8 @@ python src/corpus_sick.py PARSE_RDF --in-path "$CORPORA_IN"/SICK --out-path "$CO
 #TODO: execute!
 ## parse IMDB Sentiment
 # see src.corpus_imdb.parse_rdf for required files
-#python src/corpus_imdb.py PARSE_RDF --in-path "$CORPORA_IN"/aclImdb --out-path "$CORPORA_OUT"/IMDB_RDF --parser spacy
-#python src/corpus_imdb.py PARSE_RDF --in-path "$CORPORA_IN"/aclImdb --out-path "$CORPORA_OUT"/IMDB_RDF --parser corenlp
+python src/corpus_imdb.py PARSE_RDF --in-path "$CORPORA_IN"/aclImdb --out-path "$CORPORA_OUT"/IMDB_RDF --parser spacy
+python src/corpus_imdb.py PARSE_RDF --in-path "$CORPORA_IN"/aclImdb --out-path "$CORPORA_OUT"/IMDB_RDF --parser corenlp
 
 ## parse SemEval2010_task8
 # see src.corpus_seemval2010task8.parse_rdf for required files
