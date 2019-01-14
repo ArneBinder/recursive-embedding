@@ -17,7 +17,7 @@ from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFI
     REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
     NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
     NIF_CONTEXT, SICK_OTHER, JSONLD_ID, JSONLD_TYPE, JSONLD_VALUE, SEMEVAL_SUBJECT, SEMEVAL_OBJECT, TACRED_SUBJECT, \
-    TACRED_OBJECT, SEMEVAL_RELATION, TACRED_RELATION
+    TACRED_OBJECT, SEMEVAL_RELATION, TACRED_RELATION, DEBUG
 from lexicon import Lexicon
 from corpus import create_index_files, save_class_ids
 
@@ -606,9 +606,9 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, rel
                           jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_SUBJECT, [])
             _object_ids = jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(SEMEVAL_OBJECT, []) + \
                           jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_OBJECT, [])
-            min_parse_id = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _subject_ids])[0])
-            max_parse_id = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _object_ids])[-1])
-            min_max_predicates[REC_EMB_HAS_PARSE] = (min_parse_id, max_parse_id)
+            parse_id_subj = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _subject_ids])[0])
+            parse_id_obj = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _object_ids])[-1])
+            min_max_predicates[REC_EMB_HAS_PARSE] = sorted((parse_id_subj, parse_id_obj))
         # see below for: + 1 (offset=len(ser) + 1)
         _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map,
                                                    min_max_predicates=min_max_predicates, **kwargs)
@@ -778,8 +778,9 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     else:
-        logger.warning('%s already exists, skip it!' % out_path)
-        return
+        if not DEBUG:
+            logger.warning('%s already exists, skip it!' % out_path)
+            return
 
     logger_fh = logging.FileHandler(out_path + '.info.log')
     logger_fh.setLevel(logging.INFO)
