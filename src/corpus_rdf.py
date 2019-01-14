@@ -483,8 +483,6 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
             offsets = offset_predicates.get(pred, (0, 0))
             object_literals = []
             min_id, max_id = min_max_predicates.get(pred, (None, None))
-            min_id = token_id_to_tuple(min_id)
-            max_id = token_id_to_tuple(max_id)
             # edge source: points to predicate, if it should be used, to subject, if predicate is skipped, or is None,
             # if no edge should be created at all
             idx_edge_source = None
@@ -585,8 +583,8 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, rel
                           jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_SUBJECT, [])
             _object_ids = jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(SEMEVAL_OBJECT, []) + \
                           jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_OBJECT, [])
-            min_parse_id = sorted([x[JSONLD_ID] for x in _subject_ids])[0]
-            max_parse_id = sorted([x[JSONLD_ID] for x in _object_ids])[-1]
+            min_parse_id = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _subject_ids])[0])
+            max_parse_id = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _object_ids])[-1])
             min_max_predicates[REC_EMB_HAS_PARSE] = (min_parse_id, max_parse_id)
         # see below for: + 1 (offset=len(ser) + 1)
         _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map,
@@ -629,8 +627,8 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, rel
         roots = [idx for idx in parse_annot_indices if idx not in refs_rev]
         refs[idx_hasParse] = roots
         assert len(roots) > 0, 'no root(s) found'
-        if len(roots) != 1:
-            logger.warning('wrong number of roots [%i], expected 1' % len(roots))
+        #if len(roots) != 1:
+        #    logger.warning('wrong number of roots [%i], expected 1' % len(roots))
         graph_out = graph_out_from_children_dict(refs, len(ser))
     else:
         # remove all children of parse, except to last sentence element
@@ -727,10 +725,10 @@ def convert_jsonld_to_recemb(jsonld, **kwargs):
     params_json=('optional parameters as json string', 'option', 'a', str),
     link_via_edges=('tokens via dependency edge nodes', 'flag', 'e', bool),
     mask_with_entity_type=('replace words with entity type, if available', 'flag', 't', bool),
-    restrict_span_with_annots=('replace words with entity type, if available', 'flag', 'r', bool),
-    relink_relation=('re-link relation annotation with LCA of sub / obj entries', 'flag', 'l', bool),
+    restrict_span_with_annots=('replace words with entity type, if available', 'flag', 's', bool),
+    relink_relation=('re-link relation annotation with LCA of subj / obj entries', 'flag', 'l', bool),
 )
-def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
+def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
                                     word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
                                     min_count=1, params_json='', link_via_edges=False, mask_with_entity_type=False,
                                     restrict_span_with_annots=False,
@@ -786,8 +784,34 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
         params['replace_literal_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'
     if 'restrict_span_with_annots' not in params:
         params['restrict_span_with_annots'] = restrict_span_with_annots
-    if params['restrict_span_with_annots']:
+    else:
+        restrict_span_with_annots = params['restrict_span_with_annots']
+    if restrict_span_with_annots:
         logger.info('restrict span with annots')
+        assert not relink_relation, 'can not relink relation if restrict_span_with_annots'
+
+    if out_path is None:
+        out_path = in_path + '_recemb'
+    if restrict_span_with_annots:
+        out_path += '_span'
+    if mask_with_entity_type:
+        out_path += '_ner'
+    if link_via_edges:
+        out_path += '_edges'
+    if min_count > 1:
+        out_path += '_mc' + str(min_count)
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
+
+    logger_fh = logging.FileHandler(out_path + '.info.log')
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
+
+    logger_fh = logging.FileHandler(out_path + '.debug.log')
+    logger_fh.setLevel(logging.DEBUG)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logger.addHandler(logger_fh)
 
     recembs_all = []
     lex_all = []
@@ -832,8 +856,7 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
         recemb.lexicon.init_vecs()
 
     recemb.hashes_to_indices()
-    if not os.path.exists(out_path):
-        os.makedirs(out_path)
+
     fn = os.path.join(out_path, 'forest')
     recemb.dump(filename=fn)
     recemb.lexicon.dump(filename=fn, strings_only=not recemb.lexicon.has_vecs)
