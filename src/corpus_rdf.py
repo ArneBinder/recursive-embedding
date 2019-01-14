@@ -590,7 +590,8 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
     return ser, ids, edges
 
 
-def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, relink_relation=False, **kwargs):
+def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, relink_relation=False,
+                     offset_predicates={}, **kwargs):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION,  REC_EMB_USED_PARSER, REC_EMB_HAS_PARSE]}
@@ -611,7 +612,8 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, rel
             min_max_predicates[REC_EMB_HAS_PARSE] = sorted((parse_id_subj, parse_id_obj))
         # see below for: + 1 (offset=len(ser) + 1)
         _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map,
-                                                   min_max_predicates=min_max_predicates, **kwargs)
+                                                   min_max_predicates=min_max_predicates,
+                                                   offset_predicates=offset_predicates, **kwargs)
         _refs = {}
         for edge in _edges:
             s, t = edge[:2]
@@ -690,8 +692,9 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, rel
                     paths[idx_start] = get_path(g=_graph_in, data=ser, idx_start=idx_start, stop_data=REC_EMB_HAS_PARSE)
             idx_ent_lca = get_lca_from_paths([paths[idx] for idx in [idx_subj_lca, idx_obj_lca]], root=idx_hasParse)
             # link hasParse with LCA of (LCA of subj) & (LCA of obj)
+            hasParse_offsets = offset_predicates.get(REC_EMB_HAS_PARSE, (0, 0))
             graph_out_dok[idx_last_sentence, idx_hasParse] = False
-            graph_out_dok[idx_ent_lca, idx_hasParse] = True
+            graph_out_dok[idx_ent_lca + hasParse_offsets[1], idx_hasParse] = True
             # link relation with LCA of entries (subj and obj individually)
             graph_out_dok[idx_rel, idx_subj_lca] = True
             graph_out_dok[idx_obj_lca, idx_rel] = True
@@ -834,6 +837,7 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
         logger.info('link via dependency edges')
         params['revert_predicates'] = params['revert_predicates'] + (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',)
         params['offset_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD'] = (0, 1)
+        params['offset_predicates'][REC_EMB_HAS_PARSE] = (0, 1)
     if mask_with_entity_type:
         logger.info('replace words with entity type, if available')
         params['replace_literal_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'

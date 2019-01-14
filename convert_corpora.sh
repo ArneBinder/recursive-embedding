@@ -25,7 +25,6 @@ python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/SEMEVAL2010T8_RDF/corenlp -c 
 python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/SEMEVAL2010T8_RDF/spacy -c smvl:vocab#relation -g "$GLOVE_TXT" -m 2 -t -s
 python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/SEMEVAL2010T8_RDF/corenlp -c smvl:vocab#relation -g "$GLOVE_TXT" -m 2 -t -s
 # entity masking; re-linked entities; link via deprel
-# TODO: check 8006: some parts missing?
 python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/SEMEVAL2010T8_RDF/spacy -c smvl:vocab#relation -g "$GLOVE_TXT" -m 2 -t -l -e
 python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/SEMEVAL2010T8_RDF/corenlp -c smvl:vocab#relation -g "$GLOVE_TXT" -m 2 -t -l -e
 
