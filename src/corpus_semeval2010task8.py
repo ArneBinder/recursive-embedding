@@ -561,6 +561,10 @@ def convert_to_tacred_format(in_path, out_path, server_url='http://localhost:900
     no_ner=('avoid named entity recognition', 'flag', 'n', bool),
 )
 def parse_rdf(in_path, out_path, parser='spacy', no_ner=False):
+    # fixed files contain fixes of problematic entity tagging (e1 and e2 tags),
+    # e.g. mostly added a space before an entity tag:
+    #   in train: 213, 2740, 4219 (removed "12-" before e1), 4612, 4784, 6373
+    #   in test: 8411, 9256 (added dash), 9867
     file_names = {'SemEval2010_task8_training/TRAIN_FILE_fixed.TXT': 'train.jsonl',
                   'SemEval2010_task8_testing_keys/TEST_FILE_FULL_fixed.TXT': 'test.jsonl'}
     parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names,
