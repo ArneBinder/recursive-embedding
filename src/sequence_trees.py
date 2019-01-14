@@ -49,13 +49,50 @@ def graph_in_from_parents(parents):
     return graph
 
 
-def graph_out_from_children_dict(children, size):
+def graph_out_from_children_dict(children, size, return_dok=False):
     m = dok_matrix((size, size), dtype=bool)
     for _from, _to in children.items():
         # (row, col)
         m[_to, _from] = True
+    if return_dok:
+        return m
     graph = m.tocsc()
     return graph
+
+
+def get_path(g, data, idx_start, stop_data):
+    assert g.shape[0] == g.shape[1] == len(data), 'shape mismatch: %s vs. %i' % (str(g.shape), len(data))
+    d = data[idx_start]
+    path = []
+    #path_d = []
+    while d != stop_data:
+        path.append(idx_start)
+        _indices = targets(g, idx_start)
+        assert len(_indices) == 1, 'wrong nbr of indices [%i], expected 1.' % len(_indices)
+        idx_start = _indices[0]
+        d = data[idx_start]
+        #path_d.append(d)
+    return path
+
+
+def get_lca_from_paths(paths, root):
+    assert len(paths) > 0, 'no paths available'
+    idx = -1
+    try:
+        while True:
+            v = None
+            for p in paths:
+                if v is not None and p[idx] != v:
+                    raise IndexError
+                v = p[idx]
+            idx -= 1
+    except IndexError:
+        pass
+
+    idx += 1
+    if idx == 0:
+        return root
+    return paths[0][idx]
 
 
 # unused

@@ -10,14 +10,14 @@ import spacy
 import plac
 from nltk.parse.corenlp import CoreNLPDependencyParser, CoreNLPParser
 
-from sequence_trees import graph_out_from_children_dict, Forest
+from sequence_trees import graph_out_from_children_dict, Forest, targets, get_path, get_lca_from_paths
 from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFIX_TACRED, PREFIX_SICK, \
     PREFIX_IMDB, PREFIX_SEMEVAL, REC_EMB_GLOBAL_ANNOTATION, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_RECORD, \
     REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION, REC_EMB_HAS_CONTEXT, REC_EMB_USED_PARSER, \
     REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
     NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
     NIF_CONTEXT, SICK_OTHER, JSONLD_ID, JSONLD_TYPE, JSONLD_VALUE, SEMEVAL_SUBJECT, SEMEVAL_OBJECT, TACRED_SUBJECT, \
-    TACRED_OBJECT
+    TACRED_OBJECT, SEMEVAL_RELATION, TACRED_RELATION
 from lexicon import Lexicon
 from corpus import create_index_files, save_class_ids
 
@@ -569,7 +569,7 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
     return ser, ids, edges
 
 
-def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, **kwargs):
+def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, relink_relation=False, **kwargs):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION,  REC_EMB_USED_PARSER, REC_EMB_HAS_PARSE]}
@@ -631,13 +631,54 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, **k
         assert len(roots) > 0, 'no root(s) found'
         if len(roots) != 1:
             logger.warning('wrong number of roots [%i], expected 1' % len(roots))
+        graph_out = graph_out_from_children_dict(refs, len(ser))
     else:
         # remove all children of parse, except to last sentence element
         idx_last_sentence = len(ser) - ser[::-1].index(NIF_SENTENCE) - 1
         # link to _last_ sentence
         refs[idx_hasParse] = [idx_last_sentence]
 
-    return ser, refs, id_indices
+        if relink_relation:
+            idx_rel = None
+            for idx, s in enumerate(ser):
+                if s.startswith(SEMEVAL_RELATION) or s.startswith(TACRED_RELATION):
+                    idx_rel = idx
+            assert idx_rel is not None, 'relation not found'
+            graph_out_dok = graph_out_from_children_dict(refs, len(ser), return_dok=True)
+            graph_out = graph_out_dok.tocsc()
+            graph_in = graph_out.tocsr()
+
+            indices_subject = targets(graph_in, idx_rel)
+            # remove index of rem:hasParseAnnotation
+            indices_subject = indices_subject[indices_subject > idx_rel]
+            indices_object = targets(graph_out, idx_rel)
+
+            # remove links from / to subj / obj
+            graph_out_dok[idx_rel, indices_subject] = False
+            graph_out_dok[indices_object, idx_rel] = False
+            _graph_out = graph_out_dok.tocsc()
+            _graph_in = _graph_out.tocsr()
+
+            paths = {}
+            for idx_start in np.concatenate((indices_subject, indices_object)):
+                paths[idx_start] = get_path(g=_graph_in, data=ser, idx_start=idx_start, stop_data=REC_EMB_HAS_PARSE)
+            idx_subj_lca = get_lca_from_paths([paths[idx] for idx in indices_subject], root=idx_hasParse)
+            idx_obj_lca = get_lca_from_paths([paths[idx] for idx in indices_object], root=idx_hasParse)
+            for idx_start in [idx_subj_lca, idx_obj_lca]:
+                if idx_start not in paths:
+                    paths[idx_start] = get_path(g=_graph_in, data=ser, idx_start=idx_start, stop_data=REC_EMB_HAS_PARSE)
+            idx_ent_lca = get_lca_from_paths([paths[idx] for idx in [idx_subj_lca, idx_obj_lca]], root=idx_hasParse)
+            # link hasParse with LCA of (LCA of subj) & (LCA of obj)
+            graph_out_dok[idx_last_sentence, idx_hasParse] = False
+            graph_out_dok[idx_ent_lca, idx_hasParse] = True
+            # link relation with LCA of entries (subj and obj individually)
+            graph_out_dok[idx_rel, idx_subj_lca] = True
+            graph_out_dok[idx_obj_lca, idx_rel] = True
+            graph_out = graph_out_dok.tocsc()
+        else:
+            graph_out = graph_out_from_children_dict(refs, len(ser))
+
+    return ser, graph_out, id_indices
 
 
 def debug_create_dummy_record_rdf():
@@ -662,17 +703,16 @@ def debug_load_dummy_record(p='/mnt/DATA/ML/data/corpora_out/IMDB_RDF/spacy/test
     return json.loads(l)
 
 
-def convert_jsonld_to_recemb(jsonld, restrict_span_with_annots=False, **kwargs):
+def convert_jsonld_to_recemb(jsonld, **kwargs):
 
-    ser, refs, ids_indices = serialize_jsonld(jsonld, restrict_span_with_annots=restrict_span_with_annots, **kwargs)
+    ser, graph_out, ids_indices = serialize_jsonld(jsonld, **kwargs)
 
     # create rec-emb
     lex = Lexicon(add_vocab_manual=True)
     data = [Lexicon.hash_string(s) for s in ser]
     lex.add_all(ser)
-    graph_out = graph_out_from_children_dict(refs, len(ser))
-    recemb = Forest(data=data, data_as_hashes=True, structure=graph_out,
-                    root_pos=np.array([0], dtype=DTYPE_IDX))
+
+    recemb = Forest(data=data, data_as_hashes=True, structure=graph_out, root_pos=np.array([0], dtype=DTYPE_IDX))
 
     return recemb, lex
 
@@ -688,11 +728,13 @@ def convert_jsonld_to_recemb(jsonld, restrict_span_with_annots=False, **kwargs):
     link_via_edges=('tokens via dependency edge nodes', 'flag', 'e', bool),
     mask_with_entity_type=('replace words with entity type, if available', 'flag', 't', bool),
     restrict_span_with_annots=('replace words with entity type, if available', 'flag', 'r', bool),
+    relink_relation=('re-link relation annotation with LCA of sub / obj entries', 'flag', 'l', bool),
 )
 def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
                                     word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
                                     min_count=1, params_json='', link_via_edges=False, mask_with_entity_type=False,
-                                    restrict_span_with_annots=False):
+                                    restrict_span_with_annots=False,
+                                    relink_relation=False):
     params = {}
     if params_json is not None and params_json.strip() != '':
         params = json.loads(params_json)
@@ -763,7 +805,7 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path, glove_file='',
                         continue
                     try:
                         jsonld = json.loads(l)
-                        recemb, lex = convert_jsonld_to_recemb(jsonld, **params)
+                        recemb, lex = convert_jsonld_to_recemb(jsonld, relink_relation=relink_relation, **params)
                         recembs_all.append(recemb)
                         lex_all.append(lex)
                     except Exception as e:
