@@ -149,9 +149,11 @@ def enlarge(uri):
     return RDF_PREFIXES_MAP_REV[short] + u':'.join(parts[1:])
 
 
-def parse_spacy_to_conll(text, nlp=spacy.load('en')):
+def parse_spacy_to_conll(text, nlp=spacy.load('en'), do_ner=True):
     doc = nlp(text)
     for sent in doc.sents:
+        # initial empty yield to indicate start of a sentence
+        yield ()
 
         for i, word in enumerate(sent):
             if word.head.i == word.i:
@@ -167,13 +169,12 @@ def parse_spacy_to_conll(text, nlp=spacy.load('en')):
                 word.lemma_,  # LEMMA
                 word.pos_,  # UPOS      Coarse-grained tag
                 word.tag_,  # XPOS      Fine-grained tag
-                word.ent_type_ if word.ent_type_ != u'' else None,   # ENTITY TYPE    #u'_',  # FEATS
+                word.ent_type_ if word.ent_type_ != u'' and do_ner else None,   # ENTITY TYPE    #u'_',  # FEATS
                 head_idx,  # HEAD (ID or 0)
                 word.dep_,  # DEPREL    Relation
                 None,  # DEPS
                 word.idx,  # MISC      character offset
             )
-        yield ()
 
 
 def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser(url='http://localhost:9000'),
@@ -186,6 +187,8 @@ def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser
     #template = u'{i}\t{word}\t{lemma}\t{ctag}\t{tag}\t{feats}\t{head}\t{rel}\t_\t{idx}'
     previous_end = 0
     for sent in parsed_sents:
+        # initial empty yield to indicate start of a sentence
+        yield ()
         i_and_nodes = sorted(sent.nodes.items())
         if ner_tagger is not None:
             tokens_str = [node['word'] for i, node in i_and_nodes if node['tag'] != 'TOP']
@@ -220,12 +223,14 @@ def parse_corenlp_to_conll(text, tokens=None, dep_parser=CoreNLPDependencyParser
                 None,           # DEPS
                 idx,            # MISC      character offset
             )
-        yield ()
 
 
 def record_to_conll(sentence_record, captions, key_mapping):
     selected_entries = {k: sentence_record[key_mapping[k]] for k in key_mapping if key_mapping[k] in sentence_record}
     l = [dict(zip(selected_entries, t)) for t in zip(*selected_entries.values())]
+
+    # initial empty yield to indicate start of a sentence
+    yield ()
     for i, d in enumerate(l):
         try:
             # set no entity ("O") to None
@@ -233,18 +238,17 @@ def record_to_conll(sentence_record, captions, key_mapping):
         except Exception as e:
             raise e
         yield y
-    yield ()
 
 
 def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH],
                          # ATTENTION: ID column has to be the first column, but should not occur in  "columns"!
                          columns=('WORD', 'LEMMA', 'UPOS', 'POS', 'ENTITY', 'HEAD', 'EDGE', 'DEPS', 'MISC')):
     res = []
-    sent_id = 1
+    sent_id = 0
     token_id = 1
     previous_word = None
 
-    def start_sentence(_previous_sentence=None):
+    def start_sentence(sent_id, _previous_sentence=None):
         _sent_prefix = u'%ss%i_' % (base_uri, sent_id)
         _row_rdf = {JSONLD_ID: _sent_prefix + u'0', JSONLD_TYPE: [NIF_SENTENCE]}
         res.append(_row_rdf)
@@ -253,15 +257,19 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
         _previous_sentence = _row_rdf
         return _previous_sentence, _sent_prefix
 
-    previous_sentence, sent_prefix = start_sentence()
+    #previous_sentence, sent_prefix = start_sentence()
+    previous_sentence = None
+    sent_prefix = None
 
     for line in conll_data:
-        if len(line) == 0:
+        if len(line) == 0 or previous_sentence is None:
             token_id = 1
             previous_word = None
             sent_id += 1
-            previous_sentence, sent_prefix = start_sentence(previous_sentence)
-            continue
+            previous_sentence, sent_prefix = start_sentence(sent_id, previous_sentence)
+            # go to next line, if it was a sentence placeholder (not the beginning)
+            if len(line) == 0:
+                continue
 
         row = [unicode(e) if e is not None else None for e in line]
         row_dict = {RDF_PREFIXES_MAP[PREFIX_CONLL] + columns[i]:
@@ -391,13 +399,28 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy', no_n
     else:
         _parsers = None
     logger.info('loaded parser %s' % str(_parsers))
-    n_failed = {}
-    n_total = {}
+
     out_path = os.path.join(out_path, str(parser))
     if no_ner:
         out_path = out_path + '_noner'
     if not os.path.exists(out_path):
         os.makedirs(out_path)
+    else:
+        logger.warning('%s already exists, skip it!' % out_path)
+        return
+
+    logger_fh = logging.FileHandler(out_path + '.info.log')
+    logger_fh.setLevel(logging.INFO)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logging.getLogger('').addHandler(logger_fh)
+
+    logger_fh = logging.FileHandler(out_path + '.debug.log')
+    logger_fh.setLevel(logging.DEBUG)
+    logger_fh.setFormatter(logging.Formatter(LOGGING_FORMAT))
+    logging.getLogger('').addHandler(logger_fh)
+
+    n_failed = {}
+    n_total = {}
     for fn in file_names:
         fn_out = os.path.join(out_path, file_names[fn])
         logger.info('process %s, save result to %s' % (fn, fn_out))
