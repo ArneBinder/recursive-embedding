@@ -574,13 +574,12 @@ def init_model_type(config, logdir):
     ## set index and tree getter
 
     model_kwargs = {}
-
+    tree_iterator = diters.tree_iterator
     # relatedness prediction (SICK)
     if config.model_type == MT_TUPLE_CONTINOUES:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode}
 
-        tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_sick
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_default.__name__
@@ -590,7 +589,6 @@ def init_model_type(config, logdir):
                               'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
                               'bag_of_seealsos': False}
 
-        tree_iterator = diters.tree_iterator
         indices_getter = diters.indices_dbpedianif
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_naive.__name__
@@ -608,10 +606,9 @@ def init_model_type(config, logdir):
 
         config.batch_iter = batch_iter_fixed_probs.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
-        tree_iterator_args = {
-                              'max_depth': config.max_depth, 'concat_mode': CM_TREE,
+        tree_iterator_args = {'max_depth': config.max_depth, 'concat_mode': CM_TREE,
                               'transform': True, 'link_cost_ref': config.link_cost_ref, 'link_cost_ref_seealso': -1}
-        tree_iterator = diters.tree_iterator
+
         indices_getter = diters.indices_reroot
         load_parents = True
 
@@ -633,7 +630,7 @@ def init_model_type(config, logdir):
             config.tree_embedder = 'HTU_reduceSUM_mapGRU'
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode, 'link_cost_ref': -1}
-        tree_iterator = diters.tree_iterator
+
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_default.__name__
         other_offset = None
@@ -700,6 +697,10 @@ def init_model_type(config, logdir):
                                  meta_class_indices_getter=meta_class_indices_getter, fixed_offsets=fixed_offsets)
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
+
+    if config.bidirectional:
+        logger.info('enable bidirectional')
+        tree_iterator_args['reroot'] = True
 
     return tree_iterator, tree_iterator_args, indices_getter, load_parents, model_kwargs
 
