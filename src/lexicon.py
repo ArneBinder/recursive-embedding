@@ -516,26 +516,8 @@ class Lexicon(object):
         elif vocab is not None:
             assert new_vecs_fixed is None, 'no new_vecs_fixed allowed when initializing from vocab. set vecs_fixed ' \
                                            'indices afterwards.'
-            new_vecs = np.zeros(shape=(len(self), vocab.vectors_length), dtype=vocab.vectors.data.dtype)
-            count_added = 0
-            not_found = []
-            found_indices = []
-            for i, s in enumerate(self.strings):
-                s_cut = without_prefix(s, vocab_prefix)
-                if s_cut is not None and vocab.has_vector(s_cut):
-                    new_vecs[i] = vocab.get_vector(s_cut)
-                    found_indices.append(i)
-                    count_added += 1
-                else:
-                    not_found.append(s)
-                    new_vecs[i] = np.zeros(shape=(vocab.vectors_length,), dtype=vocab.vectors.data.dtype)
-            logger.info('added %i vecs from vocab and set %i to zero' % (count_added, len(self) - count_added))
-            logger.debug('zero (first 100): %s' % ', '.join(not_found[:100]))
-
-            # set loaded vecs as fixed
-            self._ids_fixed = np.array(found_indices, dtype=DTYPE_IDX)
-        #else:
-        #    self._ids_fixed = np.zeros(shape=0, dtype=DTYPE_IDX)
+            assert new_vecs is None, 'no new_vecs is allowed if vocab is given (triggers init_vecs_with_spacy_vocab)'
+            self.init_vecs_with_spacy_vocab(vocab=vocab, prefix=vocab_prefix)
 
         # TODO: check _fixed
         if new_vecs_fixed is not None:
@@ -650,6 +632,28 @@ class Lexicon(object):
         logger.debug('set %i vecs (total lex size: %i) with loaded vecs' % (len(ids_added), len(self)))
         self.init_ids_fixed(ids_fixed=sorted(ids_added.keys()))
         self._vecs = vecs_new
+        self.freeze()
+
+    def init_vecs_with_spacy_vocab(self, vocab, prefix=u''):
+        new_vecs = np.zeros(shape=(len(self), vocab.vectors_length), dtype=vocab.vectors.data.dtype)
+        count_added = 0
+        not_found = []
+        found_indices = []
+        for i, s in enumerate(self.strings):
+            s_cut = without_prefix(s, prefix)
+            if s_cut is not None and vocab.has_vector(s_cut):
+                new_vecs[i] = vocab.get_vector(s_cut)
+                found_indices.append(i)
+                count_added += 1
+            else:
+                not_found.append(s)
+                new_vecs[i] = np.zeros(shape=(vocab.vectors_length,), dtype=vocab.vectors.data.dtype)
+        logger.info('added %i vecs from vocab and set %i to zero' % (count_added, len(self) - count_added))
+        logger.debug('zero (first 100): %s' % ', '.join(not_found[:100]))
+
+        # set loaded vecs as fixed
+        self.init_ids_fixed(ids_fixed=found_indices)
+        self._vecs = new_vecs
         self.freeze()
 
     def sort_and_cut_and_fill_dict(self, data, keep_values, count_threshold=10):
