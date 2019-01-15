@@ -1526,7 +1526,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                     _strings = types_or_prefix
                     _ids = [lexicon.get_d(s=s, data_as_hashes=False) for s in _strings]
                 else:
-                    _ids, _strings = forest.lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()))
+                    _ids, _strings = forest.lexicon.get_ids_for_prefix(TYPE_LONG.get(prefix.strip(), prefix.strip()),
+                                                                       add_separator=not RDF_BASED_FORMAT)
                 save_class_ids(dir_path=os.path.join(logdir, 'data'),
                                prefix_type=prefix.strip(), classes_ids=_ids,
                                classes_strings=_strings)
