@@ -2,10 +2,13 @@ import os
 import subprocess
 import numpy as np
 
-from src.constants import TYPE_RELATION
+from src.constants import TYPE_RELATION, SEMEVAL_RELATION, TACRED_RELATION
 
 
 def format_rel(rel):
+    if rel.startswith(SEMEVAL_RELATION) or rel.startswith(TACRED_RELATION):
+        rel_split = rel.strip().split('=')
+        return rel_split[1]
     rel_split = rel.strip().split('/')
     if rel_split[-1] == 'Other':
         return rel_split[-1]
@@ -33,8 +36,8 @@ def convert_values(path, fn_class_strings):
     return fn_predicted_tsv, fn_gold_tsv
 
 
-def eval(path_dir, fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2.pl',
-         fn_class_strings='data.RELATION.classes.strings'):
+def eval(path_dir, fn_class_strings='data.RELATION.classes.strings',
+         fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2.pl'):
 
     fn_gold_strings = os.path.join(path_dir, 'values_gold_strings.txt')
     fn_max_strings = os.path.join(path_dir, 'values_max_strings.txt')
