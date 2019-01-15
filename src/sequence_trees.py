@@ -680,9 +680,9 @@ class Forest(object):
                 seq_node[KEY_HEAD_CONCAT] = current_additional_heads
             else:
                 seq_node[KEY_HEAD_CONCAT] = add_heads_dummies
-            assert len(current_additional_heads) == len(add_heads_dummies), \
+            assert len(seq_node[KEY_HEAD_CONCAT]) == len(add_heads_dummies), \
                 'nbr of current_additional_heads [%i] does not match expected additional heads [%i]' \
-                % (len(current_additional_heads), len(add_heads_dummies))
+                % (len(seq_node[KEY_HEAD_CONCAT]), len(add_heads_dummies))
         else:
             current_additional_heads = ()
         # ATTENTION: allows cost of 0!
