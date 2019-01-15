@@ -12,7 +12,7 @@ import plac
 
 from constants import LOGGING_FORMAT, TYPE_RELATION, TYPE_DATASET, SEPARATOR, TYPE_POS_TAG, TYPE_LEXEME, \
     TYPE_DEPENDENCY_RELATION, TYPE_NAMED_ENTITY, TYPE_SENTENCE, TYPE_CONTEXT, PREFIX_TACRED, JSONLD_TYPE, JSONLD_ID, \
-    TACRED_SUBJECT, TACRED_OBJECT, TACRED_RELATION
+    TACRED_SUBJECT, TACRED_OBJECT, TACRED_RELATION, RDF_PREFIXES_MAP
 from corpus import process_records, merge_batches, create_index_files, save_class_ids, DIR_BATCHES, \
     annotate_file_w_stanford, KEY_STANFORD_POS, KEY_STANFORD_TOKENS, KEY_STANFORD_DEPREL, KEY_STANFORD_RELATION, \
     KEY_ID, KEY_STANFORD_HEAD
@@ -55,7 +55,7 @@ def reader_rdf(base_path, file_name):
         loaded = json.load(f)
     n = 0
     for record_loaded in loaded:
-        record_id = PREFIX_TACRED + u'%s/%s' % (file_name, record_loaded['id'])
+        record_id = RDF_PREFIXES_MAP[PREFIX_TACRED] + u'%s/%s' % (file_name, record_loaded['id'])
         token_annotations = [{JSONLD_ID: record_id + u'#r1',
                               JSONLD_TYPE: [u'%s=%s' % (TACRED_RELATION, record_loaded['relation'])],
                               TACRED_SUBJECT: [{JSONLD_ID: record_id + u'#s1_%i' % idx} for idx
