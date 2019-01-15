@@ -16,7 +16,7 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
     REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG, NIF_SENTENCE, NIF_NEXT_SENTENCE, \
     NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT
-from sequence_trees import Forest
+from sequence_trees import Forest, targets
 from mytools import numpy_load
 
 RECURSION_LIMIT_MIN = 1000
@@ -304,6 +304,10 @@ def link_root_ids_iterator(indices, forest, link_type=TYPE_REF_SEEALSO):
     logger.info('found %i trees with %i links in total (%s)' % (n_trees, n_links, link_type))
 
 
+def debug_get_child_ids(d):
+    return [c['h'] for c in d['c']]
+
+
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
                   link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000,
                   keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(), add_heads_types=(), additional_heads=0,
@@ -352,7 +356,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             link_types.append(data_ref_seealso)
 
         data_padding = lexicon.get_d(s=vocab_manual[PADDING_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-        data_flat_root = lexicon.get_d(NIF_CONTEXT, data_as_hashes=forest.data_as_hashes)
+        data_flat_root = lexicon.get_d(REC_EMB_HAS_PARSE, data_as_hashes=forest.data_as_hashes)
         data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
         if transform:
             data_flat_root = lexicon.transform_idx(idx=data_flat_root)
@@ -376,6 +380,10 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         #x = (1 + (len(indices) / 100))
         if concat_mode == CM_TREE:
             for idx in indices:
+                # DEBUG
+                #if DEBUG:
+                #    idx = targets(forest.graph_out, idx)[0]
+                #    idx = targets(forest.graph_out, idx)[0]
                 tree_context = forest.get_tree_dict(idx=idx, max_depth=max_depth, context=context, transform=transform or reroot,
                                                     costs=costs, link_types=link_types, data_blank=data_blanking,
                                                     keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
@@ -403,6 +411,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                                                      link_types=link_types,
                                                                                      remove_types=remove_types_naive,
                                                                                      transform=False)
+                    assert len(data_span_cleaned) == len(data_span_cleaned_not_transformed), 'length mismatch'
                     data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in
                                            data_span_cleaned_not_transformed]
                     tree_context_string = {KEY_HEAD: data_flat_root,
@@ -411,6 +420,18 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                             KEY_HEAD_CONCAT: data_string_cleaned[i+1:i+1+additional_heads]}
                                                            for i in range(0, len(data_string_cleaned), nbr_heads_flat)]
                                             }
+                    _idx = targets(forest.graph_out, idx)[0]
+                    _idx = targets(forest.graph_out, _idx)[0]
+                    _tree_context = forest.get_tree_dict(idx=_idx, max_depth=max_depth, context=context,
+                                                        transform=transform or reroot,
+                                                        costs=costs, link_types=link_types, data_blank=data_blanking,
+                                                        keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
+                                                        blank_types=blank_types, go_back=reroot,
+                                                        add_heads_types=add_heads_types,
+                                                        add_heads_dummies=[data_padding] * additional_heads,
+                                                        return_strings=DEBUG)
+                    debug_ids_tree = debug_get_child_ids(_tree_context)
+
                 assert len(data_span_cleaned) % nbr_heads_flat == 0, \
                     'len(data_span_cleaned) [%i] is not a multiple of nbr_heads_flat [%i]' \
                     % (len(data_span_cleaned), nbr_heads_flat)
@@ -426,6 +447,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                for i in range(0, len(data_span_cleaned), nbr_heads_flat)]
                                 }
 
+                #debug_ids_aggr = debug_get_child_ids(tree_context)
                 yield tree_context
                 n += 1
                 # measure progress in percent
