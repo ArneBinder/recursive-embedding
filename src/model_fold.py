@@ -796,12 +796,9 @@ class TreeEmbedding_HTU_w_direction(TreeEmbedding_HTU):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTU_w_direction, self).__init__(name=name, **kwargs)
 
-    def __call__(self):
-        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
-        children = self.children() >> td.Map(embed_tree())
-        state = self.new_state(self.head_w_direction, children)
-        embed_tree.resolve_to(state)
-        return state
+    def new_state(self, head, children):
+        # discard direction
+        return td.AllOf(head(), children) >> self.reduce >> self.map
 
 
 class TreeEmbedding_HTU_mapIDENTITY(TreeEmbedding_reduce):
@@ -901,55 +898,18 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTUBatchedHead, self).__init__(name=name, **kwargs)
-        #self._fc = td.FC(self.state_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
-        #self._fc = td.FC(self.head_size, activation=tf.nn.tanh, input_keep_prob=self.keep_prob, name='fc_candidate')
 
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHead, self).__call__()
-        #print('_htu_model: %s' % str(_htu_model.output_type))
-        #trees_children = td.GetItem(0) >> td.Map(_htu_model)
-        trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
-        #print('trees_children: %s' % str(trees_children.output_type))
-        dummy_head = td.Zeros(output_type=_htu_model.output_type)
-        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1) #>> self._fc
-        #print('reduced_children: %s' % str(reduced_children.output_type))
-        #heads_embedded = td.GetItem(1) >> td.Map(self.embed() >> self.leaf_fc)
-        #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed() >> self.leaf_fc >> self._fc)
-        # do not use leaf_fc for candidates!
-        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1)) >> td.Concat())
-        #print('heads_embedded: %s' % str(heads_embedded.output_type))
-        #model = td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map)
-
-        model = td.AllOf(reduced_children >> td.Broadcast(), heads_embedded) >> td.Zip() \
-                  >> td.Map(td.Function(lambda x, y: tf.concat((x, y), axis=-1)))
-
-        if model.output_type is None:
-            model.set_output_type(tdt.SequenceType(tdt.TensorType(shape=(self.output_size,), dtype='float32')))
-
-        return model
-
-    @property
-    def output_size(self):
-        #return self._fc.output_size * 2 + 1
-        #return self.head_size + self.state_size + 1
-        return self.dimension_embeddings + self.state_size + 1
-
-
-class TreeEmbedding_HTUBatchedHead_w_direction(TreeEmbedding_HTU_w_direction):
-    """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
-
-    def __init__(self, name, **kwargs):
-        super(TreeEmbedding_HTUBatchedHead_w_direction, self).__init__(name=name, **kwargs)
-
-    def __call__(self):
-        _htu_model = super(TreeEmbedding_HTUBatchedHead_w_direction, self).__call__()
         trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
         # dummy_head is just passed through reduce, shouldn't be touched
-        #dummy_head = td.Zeros(output_type=_htu_model.output_type), td.Void()
-        dummy_head = td.Void()
-        reduced_children = td.AllOf(dummy_head, trees_children) >> self.reduce >> td.GetItem(1)
-        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(td.AllOf(self.embed_w_direction() >> td.GetItem(0),
-                                                                       td.InputTransform(lambda x: [x]) >> td.Vector(size=1)) >> td.Concat())
+        reduced_children = td.AllOf(td.Void(), trees_children) >> self.reduce >> td.GetItem(1)
+        # add id to candidate embeddings
+        # do not use leaf_fc for candidates!
+        heads_embedded = td.GetItem(KEY_CANDIDATES) \
+                         >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
+                                   >> td.Concat())
+
         model = td.AllOf(reduced_children >> td.Broadcast(), heads_embedded) >> td.Zip() \
                   >> td.Map(td.Function(lambda x, y: tf.concat((x, y), axis=-1)))
 
@@ -960,8 +920,15 @@ class TreeEmbedding_HTUBatchedHead_w_direction(TreeEmbedding_HTU_w_direction):
 
     @property
     def output_size(self):
-        #return self.head_size + self.state_size + 1
         return self.dimension_embeddings + self.state_size + 1
+
+
+class TreeEmbedding_HTUBatchedHead_w_direction(TreeEmbedding_HTUBatchedHead):
+    """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
+
+    def new_state(self, head, children):
+        # discard direction
+        return td.AllOf(head(), children) >> self.reduce >> self.map
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
