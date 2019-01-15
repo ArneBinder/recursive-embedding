@@ -15,7 +15,7 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
     REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG, NIF_SENTENCE, NIF_NEXT_SENTENCE, \
-    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING
+    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT
 from sequence_trees import Forest
 from mytools import numpy_load
 
@@ -322,15 +322,15 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
     :return:
     """
     try:
-        # use if and warning instead of assertion because of dummy concat modes
-        #if reroot and concat_mode != CM_TREE:
-        #    logger.warning('reroot requires concat_mode==%s, but found concat_mode: %s' % (CM_TREE, concat_mode))
         if reroot:
             assert concat_mode == CM_TREE, 'reroot requires concat_mode==%s, but found concat_mode: %s' \
                                            % (CM_TREE, concat_mode)
 
-        # enable tree dict caching
-        #forest._dicts = {}
+        # set fixed nbr of heads for flat models (WORD(real head), DEP, POS)
+        # this _can_ be different from additional_heads
+        nbr_heads_flat = 3
+        assert additional_heads < nbr_heads_flat, 'additional_heads [%i] has to be smaller then nbr_heads_flat [%i]' \
+                                                  % (additional_heads, nbr_heads_flat)
 
         #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
         sys.setrecursionlimit(1000)
@@ -339,10 +339,6 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         lexicon = forest.lexicon
         costs = {}
         link_types = []
-        #root_types = []
-        # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
-        data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-        data_padding = lexicon.get_d(s=vocab_manual[PADDING_EMBEDDING], data_as_hashes=forest.data_as_hashes)
 
         # check, if TYPE_REF and TYPE_REF_SEEALSO are in lexicon
         if TYPE_REF in lexicon.strings:
@@ -355,20 +351,15 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
             costs[data_ref_seealso] = link_cost_ref_seealso
             link_types.append(data_ref_seealso)
 
-        #if TYPE_PMID in lexicon.strings:
-        #    d_pmid = lexicon.get_d(TYPE_PMID, data_as_hashes=forest.data_as_hashes)
-        #    root_types.append(d_pmid)
-        #if TYPE_DBPEDIA_RESOURCE in lexicon.strings:
-        #    d_dbpedia_resource = lexicon.get_d(TYPE_DBPEDIA_RESOURCE, data_as_hashes=forest.data_as_hashes)
-        #    root_types.append(d_dbpedia_resource)
-
-        data_nif_context = lexicon.get_d(TYPE_CONTEXT, data_as_hashes=forest.data_as_hashes)
-        data_nif_context_transformed = data_nif_context
-        data_unknown_transformed = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        data_padding = lexicon.get_d(s=vocab_manual[PADDING_EMBEDDING], data_as_hashes=forest.data_as_hashes)
+        data_flat_root = lexicon.get_d(NIF_CONTEXT, data_as_hashes=forest.data_as_hashes)
+        data_unknown = lexicon.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=forest.data_as_hashes)
         if transform:
-            data_nif_context_transformed = lexicon.transform_idx(idx=data_nif_context)
-            data_unknown_transformed = lexicon.transform_idx(idx=data_unknown_transformed)
+            data_flat_root = lexicon.transform_idx(idx=data_flat_root)
+            data_unknown = lexicon.transform_idx(idx=data_unknown)
             data_padding = lexicon.transform_idx(idx=data_padding)
+        # ATTENTION: don't transform data_blanking, it will be transformed in get_tree_dict / get_tree_dict_rooted
+        data_blanking = lexicon.get_d(s=vocab_manual[BLANKED_EMBEDDING], data_as_hashes=forest.data_as_hashes)
 
         # do not remove TYPE_ANCHOR (nif:Context), as it is used for aggregation
         if not RDF_BASED_FORMAT:
@@ -403,7 +394,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
 
             for idx in indices:
                 # ATTENTION: idx has to be added to forest.pos_to_component_mapping before!
-                idx_end = forest.pos_end(idx)
+                idx_end = forest.pos_end(idx=idx)
                 data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
                                                                  link_types=link_types,
                                                                  remove_types=remove_types_naive, transform=transform)
@@ -414,17 +405,26 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                                                      transform=False)
                     data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in
                                            data_span_cleaned_not_transformed]
-                if len(data_span_cleaned) > max_size_plain * (additional_heads + 1):
+                    tree_context_string = {KEY_HEAD: data_flat_root,
+                                            KEY_CHILDREN: [{KEY_HEAD: data_string_cleaned[i],
+                                                            KEY_CHILDREN: [],
+                                                            KEY_HEAD_CONCAT: data_string_cleaned[i+1:i+1+additional_heads]}
+                                                           for i in range(0, len(data_string_cleaned), nbr_heads_flat)]
+                                            }
+                assert len(data_span_cleaned) % nbr_heads_flat == 0, \
+                    'len(data_span_cleaned) [%i] is not a multiple of nbr_heads_flat [%i]' \
+                    % (len(data_span_cleaned), nbr_heads_flat)
+                if len(data_span_cleaned) > max_size_plain * nbr_heads_flat:
                     logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
-                                   % (len(data_span_cleaned) / (additional_heads + 1), max_size_plain, idx))
-                data_span_cleaned = data_span_cleaned[:max_size_plain * (additional_heads + 1)]
-                tree_context = {KEY_HEAD: data_nif_context_transformed,
-                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i], KEY_CHILDREN: [], KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+1+additional_heads]} for i in range(0, len(data_span_cleaned), additional_heads + 1)]}
-                if DEBUG:
-                    tree_context_string = {KEY_HEAD: data_nif_context_transformed,
-                                    KEY_CHILDREN: [{KEY_HEAD: data_string_cleaned[i], KEY_CHILDREN: [],
-                                                    KEY_HEAD_CONCAT: data_string_cleaned[i + 1:i + 1 + additional_heads]} for
-                                                   i in range(0, len(data_string_cleaned), additional_heads + 1)]}
+                                   % (len(data_span_cleaned) / nbr_heads_flat, max_size_plain, idx))
+
+                data_span_cleaned = data_span_cleaned[:max_size_plain * nbr_heads_flat]
+                tree_context = {KEY_HEAD: data_flat_root,
+                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i],
+                                                KEY_CHILDREN: [],
+                                                KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+1+additional_heads]}
+                                               for i in range(0, len(data_span_cleaned), nbr_heads_flat)]
+                                }
 
                 yield tree_context
                 n += 1
@@ -446,33 +446,13 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         elif concat_mode == CM_SEQUENCE:
             # DEPRECATED
             raise NotImplementedError('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
-            logger.warning('concat_mode=%s is deprecated. Use "%s" or "%s" instead.' % (concat_mode, CM_TREE, CM_AGGREGATE))
-            # TODO: remove
-            # ATTENTION: works only if idx points to a data_nif_context and leafs are sequential and in order, especially
-            # root_ids occur only directly after link_types
-            for idx in indices:
-                # follow to first element of sequential data
-                context_child_offset = forest.get_children(idx)[0]
-                # find last element
-                idx_end = idx + context_child_offset
-                for idx_end in range(idx + context_child_offset, len(forest)):
-                    if forest.data[idx_end] == data_root:
-                        break
-
-                f = get_tree_naive(idx_start=idx+context_child_offset, idx_end=idx_end, forest=forest,
-                                   concat_mode=concat_mode, link_types=link_types,
-                                   remove_types=remove_types_naive, data_aggregator=data_nif_context)
-                #f.set_children_with_parents()
-                tree_context = f.get_tree_dict(max_depth=max_depth, context=context, transform=transform)
-                yield tree_context
-                n += 1
         elif concat_mode == 'dummy_dbpedianif1000':
             for idx in indices:
                 yield {'h': 12, 'c': [{'h': 14, 'c': [{'h': 16, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': 1, 'c': [{'h': -1952, 'c': [{'h': -1300, 'c': [{'h': 15, 'c': []}]}, {'h': -23, 'c': [{'h': -12238, 'c': [{'h': -15, 'c': []}, {'h': -12237, 'c': []}, {'h': -3650, 'c': []}, {'h': -1045, 'c': []}]}]}, {'h': -23, 'c': [{'h': -712, 'c': [{'h': -10, 'c': []}, {'h': -517, 'c': [{'h': 15, 'c': []}]}]}]}, {'h': -19, 'c': []}]}]}, {'h': -1275, 'c': [{'h': -2472, 'c': [{'h': -42, 'c': []}, {'h': -4600, 'c': []}]}, {'h': -21, 'c': []}, {'h': -32626, 'c': []}, {'h': -6, 'c': [{'h': -9978, 'c': [{'h': -15, 'c': []}, {'h': -2037, 'c': [{'h': -4600, 'c': []}]}, {'h': -4600, 'c': []}, {'h': -8127, 'c': []}, {'h': 15, 'c': []}, {'h': -1, 'c': []}, {'h': -66750, 'c': []}, {'h': -8, 'c': []}]}]}, {'h': -19, 'c': []}]}]}, {'h': -5279, 'c': [{'h': 0, 'c': []}, {'h': -1300, 'c': []}, {'h': -119, 'c': [{'h': -14, 'c': [{'h': -15, 'c': []}, {'h': -9665, 'c': [{'h': 0, 'c': []}, {'h': 15, 'c': []}, {'h': 0, 'c': []}]}, {'h': -10, 'c': []}, {'h': -1838, 'c': [{'h': -361, 'c': []}, {'h': -477, 'c': []}, {'h': -104, 'c': []}, {'h': -464, 'c': [{'h': -5244, 'c': [{'h': -20136, 'c': []}]}, {'h': -79, 'c': [{'h': -1503, 'c': []}]}]}]}]}]}, {'h': -19, 'c': []}]}]}]}]}]}
                 n += 1
         elif concat_mode == 'dummy_unknown':
             for idx in indices:
-                yield {KEY_HEAD: data_nif_context_transformed, KEY_CHILDREN: [{KEY_HEAD: data_unknown_transformed, KEY_CHILDREN: []}] * 7}
+                yield {KEY_HEAD: data_flat_root, KEY_CHILDREN: [{KEY_HEAD: data_unknown, KEY_CHILDREN: []}] * 7}
                 n += 1
         else:
             raise ValueError('unknown concat_mode=%s' % concat_mode)
@@ -822,10 +802,12 @@ def indices_sick(index_files, forest, rdf_based_format=RDF_BASED_FORMAT, meta_ge
         relatedness_scores = np.empty_like(indices, dtype=np.float32)
         all_indices = np.empty(shape=len(indices) * nbr_embeddings_in, dtype=DTYPE_IDX)
         for j in range(nbr_embeddings_in):
-            for i, idx in enumerate(indices):
-                meta = forest.get_tree_dict_string(idx=forest.roots[idx+j], stop_types=(REC_EMB_HAS_PARSE),
+            for i, root_i in enumerate(indices):
+                meta = forest.get_tree_dict_string(idx=forest.roots[root_i+j], stop_types=(REC_EMB_HAS_PARSE),
                                                    index_types=(REC_EMB_HAS_PARSE))
-                all_indices[nbr_embeddings_in * i + j] = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
+                idx_parse = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
+                all_indices[nbr_embeddings_in * i + j] = idx_parse
+                forest.pos_to_component_mapping[idx_parse] = root_i
                 if j == 0:
                     relatedness_scores[i] = meta_getter(meta)
     else:
