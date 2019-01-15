@@ -268,16 +268,17 @@ class TreeEmbedding(object):
 
     def embed(self, max_dims=None):
         # get the head embedding from id
-        res = td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
-                        case_blocks={
-                            # normal embedding
-                            0: td.Scalar(dtype='int32')
-                               >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size))),
-                            # "reverted" edge embedding
-                            1: td.Scalar(dtype='int32')
-                               >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size)))
-                               >> self._reverse_fc,
-                        })
+        #res = td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
+        #                case_blocks={
+        #                    # normal embedding
+        #                    0: td.Scalar(dtype='int32')
+        #                       >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size))),
+        #                    # "reverted" edge embedding
+        #                    1: td.Scalar(dtype='int32')
+        #                       >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size)))
+        #                       >> self._reverse_fc,
+        #                })
+        res = td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x))
         if max_dims is not None:
             res = td.Pipe(res, td.Function(lambda x: x[:, :max_dims]))
             res.set_output_type(tdt.TensorType(shape=[max_dims], dtype='float32'))
@@ -1020,7 +1021,8 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
         i.e. the result shape is (batch_size, sequence_length * embedding_size + 1).
     """
     def __init__(self, name, sequence_length, padding_id, merge_factor=1, **kwargs):
-        self._merge_factor = merge_factor
+        assert merge_factor == 1, 'merge_factor is deprecated, but it is set to %i' % merge_factor
+        #self._merge_factor = merge_factor
         self._sequence_length = sequence_length
         self._padding_id = padding_id
         super(TreeEmbedding_FLATconcat, self).__init__(name='FLATconcat_' + name, **kwargs)
@@ -1050,9 +1052,8 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
     def reduce_concatenated(self, concatenated_embeddings_with_length):
         concatenated_embeddings = concatenated_embeddings_with_length[:, :-1]
         length = concatenated_embeddings_with_length[:, -1]
-        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, int(self.sequence_length / self.merge_factor),
-                                                                         self.head_size * self.merge_factor])
-        return self.reduce_flat(embeddings_sequence, length / self.merge_factor)
+        embeddings_sequence = tf.reshape(concatenated_embeddings, shape=[-1, int(self.sequence_length), self.head_size])
+        return self.reduce_flat(embeddings_sequence, length)
 
     def reduce_flat(self, embeddings, actual_length):
         raise NotImplementedError('Implement this')
@@ -1067,9 +1068,9 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
     def sequence_length(self):
         return self._sequence_length
 
-    @property
-    def merge_factor(self):
-        return self._merge_factor
+    #@property
+    #def merge_factor(self):
+    #    return self._merge_factor
 
 
 #######################################
