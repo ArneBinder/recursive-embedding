@@ -770,10 +770,10 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
 
     if out_path is None:
         out_path = in_path + '_recemb'
-    if restrict_span_with_annots:
-        out_path += '_span'
     if mask_with_entity_type:
         out_path += '_ner'
+    if restrict_span_with_annots:
+        out_path += '_span'
     if link_via_edges:
         out_path += '_edges'
     if min_count > 1:
