@@ -1027,7 +1027,7 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
 
     def __call__(self):
         padding_element = {KEY_HEAD: self._padding_id, KEY_CHILDREN: [],
-                           KEY_HEAD_CONCAT: [0] * len(self.additional_heads_dims)}
+                           KEY_HEAD_CONCAT: [self._padding_id] * len(self.additional_heads_dims)}
 
         def adjust_length(l):
             if len(l) >= self.sequence_length:
