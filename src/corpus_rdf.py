@@ -949,14 +949,25 @@ def debug_main2():
     args='the parameters for the underlying processing method')
 def _create_index_files(merged_forest_path, split_count, step_root=1, *args):
     sizes = json.load(open(merged_forest_path+'.sizes.json'))
+    # add dev indices to train
+    if 'dev.jsonl' in dict(sizes):
+        split_count /= 2
+        logger.info('dataset contains dev set, half the split_count to %i' % (split_count))
     start = 0
     for fn, s in sizes:
         end = start + s / step_root
+        suffix = fn.split('.')[0]
         other_args = ('-o', merged_forest_path, '--split-count', str(split_count if fn != 'test.jsonl' else 1),
                       '--start-root', str(start), '--end-root', str(end), '--step-root', str(step_root),
-                      '--suffix', fn.split('.')[0])
+                      '--suffix', suffix)
         plac.call(create_index_files, args + other_args)
         start = end
+        if fn == 'dev.jsonl':
+            for i in range(split_count):
+                fn_src = 'idx.dev.%i.npy' % i
+                fn_tar = 'idx.train.%i.npy' % (i + split_count)
+                logger.debug('rename %s to %s' % (fn_src, fn_tar))
+                os.rename(merged_forest_path+'.' + fn_src, merged_forest_path+'.'+fn_tar)
 
 
 @plac.annotations(
