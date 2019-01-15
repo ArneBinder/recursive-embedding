@@ -878,15 +878,21 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     recemb.set_lexicon(lex)
     logger.debug('split lexicon into data and ids...')
     recemb.split_lexicon_to_lexicon_and_lexicon_roots()
-    logger.debug('convert data (hashes to lexicon indices)...')
+
     if glove_file is not None and glove_file.strip() != '':
         logger.info('init vecs with glove file: %s...' % glove_file)
         recemb.lexicon.init_vecs_with_glove_file(filename=glove_file, prefix=word_prefix + u'')
-        recemb.lexicon.shrink_via_min_count(data_hashes=recemb.data, min_count=min_count)
     else:
-        logger.warning('Do not filter with min_count because no vecs are added.')
-        recemb.lexicon.init_vecs()
-
+        #logger.warning('Do not filter with min_count because no vecs are added.')
+        #recemb.lexicon.init_vecs()
+        import spacy
+        logger.debug('load spacy...')
+        nlp = spacy.load('en')
+        logger.info('init vecs from spacy...')
+        recemb.lexicon.init_vecs_with_spacy_vocab(vocab=nlp.vocab, prefix=word_prefix + u'')
+    logger.debug('filter lexicon by min_count=%i...' % min_count)
+    recemb.lexicon.shrink_via_min_count(data_hashes=recemb.data, min_count=min_count)
+    logger.debug('convert data (hashes to lexicon indices)...')
     recemb.hashes_to_indices()
 
     fn = os.path.join(out_path, 'forest')
@@ -911,6 +917,21 @@ def add_glove_vecs(out_path, glove_file, word_prefix=RDF_PREFIXES_MAP[PREFIX_CON
     lex = Lexicon(filename=fn, load_vecs=False)
     logger.info('init vecs with glove file: %s...' % glove_file)
     lex.init_vecs_with_glove_file(filename=glove_file, prefix=word_prefix + u'')
+    lex.dump(fn)
+
+
+@plac.annotations(
+    out_path=('corpora output path', 'option', 'o', str),
+    word_prefix=('prefix of words in lexicon', 'option', 'w', str),
+)
+def add_spacy_vecs(out_path, word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD='):
+    import spacy
+    logger.debug('load spacy...')
+    nlp = spacy.load('en')
+    fn = os.path.join(out_path, 'forest')
+    lex = Lexicon(filename=fn, load_vecs=False)
+    logger.info('init vecs from spacy...')
+    lex.init_vecs_with_spacy_vocab(vocab=nlp.vocab, prefix=word_prefix)
     lex.dump(fn)
 
 
