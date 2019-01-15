@@ -238,6 +238,7 @@ TYPE_FOR_TASK = {#TASK_MESH_PREDICTION: TYPE_MESH,
                  TASK_RELATION_EXTRACTION_SEMEVAL: SEMEVAL_RELATION,
                  TASK_RELATION_EXTRACTION_TACRED: TACRED_RELATION}
 
+# single entries are taken as prefixes, lists as listings of actual lexicon entries
 TYPE_LONG = {#'REL': TYPE_RELATION,
              #'RELF': TYPE_RELATION_FORWARD,
              #'RELB': TYPE_RELATION_BACKWARD,
@@ -249,8 +250,12 @@ TYPE_LONG = {#'REL': TYPE_RELATION,
              #'CON': [TYPE_CONTEXT],
              #'SEN': [TYPE_SENTENCE],
              #'ENT': [TYPE_NAMED_ENTITY],
+             'RELS': SEMEVAL_RELATION,
+             'RELT': TACRED_RELATION,
              'EDG': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'EDGE=',
-             'POS': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'UPOS='
+             'POS': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'UPOS=',
+             'PAR': [REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION],
+             'NIF': RDF_PREFIXES_MAP[PREFIX_NIF]
              # collides with TYPE_LEXEME because of UNKNOWN is added for TYPE_LEXEME:
              #'MAN': vocab_manual.values()
              }
