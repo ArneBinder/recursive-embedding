@@ -1057,7 +1057,8 @@ class Forest(object):
                       graph_in=new_graph_in,
                       graph_out=new_graph_out)
 
-    def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None, color_by_rank=False):
+    def visualize(self, filename, start=0, end=None, transformed=False, token_list=None, scores=None,
+                  color_by_rank=False, edge_source_blacklist=()):
         if end is None:
             end = len(self)
         if scores is not None:
@@ -1133,7 +1134,8 @@ class Forest(object):
                 for target_index in target_indices:
                     if target_index < 0 or target_index >= len(nodes):
                         target_index = i
-                    graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
+                    if token_list[target_index][1:-1] not in edge_source_blacklist:
+                        graph.add_edge(pydot.Edge(nodes[i], nodes[target_index], dir='back'))
 
         logger.debug('graph created. write to file: %s ...' % filename)
         # print(graph.to_string())

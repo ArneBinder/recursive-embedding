@@ -863,7 +863,8 @@ def create_visualization_response(params):
             forest_temp.visualize(TEMP_FN_SVG + '.' + str(i), transformed=params.get('transformed_idx', False),
                                   token_list=params['sequences'][i] if 'sequences' in params else None,
                                   scores=params['scores'][i] if 'scores' in params else None,
-                                  color_by_rank=params.get('color_by_rank', False))
+                                  color_by_rank=params.get('color_by_rank', False),
+                                  edge_source_blacklist=params.get('edge_source_blacklist', ()))
             count += 1
         #assert len(params['data_sequences']) > 0, 'empty data_sequences'
         assert forest_temp is not None, 'no data to visualize'
