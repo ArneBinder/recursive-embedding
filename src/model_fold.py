@@ -305,10 +305,10 @@ class TreeEmbedding(object):
             if nbr_additional_heads > 0:
                 heads_other = td.InputTransform(lambda x: x[KEY_HEAD_CONCAT]).reads(comp.input)
                 heads_other_embedded = [self.embed(max_dims=dims).reads(td.GetItem(i).reads(heads_other)) for i, dims in enumerate(self.additional_heads_dims)]
-                heads_embedded = td.Concat().reads(head_embedded, *heads_other_embedded)
-                comp.output.reads(heads_embedded >> self.leaf_fc, direction)
-            else:
-                comp.output.reads(head_embedded >> self.leaf_fc, direction)
+                head_embedded = td.Concat().reads(head_embedded, *heads_other_embedded)
+            comp.output.reads(head_embedded, direction)
+        if self.leaf_fc_size > 0:
+            return comp >> td.AllOf(td.GetItem(0) >> self.leaf_fc, td.GetItem(1))
         return comp
 
     def children(self, name=KEY_CHILDREN):
