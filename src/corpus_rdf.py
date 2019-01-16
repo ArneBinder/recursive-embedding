@@ -844,6 +844,7 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     if restrict_span_with_annots:
         logger.info('restrict span with annots')
         assert not relink_relation, 'can not relink relation if restrict_span_with_annots'
+        params['discard_types'] = params['discard_types'] + (NIF_SENTENCE,)
 
     recembs_all = []
     lex_all = []
