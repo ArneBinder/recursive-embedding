@@ -433,11 +433,11 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                     debug_ids_tree = debug_get_child_ids(_tree_context)
 
                 assert len(data_span_cleaned) % nbr_heads_flat == 0, \
-                    'len(data_span_cleaned) [%i] is not a multiple of nbr_heads_flat [%i]' \
-                    % (len(data_span_cleaned), nbr_heads_flat)
+                    'idx:%i: len(data_span_cleaned) [%i] is not a multiple of nbr_heads_flat [%i]' \
+                    % (idx, len(data_span_cleaned), nbr_heads_flat)
                 if len(data_span_cleaned) > max_size_plain * nbr_heads_flat:
-                    logger.warning('len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain. root-idx: %i'
-                                   % (len(data_span_cleaned) / nbr_heads_flat, max_size_plain, idx))
+                    logger.warning('idx:%i: len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
+                                   % (idx, int(len(data_span_cleaned) / nbr_heads_flat), max_size_plain))
 
                 data_span_cleaned = data_span_cleaned[:max_size_plain * nbr_heads_flat]
                 tree_context = {KEY_HEAD: data_flat_root,
