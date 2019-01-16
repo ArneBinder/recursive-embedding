@@ -464,10 +464,15 @@ class TreeEmbedding_map(TreeEmbedding):
     def map(self):
         """
         Applies a mapping function.
-        :return: A tensorflow fold block that consumes a tuple (input, state_in) and outputs a new state with same shape
+        :return: A tensorflow fold block that consumes a tuple ((input, direction), state_in) and outputs a new state
+                 with same shape as state_in
         as state_in.
         """
         raise NotImplementedError
+
+    @property
+    def input_wo_direction(self):
+        return td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1))
 
 
 class TreeEmbedding_reduce(TreeEmbedding):
@@ -477,6 +482,7 @@ class TreeEmbedding_reduce(TreeEmbedding):
         gets a tuple (head_in, children_sequence), where head_in is a 1-d vector and children a sequence of 1-d vectors
         (size does not have to fit head_in size) and produces a tuple (children_reduced, head_out) to feed into
         self.map.
+        NOTE: head_in and head_out have to be tuples: (head_vector, head_direction), with head_direction being 0 or 1
         :return: a tuple (head_out, children_reduced) of two 1-d vectors, of different size, eventually.
         """
         raise NotImplementedError
@@ -520,7 +526,7 @@ class TreeEmbedding_mapGRU(TreeEmbedding_map):
 
     @property
     def map(self):
-        return self._rnn_cell >> td.GetItem(1)
+        return self.input_wo_direction >> self._rnn_cell >> td.GetItem(1)
 
 
 class TreeEmbedding_mapGRU_w_direction(TreeEmbedding_map):
@@ -553,12 +559,12 @@ class TreeEmbedding_mapGRU2(TreeEmbedding_map):
         # temp:  (head, [previous_summed_outputs, previous_state]) -> ((current_output, new_state), summed_outputs)
         temp = td.AllOf(td.Function(lambda head, state: (head, state[:, self.state_size:])) >> self._rnn_cell,
                         td.Function(lambda head, state: state[:, :self.state_size]))
-        res = temp >> td.AllOf(td.AllOf(td.GetItem(0) >> td.GetItem(0),
-                                        td.GetItem(1)
-                                        # sum current_output with previous_summed_outputs
-                                        ) >> td.Function(lambda x, y: x + y),
-                               # concatenate (summed_outputs, new_state)
-                               td.GetItem(0) >> td.GetItem(1)) >> td.Concat()
+        res = self.input_wo_direction >> temp \
+              >> td.AllOf(td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1))
+                          # sum current_output with previous_summed_outputs
+                          >> td.Function(lambda x, y: x + y),
+                          # concatenate (summed_outputs, new_state)
+                          td.GetItem(0) >> td.GetItem(1)) >> td.Concat()
         res.set_output_type(tdt.TensorType(shape=[self.state_size * 2], dtype='float32'))
         return res
 
@@ -601,7 +607,8 @@ class TreeEmbedding_mapLSTM(TreeEmbedding_map):
         #return td.AllOf(td.GetItem(0), td.GetItem(1) # requires: state_is_tuple=True
         #                >> td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1))) \
         #       >> self._rnn_cell >> td.GetItem(1) >> td.Concat()
-        return td.AllOf(td.GetItem(0), td.GetItem(1)) >> self._rnn_cell >> td.GetItem(1)  # requires: state_is_tuple=False
+        #return td.AllOf(td.GetItem(0), td.GetItem(1)) >> self._rnn_cell >> td.GetItem(1)  # requires: state_is_tuple=False
+        return self.input_wo_direction >> self._rnn_cell >> td.GetItem(1)  # requires: state_is_tuple=False
 
 
 class TreeEmbedding_reduceLSTM(TreeEmbedding_reduce):
@@ -635,7 +642,7 @@ class TreeEmbedding_mapFC(TreeEmbedding_map):
 
     @property
     def map(self):
-        return td.Concat() >> self._fc
+        return self.input_wo_direction >> td.Concat() >> self._fc
 
 
 class TreeEmbedding_mapCCFC(TreeEmbedding_map):
@@ -645,7 +652,7 @@ class TreeEmbedding_mapCCFC(TreeEmbedding_map):
 
     @property
     def map(self):
-        return td.Function(circular_correlation) >> self._fc
+        return self.input_wo_direction >> td.Function(circular_correlation) >> self._fc
 
 
 class TreeEmbedding_mapAVG(TreeEmbedding_map):
@@ -656,7 +663,7 @@ class TreeEmbedding_mapAVG(TreeEmbedding_map):
     def map(self):
         _mapped = td.Mean()
         _mapped.set_output_type(tdt.TensorType(shape=[self.head_size], dtype='float32'))
-        return _mapped
+        return self.input_wo_direction >> _mapped
 
 
 class TreeEmbedding_mapSUM(TreeEmbedding_map):
@@ -667,7 +674,7 @@ class TreeEmbedding_mapSUM(TreeEmbedding_map):
     def map(self):
         _mapped = td.Sum()
         _mapped.set_output_type(tdt.TensorType(shape=[self.head_size], dtype='float32'))
-        return _mapped
+        return self.input_wo_direction >> _mapped
 
 
 class TreeEmbedding_reduceSUM(TreeEmbedding_reduce):
@@ -780,7 +787,7 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
 
     def new_state(self, head, children):
         # discard direction
-        return td.AllOf(head() >> td.GetItem(0), children) >> self.reduce >> self.map
+        return td.AllOf(head(), children) >> self.reduce >> self.map
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
@@ -809,7 +816,7 @@ class TreeEmbedding_HTU_plain_leaf(TreeEmbedding_HTU):
         state = td.OneOf(key_fn=self.has_children(),
                          case_blocks={
                              True: self.new_state(self.head_w_direction, self.children() >> td.Map(embed_tree())),
-                             False: self.head_w_direction() >> td.GetItem(0)
+                             False: self.head_w_direction()
                          })
         embed_tree.resolve_to(state)
         return state
@@ -828,8 +835,8 @@ class TreeEmbedding_HTU_init_state(TreeEmbedding_HTU):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
         state = td.OneOf(key_fn=self.has_children(),
                          case_blocks={
-                             True: td.AllOf(self.head_w_direction() >> td.GetItem(0), self.children() >> td.Map(embed_tree())) >> self.reduce,
-                             False: td.AllOf(self.head_w_direction() >> td.GetItem(0), td.Void() >> self._init_state)
+                             True: td.AllOf(self.head_w_direction(), self.children() >> td.Map(embed_tree())) >> self.reduce,
+                             False: td.AllOf(self.head_w_direction(), td.Void() >> self._init_state)
                          }) >> self.map
         embed_tree.resolve_to(state)
         return state
@@ -966,14 +973,6 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         return self.dimension_embeddings + self.state_size + 1
 
 
-class TreeEmbedding_HTUBatchedHead_w_direction(TreeEmbedding_HTUBatchedHead):
-    """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
-
-    def new_state(self, head, children):
-        # discard direction
-        return td.AllOf(head(), children) >> self.reduce >> self.map
-
-
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
     """
         FLAT TreeEmbedding models take all first level children of the root as input and reduce them.
@@ -1050,7 +1049,8 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
             return new_l, float(min(len(l), self.sequence_length))
 
         model = self.children() >> td.InputTransform(adjust_length) >> td.AllOf(
-            td.GetItem(0) >> td.Map(self.head_w_direction() >> td.GetItem(0)) >> SequenceToTuple(tdt.TensorType(shape=[self.head_size], dtype='float32'), self.sequence_length)
+            td.GetItem(0) >> td.Map(self.head_w_direction() >> td.GetItem(0))
+            >> SequenceToTuple(tdt.TensorType(shape=[self.head_size], dtype='float32'), self.sequence_length)
             >> td.Concat(),
             td.GetItem(1) >> td.Scalar(dtype='float32')
         ) >> td.Concat()
@@ -1239,7 +1239,7 @@ class TreeEmbedding_HTUBatchedHead_reduceSUM_mapCCFC(TreeEmbedding_reduceSUM, Tr
         super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapCCFC, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHead_w_direction):
+class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHead):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU_wd, self).__init__(name=name, **kwargs)
 
