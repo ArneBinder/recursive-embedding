@@ -275,7 +275,7 @@ def convert_conll_to_rdf(conll_data, base_uri=RDF_PREFIXES_MAP[PREFIX_UNIVERSAL_
         row_dict = {RDF_PREFIXES_MAP[PREFIX_CONLL] + columns[i]:
                         (row[i + 1] if columns[i] != 'HEAD' else (JSONLD_ID, sent_prefix + row[i + 1])) for i, k in
                     enumerate(columns)
-                    if i + 1 < len(row) and row[i + 1] is not None and row[i + 1] != u'_'}
+                    if i + 1 < len(row) and row[i + 1] is not None}
         row_dict[RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID'] = row[0]
         row_rdf = _to_rdf(row_dict)
         row_rdf[JSONLD_ID] = sent_prefix + row[0]
