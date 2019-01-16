@@ -235,8 +235,8 @@ def record_to_conll(sentence_record, captions, key_mapping):
     yield ()
     for i, d in enumerate(l):
         try:
-            # set no entity ("O") to None
-            y = [i + 1] + [d.get(c, None) if c != 'stanford_ner' and d.get(c, None) != 'O' else None for c in captions]
+            # set no ENTITY ("O") to None
+            y = [i + 1] + [d.get(c, None) if not (c == 'ENTITY' and d.get(c, None) == 'O') else None for c in captions]
         except Exception as e:
             raise e
         yield y
