@@ -255,7 +255,8 @@ TYPE_LONG = {#'REL': TYPE_RELATION,
              'EDG': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'EDGE=',
              'POS': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'UPOS=',
              'PAR': [REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION],
-             'NIF': RDF_PREFIXES_MAP[PREFIX_NIF]
+             'NIF': RDF_PREFIXES_MAP[PREFIX_NIF],
+             'NIFW': [NIF_WORD]
              # collides with TYPE_LEXEME because of UNKNOWN is added for TYPE_LEXEME:
              #'MAN': vocab_manual.values()
              }
