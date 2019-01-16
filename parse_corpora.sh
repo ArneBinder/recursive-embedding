@@ -8,7 +8,6 @@ CORPORA_OUT="/mnt/DATA/ML/data/corpora_out"
 python src/corpus_sick.py PARSE_RDF --in-path "$CORPORA_IN"/SICK --out-path "$CORPORA_OUT"/SICK_RDF --parser spacy
 python src/corpus_sick.py PARSE_RDF --in-path "$CORPORA_IN"/SICK --out-path "$CORPORA_OUT"/SICK_RDF --parser corenlp
 
-#TODO: execute!
 ## parse IMDB Sentiment
 # see src.corpus_imdb.parse_rdf for required files
 python src/corpus_imdb.py PARSE_RDF --in-path "$CORPORA_IN"/aclImdb --out-path "$CORPORA_OUT"/IMDB_RDF --parser spacy
