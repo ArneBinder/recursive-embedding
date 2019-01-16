@@ -3,6 +3,8 @@ import io
 import json
 import logging
 import os
+from functools import partial
+from multiprocessing import Pool
 
 import numpy as np
 
@@ -741,6 +743,32 @@ def convert_jsonld_to_recemb(jsonld, **kwargs):
     return recemb, lex
 
 
+def process_jsonl_file(fn, in_path, **params):
+    recembs_all = []
+    lex_all = []
+    path = os.path.join(in_path, fn)
+    logger.info('process %s...' % path)
+    n = 0
+    n_failed = 0
+    with io.open(path, encoding='utf8') as f:
+        for line_i, line in enumerate(f):
+            l = line.strip()
+            if l == u'' or l[0] == u'#':
+                continue
+            try:
+                jsonld = json.loads(l)
+                recemb, lex = convert_jsonld_to_recemb(jsonld, **params)
+                recembs_all.append(recemb)
+                lex_all.append(lex)
+            except Exception as e:
+                logger.warning('line %i: failed to process: %s' % (line_i, str(e)))
+                n_failed += 1
+                continue
+            n += 1
+    logger.info('successfully converted %i records (%i failed) from %s' % (n, n_failed, path))
+    return recembs_all, lex_all, fn, n
+
+
 @plac.annotations(
     in_path=('corpora input path, should contain .jsonl or .jl files', 'option', 'i', str),
     out_path=('corpora output path', 'option', 'o', str),
@@ -849,29 +877,16 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     recembs_all = []
     lex_all = []
     sizes = []
-    for fn in os.listdir(in_path):
-        if fn.endswith('.jsonl') or fn.endswith('.jl'):
-            path = os.path.join(in_path, fn)
-            logger.info('process %s...' % path)
-            n = 0
-            n_failed = 0
-            with io.open(path, encoding='utf8') as f:
-                for line_i, line in enumerate(f):
-                    l = line.strip()
-                    if l == u'' or l[0] == u'#':
-                        continue
-                    try:
-                        jsonld = json.loads(l)
-                        recemb, lex = convert_jsonld_to_recemb(jsonld, relink_relation=relink_relation, **params)
-                        recembs_all.append(recemb)
-                        lex_all.append(lex)
-                    except Exception as e:
-                        logger.warning('line %i: failed to process: %s' % (line_i, str(e)))
-                        n_failed += 1
-                        continue
-                    n += 1
-            logger.info('successfully converted %i records (%i failed) from %s' % (n, n_failed, path))
-            sizes.append((fn, n))
+    _process = partial(process_jsonl_file, in_path=in_path, relink_relation=relink_relation, **params)
+    fn_jsonl = [fn for fn in os.listdir(in_path) if fn.endswith('.jsonl') or fn.endswith('.jl')]
+    p = Pool(len(fn_jsonl))
+    res_files = p.map(_process, fn_jsonl)
+    recemb_files, lex_files, fn_files, sizes_files = zip(*res_files)
+    for i, s in enumerate(sizes_files):
+        sizes.append((fn_files[i], s))
+        recembs_all.extend(recemb_files[i])
+        lex_all.extend(lex_files[i])
+
     logger.debug('concatenate data...')
     recemb = Forest.concatenate(recembs_all)
     logger.debug('merge lexica...')
