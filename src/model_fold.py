@@ -806,12 +806,31 @@ class TreeEmbedding_HTU_plain_leaf(TreeEmbedding_HTU):
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
-        #state = self.new_state(self.head_w_direction, self.children() >> td.Map(embed_tree()))
         state = td.OneOf(key_fn=self.has_children(),
                          case_blocks={
                              True: self.new_state(self.head_w_direction, self.children() >> td.Map(embed_tree())),
                              False: self.head_w_direction() >> td.GetItem(0)
                          })
+        embed_tree.resolve_to(state)
+        return state
+
+
+class TreeEmbedding_HTU_init_state(TreeEmbedding_HTU):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTU_init_state, self).__init__(name='HTU_init_state_' + name, **kwargs)
+        with tf.variable_scope(self.name):
+            self._init_state = tf.Variable(tf.constant(0.0, shape=[self.state_size]), trainable=True,
+                                           name='initial_state')
+
+    def __call__(self):
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
+        state = td.OneOf(key_fn=self.has_children(),
+                         case_blocks={
+                             True: td.AllOf(self.head_w_direction() >> td.GetItem(0), self.children() >> td.Map(embed_tree())) >> self.reduce,
+                             False: td.AllOf(self.head_w_direction() >> td.GetItem(0), td.Void() >> self._init_state)
+                         }) >> self.map
         embed_tree.resolve_to(state)
         return state
 
@@ -1087,6 +1106,11 @@ class TreeEmbedding_HTU_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbeddi
 class TreeEmbedding_HTU_reduceSUM_mapGRU_pl(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU, TreeEmbedding_HTU_plain_leaf):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapGRU_pl, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTU_reduceSUM_mapGRU_is(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU, TreeEmbedding_HTU_init_state):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_mapGRU_is, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceSUM_mapLSTM(TreeEmbedding_reduceSUM, TreeEmbedding_mapLSTM, TreeEmbedding_HTU):
