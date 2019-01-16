@@ -74,6 +74,7 @@ services:
         --merge_factor=${MERGE_FACTOR}
         --blank=${BLANK}
         --sample_method=${SAMPLE_METHOD}
+        --add_heads=${ADD_HEADS}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
