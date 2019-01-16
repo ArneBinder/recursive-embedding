@@ -378,7 +378,7 @@ def get_or_calc_tree_dicts_or_forests(params):
         assert root_start <= root_end, 'ERROR: root_start=%i > root_end=%i' % (root_start, root_end)
         assert root_end <= len(roots), 'ERROR: root_end=%i > len(roots)=%i' % (root_end, len(roots))
 
-        _forests = [current_forest.get_slice(root=root) for root in roots[root_start:root_end]]
+        _forests = [current_forest.get_slice(root=root) for root in range(root_start, root_end)]
         params['indices'] = roots[root_start:root_end]
     elif 'idx_start' in params:
         idx_start = params.get('idx_start', 0)
