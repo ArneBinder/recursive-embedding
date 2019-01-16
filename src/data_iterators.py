@@ -823,14 +823,14 @@ def indices_sick(index_files, forest, rdf_based_format=RDF_BASED_FORMAT, meta_ge
         assert nbr_embeddings_in >=1, 'nbr_embeddings_in has to be at least 1, but is %s' % str(nbr_embeddings_in)
         relatedness_scores = np.empty_like(indices, dtype=np.float32)
         all_indices = np.empty(shape=len(indices) * nbr_embeddings_in, dtype=DTYPE_IDX)
-        for j in range(nbr_embeddings_in):
+        for root_i_offset in range(nbr_embeddings_in):
             for i, root_i in enumerate(indices):
-                meta = forest.get_tree_dict_string(idx=forest.roots[root_i+j], stop_types=(REC_EMB_HAS_PARSE),
+                meta = forest.get_tree_dict_string(idx=forest.roots[root_i+root_i_offset], stop_types=(REC_EMB_HAS_PARSE),
                                                    index_types=(REC_EMB_HAS_PARSE))
                 idx_parse = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
-                all_indices[nbr_embeddings_in * i + j] = idx_parse
-                forest.pos_to_component_mapping[idx_parse] = root_i
-                if j == 0:
+                all_indices[nbr_embeddings_in * i + root_i_offset] = idx_parse
+                forest.pos_to_component_mapping[idx_parse] = root_i + root_i_offset
+                if root_i_offset == 0:
                     relatedness_scores[i] = meta_getter(meta)
     else:
         indices_score = forest.roots[indices] + OFFSET_RELATEDNESS_SCORE_ROOT + 1
@@ -881,7 +881,7 @@ def indices_multiclass(index_files, forest, classes_all_ids, classes_root_offset
                 else:
                     idx_parse = int(meta[REC_EMB_HAS_PARSE][0][JSONLD_IDX])
                 indices_context_root[nbr_embeddings_in * i + root_i_offset] = idx_parse
-                forest.pos_to_component_mapping[idx_parse] = root_i
+                forest.pos_to_component_mapping[idx_parse] = root_i + root_i_offset
                 if root_i_offset == 0:
                     if fixed_offsets:
                         current_class_ids = forest.data[fixed_offsets_class + idx_start]
