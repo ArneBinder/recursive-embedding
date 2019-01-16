@@ -315,6 +315,9 @@ class TreeEmbedding(object):
     def children(self, name=KEY_CHILDREN):
         return td.InputTransform(lambda x: x.get(KEY_CHILDREN, []), name=name)
 
+    def has_children(self):
+        return td.InputTransform(lambda x: len(x.get(KEY_CHILDREN, [])) != 0)
+
     def calc_reference_vs_candidate(self, reference_indices, candidate_indices):
         reference_embedding = tf.nn.l2_normalize(tf.gather(self.lexicon, reference_indices), dim=-1)
         candidate_embedding = tf.nn.l2_normalize(tf.gather(self.lexicon, candidate_indices), dim=-1)
@@ -531,6 +534,7 @@ class TreeEmbedding_mapGRU_w_direction(TreeEmbedding_map):
 
     @property
     def map(self):
+        # check direction (0 or 1) of head
         return td.OneOf(key_fn=td.GetItem(0) >> td.GetItem(1),
                         case_blocks={
                             0: td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1)) >> self._rnn_cell_fw,
@@ -790,6 +794,26 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
         # depends on self.new_state
         ot = self.map.output_type
         return ot.shape[-1]
+
+
+class TreeEmbedding_HTU_plain_leaf(TreeEmbedding_HTU):
+    """Calculates an embedding over a (recursive) SequenceNode."""
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTU_plain_leaf, self).__init__(name='HTU_' + name, **kwargs)
+        assert self.head_size == self.state_size, 'head_size [%i] has to equal state_size [%i] for HTU_plain_leaf' \
+                                                  % (self.head_size, self.state_size)
+
+    def __call__(self):
+        embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
+        #state = self.new_state(self.head_w_direction, self.children() >> td.Map(embed_tree()))
+        state = td.OneOf(key_fn=self.has_children(),
+                         case_blocks={
+                             True: self.new_state(self.head_w_direction, self.children() >> td.Map(embed_tree())),
+                             False: self.head_w_direction() >> td.GetItem(0)
+                         })
+        embed_tree.resolve_to(state)
+        return state
 
 
 class TreeEmbedding_HTU_w_direction(TreeEmbedding_HTU):
@@ -1054,9 +1078,15 @@ class TreeEmbedding_HTU_reduceSUM_mapGRU2(TreeEmbedding_reduceSUM, TreeEmbedding
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapGRU2, self).__init__(name=name, **kwargs)
 
+
 class TreeEmbedding_HTU_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTU_w_direction):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapGRU_wd, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTU_reduceSUM_mapGRU_pl(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU, TreeEmbedding_HTU_plain_leaf):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceSUM_mapGRU_pl, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceSUM_mapLSTM(TreeEmbedding_reduceSUM, TreeEmbedding_mapLSTM, TreeEmbedding_HTU):
