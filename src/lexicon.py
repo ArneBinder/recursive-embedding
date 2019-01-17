@@ -619,7 +619,7 @@ class Lexicon(object):
             ids_added = {}
             vecs_new = np.zeros(shape=[len(self), dims], dtype=DTYPE_VECS)
             for idx_source, line in enumerate(f):
-                parts = line.split()
+                parts = line.split(' ')
                 if len(parts) != dims + 1:
                     logger.warning('line %i has wrong number of columns (%i), skip it: %s...' % (idx_source, len(parts), line[:100]))
                     continue
