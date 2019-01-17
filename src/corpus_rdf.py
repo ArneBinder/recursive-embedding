@@ -908,7 +908,11 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
         recemb.lexicon.init_vecs_with_spacy_vocab(vocab=nlp.vocab, prefix=word_prefix + u'')
     if min_count > 1:
         logger.debug('filter lexicon by min_count=%i...' % min_count)
-        recemb.lexicon.shrink_via_min_count(data_hashes=recemb.data, min_count=min_count)
+        hashes_classes = None
+        if classes_prefix is not None and classes_prefix.strip() != '':
+            hashes_classes = recemb.lexicon.get_hashes_for_prefix(prefix=classes_prefix.strip())
+            logger.debug('keep %i hashes for classes_prefix=%s' % (len(hashes_classes), classes_prefix.strip()))
+        recemb.lexicon.shrink_via_min_count(data_hashes=recemb.data, keep_hashes=hashes_classes, min_count=min_count)
     logger.debug('convert data (hashes to lexicon indices)...')
     recemb.hashes_to_indices()
 

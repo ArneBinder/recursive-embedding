@@ -557,12 +557,14 @@ class Lexicon(object):
         if self._vecs is not None and self._vecs.shape[0] > 0:
             self.freeze()
 
-    def shrink_via_min_count(self, data_hashes, min_count=2):
+    def shrink_via_min_count(self, data_hashes, keep_hashes=None, min_count=2):
         # get current fixed hashes
         hashes_fixed = self.hashes[self.ids_fixed]
         hashes_unique, c = np.unique(data_hashes, return_counts=True)
         # keep hashes that occur at least min_count times and entries in hashes_fixed
-        mask = np.logical_or(c >= min_count, np.isin(hashes_unique, hashes_fixed))
+        mask = np.logical_or(c >= min_count, np.isin(hashes_unique, hashes_fixed), np.isin(hashes_unique, keep_hashes))
+        if keep_hashes is not None:
+            mask = np.logical_or(mask, np.isin(hashes_unique, keep_hashes))
         hashes_filtered = hashes_unique[mask]
         logger.debug('keep %i of %i lexicon entries (removed %i; fixed entries are kept)'
                      % (len(hashes_filtered), len(self), len(self) - len(hashes_filtered)))
@@ -684,14 +686,19 @@ class Lexicon(object):
         if add_separator:
             prefix = prefix + SEPARATOR
         res = [(self.mapping[self.strings[s]], s) for s in self.strings if s.startswith(prefix)]
-        if prefix == TYPE_LEXEME + SEPARATOR:
-            logger.debug('add UNKNOWN for prefix %s' % TYPE_LEXEME)
-            s = vocab_manual[UNKNOWN_EMBEDDING]
-            res.append((self.mapping[self.strings[s]], s))
+        if add_separator:
+            if prefix == TYPE_LEXEME + SEPARATOR:
+                logger.debug('add UNKNOWN for prefix %s' % TYPE_LEXEME)
+                s = vocab_manual[UNKNOWN_EMBEDDING]
+                res.append((self.mapping[self.strings[s]], s))
         if len(res) == 0:
             logger.warning('no indices found for prefix=%s' % prefix)
             return [(), ()]
         return zip(*res)
+
+    def get_hashes_for_prefix(self, prefix):
+        res = [self.strings[s] for s in self.strings if s.startswith(prefix)]
+        return res
 
     def get_ids_for_prefixes_or_types(self, prefixes_or_types, data_as_hashes):
         ids = []
