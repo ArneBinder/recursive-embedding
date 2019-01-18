@@ -44,6 +44,15 @@ def move_to_front(l, entries):
     return entries + [e for e in l if e not in entries]
 
 
+def collect_subpaths_with_fn(path, fn):
+    res = []
+    for root, dirs, files in os.walk(path):
+        for file in files:
+            if file == fn:
+                res.append(root)
+    return res
+
+
 @plac.annotations(
     out=('output file name', 'option', 'o', str),
     fn=('input file name', 'option', 'f', str),
@@ -53,7 +62,12 @@ def move_to_front(l, entries):
 def load_and_merge_scores(out, fn='scores.tsv', semeval=False, *paths):
     data = []
     assert len(paths) > 0, 'no folders given'
+    all_paths = []
     for path in paths:
+        _paths = collect_subpaths_with_fn(path, fn)
+        print('%s -> %s' % (path, _paths))
+        all_paths.extend(_paths)
+    for path in all_paths:
         print('read %s ...' % os.path.join(path, fn))
         dir_name = os.path.basename(path)
         new_data = list(csv.DictReader(open(os.path.join(path, fn)), delimiter='\t'))
