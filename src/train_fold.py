@@ -1924,9 +1924,9 @@ if __name__ == '__main__':
                                      'search) and ".jsonl" or ".jl" for json line files (indicates individual settings per '
                                      'line)' % f_ext)
             else:
-                if ';' in config.dev_file_indices:
+                if '/' in config.dev_file_indices:
                     logger.info('create multiple dev_file_indices sets from %s...' % config.dev_file_indices)
-                    dev_file_indices_parts = config.dev_file_indices.split(';')
+                    dev_file_indices_parts = config.dev_file_indices.split('/')
                     parameters_keys, settings = config.create_new_configs([{'dev_file_indices': dfi} for dfi in dev_file_indices_parts],
                                                                           fieldnames_loaded)
                 else:
