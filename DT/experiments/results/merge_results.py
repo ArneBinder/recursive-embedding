@@ -3,7 +3,6 @@ import os
 import re
 
 import plac
-from eval_semeval2010t8 import eval
 
 
 def to_number(s):
@@ -74,6 +73,7 @@ def load_and_merge_scores(out, fn='scores.tsv', semeval=False, *paths):
         for d in new_data:
             d['dir'] = dir_name
             if semeval:
+                from eval_semeval2010t8 import eval
                 run_dir = os.path.join(dir_name, d['run_description'])
                 assert os.path.exists(run_dir), 'path not found: %s' % run_dir
                 d['f1_semeval'] = eval(path_dir=run_dir)
