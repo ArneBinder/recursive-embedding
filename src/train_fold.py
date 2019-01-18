@@ -637,19 +637,21 @@ def init_model_type(config, logdir):
         meta_args = {}
         meta_class_indices_getter = None
         model_kwargs['nbr_embeddings_in'] = 1
-        if RDF_BASED_FORMAT:
-            type_class = TYPE_FOR_TASK[config.task]
-        else:
-            type_class = TYPE_FOR_TASK_OLD[config.task]
-        classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class)
+        #if RDF_BASED_FORMAT:
+        #    type_class = TYPE_FOR_TASK[config.task]
+        #else:
+        #    type_class = TYPE_FOR_TASK_OLD[config.task]
+        config.task = config.task.strip()
+        type_class_long = TYPE_LONG.get(config.task, config.task)
+        classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class_long)
         fixed_offsets = True
 
         # MESH prediction
-        if config.task == TASK_MESH_PREDICTION:
+        if type_class_long == TYPE_MESH:
             model_kwargs['exclusive_classes'] = False
             fixed_offsets = False
         # IMDB SENTIMENT prediction
-        elif config.task == TASK_SENTIMENT_PREDICTION:
+        elif type_class_long == IMDB_SENTIMENT:
             model_kwargs['exclusive_classes'] = False
             if RDF_BASED_FORMAT:
                 # take only one sentiment class
@@ -660,36 +662,37 @@ def init_model_type(config, logdir):
                 # get @idx entry of sentiment (has to be wrapped to a list)
                 meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT][0][JSONLD_IDX]]
         # SICK ENTAILMENT prediction
-        elif config.task == TASK_ENTAILMENT_PREDICTION:
+        elif type_class_long == SICK_ENTAILMENT_JUDGMENT:
             model_kwargs['exclusive_classes'] = True
             model_kwargs['nbr_embeddings_in'] = 2
-            other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
             if RDF_BASED_FORMAT:
                 # create @idx entries for entailment_judgment
-                meta_args = {'index_types': (SICK_ENTAILMENT_JUDGMENT,)}
+                meta_args = {'index_types': (type_class_long,)}
                 # get @idx entry of entailment_judgment (has to be wrapped to a list)
-                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_ENTAILMENT_JUDGMENT][0][JSONLD_IDX]]
+                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][type_class_long][0][JSONLD_IDX]]
+            else:
+                other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
         # SEMEVAL2010TASK8 RELATION prediction
-        elif config.task in [TASK_RELATION_EXTRACTION_SEMEVAL, TASK_RELATION_EXTRACTION_TACRED]:
+        elif type_class_long in [TASK_RELATION_EXTRACTION_SEMEVAL, TASK_RELATION_EXTRACTION_TACRED]:
             model_kwargs['exclusive_classes'] = True
             if config.blank.strip() != '':
-                config.blank = ','.join((config.blank, type_class))
+                config.blank = ','.join((config.blank, config.task))
             else:
-                config.blank = type_class
+                config.blank = config.task
             if RDF_BASED_FORMAT:
-                meta_args = {'index_types': (type_class,), 'stop_types': (type_class,)}
-                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][type_class][0][JSONLD_IDX]]
+                meta_args = {'index_types': (type_class_long,), 'stop_types': (type_class_long,)}
+                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][type_class_long][0][JSONLD_IDX]]
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
 
-        save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=type_class, classes_ids=classes_ids,
+        save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=type_class_long, classes_ids=classes_ids,
                        classes_strings=classes_strings)
         logger.debug('predict classes: %s' % ', '.join(classes_strings))
         model_kwargs['nbr_classes'] = len(classes_ids)
         if RDF_BASED_FORMAT:
             classes_root_offset = None
         else:
-            classes_root_offset = OFFSET_CLASS_ROOTS[type_class]
+            classes_root_offset = OFFSET_CLASS_ROOTS[config.task]
 
         indices_getter = partial(diters.indices_multiclass, classes_all_ids=classes_ids,
                                  classes_root_offset=classes_root_offset, other_offset=other_offset,
