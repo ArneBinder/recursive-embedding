@@ -673,7 +673,7 @@ def init_model_type(config, logdir):
             else:
                 other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
         # SEMEVAL2010TASK8 RELATION prediction
-        elif type_class_long in [TASK_RELATION_EXTRACTION_SEMEVAL, TASK_RELATION_EXTRACTION_TACRED]:
+        elif type_class_long in [SEMEVAL_RELATION, TACRED_RELATION]:
             model_kwargs['exclusive_classes'] = True
             if config.blank.strip() != '':
                 config.blank = ','.join((config.blank, config.task))
