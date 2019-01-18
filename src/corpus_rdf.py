@@ -333,7 +333,8 @@ def parse_and_convert_record(record_id,
         assert token_features is not None, 'parser==None requires token_features, but it is None'
         conll_lines = list(record_to_conll(token_features, captions=conll_columns,
                                            key_mapping={'WORD': 'token', 'UPOS': 'stanford_pos',
-                                                        'HEAD': 'stanford_head', 'EDGE': 'stanford_deprel'}))
+                                                        'HEAD': 'stanford_head', 'EDGE': 'stanford_deprel',
+                                                        'ENTITY': 'stanford_ner'}))
         parser_str = u'None'
         # conll_columns = ('index', 'token', 'subj', 'subj_type', 'obj', 'obj_type', 'stanford_pos', 'stanford_ner', 'stanford_deprel', 'stanford_head')
     elif isinstance(parsers[0], spacy.language.Language):
