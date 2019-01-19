@@ -1246,7 +1246,22 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                             f.writelines((s+'\n' for s in max_strings.tolist()))
                         with open(os.path.join(logdir, 'values_gold_strings.txt'), 'w') as f:
                             f.writelines((s+'\n' for s in gold_strings.tolist()))
-                #lexicon.dump(filename=os.path.join(logdir, 'model'), strings_only=True)
+                    elif config.model_type == MT_MULTICLASS:
+                        type_class_long = TYPE_LONG.get(config.task, config.task)
+                        classes_ids, classes_strings = load_class_ids(config.train_data_path,
+                                                                      prefix_type=type_class_long)
+                        assert len(classes_strings) == values_all.shape[-1], \
+                            'nbr of classes [%i] does not match nbr of predicted probabilities [%i]' \
+                            % (len(classes_strings), values_all.shape[-1])
+                        i_max_predicted = np.argmax(values_all, axis=1)
+                        i_max_gold = np.argmax(values_all_gold, axis=1)
+                        strings_predicted = [classes_strings[i] for i in i_max_predicted]
+                        strings_gold = [classes_strings[i] for i in i_max_gold]
+                        with open(os.path.join(logdir, 'values_predicted_max_strings.txt'), 'w') as f:
+                            f.writelines((s+'\n' for s in strings_predicted))
+                        with open(os.path.join(logdir, 'values_gold_max_strings.txt'), 'w') as f:
+                            f.writelines((s+'\n' for s in strings_gold))
+
                 return stats_dict
         else:
             stats_dict = None
@@ -2011,6 +2026,7 @@ if __name__ == '__main__':
 
                         # test
                         if use_test_files:
+                            logger.info('test ----------------------------------------------------------------------------------')
                             t_start = datetime.now()
                             metrics_test = execute_run(c, test_only=True, precompile=FLAGS.precompile,
                                                        test_files=FLAGS.test_files, debug=FLAGS.debug,
