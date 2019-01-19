@@ -685,6 +685,9 @@ def init_model_type(config, logdir):
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
 
+        # remove duplicated entries and sort
+        if len(config.blank.strip()) > 0:
+            config.blank = ','.join(sorted(list(set(config.blank.strip().split(',')))))
         save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=type_class_long, classes_ids=classes_ids,
                        classes_strings=classes_strings)
         logger.debug('predict classes: %s' % ', '.join(classes_strings))
