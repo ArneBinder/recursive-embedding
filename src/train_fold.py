@@ -53,7 +53,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION_SEMEVAL, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
     RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_GLOBAL_ANNOTATION, JSONLD_DATA, \
     TYPE_FOR_TASK_OLD, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION, JSONLD_IDX, REC_EMB_HAS_PARSE, SEMEVAL_RELATION, \
-    TACRED_RELATION, TASK_RELATION_EXTRACTION_TACRED
+    TACRED_RELATION, TASK_RELATION_EXTRACTION_TACRED, SICK_RELATEDNESS_SCORE, JSONLD_VALUE
 from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
 #from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
 #    indices_dbpedianif
@@ -579,8 +579,8 @@ def init_model_type(config, logdir):
     if config.model_type == MT_TUPLE_CONTINOUES:
         tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
                               'concat_mode': config.concat_mode}
-
-        indices_getter = diters.indices_sick
+        meta_value_getter = lambda x: (float(x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][SICK_RELATEDNESS_SCORE][0][JSONLD_VALUE]) - 1.0) / 4.0
+        indices_getter = partial(diters.indices_value, nbr_embeddings_in=2, meta_value_getter=meta_value_getter)
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_default.__name__
     # seeAlso prediction (dbpedianif)
@@ -633,7 +633,6 @@ def init_model_type(config, logdir):
 
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_default.__name__
-        other_offset = None
         meta_args = {}
         meta_class_indices_getter = None
         model_kwargs['nbr_embeddings_in'] = 1
@@ -653,25 +652,21 @@ def init_model_type(config, logdir):
         # IMDB SENTIMENT prediction
         elif type_class_long == IMDB_SENTIMENT:
             model_kwargs['exclusive_classes'] = False
-            if RDF_BASED_FORMAT:
-                # take only one sentiment class
-                classes_ids = classes_ids[:1]
-                classes_strings = classes_strings[:1]
-                # create @idx entries for sentiment
-                meta_args = {'index_types': (IMDB_SENTIMENT,)}
-                # get @idx entry of sentiment (has to be wrapped to a list)
-                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT][0][JSONLD_IDX]]
+            # take only one sentiment class
+            classes_ids = classes_ids[:1]
+            classes_strings = classes_strings[:1]
+            # create @idx entries for sentiment
+            meta_args = {'index_types': (IMDB_SENTIMENT,)}
+            # get @idx entry of sentiment (has to be wrapped to a list)
+            meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][IMDB_SENTIMENT][0][JSONLD_IDX]]
         # SICK ENTAILMENT prediction
         elif type_class_long == SICK_ENTAILMENT_JUDGMENT:
             model_kwargs['exclusive_classes'] = True
             model_kwargs['nbr_embeddings_in'] = 2
-            if RDF_BASED_FORMAT:
-                # create @idx entries for entailment_judgment
-                meta_args = {'index_types': (type_class_long,)}
-                # get @idx entry of entailment_judgment (has to be wrapped to a list)
-                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][type_class_long][0][JSONLD_IDX]]
-            else:
-                other_offset = OFFSET_OTHER_ENTRY_ROOT + 1
+            # create @idx entries for entailment_judgment
+            meta_args = {'index_types': (type_class_long,)}
+            # get @idx entry of entailment_judgment (has to be wrapped to a list)
+            meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_GLOBAL_ANNOTATION][0][REC_EMB_GLOBAL_ANNOTATION][0][type_class_long][0][JSONLD_IDX]]
         # SEMEVAL2010TASK8 RELATION prediction
         elif type_class_long in [SEMEVAL_RELATION, TACRED_RELATION]:
             model_kwargs['exclusive_classes'] = True
@@ -679,9 +674,8 @@ def init_model_type(config, logdir):
                 config.blank = ','.join((config.blank, config.task))
             else:
                 config.blank = config.task
-            if RDF_BASED_FORMAT:
-                meta_args = {'index_types': (type_class_long,), 'stop_types': (type_class_long,)}
-                meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][type_class_long][0][JSONLD_IDX]]
+            meta_args = {'index_types': (type_class_long,), 'stop_types': (type_class_long,)}
+            meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][type_class_long][0][JSONLD_IDX]]
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
 
@@ -692,14 +686,9 @@ def init_model_type(config, logdir):
                        classes_strings=classes_strings)
         logger.debug('predict classes: %s' % ', '.join(classes_strings))
         model_kwargs['nbr_classes'] = len(classes_ids)
-        if RDF_BASED_FORMAT:
-            classes_root_offset = None
-        else:
-            classes_root_offset = OFFSET_CLASS_ROOTS[config.task]
 
         indices_getter = partial(diters.indices_multiclass, classes_all_ids=classes_ids,
-                                 classes_root_offset=classes_root_offset, other_offset=other_offset,
-                                 nbr_embeddings_in=model_kwargs['nbr_embeddings_in'], meta_args=meta_args,
+                                 nbr_embeddings_in=model_kwargs['nbr_embeddings_in'], meta_getter_args=meta_args,
                                  meta_class_indices_getter=meta_class_indices_getter, fixed_offsets=fixed_offsets)
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
