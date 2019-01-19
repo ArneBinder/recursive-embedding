@@ -828,12 +828,12 @@ def indices_value(index_files, forest, nbr_embeddings_in=2, meta_getter_args={},
     if sort_indices or DEBUG:
         if len(indices_per_file) != 1:
             logger.warning('sort indices of multiple files, set sizes to None (%s)' % str(index_files))
-            sizes = [None for indices in indices_per_file]
+            sizes = [None for _indices in indices_per_file]
         else:
             sizes = [len(indices)]
         indices = np.sort(indices)
     else:
-        sizes = [len(indices) * nbr_embeddings_in for indices in indices_per_file]
+        sizes = [len(_indices) * nbr_embeddings_in for _indices in indices_per_file]
     assert RDF_BASED_FORMAT, 'old format (not RDF based) is deprecated'
     assert nbr_embeddings_in >= 1, 'nbr_embeddings_in has to be at least 1, but is %s' % str(nbr_embeddings_in)
     assert meta_value_getter is not None, 'meta_value_getter is None'
@@ -866,12 +866,12 @@ def indices_multiclass(index_files, forest, classes_all_ids, nbr_embeddings_in=1
     if sort_indices or DEBUG:
         if len(indices_per_file) != 1:
             logger.warning('sort indices of multiple files, set sizes to None (%s)' % str(index_files))
-            sizes = [None for indices in indices_per_file]
+            sizes = [None for _indices in indices_per_file]
         else:
             sizes = [len(indices)]
         indices = np.sort(indices)
     else:
-        sizes = [len(indices) * nbr_embeddings_in for indices in indices_per_file]
+        sizes = [len(_indices) * nbr_embeddings_in for _indices in indices_per_file]
     assert RDF_BASED_FORMAT, 'old format (not RDF based) is deprecated'
     assert nbr_embeddings_in >= 1, 'nbr_embeddings_in has to be at least 1, but is %s' % str(nbr_embeddings_in)
     assert meta_class_indices_getter is not None, 'meta_class_indices_getter is None'
