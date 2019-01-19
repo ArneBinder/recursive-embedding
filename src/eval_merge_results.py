@@ -55,7 +55,7 @@ def collect_subpaths_with_fn(path, fn):
 @plac.annotations(
     out=('output file name', 'option', 'o', str),
     fn=('input file name', 'option', 'f', str),
-    semeval=('output file name', 'option', 'e', bool),
+    semeval=('output file name', 'flag', 'e', bool),
     paths=('paths to folders', 'positional', None, str, None, 'p')
 )
 def load_and_merge_scores(out, fn='scores.tsv', semeval=False, *paths):
