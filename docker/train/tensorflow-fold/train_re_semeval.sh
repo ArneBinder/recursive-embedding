@@ -21,10 +21,10 @@ echo "ENV_GENERAL=$ENV_GENERAL"
 ./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/RECNN train-settings/task/re-semeval.env train-settings/model/recnn.env train-settings/dataset/corenlp/semeval-direct.env "$ENV_GENERAL"
 
 # BOW
-./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/RNN train-settings/task/re-semeval.env train-settings/model/bow.env train-settings/dataset/corenlp/semeval-direct.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/BOW train-settings/task/re-semeval.env train-settings/model/bow.env train-settings/dataset/corenlp/semeval-direct.env "$ENV_GENERAL"
 
 # RNN
-./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/BOW train-settings/task/re-semeval.env train-settings/model/rnn.env train-settings/dataset/corenlp/semeval-direct.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/RNN train-settings/task/re-semeval.env train-settings/model/rnn.env train-settings/dataset/corenlp/semeval-direct.env "$ENV_GENERAL"
 
 ## SPAN
 
@@ -32,10 +32,10 @@ echo "ENV_GENERAL=$ENV_GENERAL"
 ./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/SPAN/RECNN train-settings/task/re-semeval.env train-settings/model/recnn.env train-settings/dataset/corenlp/semeval-span.env "$ENV_GENERAL"
 
 # BOW
-./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/SPAN/RNN train-settings/task/re-semeval.env train-settings/model/bow.env train-settings/dataset/corenlp/semeval-span.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/SPAN/BOW train-settings/task/re-semeval.env train-settings/model/bow.env train-settings/dataset/corenlp/semeval-span.env "$ENV_GENERAL"
 
 # RNN
-./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/SPAN/BOW train-settings/task/re-semeval.env train-settings/model/rnn.env train-settings/dataset/corenlp/semeval-span.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/SPAN/RNN train-settings/task/re-semeval.env train-settings/model/rnn.env train-settings/dataset/corenlp/semeval-span.env "$ENV_GENERAL"
 
 ## EDGES
 

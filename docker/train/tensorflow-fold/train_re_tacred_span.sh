@@ -19,7 +19,7 @@ echo "ENV_GENERAL=$ENV_GENERAL"
 ./train.sh "$USE_GPUS" RE/TACRED/SPAN/RECNN train-settings/task/re-tacred.env train-settings/model/recnn.env train-settings/dataset/corenlp/tacred-span.env "$ENV_GENERAL"
 
 # BOW
-./train.sh "$USE_GPUS" RE/TACRED/SPAN/RNN train-settings/task/re-tacred.env train-settings/model/bow.env train-settings/dataset/corenlp/tacred-span.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/TACRED/SPAN/BOW train-settings/task/re-tacred.env train-settings/model/bow.env train-settings/dataset/corenlp/tacred-span.env "$ENV_GENERAL"
 
 # RNN
-./train.sh "$USE_GPUS" RE/TACRED/SPAN/BOW train-settings/task/re-tacred.env train-settings/model/rnn.env train-settings/dataset/corenlp/tacred-span.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/TACRED/SPAN/RNN train-settings/task/re-tacred.env train-settings/model/rnn.env train-settings/dataset/corenlp/tacred-span.env "$ENV_GENERAL"
