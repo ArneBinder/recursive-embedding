@@ -75,7 +75,10 @@ def load_and_merge_scores(out, fn='scores.tsv', semeval=False, *paths):
             if semeval:
                 from eval_semeval2010t8 import eval
                 run_dir = os.path.join(dir_name, d['run_description'])
-                assert os.path.exists(run_dir), 'path not found: %s' % run_dir
+                #assert os.path.exists(run_dir), 'path not found: %s' % run_dir
+                if not os.path.exists(run_dir):
+                    print('WARNING: path not found, skip: %s' % run_dir)
+                    continue
                 d['f1_semeval'] = eval(path_dir=run_dir)
             rd = d['run_description'].split('/')
             # ATTENTION: assume that dir_name is of format: something_SENTENCEPROCESSOR
