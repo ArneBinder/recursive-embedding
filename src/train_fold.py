@@ -1954,23 +1954,24 @@ if __name__ == '__main__':
                 csvfile.flush()
 
                 logger.info('execute %i different settings, repeat each %i times' % (len(settings), FLAGS.run_count))
-                for c, d in settings:
-                    assert c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'
+                for _c, d in settings:
+                    assert _c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'
                     #cache_dev = {}
                     #cache_test = {}
                     best_previous_logdir = None
                     best_previous_metric = None
                     for i in range(FLAGS.run_count):
                         if FLAGS.reuse_embeddings and best_previous_logdir:
-                            c.var_vecs_zero = False
-                            c.var_vecs_random = False
+                            _c.var_vecs_zero = False
+                            _c.var_vecs_random = False
 
-                        c.set_run_description()
-                        run_desc_backup = c.run_description
+                        _c.set_run_description()
+                        #run_desc_backup = _c.run_description
 
                         logger.info(
                             'start run ==============================================================================')
-                        c.run_description = os.path.join(run_desc_backup, str(i))
+                        c = copy.deepcopy(_c)
+                        c.run_description = os.path.join(_c.run_description, str(i))
                         logdir = os.path.join(FLAGS.logdir, c.run_description)
 
                         # check, if the test file exists, before executing the run
@@ -1997,7 +1998,7 @@ if __name__ == '__main__':
                                            best_previous_logdir, best_previous_metric or -1))
                                     best_previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
                                     best_previous_metric = run_descriptions_done[c.run_description][FLAGS.early_stopping_metric]
-                            c.run_description = run_desc_backup
+                            #c.run_description = run_desc_backup
                             continue
 
                         d['run_description'] = c.run_description
@@ -2037,7 +2038,7 @@ if __name__ == '__main__':
                             add_metrics(d, metrics_test, metric_keys=metrics, prefix=stats_prefix_test)
                             logger.info('test score (%s): %f' % (metric_main, metrics_test[metric_main]))
 
-                        c.run_description = run_desc_backup
+                        #c.run_description = run_desc_backup
                         score_writer.writerow(d)
                         csvfile.flush()
 

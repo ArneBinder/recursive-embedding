@@ -397,9 +397,10 @@ class Config(object):
             v = self.__dict__['__values'][flag]
             getattr(tf.flags, v[0])(flag, v[1], v[2])
 
-    def __deepcopy__(self):
-        newone = type(self)(values=copy.deepcopy(self.__dict__['__values']))
-        return newone
+    def __deepcopy__(self, memo):
+        result = type(self)(values=copy.deepcopy(self.__dict__['__values'], memo))
+        memo[id(self)] = result
+        return result
 
     def explode(self, value_dict, previous_fieldnames=None):
         previous_dict = {}
@@ -407,7 +408,7 @@ class Config(object):
             previous_dict = {fnl: self.__dict__['__values'][fnl][1] for fnl in previous_fieldnames if fnl in self.__dict__['__values'].keys()}
         res = []
         for d in mytools.dict_product(value_dict):
-            temp = self.__deepcopy__()
+            temp = copy.deepcopy(self)
             for k in d.keys():
                 temp.__setattr__(key=k, value=d[k])
             d.update({k: previous_dict[k] for k in previous_dict.keys() if k not in d.keys()})
@@ -432,7 +433,7 @@ class Config(object):
         parameter_keys_.extend(previous_dict.keys())
         parameter_keys = set(parameter_keys_)
         for d in config_dicts_list:
-            temp = self.__deepcopy__()
+            temp = copy.deepcopy(self)
             for k in parameter_keys:
                 if k in d.keys():
                     temp.__setattr__(key=k, value=d[k])
