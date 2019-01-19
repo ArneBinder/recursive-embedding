@@ -2,7 +2,7 @@ import os
 import subprocess
 import numpy as np
 
-from src.constants import TYPE_RELATION, SEMEVAL_RELATION, TACRED_RELATION
+from constants import TYPE_RELATION, SEMEVAL_RELATION, TACRED_RELATION
 
 
 def format_rel(rel):
@@ -36,16 +36,16 @@ def convert_values(path, fn_class_strings):
     return fn_predicted_tsv, fn_gold_tsv
 
 
-def eval(path_dir, fn_class_strings='data.RELATION.classes.strings',
+def eval(path_dir, fn_class_strings='data.smvl:vocab#relation.classes.strings',
          fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2.pl'):
 
-    fn_gold_strings = os.path.join(path_dir, 'values_gold_strings.txt')
-    fn_max_strings = os.path.join(path_dir, 'values_max_strings.txt')
-    if os.path.exists(fn_gold_strings) and os.path.exists(fn_max_strings):
-        fn_gold_tsv = os.path.join(path_dir, 'values_gold_strings.tsv')
-        fn_predicted_tsv = os.path.join(path_dir, 'values_max_strings.tsv')
-        open(fn_gold_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_gold_strings).readlines())))
-        open(fn_predicted_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_max_strings).readlines())))
+    fn_gold_strings = os.path.join(path_dir, 'values_gold_max_strings')
+    fn_max_strings = os.path.join(path_dir, 'values_predicted_max_strings')
+    if os.path.exists(fn_gold_strings + '.txt') and os.path.exists(fn_max_strings + '.txt'):
+        fn_gold_tsv = fn_gold_strings + '.tsv'
+        fn_predicted_tsv = fn_max_strings + '.tsv'
+        open(fn_gold_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_gold_strings + '.txt').readlines())))
+        open(fn_predicted_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_max_strings + '.txt').readlines())))
     else:
         fn_predicted_tsv, fn_gold_tsv = convert_values(path=path_dir, fn_class_strings=fn_class_strings)
 
