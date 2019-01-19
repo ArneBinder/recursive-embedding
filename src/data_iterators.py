@@ -826,6 +826,7 @@ def indices_value(index_files, forest, nbr_embeddings_in=2, meta_getter_args={},
     indices_per_file = load_indices(index_files)
     indices = np.concatenate(indices_per_file)
     if sort_indices or DEBUG:
+        logger.debug('sort indices from %s' % str(index_files))
         if len(indices_per_file) != 1:
             logger.warning('sort indices of multiple files, set sizes to None (%s)' % str(index_files))
             sizes = [None for _indices in indices_per_file]
@@ -864,6 +865,7 @@ def indices_multiclass(index_files, forest, classes_all_ids, nbr_embeddings_in=1
     indices_per_file = load_indices(index_files)
     indices = np.concatenate(indices_per_file)
     if sort_indices or DEBUG:
+        logger.debug('sort indices from %s' % str(index_files))
         if len(indices_per_file) != 1:
             logger.warning('sort indices of multiple files, set sizes to None (%s)' % str(index_files))
             sizes = [None for _indices in indices_per_file]

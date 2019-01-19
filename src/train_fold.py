@@ -1553,7 +1553,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     logger.info('calc indices from index files ...')
     for m in meta:
         assert M_FNAMES in meta[m], 'no %s fnames found' % m
-        meta[m][M_INDICES], meta[m][M_INDICES_TARGETS], meta[m][M_INDEX_FILE_SIZES] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest)
+        meta[m][M_INDICES], meta[m][M_INDICES_TARGETS], meta[m][M_INDEX_FILE_SIZES] = indices_getter(index_files=meta[m][M_FNAMES], forest=forest, sort_indices=(m==M_TEST))
         # dump tree indices
         if not loaded_from_checkpoint:
             numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
