@@ -543,8 +543,8 @@ class TreeEmbedding_mapGRU_w_direction(TreeEmbedding_map):
         # check direction (0 or 1) of head
         return td.OneOf(key_fn=td.GetItem(0) >> td.GetItem(1),
                         case_blocks={
-                            0: td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1)) >> self._rnn_cell_fw,
-                            1: td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1)) >> self._rnn_cell_bw
+                            0: self.input_wo_direction >> self._rnn_cell_fw,
+                            1: self.input_wo_direction >> self._rnn_cell_bw
                         }) >> td.GetItem(1)
 
 
@@ -560,7 +560,7 @@ class TreeEmbedding_mapGRU2(TreeEmbedding_map):
         temp = td.AllOf(td.Function(lambda head, state: (head, state[:, self.state_size:])) >> self._rnn_cell,
                         td.Function(lambda head, state: state[:, :self.state_size]))
         res = self.input_wo_direction >> temp \
-              >> td.AllOf(td.AllOf(td.GetItem(0) >> td.GetItem(0), td.GetItem(1))
+              >> td.AllOf(self.input_wo_direction
                           # sum current_output with previous_summed_outputs
                           >> td.Function(lambda x, y: x + y),
                           # concatenate (summed_outputs, new_state)
@@ -1093,6 +1093,11 @@ class TreeEmbedding_HTU_reduceSUM_mapGRU(TreeEmbedding_reduceSUM, TreeEmbedding_
         super(TreeEmbedding_HTU_reduceSUM_mapGRU, self).__init__(name=name, **kwargs)
 
 
+class TreeEmbedding_HTU_reduceMAX_mapGRU(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceMAX_mapGRU, self).__init__(name=name, **kwargs)
+
+
 class TreeEmbedding_HTU_reduceSUM_mapGRU2(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU2, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapGRU2, self).__init__(name=name, **kwargs)
@@ -1131,6 +1136,16 @@ class TreeEmbedding_HTU_reduceSUM_mapCCFC(TreeEmbedding_reduceSUM, TreeEmbedding
 class TreeEmbedding_HTUrev_reduceSUM_mapGRU(TreeEmbedding_mapGRU, TreeEmbedding_reduceSUM, TreeEmbedding_HTUrev):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTUrev_reduceSUM_mapGRU, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTUrev_reduceAVG_mapGRU(TreeEmbedding_mapGRU, TreeEmbedding_reduceAVG, TreeEmbedding_HTUrev):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTUrev_reduceAVG_mapGRU, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTUrev_reduceMAX_mapGRU(TreeEmbedding_mapGRU, TreeEmbedding_reduceMAX, TreeEmbedding_HTUrev):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTUrev_reduceMAX_mapGRU, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTUdep_mapGRU(TreeEmbedding_HTUdep, TreeEmbedding_mapGRU):
