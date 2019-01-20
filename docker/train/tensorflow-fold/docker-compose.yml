@@ -75,6 +75,7 @@ services:
         --blank=${BLANK}
         --sample_method=${SAMPLE_METHOD}
         --add_heads=${ADD_HEADS}
+        --bidirectional=${BIDIRECTIONAL}
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
 
