@@ -889,7 +889,7 @@ class TreeEmbedding_HTUrev(TreeEmbedding_HTU):
 
     def new_state(self, head, children):
         children_mapped = td.AllOf(head() >> td.Broadcast(), children) >> td.Zip() >> td.Map(self.map)
-        return td.AllOf(head(), children_mapped) >> self.reduce >> td.GetItem(1)
+        return td.AllOf(td.Void(), children_mapped) >> self.reduce >> td.GetItem(1)
 
     @property
     def output_size(self):
