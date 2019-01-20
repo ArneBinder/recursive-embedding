@@ -600,8 +600,7 @@ def init_model_type(config, logdir):
         elif config.tree_embedder.strip() == 'HTU_reduceSUM_mapGRU_wd':
             config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU_wd'
         if config.tree_embedder.strip() not in ['HTUBatchedHead_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapCCFC', 'HTUBatchedHead_reduceSUM_mapGRU_wd']:
-            raise NotImplementedError('reroot model only implemented for tree_embedder == '
-                                      'HTU_reduceSUM_mapGRU, but it is: %s'
+            raise NotImplementedError('reroot model only implemented for HTUBatchedHead tree_embedder, but it is: %s'
                                       % config.tree_embedder.strip())
 
         config.batch_iter = batch_iter_fixed_probs.__name__
