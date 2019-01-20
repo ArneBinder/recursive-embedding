@@ -1241,7 +1241,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                         get_max_strings = np.vectorize(lambda d: lexicon.get_s(d=d, data_as_hashes=False))
                         max_strings = get_max_strings(v_i_max)
                         gold_strings = get_max_strings(v_i_gold)
-                        with open(os.path.join(logdir, 'values_max_strings.txt'), 'w') as f:
+                        with open(os.path.join(logdir, 'values_predicted_strings.txt'), 'w') as f:
                             f.writelines((s+'\n' for s in max_strings.tolist()))
                         with open(os.path.join(logdir, 'values_gold_strings.txt'), 'w') as f:
                             f.writelines((s+'\n' for s in gold_strings.tolist()))
@@ -1256,9 +1256,9 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                         i_max_gold = np.argmax(values_all_gold, axis=1)
                         strings_predicted = [classes_strings[i] for i in i_max_predicted]
                         strings_gold = [classes_strings[i] for i in i_max_gold]
-                        with open(os.path.join(logdir, 'values_predicted_max_strings.txt'), 'w') as f:
+                        with open(os.path.join(logdir, 'values_predicted_strings.txt'), 'w') as f:
                             f.writelines((s+'\n' for s in strings_predicted))
-                        with open(os.path.join(logdir, 'values_gold_max_strings.txt'), 'w') as f:
+                        with open(os.path.join(logdir, 'values_gold_strings.txt'), 'w') as f:
                             f.writelines((s+'\n' for s in strings_gold))
 
                 return stats_dict

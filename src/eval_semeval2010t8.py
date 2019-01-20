@@ -27,8 +27,15 @@ def ids_to_str(sc, fn_in, fn_out):
         ('%i\t%s\n' % (i, format_rel(sc[idx])) for i, idx in enumerate(np.argmax(v, axis=1))))
 
 
-def convert_values(path, fn_class_strings):
-    sc = list((s[:-1] for s in open(os.path.join(path, fn_class_strings))))
+def convert_values(path, class_strings):
+    sc = None
+    for class_string in class_strings:
+        _fn = (os.path.join(path, 'data.%s.classes.strings' % class_string))
+        if os.path.exists(_fn):
+            sc = list((s[:-1] for s in open(_fn)))
+            break
+    assert sc is not None, 'No classes strings file found (looked for %s)' % str(['data.%s.classes.strings' % s for s in class_strings])
+
     fn_predicted_tsv = os.path.join(path, 'strings_predicted.tsv')
     fn_gold_tsv = os.path.join(path, 'strings_gold.tsv')
     ids_to_str(sc=sc, fn_in=os.path.join(path, 'values_predicted.np'), fn_out=fn_predicted_tsv)
@@ -36,18 +43,18 @@ def convert_values(path, fn_class_strings):
     return fn_predicted_tsv, fn_gold_tsv
 
 
-def eval(path_dir, fn_class_strings='data.smvl:vocab#relation.classes.strings',
+def eval(path_dir, class_strings=('smvl:vocab#relation', 'RELS'),
          fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2.pl'):
 
-    fn_gold_strings = os.path.join(path_dir, 'values_gold_max_strings')
-    fn_max_strings = os.path.join(path_dir, 'values_predicted_max_strings')
+    fn_gold_strings = os.path.join(path_dir, 'values_gold_strings')
+    fn_max_strings = os.path.join(path_dir, 'values_predicted_strings')
     if os.path.exists(fn_gold_strings + '.txt') and os.path.exists(fn_max_strings + '.txt'):
         fn_gold_tsv = fn_gold_strings + '.tsv'
         fn_predicted_tsv = fn_max_strings + '.tsv'
         open(fn_gold_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_gold_strings + '.txt').readlines())))
         open(fn_predicted_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_max_strings + '.txt').readlines())))
     else:
-        fn_predicted_tsv, fn_gold_tsv = convert_values(path=path_dir, fn_class_strings=fn_class_strings)
+        fn_predicted_tsv, fn_gold_tsv = convert_values(path=path_dir, class_strings=class_strings)
 
     check_script = 'perl %s %s %s' % (fn_script, fn_predicted_tsv, fn_gold_tsv)
     perl_result = subprocess.check_output(check_script, shell=True)
