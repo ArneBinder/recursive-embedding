@@ -1247,8 +1247,7 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                             f.writelines((s+'\n' for s in gold_strings.tolist()))
                     elif config.model_type == MT_MULTICLASS:
                         type_class_long = TYPE_LONG.get(config.task, config.task)
-                        classes_ids, classes_strings = load_class_ids(config.train_data_path,
-                                                                      prefix_type=type_class_long)
+                        classes_ids, classes_strings = load_class_ids(logdir, prefix_type=type_class_long)
                         assert len(classes_strings) == values_all.shape[-1], \
                             'nbr of classes [%i] does not match nbr of predicted probabilities [%i]' \
                             % (len(classes_strings), values_all.shape[-1])
