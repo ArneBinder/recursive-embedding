@@ -519,32 +519,65 @@ def gru_cell(scope, state_size, keep_prob, input_size):
             'gru_cell')
 
 
-class TreeEmbedding_mapGRU(TreeEmbedding_map):
+class TreeEmbedding_RNN(TreeEmbedding):
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_RNN, self).__init__(name=name, **kwargs)
+
+    def rnn(self, rnn_cells, name='RNN'):
+        if len(rnn_cells) == 1:
+            rnn = rnn_cells[0]
+        else:
+            logger.debug('create RNN with state sizes: %s' % str(self.state_sizes))
+            rnn = td.Composition(name=name)
+            with rnn.scope():
+                head = rnn.input[0]
+                states_concat = rnn.input[1]
+                _start = 0
+                start_dims = [0]
+                for i, size in enumerate(self.state_sizes):
+                    _start += size
+                    start_dims.append(_start)
+                states_split = td.Function(lambda s: [s[:, start_dims[i]:start_dims[i+1]] for i in range(len(self.state_sizes))]).reads(states_concat)
+                current_head = head
+                new_states = []
+                for i, cell in enumerate(rnn_cells):
+                    # wrap cell into pipe to enable .reads function
+                    _cell = td.Pipe(cell).reads(current_head, states_split[i])
+                    current_head = td.GetItem(0).reads(_cell)
+                    new_states.append(td.GetItem(1).reads(_cell))
+                new_state = td.Concat().reads(*new_states)
+                rnn.output.reads(current_head, new_state)
+        return rnn
+
+
+class TreeEmbedding_mapGRU(TreeEmbedding_map, TreeEmbedding_RNN):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_mapGRU, self).__init__(name='mapGRU_' + name, **kwargs)
-        self._rnn_cell = gru_cell(self.scope, self.state_size, self.keep_prob, self.head_size)
+        input_sizes = [self.head_size] + self.state_sizes[:-1]
+        self._rnn_cells = [gru_cell(self.scope, state_size, self.keep_prob, input_sizes[i]) for i, state_size in enumerate(self.state_sizes)]
 
     @property
     def map(self):
-        return self.input_wo_direction >> self._rnn_cell >> td.GetItem(1)
+        return self.input_wo_direction >> self.rnn(self._rnn_cells) >> td.GetItem(1)
 
 
-class TreeEmbedding_mapGRU_w_direction(TreeEmbedding_map):
+class TreeEmbedding_mapGRU_w_direction(TreeEmbedding_map, TreeEmbedding_RNN):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_mapGRU_w_direction, self).__init__(name='mapGRU_w_direction' + name, **kwargs)
+        input_sizes = [self.head_size] + self.state_sizes[:-1]
         with tf.variable_scope(self.scope):
             with tf.variable_scope('map/forward') as scope:
-                self._rnn_cell_fw = gru_cell(scope, self.state_size, self.keep_prob, self.head_size)
+                self._rnn_cells_fw = [gru_cell(scope, state_size, self.keep_prob, input_sizes[i]) for i, state_size in enumerate(self.state_sizes)]
             with tf.variable_scope('map/backward') as scope:
-                self._rnn_cell_bw = gru_cell(scope, self.state_size, self.keep_prob, self.head_size)
+                self._rnn_cells_bw = [gru_cell(scope, state_size, self.keep_prob, input_sizes[i]) for i, state_size in enumerate(self.state_sizes)]
 
     @property
     def map(self):
         # check direction (0 or 1) of head
         return td.OneOf(key_fn=td.GetItem(0) >> td.GetItem(1),
                         case_blocks={
-                            0: self.input_wo_direction >> self._rnn_cell_fw,
-                            1: self.input_wo_direction >> self._rnn_cell_bw
+                            0: self.input_wo_direction >> self.rnn(self._rnn_cells_fw, name='GRU_fw'),
+                            1: self.input_wo_direction >> self.rnn(self._rnn_cells_bw, name='GRU_bw')
                         }) >> td.GetItem(1)
 
 
@@ -569,19 +602,19 @@ class TreeEmbedding_mapGRU2(TreeEmbedding_map):
         return res
 
 
-class TreeEmbedding_reduceGRU(TreeEmbedding_reduce):
+class TreeEmbedding_reduceGRU(TreeEmbedding_reduce, TreeEmbedding_RNN):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_reduceGRU, self).__init__(name='reduceGRU_' + name, **kwargs)
-        self._rnn_cell = gru_cell(self.scope, self.state_size, self.keep_prob, self.head_size)
+        input_sizes = [self.head_size] + self.state_sizes[:-1]
+        self._rnn_cells = [gru_cell(self.scope, state_size, self.keep_prob, input_sizes[i]) for i, state_size in enumerate(self.state_sizes)]
 
     @property
     def reduce(self):
-        return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Pipe(td.RNN(self._rnn_cell), td.GetItem(1)))
+        return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.RNN(self.rnn(self._rnn_cells)) >> td.GetItem(1))
 
     @property
     def output_size(self):
-        #return self.root_fc_size or self.state_size
-        return self.state_size
+        return sum(self.state_sizes)
 
 
 def lstm_cell(scope, state_size, keep_prob, input_size, state_is_tuple=True):
@@ -808,8 +841,8 @@ class TreeEmbedding_HTU_plain_leaf(TreeEmbedding_HTU):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTU_plain_leaf, self).__init__(name='HTU_' + name, **kwargs)
-        assert self.head_size == self.state_size, 'head_size [%i] has to equal state_size [%i] for HTU_plain_leaf' \
-                                                  % (self.head_size, self.state_size)
+        assert self.head_size == sum(self.state_sizes), 'head_size [%i] has to equal sum of state_sizes [%i] for HTU_plain_leaf' \
+                                                  % (self.head_size, sum(self.state_sizes))
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
@@ -828,7 +861,7 @@ class TreeEmbedding_HTU_init_state(TreeEmbedding_HTU):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTU_init_state, self).__init__(name='HTU_init_state_' + name, **kwargs)
         with tf.variable_scope(self.name):
-            self._init_state = tf.Variable(tf.constant(0.0, shape=[self.state_size]), trainable=True,
+            self._init_state = tf.Variable(tf.constant(0.0, shape=[sum(self.state_sizes)]), trainable=True,
                                            name='initial_state')
 
     def __call__(self):
@@ -970,7 +1003,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     @property
     def output_size(self):
-        return self.dimension_embeddings + self.state_size + 1
+        return self.dimension_embeddings + sum(self.state_sizes) + 1
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
