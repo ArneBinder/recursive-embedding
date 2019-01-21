@@ -6,9 +6,16 @@ from constants import TYPE_RELATION, SEMEVAL_RELATION, TACRED_RELATION
 
 
 def format_rel(rel):
-    if rel.startswith(SEMEVAL_RELATION) or rel.startswith(TACRED_RELATION):
+    if rel.startswith(SEMEVAL_RELATION):
         rel_split = rel.strip().split('=')
         return rel_split[1]
+    if rel.startswith(TACRED_RELATION):
+        rel_split = rel.strip().split('=')
+        rel_string = rel_split[1]
+        if rel_string == 'no_relation':
+            return 'Other'
+        rel_string = rel_string.replace(':', '-').replace('/', '_')
+        return rel_string + '(e1,e2)'
     rel_split = rel.strip().split('/')
     if rel_split[-1] == 'Other':
         return rel_split[-1]
@@ -43,8 +50,8 @@ def convert_values(path, class_strings):
     return fn_predicted_tsv, fn_gold_tsv
 
 
-def eval(path_dir, class_strings=('smvl:vocab#relation', 'RELS'),
-         fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2.pl'):
+def eval(path_dir, class_strings=(SEMEVAL_RELATION, TACRED_RELATION, 'RELS', 'RELT'),
+         fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2_tacred.pl'):
 
     fn_gold_strings = os.path.join(path_dir, 'values_gold_strings')
     fn_max_strings = os.path.join(path_dir, 'values_predicted_strings')
