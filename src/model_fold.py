@@ -614,7 +614,7 @@ class TreeEmbedding_reduceGRU(TreeEmbedding_reduce, TreeEmbedding_RNN):
 
     @property
     def output_size(self):
-        return sum(self.state_sizes)
+        return self.state_size
 
 
 def lstm_cell(scope, state_size, keep_prob, input_size, state_is_tuple=True):
@@ -841,8 +841,8 @@ class TreeEmbedding_HTU_plain_leaf(TreeEmbedding_HTU):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTU_plain_leaf, self).__init__(name='HTU_' + name, **kwargs)
-        assert self.head_size == sum(self.state_sizes), 'head_size [%i] has to equal sum of state_sizes [%i] for HTU_plain_leaf' \
-                                                  % (self.head_size, sum(self.state_sizes))
+        assert self.head_size == self.state_size, 'head_size [%i] has to equal sum of state_sizes [%i] for HTU_plain_leaf' \
+                                                  % (self.head_size, self.state_size)
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
@@ -861,7 +861,7 @@ class TreeEmbedding_HTU_init_state(TreeEmbedding_HTU):
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTU_init_state, self).__init__(name='HTU_init_state_' + name, **kwargs)
         with tf.variable_scope(self.name):
-            self._init_state = tf.Variable(tf.constant(0.0, shape=[sum(self.state_sizes)]), trainable=True,
+            self._init_state = tf.Variable(tf.constant(0.0, shape=[self.state_size]), trainable=True,
                                            name='initial_state')
 
     def __call__(self):
@@ -1003,7 +1003,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
 
     @property
     def output_size(self):
-        return self.dimension_embeddings + sum(self.state_sizes) + 1
+        return self.dimension_embeddings + self.state_size + 1
 
 
 class TreeEmbedding_FLAT(TreeEmbedding_reduce):
