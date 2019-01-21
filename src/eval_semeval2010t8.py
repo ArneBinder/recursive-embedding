@@ -28,13 +28,13 @@ def format_rel(rel):
     raise Exception('unknown format for relation: %s' % rel)
 
 
-def ids_to_str(sc, fn_in, fn_out):
+def ids_to_str(sc, fn_in, fn_out, exclude_class=None, threshold=0.5):
     v = np.load(fn_in)
     open(fn_out, 'w').writelines(
-        ('%i\t%s\n' % (i, format_rel(sc[idx])) for i, idx in enumerate(np.argmax(v, axis=1))))
+        ('%i\t%s\n' % (i, format_rel(sc[idx] if exclude_class is None or v[i, idx] >= threshold else exclude_class)) for i, idx in enumerate(np.argmax(v, axis=1))))
 
 
-def convert_values(path, class_strings):
+def convert_values(path, class_strings, fn_gold_tsv, fn_predicted_tsv, exclude_class=None, threshold=0.5):
     sc = None
     for class_string in class_strings:
         _fn = (os.path.join(path, 'data.%s.classes.strings' % class_string))
@@ -43,25 +43,32 @@ def convert_values(path, class_strings):
             break
     assert sc is not None, 'No classes strings file found (looked for %s)' % str(['data.%s.classes.strings' % s for s in class_strings])
 
-    fn_predicted_tsv = os.path.join(path, 'strings_predicted.tsv')
-    fn_gold_tsv = os.path.join(path, 'strings_gold.tsv')
-    ids_to_str(sc=sc, fn_in=os.path.join(path, 'values_predicted.np'), fn_out=fn_predicted_tsv)
-    ids_to_str(sc=sc, fn_in=os.path.join(path, 'values_gold.np'), fn_out=fn_gold_tsv)
+    #fn_predicted_tsv = os.path.join(path, 'strings_predicted.tsv')
+    #fn_gold_tsv = os.path.join(path, 'strings_gold.tsv')
+    ids_to_str(sc=sc, fn_in=os.path.join(path, 'values_predicted.np'), fn_out=fn_predicted_tsv, exclude_class=exclude_class, threshold=threshold)
+    ids_to_str(sc=sc, fn_in=os.path.join(path, 'values_gold.np'), fn_out=fn_gold_tsv, exclude_class=exclude_class, threshold=threshold)
     return fn_predicted_tsv, fn_gold_tsv
 
 
-def eval(path_dir, class_strings=(SEMEVAL_RELATION, TACRED_RELATION, 'RELS', 'RELT'),
+def eval(path_dir, exclude_class=None, threshold=0.5, class_strings=(SEMEVAL_RELATION, TACRED_RELATION, 'RELS', 'RELT'),
          fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2_tacred.pl'):
 
     fn_gold_strings = os.path.join(path_dir, 'values_gold_strings')
     fn_max_strings = os.path.join(path_dir, 'values_predicted_strings')
-    if os.path.exists(fn_gold_strings + '.txt') and os.path.exists(fn_max_strings + '.txt'):
-        fn_gold_tsv = fn_gold_strings + '.tsv'
-        fn_predicted_tsv = fn_max_strings + '.tsv'
-        open(fn_gold_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_gold_strings + '.txt').readlines())))
-        open(fn_predicted_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_max_strings + '.txt').readlines())))
-    else:
-        fn_predicted_tsv, fn_gold_tsv = convert_values(path=path_dir, class_strings=class_strings)
+    if exclude_class is not None:
+        print('exclude class: %s, use threshold: %f' % (exclude_class, threshold))
+        fn_gold_strings += '_t%.2f' % threshold
+        fn_max_strings += '_t%.2f' % threshold
+    fn_gold_tsv = fn_gold_strings + '.tsv'
+    fn_predicted_tsv = fn_max_strings + '.tsv'
+    if not os.path.exists(fn_gold_tsv) or not os.path.exists(fn_predicted_tsv):
+        if os.path.exists(fn_gold_strings + '.txt') and os.path.exists(fn_max_strings + '.txt'):
+            open(fn_gold_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_gold_strings + '.txt').readlines())))
+            open(fn_predicted_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_max_strings + '.txt').readlines())))
+        else:
+            print('%s or %s not found, create from probabilities...' % (fn_max_strings, fn_gold_strings))
+            convert_values(path=path_dir, fn_gold_tsv=fn_gold_tsv, fn_predicted_tsv=fn_predicted_tsv,
+                           class_strings=class_strings, exclude_class=exclude_class, threshold=threshold)
 
     check_script = 'perl %s %s %s' % (fn_script, fn_predicted_tsv, fn_gold_tsv)
     perl_result = subprocess.check_output(check_script, shell=True)
