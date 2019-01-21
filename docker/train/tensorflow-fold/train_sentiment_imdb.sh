@@ -18,15 +18,15 @@ echo "ENV_GENERAL=$ENV_GENERAL"
 ## DIRECT
 
 # RECNN
-./train.sh "$USE_GPUS" SENTIMENT/IMDB/DIRECT/RECNN train-settings/task/entailment.env train-settings/model/recnn.env train-settings/dataset/corenlp/imdb-direct.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" SENTIMENT/IMDB/DIRECT/RECNN train-settings/task/sentiment.env train-settings/model/recnn.env train-settings/dataset/corenlp/imdb-direct.env "$ENV_GENERAL"
 
 # BOW
-./train.sh "$USE_GPUS" SENTIMENT/IMDB/DIRECT/BOW train-settings/task/entailment.env train-settings/model/bow.env train-settings/dataset/corenlp/imdb-direct.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" SENTIMENT/IMDB/DIRECT/BOW train-settings/task/sentiment.env train-settings/model/bow.env train-settings/dataset/corenlp/imdb-direct.env "$ENV_GENERAL"
 
 # RNN
-./train.sh "$USE_GPUS" SENTIMENT/IMDB/DIRECT/RNN train-settings/task/entailment.env train-settings/model/rnn.env train-settings/dataset/corenlp/imdb-direct.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" SENTIMENT/IMDB/DIRECT/RNN train-settings/task/sentiment.env train-settings/model/rnn.env train-settings/dataset/corenlp/imdb-direct.env "$ENV_GENERAL"
 
 ## EDGES
 
 # RECNN
-./train.sh "$USE_GPUS" SENTIMENT/IMDB/EDGES/RECNN train-settings/task/entailment.env train-settings/model/recnn.env train-settings/dataset/corenlp/imdb-edges.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" SENTIMENT/IMDB/EDGES/RECNN train-settings/task/sentiment.env train-settings/model/recnn.env train-settings/dataset/corenlp/imdb-edges.env "$ENV_GENERAL"
