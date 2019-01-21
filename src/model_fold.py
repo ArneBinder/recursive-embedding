@@ -336,7 +336,7 @@ class TreeEmbedding(object):
 
     @property
     def state_size(self):
-        return self._state_sizes[-1]
+        return sum(self._state_sizes)
 
     @property
     def state_sizes(self):
