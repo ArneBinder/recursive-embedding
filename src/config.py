@@ -241,6 +241,11 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     False,
                                     'If enabled, follow edges in opposite direction. Works only with tree models',
                                     'd'],
+                  'exclude_class': ['DEFINE_string',
+                                    '',
+                                    'exclude class for multi class prediction. '
+                                    'NOTE: Setting this, sets exclusive_classes=True',
+                                    'ec'],
                   'use_circular_correlation': [
                       'DEFINE_boolean',
                       False,

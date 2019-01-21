@@ -652,8 +652,10 @@ def init_model_type(config, logdir):
         elif type_class_long == IMDB_SENTIMENT:
             model_kwargs['exclusive_classes'] = False
             # take only one sentiment class
-            classes_ids = classes_ids[:1]
-            classes_strings = classes_strings[:1]
+            #classes_ids = classes_ids[:1]
+            #classes_strings = classes_strings[:1]
+            if config.exclude_class is None or config.exclude_class.strip() == '':
+                config.exclude_class = 'imdb:vocab#sentiment=neg'
             # create @idx entries for sentiment
             meta_args = {'index_types': (IMDB_SENTIMENT,)}
             # get @idx entry of sentiment (has to be wrapped to a list)
@@ -675,12 +677,28 @@ def init_model_type(config, logdir):
                 config.blank = config.task
             meta_args = {'index_types': (type_class_long,), 'stop_types': (type_class_long,)}
             meta_class_indices_getter = lambda x: [x[REC_EMB_HAS_PARSE_ANNOTATION][0][type_class_long][0][JSONLD_IDX]]
+            #if config.exclude_class is None or config.exclude_class.strip() == '':
+            #  if type_class_long == SEMEVAL_RELATION:
+            #      config.exclude_class = 'smvl:vocab#relation=Other'
+            #  elif type_class_long == TACRED_RELATION:
+            #      config.exclude_class = 'tac:vocab#relation=no_relation'
         else:
             raise NotImplementedError('Task=%s is not implemented for model_type=%s' % (config.task, config.model_type))
 
         # remove duplicated entries and sort
         if len(config.blank.strip()) > 0:
             config.blank = ','.join(sorted(list(set(config.blank.strip().split(',')))))
+        if config.exclude_class is not None and config.exclude_class.strip() != '':
+            logger.info('exclude class: %s' % config.exclude_class)
+            excl_class_idx = classes_strings.index(config.exclude_class)
+            del classes_strings[excl_class_idx]
+            classes_ids = classes_ids[np.arange(len(classes_ids), dtype=int) != excl_class_idx]
+            assert len(classes_ids) == len(classes_strings), \
+                'nbr of class ids [%i] does not match nbr of class strings [%i]' \
+                % (len(classes_ids), len(classes_strings))
+            logger.debug('set exclusive_classes=False')
+            model_kwargs['exclusive_classes'] = False
+
         save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=type_class_long, classes_ids=classes_ids,
                        classes_strings=classes_strings)
         logger.debug('predict classes: %s' % ', '.join(classes_strings))
@@ -1247,14 +1265,20 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                             f.writelines((s+'\n' for s in gold_strings.tolist()))
                     elif config.model_type == MT_MULTICLASS:
                         type_class_long = TYPE_LONG.get(config.task, config.task)
-                        classes_ids, classes_strings = load_class_ids(logdir, prefix_type=type_class_long)
+                        classes_ids, classes_strings = load_class_ids(os.path.join(logdir, 'data'), prefix_type=type_class_long)
                         assert len(classes_strings) == values_all.shape[-1], \
                             'nbr of classes [%i] does not match nbr of predicted probabilities [%i]' \
                             % (len(classes_strings), values_all.shape[-1])
                         i_max_predicted = np.argmax(values_all, axis=1)
                         i_max_gold = np.argmax(values_all_gold, axis=1)
-                        strings_predicted = [classes_strings[i] for i in i_max_predicted]
-                        strings_gold = [classes_strings[i] for i in i_max_gold]
+
+                        if config.exclude_class is not None and config.exclude_class.strip() != '':
+                            class_threshold = 0.33
+                            strings_predicted = [classes_strings[idx] if values_all[i, idx] >= class_threshold else config.exclude_class.strip() for i, idx in enumerate(i_max_predicted)]
+                            strings_gold = [classes_strings[idx] if values_all_gold[i, idx] >= class_threshold else config.exclude_class.strip() for i, idx in enumerate(i_max_gold)]
+                        else:
+                            strings_predicted = [classes_strings[i] for i in i_max_predicted]
+                            strings_gold = [classes_strings[i] for i in i_max_gold]
                         with open(os.path.join(logdir, 'values_predicted_strings.txt'), 'w') as f:
                             f.writelines((s+'\n' for s in strings_predicted))
                         with open(os.path.join(logdir, 'values_gold_strings.txt'), 'w') as f:
