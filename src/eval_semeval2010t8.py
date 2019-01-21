@@ -66,10 +66,14 @@ def eval(path_dir, class_strings=(SEMEVAL_RELATION, TACRED_RELATION, 'RELS', 'RE
     check_script = 'perl %s %s %s' % (fn_script, fn_predicted_tsv, fn_gold_tsv)
     perl_result = subprocess.check_output(check_script, shell=True)
     open(os.path.join(path_dir, 'eval.txt'), 'w').write(perl_result)
-    last_line = perl_result.split('\n')[-2]
+    perl_result_lines = perl_result.split('\n')
+    f1_micro_idx = perl_result_lines.index('Micro-averaged result (excluding Other):') + 1
+    f1_micro_str = perl_result_lines[f1_micro_idx].split('=')[-1].replace('%', '')
+    f1_micro_score = float(f1_micro_str) / 100
+    last_line = perl_result_lines[-2]
     score_str = last_line.replace('<<< The official score is (9+1)-way evaluation with directionality taken into account: macro-averaged F1 = ', '').replace('% >>>', '')
-    f1 = float(score_str) / 100
-    return f1
+    f1_score = float(score_str) / 100
+    return f1_score, f1_micro_score
 
 
 if __name__ == "__main__":

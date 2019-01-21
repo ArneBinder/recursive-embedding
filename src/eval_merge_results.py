@@ -79,7 +79,7 @@ def load_and_merge_scores(out, fn='scores.tsv', semeval=False, *paths):
                 if not os.path.exists(run_dir):
                     print('WARNING: path not found, skip: %s' % run_dir)
                     continue
-                d['f1_semeval'] = eval(path_dir=run_dir)
+                d['f1_wo_norelation_macro'], d['f1_wo_norelation_micro'] = eval(path_dir=run_dir)
             rd = d['run_description'].split('/')
             # ATTENTION: assume that dir_name is of format: something_SENTENCEPROCESSOR
             # the sentence processor is added to the run_desc used for arranging same settings
