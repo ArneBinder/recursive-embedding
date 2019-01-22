@@ -75,16 +75,19 @@ def load_and_merge_scores(out, fn='scores.tsv', semeval=False, exclude_class=Non
         for d in new_data:
             d['dir'] = dir_name
             if semeval:
-                from eval_semeval2010t8 import eval
-                run_dir = os.path.join(path, d['run_description'])
-                #assert os.path.exists(run_dir), 'path not found: %s' % run_dir
-                if not os.path.exists(run_dir):
-                    print('WARNING: path not found, skip: %s' % run_dir)
-                    continue
-                t_string = '_t%.2f' % threshold if exclude_class is not None else ''
-                d['f1_wo_norelation_macro' + t_string], d['f1_wo_norelation_micro' + t_string] = eval(path_dir=run_dir,
-                                                                                exclude_class=exclude_class,
-                                                                                threshold=threshold)
+                try:
+                    from eval_semeval2010t8 import eval
+                    run_dir = os.path.join(path, d['run_description'])
+                    #assert os.path.exists(run_dir), 'path not found: %s' % run_dir
+                    if not os.path.exists(run_dir):
+                        print('WARNING: path not found, skip: %s' % run_dir)
+                        continue
+                    t_string = '_t%.2f' % threshold if exclude_class is not None else ''
+                    d['f1_wo_norelation_macro' + t_string], d['f1_wo_norelation_micro' + t_string] = eval(path_dir=run_dir,
+                                                                                    exclude_class=exclude_class,
+                                                                                    threshold=threshold)
+                except Exception as e:
+                    print('ERROR while getting semeval scores for %s:\n%s' % (dir_name, e))
             rd = d['run_description'].split('/')
             # ATTENTION: assume that dir_name is of format: something_SENTENCEPROCESSOR
             # the sentence processor is added to the run_desc used for arranging same settings
