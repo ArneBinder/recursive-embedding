@@ -497,10 +497,11 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
     ser = []
     ids = {}
     edges = []
+    skipped_preds = []
     # consider only first type
     _type = u'' + jsonld[JSONLD_TYPE][0]
     if _type in discard_types:
-        return ser, ids, edges
+        return ser, ids, edges, skipped_preds
     ser.append(_type)
     ids[u'' + jsonld[JSONLD_ID]] = offset
     preds = sort_map.get(_type, sorted(jsonld))
@@ -550,9 +551,17 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                         else:
                             new_edge = new_edge + (0, offsets[1])
                         edges.append(new_edge)
+                    if pred in skip_predicates and pred not in discard_predicates:
+                        new_edge = (obj_dict[JSONLD_ID], idx_edge_source) if revert_edge else (
+                            idx_edge_source, obj_dict[JSONLD_ID])
+                        if offset == idx_edge_source:
+                            new_edge = new_edge + offsets
+                        else:
+                            new_edge = new_edge + (0, offsets[1])
+                        skipped_preds.append((pred, new_edge))
 
                     if JSONLD_TYPE in obj_dict:
-                        obj_ser, obj_ids, obj_edges = serialize_jsonld_dict(obj_dict, offset=len(ser) + offset,
+                        obj_ser, obj_ids, obj_edges, obj_skipped_preds = serialize_jsonld_dict(obj_dict, offset=len(ser) + offset,
                                                                             sort_map=sort_map,
                                                                             discard_predicates=discard_predicates,
                                                                             discard_types=discard_types,
@@ -566,6 +575,7 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                         ser.extend(obj_ser)
                         ids.update(obj_ids)
                         edges.extend(obj_edges)
+                        skipped_preds.extend(obj_skipped_preds)
 
             # do not add edge(s), if predicate was skipped
             if idx_edge_source is not None and offset != idx_edge_source:
@@ -590,11 +600,12 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                     else:
                         edges.append((offset, idx_edge_source) + (offsets[0], 0))
 
-    return ser, ids, edges
+    return ser, ids, edges, skipped_preds
 
 
 def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, relink_relation=False,
-                     offset_predicates={}, **kwargs):
+                     offset_predicates={}, use_skipped_predicates_for_target=(),
+                     use_skipped_predicates_for_source=(), **kwargs):
     if sort_map is None:
         sort_map = {REC_EMB_RECORD: [REC_EMB_HAS_CONTEXT, REC_EMB_HAS_GLOBAL_ANNOTATION,
                                      REC_EMB_HAS_PARSE_ANNOTATION,  REC_EMB_USED_PARSER, REC_EMB_HAS_PARSE]}
@@ -614,9 +625,28 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, rel
             parse_id_obj = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _object_ids])[-1])
             min_max_predicates[REC_EMB_HAS_PARSE] = sorted((parse_id_subj, parse_id_obj))
         # see below for: + 1 (offset=len(ser) + 1)
-        _ser, _ids, _edges = serialize_jsonld_dict(jsonld_dict, offset=len(ser) + 1, sort_map=sort_map,
-                                                   min_max_predicates=min_max_predicates,
-                                                   offset_predicates=offset_predicates, **kwargs)
+        start_offset = len(ser) + 1
+        _ser, _ids, _edges, _skipped_preds = serialize_jsonld_dict(jsonld_dict, offset=start_offset, sort_map=sort_map,
+                                                                   min_max_predicates=min_max_predicates,
+                                                                   offset_predicates=offset_predicates, **kwargs)
+        for pred, (s, t, offset_s, offset_t) in _skipped_preds:
+            if pred in use_skipped_predicates_for_target:
+                t = _ids.get(t, t)
+                assert isinstance(t, int), 'target offset for pred=%s could not be resolved: %s' % (pred, str(t))
+                t += offset_t
+                if use_skipped_predicates_for_target[pred]:
+                    _ser[t - start_offset] = pred
+                else:
+                    _ser[t - start_offset] += '/' + pred
+            if pred in use_skipped_predicates_for_source:
+                s = _ids.get(s, s)
+                assert isinstance(s, int), 'source offset for pred=%s could not be resolved: %s' % (pred, str(s))
+                s += offset_s
+                if use_skipped_predicates_for_source[pred]:
+                    _ser[s - start_offset] = pred
+                else:
+                    _ser[s - start_offset] += '/' + pred
+
         _refs = {}
         for edge in _edges:
             s, t = edge[:2]
@@ -870,6 +900,8 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     if mask_with_entity_type:
         logger.info('replace words with entity type, if available')
         params['replace_literal_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'
+        params['use_skipped_predicates_for_target'] = {SEMEVAL_OBJECT: True, TACRED_OBJECT: False}
+        params['use_skipped_predicates_for_source'] = {SEMEVAL_SUBJECT: True, TACRED_SUBJECT: False}
     if restrict_span_with_annots:
         logger.info('restrict span with annots')
         assert not relink_relation, 'can not relink relation if restrict_span_with_annots'
