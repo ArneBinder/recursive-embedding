@@ -809,15 +809,17 @@ def process_jsonl_file(fn, in_path, **params):
     word_prefix=('prefix of words in lexicon', 'option', 'w', str),
     classes_prefix=('prefix for lex entries that will be saved as class ids', 'option', 'c', str),
     min_count=('minimal count a token has to be in the corpus', 'option', 'm', int),
-    params_json=('optional parameters as json string', 'option', 'a', str),
+    params_json=('optional parameters as json string', 'option', 'p', str),
     link_via_edges=('tokens via dependency edge nodes', 'flag', 'e', bool),
     mask_with_entity_type=('replace words with entity type, if available', 'flag', 't', bool),
+    mask_with_argument_type=('replace words with entity type, if available', 'flag', 'a', bool),
     restrict_span_with_annots=('replace words with entity type, if available', 'flag', 's', bool),
     relink_relation=('re-link relation annotation with LCA of subj / obj entries', 'flag', 'l', bool),
 )
 def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
                                     word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
                                     min_count=1, params_json='', link_via_edges=False, mask_with_entity_type=False,
+                                    mask_with_argument_type=False,
                                     restrict_span_with_annots=False,
                                     relink_relation=False):
     params = {}
@@ -833,6 +835,8 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
         out_path = in_path + '_recemb'
     if mask_with_entity_type:
         out_path += '_ner'
+    if mask_with_argument_type:
+        out_path += '_arg'
     if restrict_span_with_annots:
         out_path += '_span'
     if link_via_edges:
@@ -902,8 +906,19 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     if mask_with_entity_type:
         logger.info('replace words with entity type, if available')
         params['replace_literal_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'
-        params['use_skipped_predicates_for_target'] = {SEMEVAL_OBJECT: True, TACRED_OBJECT: False}
-        params['use_skipped_predicates_for_source'] = {SEMEVAL_SUBJECT: True, TACRED_SUBJECT: False}
+    if mask_with_argument_type:
+        if mask_with_entity_type:
+            logger.info('append argument type (subj / obj) to words, if available')
+        else:
+            logger.info('replace words with argument type (subj / obj), if available')
+        # Set to True, if replacing is requested. Otherwise the argument type will be appended.
+        # Replace only, if words were replaced by entity types.
+        # ATTENTION: For Semeval, just a few arguments are entities!
+        params['use_skipped_predicates_for_target'] = {SEMEVAL_OBJECT: not mask_with_entity_type,
+                                                       TACRED_OBJECT: not mask_with_entity_type}
+        params['use_skipped_predicates_for_source'] = {SEMEVAL_SUBJECT: not mask_with_entity_type,
+                                                       TACRED_SUBJECT: not mask_with_entity_type}
+
     if restrict_span_with_annots:
         logger.info('restrict span with annots')
         assert not relink_relation, 'can not relink relation if restrict_span_with_annots'
