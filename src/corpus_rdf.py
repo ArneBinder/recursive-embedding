@@ -621,9 +621,11 @@ def serialize_jsonld(jsonld, sort_map=None, restrict_span_with_annots=False, rel
                           jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_SUBJECT, [])
             _object_ids = jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(SEMEVAL_OBJECT, []) + \
                           jsonld_dict[REC_EMB_HAS_PARSE_ANNOTATION][0].get(TACRED_OBJECT, [])
-            parse_id_subj = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _subject_ids])[0])
-            parse_id_obj = token_id_to_tuple(sorted([x[JSONLD_ID] for x in _object_ids])[-1])
-            min_max_predicates[REC_EMB_HAS_PARSE] = sorted((parse_id_subj, parse_id_obj))
+            # get minimal span containing subj and obj
+            parse_ids_subj = [token_id_to_tuple(x[JSONLD_ID]) for x in _subject_ids]
+            parse_ids_obj = [token_id_to_tuple(x[JSONLD_ID]) for x in _object_ids]
+            _sorted = sorted(parse_ids_subj + parse_ids_obj)
+            min_max_predicates[REC_EMB_HAS_PARSE] = (_sorted[0], _sorted[-1])
         # see below for: + 1 (offset=len(ser) + 1)
         start_offset = len(ser) + 1
         _ser, _ids, _edges, _skipped_preds = serialize_jsonld_dict(jsonld_dict, offset=start_offset, sort_map=sort_map,
