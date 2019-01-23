@@ -402,7 +402,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #    logger.debug('%i%%' % progress)
             if DEBUG:
                 depths = np.array(depths)
-                fn = '/home/arne/DATA/ML/data/corpora_out/FINAL/depths'
+                fn = '/home/arne/DATA/ML/data/corpora_out/FINAL/depth'
                 _i = 0
                 while os.path.exists('%s.%i.np' % (fn, _i)):
                     _i += 1
@@ -472,7 +472,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #    continue
             if DEBUG:
                 lengths = np.array(lengths)
-                fn = '/home/arne/DATA/ML/data/corpora_out/lengths'
+                fn = '/home/arne/DATA/ML/data/corpora_out/length'
                 _i = 0
                 while os.path.exists('%s.%i.np' % (fn, _i)):
                     _i += 1
