@@ -15,7 +15,7 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
     REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG, NIF_SENTENCE, NIF_NEXT_SENTENCE, \
-    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT
+    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT, KEY_DEPTH
 from sequence_trees import Forest, targets
 from mytools import numpy_load
 
@@ -379,6 +379,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         #logger.debug('create trees with concat_mode=%s' % concat_mode)
         #x = (1 + (len(indices) / 100))
         if concat_mode == CM_TREE:
+            depths = []
             for idx in indices:
                 # DEBUG
                 #if DEBUG:
@@ -390,76 +391,96 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                     blank_types=blank_types, go_back=reroot,
                                                     add_heads_types=add_heads_types,
                                                     add_heads_dummies=[data_padding] * additional_heads,
-                                                    return_strings=DEBUG)
+                                                    return_strings=DEBUG, return_depth=DEBUG)
                 yield tree_context
                 n += 1
+                if DEBUG:
+                    depths.append(tree_context[KEY_DEPTH])
                 # measure progress in percent
                 #if n % x == 0:
                 #    progress = n / x
                 #    logger.debug('%i%%' % progress)
+            if DEBUG:
+                depths = np.array(depths)
+                fn = '/home/arne/DATA/ML/data/corpora_out/FINAL/depths'
+                _i = 0
+                while os.path.exists('%s.%i.np' % (fn, _i)):
+                    _i += 1
+                fn = '%s.%i.np' % (fn, _i)
+                logger.debug('dump depths to: %s' % fn)
+                depths.dump(fn)
 
         elif concat_mode == CM_AGGREGATE:
             res = []
+            lengths = []
             for idx in indices:
-                try:
-                    # ATTENTION: idx has to be added to forest.pos_to_component_mapping before!
-                    component_idx = forest.pos_to_component_mapping[idx]
-                    idx_end = forest.pos_end(component_idx=component_idx)
-                    data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
-                                                                     link_types=link_types,
-                                                                     remove_types=remove_types_naive, transform=transform)
-                    if DEBUG:
+                #try:
+                # ATTENTION: idx has to be added to forest.pos_to_component_mapping before!
+                component_idx = forest.pos_to_component_mapping[idx]
+                idx_end = forest.pos_end(component_idx=component_idx)
+                data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
+                                                                 link_types=link_types,
+                                                                 remove_types=remove_types_naive, transform=transform)
+                if DEBUG:
 
-                        data_span_cleaned_not_transformed = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
-                                                                                         link_types=link_types,
-                                                                                         remove_types=remove_types_naive,
-                                                                                         transform=False)
-                        assert len(data_span_cleaned) == len(data_span_cleaned_not_transformed), 'length mismatch'
-                        data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in
-                                               data_span_cleaned_not_transformed]
-                        tree_context_string = {KEY_HEAD: data_flat_root,
-                                                KEY_CHILDREN: [{KEY_HEAD: data_string_cleaned[i],
-                                                                KEY_CHILDREN: [],
-                                                                KEY_HEAD_CONCAT: data_string_cleaned[i+1:i+1+additional_heads]}
-                                                               for i in range(0, len(data_string_cleaned), nbr_heads_flat)]
-                                                }
-                        _idx = targets(forest.graph_out, idx)[0]
-                        _idx = targets(forest.graph_out, _idx)[0]
-                        _tree_context = forest.get_tree_dict(idx=_idx, max_depth=max_depth, context=context,
-                                                            transform=transform or reroot,
-                                                            costs=costs, link_types=link_types, data_blank=data_blanking,
-                                                            keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                            blank_types=blank_types, go_back=reroot,
-                                                            add_heads_types=add_heads_types,
-                                                            add_heads_dummies=[data_padding] * additional_heads,
-                                                            return_strings=DEBUG)
-                        debug_ids_tree = debug_get_child_ids(_tree_context)
+                    data_span_cleaned_not_transformed = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
+                                                                                     link_types=link_types,
+                                                                                     remove_types=remove_types_naive,
+                                                                                     transform=False)
+                    assert len(data_span_cleaned) == len(data_span_cleaned_not_transformed), 'length mismatch'
+                    data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in
+                                           data_span_cleaned_not_transformed]
+                    tree_context_string = {KEY_HEAD: data_flat_root,
+                                            KEY_CHILDREN: [{KEY_HEAD: data_string_cleaned[i],
+                                                            KEY_CHILDREN: [],
+                                                            KEY_HEAD_CONCAT: data_string_cleaned[i+1:i+1+additional_heads]}
+                                                           for i in range(0, len(data_string_cleaned), nbr_heads_flat)]
+                                            }
+                    _idx = targets(forest.graph_out, idx)[0]
+                    _idx = targets(forest.graph_out, _idx)[0]
+                    _tree_context = forest.get_tree_dict(idx=_idx, max_depth=max_depth, context=context,
+                                                        transform=transform or reroot,
+                                                        costs=costs, link_types=link_types, data_blank=data_blanking,
+                                                        keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
+                                                        blank_types=blank_types, go_back=reroot,
+                                                        add_heads_types=add_heads_types,
+                                                        add_heads_dummies=[data_padding] * additional_heads,
+                                                        return_strings=DEBUG)
+                    debug_ids_tree = debug_get_child_ids(_tree_context)
 
-                    assert len(data_span_cleaned) % nbr_heads_flat == 0, \
-                        'idx:%i: len(data_span_cleaned) [%i] is not a multiple of nbr_heads_flat [%i]' \
-                        % (component_idx, len(data_span_cleaned), nbr_heads_flat)
-                    #if len(data_span_cleaned) > max_size_plain * nbr_heads_flat:
-                    #    logger.warning('idx:%i: len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
-                    #                   % (component_idx, int(len(data_span_cleaned) / nbr_heads_flat), max_size_plain))
+                assert len(data_span_cleaned) % nbr_heads_flat == 0, \
+                    'idx:%i: len(data_span_cleaned) [%i] is not a multiple of nbr_heads_flat [%i]' \
+                    % (component_idx, len(data_span_cleaned), nbr_heads_flat)
+                #if len(data_span_cleaned) > max_size_plain * nbr_heads_flat:
+                #    logger.warning('idx:%i: len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
+                #                   % (component_idx, int(len(data_span_cleaned) / nbr_heads_flat), max_size_plain))
+                lengths.append(len(data_span_cleaned) / nbr_heads_flat)
+                data_span_cleaned = data_span_cleaned[:max_size_plain * nbr_heads_flat]
+                tree_context = {KEY_HEAD: data_flat_root,
+                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i],
+                                                KEY_CHILDREN: [],
+                                                KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+1+additional_heads]}
+                                               for i in range(0, len(data_span_cleaned), nbr_heads_flat)]
+                                }
 
-                    data_span_cleaned = data_span_cleaned[:max_size_plain * nbr_heads_flat]
-                    tree_context = {KEY_HEAD: data_flat_root,
-                                    KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i],
-                                                    KEY_CHILDREN: [],
-                                                    KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+1+additional_heads]}
-                                                   for i in range(0, len(data_span_cleaned), nbr_heads_flat)]
-                                    }
-
-                    #debug_ids_aggr = debug_get_child_ids(tree_context)
-                    #yield tree_context
-                    res.append(tree_context)
-                    n += 1
-                except AssertionError as e:
-                    logger.error(str(e))
-                    continue
-
-            for r in res:
-                yield r
+                #debug_ids_aggr = debug_get_child_ids(tree_context)
+                yield tree_context
+                #res.append(tree_context)
+                n += 1
+                #except AssertionError as e:
+                #    logger.error(str(e))
+                #    continue
+            if DEBUG:
+                lengths = np.array(lengths)
+                fn = '/home/arne/DATA/ML/data/corpora_out/lengths'
+                _i = 0
+                while os.path.exists('%s.%i.np' % (fn, _i)):
+                    _i += 1
+                fn = '%s.%i.np' % (fn, _i)
+                logger.debug('dump lengths to: %s' % fn)
+                lengths.dump(fn)
+            #for r in res:
+            #    yield r
                 # measure progress in percent
                 #if n % x == 0:
                 #    progress = n / x

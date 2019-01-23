@@ -191,6 +191,7 @@ KEY_CHILDREN = 'c'
 KEY_CANDIDATES = 'ca'
 KEY_HEAD_CONCAT = 'hc'
 KEY_HEAD_STRING = 'hs'
+KEY_DEPTH = 'd'
 
 # model types
 MT_MULTICLASS = 'multiclass'

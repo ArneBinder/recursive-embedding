@@ -9,7 +9,7 @@ from scipy.sparse import csr_matrix, csc_matrix, dok_matrix
 from constants import DTYPE_HASH, DTYPE_COUNT, DTYPE_IDX, DTYPE_OFFSET, DTYPE_DEPTH, KEY_HEAD, KEY_CHILDREN, \
     LOGGING_FORMAT, SEPARATOR, vocab_manual, TYPE_LEXEME, TYPE_REF, TYPE_REF_SEEALSO, TARGET_EMBEDDING, BASE_TYPES, \
     OFFSET_ID, UNKNOWN_EMBEDDING, OFFSET_CONTEXT_ROOT, LINK_TYPES, KEY_HEAD_CONCAT, JSONLD_ID, JSONLD_TYPE, JSONLD_IDX, \
-    JSONLD_DATA, JSONLD_VALUE, KEY_HEAD_STRING
+    JSONLD_DATA, JSONLD_VALUE, KEY_HEAD_STRING, KEY_DEPTH
 from mytools import numpy_load, numpy_dump, numpy_exists
 
 FE_DATA = 'data'
@@ -618,7 +618,7 @@ class Forest(object):
     def get_tree_dict(self, idx, visited=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0,
                       revert=False, blank_types=(), go_back=False, add_heads_types=(), add_heads_dummies=(),
-                      return_strings=False):
+                      return_strings=False, return_depth=False):
         """
         Build a dict version of the subtree of this sequence_tree rooted at idx.
         Maintains order of data elements.
@@ -726,7 +726,8 @@ class Forest(object):
                                                                  add_heads_types=add_heads_types,
                                                                  add_heads_dummies=add_heads_dummies,
                                                                  go_back=go_back,
-                                                                 return_strings=return_strings))
+                                                                 return_strings=return_strings,
+                                                                 return_depth=return_depth))
         if go_back:
             if self.nbr_in[idx] > 0 and 0 <= cost <= max_depth:
                 for target in targets(self.graph_in, idx):
@@ -752,7 +753,8 @@ class Forest(object):
                                                                      add_heads_types=add_heads_types,
                                                                      add_heads_dummies=add_heads_dummies,
                                                                      go_back=go_back,
-                                                                     return_strings=return_strings))
+                                                                     return_strings=return_strings,
+                                                                     return_depth=return_depth))
         if context > 0:
             for target_back in targets(self.graph_in, idx):
                 if visited is not None and target_back in visited:
@@ -776,6 +778,9 @@ class Forest(object):
                                                                  blank_types=blank_types,
                                                                  return_strings=return_strings))
 
+        if return_depth:
+            max_child_depth = max([c[KEY_DEPTH] for c in seq_node[KEY_CHILDREN]] + [0])
+            seq_node[KEY_DEPTH] = max_child_depth + 1
         return seq_node
 
     # DEPRECATED. use get_tree_dict with go_back=True
