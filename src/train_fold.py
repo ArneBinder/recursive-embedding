@@ -1991,7 +1991,7 @@ if __name__ == '__main__':
                         #run_desc_backup = _c.run_description
 
                         logger.info(
-                            'start run ==============================================================================')
+                            'RUN: %i train ==============================================================================' % i)
                         c = copy.deepcopy(_c)
                         c.run_description = os.path.join(_c.run_description, str(i))
                         logdir = os.path.join(FLAGS.logdir, c.run_description)
@@ -2049,7 +2049,7 @@ if __name__ == '__main__':
 
                         # test
                         if use_test_files:
-                            logger.info('test ----------------------------------------------------------------------------------')
+                            logger.info('RUN: %i test -------------------------------------------------------------------------------' % i)
                             t_start = datetime.now()
                             metrics_test = execute_run(c, test_only=True, precompile=FLAGS.precompile,
                                                        test_files=FLAGS.test_files, debug=FLAGS.debug,
