@@ -11,6 +11,7 @@ import logging
 import ntpath
 import os
 import re
+from shutil import rmtree
 # import google3
 # import shutil
 from multiprocessing.pool import ThreadPool
@@ -128,6 +129,9 @@ tf.flags.DEFINE_boolean('discard_tree_embeddings',
 tf.flags.DEFINE_boolean('discard_prepared_embeddings',
                         False,
                         'If enabled, discard prepared embeddings like tf-idf and pass instead vecs of zeros.')
+tf.flags.DEFINE_boolean('skip_unfinished_runs',
+                        False,
+                        'If enabled, do not continue runs (logdir exists already) that are not finished (has no entry in scores.tsv).')
 
 
 # flags which are not logged in logdir/flags.json
@@ -2006,22 +2010,29 @@ if __name__ == '__main__':
                                 use_test_files = True
 
                         # skip already processed
-                        if os.path.isdir(logdir) and c.run_description in run_descriptions_done:
-                            logger.debug('skip config for logdir: %s' % logdir)
-                            if FLAGS.reuse_embeddings:
-                                assert FLAGS.early_stopping_metric, 'If reuse_embeddings, an early_stopping_metric has to be set'
-                                if best_previous_metric is None \
-                                        or (FLAGS.early_stopping_metric in run_descriptions_done[c.run_description]
-                                            and run_descriptions_done[c.run_description][FLAGS.early_stopping_metric] >= best_previous_metric):
-                                    logging.info(
-                                        'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
-                                        % (c.run_description,
-                                           run_descriptions_done[c.run_description][FLAGS.early_stopping_metric],
-                                           best_previous_logdir, best_previous_metric or -1))
-                                    best_previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
-                                    best_previous_metric = run_descriptions_done[c.run_description][FLAGS.early_stopping_metric]
-                            #c.run_description = run_desc_backup
-                            continue
+                        if os.path.isdir(logdir):
+                            if c.run_description in run_descriptions_done:
+                                logger.debug('skip config for logdir: %s' % logdir)
+                                if FLAGS.reuse_embeddings:
+                                    assert FLAGS.early_stopping_metric, 'If reuse_embeddings, an early_stopping_metric has to be set'
+                                    if best_previous_metric is None \
+                                            or (FLAGS.early_stopping_metric in run_descriptions_done[c.run_description]
+                                                and run_descriptions_done[c.run_description][FLAGS.early_stopping_metric] >= best_previous_metric):
+                                        logging.info(
+                                            'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
+                                            % (c.run_description,
+                                               run_descriptions_done[c.run_description][FLAGS.early_stopping_metric],
+                                               best_previous_logdir, best_previous_metric or -1))
+                                        best_previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
+                                        best_previous_metric = run_descriptions_done[c.run_description][FLAGS.early_stopping_metric]
+                                #c.run_description = run_desc_backup
+                                continue
+                            else:
+                                if FLAGS.skip_unfinished_runs:
+                                    logger.warning('skip unfinished run (exists, but no scores are collected): %s' % logdir)
+                                    continue
+                                else:
+                                    logger.warning('continue logdir (exists, but no scores are collected): %s' % logdir)
 
                         d['run_description'] = c.run_description
                         # train
