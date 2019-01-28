@@ -11,6 +11,7 @@ import logging
 import ntpath
 import os
 import re
+from random import shuffle
 from shutil import rmtree
 # import google3
 # import shutil
@@ -1946,6 +1947,8 @@ if __name__ == '__main__':
                     with open(parameters_fn, 'r') as infile:
                         grid_parameters = json.load(infile)
                     parameters_keys, settings = config.explode(grid_parameters, fieldnames_loaded)
+                    logger.debug('shuffle created settings')
+                    shuffle(settings)
                 elif f_ext in ['.jl', '.jsonl']:
                     logger.info('load parameter settings from json lines: %s' % parameters_fn)
                     with open(parameters_fn, 'r') as infile:
