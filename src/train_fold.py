@@ -1999,84 +1999,87 @@ if __name__ == '__main__':
 
                         logger.info(
                             'RUN: %i train ==============================================================================' % i)
-                        c = copy.deepcopy(_c)
-                        c.run_description = os.path.join(_c.run_description, str(i))
-                        logdir = os.path.join(FLAGS.logdir, c.run_description)
+                        try:
+                            c = copy.deepcopy(_c)
+                            c.run_description = os.path.join(_c.run_description, str(i))
+                            logdir = os.path.join(FLAGS.logdir, c.run_description)
 
-                        # check, if the test file exists, before executing the run
-                        train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
-                        use_test_files = False
-                        if FLAGS.test_files is not None and FLAGS.test_files.strip() != '':
-                            for t_fn in FLAGS.test_files.strip().split(','):
-                                current_test_fname = os.path.join(train_data_dir, t_fn)
-                                assert os.path.isfile(current_test_fname), 'could not find test file: %s' % current_test_fname
-                                use_test_files = True
+                            # check, if the test file exists, before executing the run
+                            train_data_dir = os.path.abspath(os.path.join(c.train_data_path, os.pardir))
+                            use_test_files = False
+                            if FLAGS.test_files is not None and FLAGS.test_files.strip() != '':
+                                for t_fn in FLAGS.test_files.strip().split(','):
+                                    current_test_fname = os.path.join(train_data_dir, t_fn)
+                                    assert os.path.isfile(current_test_fname), 'could not find test file: %s' % current_test_fname
+                                    use_test_files = True
 
-                        # skip already processed
-                        if os.path.isdir(logdir):
-                            if c.run_description in run_descriptions_done:
-                                logger.debug('skip config for logdir: %s' % logdir)
-                                if FLAGS.reuse_embeddings:
-                                    assert FLAGS.early_stopping_metric, 'If reuse_embeddings, an early_stopping_metric has to be set'
-                                    if best_previous_metric is None \
-                                            or (FLAGS.early_stopping_metric in run_descriptions_done[c.run_description]
-                                                and run_descriptions_done[c.run_description][FLAGS.early_stopping_metric] >= best_previous_metric):
-                                        logging.info(
-                                            'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
-                                            % (c.run_description,
-                                               run_descriptions_done[c.run_description][FLAGS.early_stopping_metric],
-                                               best_previous_logdir, best_previous_metric or -1))
-                                        best_previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
-                                        best_previous_metric = run_descriptions_done[c.run_description][FLAGS.early_stopping_metric]
-                                #c.run_description = run_desc_backup
-                                continue
-                            else:
-                                if FLAGS.skip_unfinished_runs:
-                                    logger.warning('skip unfinished run (exists, but no scores are collected): %s' % logdir)
+                            # skip already processed
+                            if os.path.isdir(logdir):
+                                if c.run_description in run_descriptions_done:
+                                    logger.debug('skip config for logdir: %s' % logdir)
+                                    if FLAGS.reuse_embeddings:
+                                        assert FLAGS.early_stopping_metric, 'If reuse_embeddings, an early_stopping_metric has to be set'
+                                        if best_previous_metric is None \
+                                                or (FLAGS.early_stopping_metric in run_descriptions_done[c.run_description]
+                                                    and run_descriptions_done[c.run_description][FLAGS.early_stopping_metric] >= best_previous_metric):
+                                            logging.info(
+                                                'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
+                                                % (c.run_description,
+                                                   run_descriptions_done[c.run_description][FLAGS.early_stopping_metric],
+                                                   best_previous_logdir, best_previous_metric or -1))
+                                            best_previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
+                                            best_previous_metric = run_descriptions_done[c.run_description][FLAGS.early_stopping_metric]
+                                    #c.run_description = run_desc_backup
                                     continue
                                 else:
-                                    logger.warning('continue logdir (exists, but no scores are collected): %s' % logdir)
+                                    if FLAGS.skip_unfinished_runs:
+                                        logger.warning('skip unfinished run (exists, but no scores are collected): %s' % logdir)
+                                        continue
+                                    else:
+                                        logger.warning('continue logdir (exists, but no scores are collected): %s' % logdir)
 
-                        d['run_description'] = c.run_description
-                        # train
-                        if not FLAGS.test_only:
-                            t_start = datetime.now()
-                            metrics_dev = execute_run(c, load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
-                                                      precompile=FLAGS.precompile, debug=FLAGS.debug,
-                                                      logdir_pretrained=logdir_pretrained, vecs_pretrained=vecs_pretrained)
-                            d['steps_train'] = metrics_dev['step']
-                            d['time_s'] = (datetime.now() - t_start).total_seconds()
-                            metrics, metric_main = get_metrics_and_main_metric(metrics_dev,
-                                                                               metric_main=FLAGS.early_stopping_metric)
-                            metric_main_value = metrics_dev[metric_main]
-                            add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
-                            logger.info('best dev score (%s): %f' % (metric_main, metrics_dev[metric_main]))
+                            d['run_description'] = c.run_description
+                            # train
+                            if not FLAGS.test_only:
+                                t_start = datetime.now()
+                                metrics_dev = execute_run(c, load_embeddings=best_previous_logdir if FLAGS.reuse_embeddings else None,
+                                                          precompile=FLAGS.precompile, debug=FLAGS.debug,
+                                                          logdir_pretrained=logdir_pretrained, vecs_pretrained=vecs_pretrained)
+                                d['steps_train'] = metrics_dev['step']
+                                d['time_s'] = (datetime.now() - t_start).total_seconds()
+                                metrics, metric_main = get_metrics_and_main_metric(metrics_dev,
+                                                                                   metric_main=FLAGS.early_stopping_metric)
+                                metric_main_value = metrics_dev[metric_main]
+                                add_metrics(d, metrics_dev, metric_keys=metrics, prefix=stats_prefix_dev)
+                                logger.info('best dev score (%s): %f' % (metric_main, metrics_dev[metric_main]))
 
-                            if FLAGS.reuse_embeddings and (best_previous_metric is None or metric_main_value >= best_previous_metric):
-                                logging.info(
-                                    'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
-                                    % (c.run_description, metric_main_value, best_previous_logdir, best_previous_metric or -1))
-                                best_previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
-                                best_previous_metric = metric_main_value
-                        else:
-                            logger.info('skip training because test_only==True')
+                                if FLAGS.reuse_embeddings and (best_previous_metric is None or metric_main_value >= best_previous_metric):
+                                    logging.info(
+                                        'current run (%s) was better (%f) then previous (%s) best metric result (%f)'
+                                        % (c.run_description, metric_main_value, best_previous_logdir, best_previous_metric or -1))
+                                    best_previous_logdir = os.path.join(FLAGS.logdir, d['run_description'])
+                                    best_previous_metric = metric_main_value
+                            else:
+                                logger.info('skip training because test_only==True')
 
-                        # test
-                        if use_test_files:
-                            logger.info('RUN: %i test -------------------------------------------------------------------------------' % i)
-                            t_start = datetime.now()
-                            metrics_test = execute_run(c, test_only=True, precompile=FLAGS.precompile,
-                                                       test_files=FLAGS.test_files, debug=FLAGS.debug,
-                                                       logdir_pretrained=logdir_pretrained, vecs_pretrained=vecs_pretrained)
-                            d['time_test_s'] = (datetime.now() - t_start).total_seconds()
-                            metrics, metric_main = get_metrics_and_main_metric(metrics_test,
-                                                                               metric_main=FLAGS.early_stopping_metric)
-                            add_metrics(d, metrics_test, metric_keys=metrics, prefix=stats_prefix_test)
-                            logger.info('test score (%s): %f' % (metric_main, metrics_test[metric_main]))
+                            # test
+                            if use_test_files:
+                                logger.info('RUN: %i test -------------------------------------------------------------------------------' % i)
+                                t_start = datetime.now()
+                                metrics_test = execute_run(c, test_only=True, precompile=FLAGS.precompile,
+                                                           test_files=FLAGS.test_files, debug=FLAGS.debug,
+                                                           logdir_pretrained=logdir_pretrained, vecs_pretrained=vecs_pretrained)
+                                d['time_test_s'] = (datetime.now() - t_start).total_seconds()
+                                metrics, metric_main = get_metrics_and_main_metric(metrics_test,
+                                                                                   metric_main=FLAGS.early_stopping_metric)
+                                add_metrics(d, metrics_test, metric_keys=metrics, prefix=stats_prefix_test)
+                                logger.info('test score (%s): %f' % (metric_main, metrics_test[metric_main]))
 
-                        #c.run_description = run_desc_backup
-                        score_writer.writerow(d)
-                        csvfile.flush()
+                            #c.run_description = run_desc_backup
+                            score_writer.writerow(d)
+                            csvfile.flush()
+                        except Exception as e:
+                            logger.error('error while executing run: %s\n%s' % (c.run_description, str(e)))
 
         # default: execute single run
         else:
