@@ -1130,6 +1130,9 @@ class TreeEmbedding_HTU_reduceMAX_mapGRU(TreeEmbedding_reduceMAX, TreeEmbedding_
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceMAX_mapGRU, self).__init__(name=name, **kwargs)
 
+class TreeEmbedding_HTU_reduceAVG_mapGRU(TreeEmbedding_reduceAVG, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceAVG_mapGRU, self).__init__(name=name, **kwargs)
 
 class TreeEmbedding_HTU_reduceSUM_mapGRU2(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU2, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
