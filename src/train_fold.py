@@ -715,7 +715,7 @@ def init_model_type(config, logdir):
     else:
         raise NotImplementedError('model_type=%s not implemented' % config.model_type)
 
-    if config.bidirectional:
+    if config.bidirectional or config.tree_embedder.strip().endswith('_wd'):
         logger.info('enable bidirectional')
         tree_iterator_args['reroot'] = True
 
