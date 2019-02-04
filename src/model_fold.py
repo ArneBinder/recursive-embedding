@@ -1236,7 +1236,6 @@ class TreeEmbedding_FLAT_AVG(TreeEmbedding_reduceAVG, TreeEmbedding_FLAT):
 
     @property
     def output_size(self):
-        #return self.root_fc_size or self.head_size
         return self.head_size
 
 
@@ -1251,13 +1250,21 @@ class TreeEmbedding_FLAT_SUM(TreeEmbedding_reduceSUM, TreeEmbedding_FLAT):
 
     @property
     def output_size(self):
-        #return self.root_fc_size or self.head_size
         return self.head_size
 
 
 class TreeEmbedding_FLAT2levels_SUM(TreeEmbedding_FLAT_SUM, TreeEmbedding_FLAT2levels):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_FLAT2levels_SUM, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_FLAT_MAX(TreeEmbedding_reduceMAX, TreeEmbedding_FLAT):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_FLAT_MAX, self).__init__(name=name, **kwargs)
+
+    @property
+    def output_size(self):
+        return self.head_size
 
 
 class TreeEmbedding_FLAT_LSTM(TreeEmbedding_reduceLSTM, TreeEmbedding_FLAT):
