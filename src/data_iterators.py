@@ -455,7 +455,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #    logger.warning('idx:%i: len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
                 #                   % (component_idx, int(len(data_span_cleaned) / nbr_heads_flat), max_size_plain))
                 lengths.append(len(data_span_cleaned) / nbr_heads_flat)
-                data_span_cleaned = data_span_cleaned[:max_size_plain * nbr_heads_flat]
+                # cut tokens in the front to resemble behaviour of max_depth
+                data_span_cleaned = data_span_cleaned[max(len(data_span_cleaned) - max_size_plain * nbr_heads_flat, 0):]
                 tree_context = {KEY_HEAD: data_flat_root,
                                 KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i],
                                                 KEY_CHILDREN: [],
