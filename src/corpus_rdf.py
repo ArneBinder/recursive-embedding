@@ -466,7 +466,8 @@ def token_id_to_tuple(token_id):
 
 
 def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), discard_types=(),
-                          id_as_value_predicates=(), skip_predicates=(), swap_predicates=(), revert_predicates=(),
+                          id_as_value_predicates=(), skip_predicates=(), add_skipped_to_target_predicates=(),
+                          swap_predicates=(), revert_predicates=(),
                           offset_predicates={}, replace_literal_predicates={}, min_max_predicates={}):
     """
     Serializes a json-ld dict object.
@@ -488,6 +489,7 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
     :param id_as_value_predicates: for these predicates, take @id values as plain literals
     :param skip_predicates: skip the these predicates e.g. create only one edge (subject, object) instead of
         (subject, predicate) and (predicate, object)
+    :param add_skipped_to_target_predicates: add skipped predicates as children of target (not reverted!)
     :param revert_predicates: revert the edges from / to these predicates. If it is also in skip_predicates, create
         (object, subject) instead of (subject, object)
     :param swap_predicates: swap positions in final serialization of subject and object, that are linked by these
@@ -551,27 +553,25 @@ def serialize_jsonld_dict(jsonld, offset=0, sort_map={}, discard_predicates=(), 
                         else:
                             new_edge = new_edge + (0, offsets[1])
                         edges.append(new_edge)
-                    if pred in skip_predicates and pred not in discard_predicates:
-                        new_edge = (obj_dict[JSONLD_ID], idx_edge_source) if revert_edge else (
-                            idx_edge_source, obj_dict[JSONLD_ID])
-                        if offset == idx_edge_source:
-                            new_edge = new_edge + offsets
-                        else:
-                            new_edge = new_edge + (0, offsets[1])
-                        skipped_preds.append((pred, new_edge))
+                        if pred in skip_predicates:
+                            skipped_preds.append((pred, new_edge))
+                            if pred in add_skipped_to_target_predicates:
+                                edges.append((obj_dict[JSONLD_ID], offset + len(ser), 0, 0))
+                                ser.append(pred)
 
                     if JSONLD_TYPE in obj_dict:
                         obj_ser, obj_ids, obj_edges, obj_skipped_preds = serialize_jsonld_dict(obj_dict, offset=len(ser) + offset,
-                                                                            sort_map=sort_map,
-                                                                            discard_predicates=discard_predicates,
-                                                                            discard_types=discard_types,
-                                                                            id_as_value_predicates=id_as_value_predicates,
-                                                                            skip_predicates=skip_predicates,
-                                                                            swap_predicates=swap_predicates,
-                                                                            revert_predicates=revert_predicates,
-                                                                            offset_predicates=offset_predicates,
-                                                                            replace_literal_predicates=replace_literal_predicates,
-                                                                            min_max_predicates=min_max_predicates)
+                                                                                               sort_map=sort_map,
+                                                                                               discard_predicates=discard_predicates,
+                                                                                               discard_types=discard_types,
+                                                                                               id_as_value_predicates=id_as_value_predicates,
+                                                                                               skip_predicates=skip_predicates,
+                                                                                               add_skipped_to_target_predicates=add_skipped_to_target_predicates,
+                                                                                               swap_predicates=swap_predicates,
+                                                                                               revert_predicates=revert_predicates,
+                                                                                               offset_predicates=offset_predicates,
+                                                                                               replace_literal_predicates=replace_literal_predicates,
+                                                                                               min_max_predicates=min_max_predicates)
                         ser.extend(obj_ser)
                         ids.update(obj_ids)
                         edges.extend(obj_edges)
@@ -886,6 +886,12 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
                                      TACRED_SUBJECT,
                                      TACRED_OBJECT,
                                      )
+    if 'add_skipped_to_target_predicates' not in params:
+        params['add_skipped_to_target_predicates'] = (SEMEVAL_SUBJECT,
+                                                      SEMEVAL_OBJECT,
+                                                      TACRED_SUBJECT,
+                                                      TACRED_OBJECT,
+                                                      )
     if 'revert_predicates' not in params:
         params['revert_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD',
                                        NIF_NEXT_SENTENCE,
@@ -929,8 +935,11 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     sizes = []
     _process = partial(process_jsonl_file, in_path=in_path, relink_relation=relink_relation, **params)
     fn_jsonl = [fn for fn in os.listdir(in_path) if fn.endswith('.jsonl') or fn.endswith('.jl')]
-    p = Pool(len(fn_jsonl))
-    res_files = p.map(_process, fn_jsonl)
+    if DEBUG:
+        res_files = [_process(fn) for fn in fn_jsonl]
+    else:
+        p = Pool(len(fn_jsonl))
+        res_files = p.map(_process, fn_jsonl)
     recemb_files, lex_files, fn_files, sizes_files = zip(*res_files)
     for i, s in enumerate(sizes_files):
         sizes.append((fn_files[i], s))
