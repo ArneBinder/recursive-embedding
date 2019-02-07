@@ -588,7 +588,7 @@ def reroot_wrapper(tree_iter, neg_samples, forest, indices, indices_mapping=None
             logger.debug('calculate nearest neighbours finished')
 
         #d_identity = forest.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=forest.data_as_hashes)
-        for tree in tree_iter(forest=forest, indices=indices, reroot=True, transform=True, **kwargs):
+        for tree in tree_iter(forest=forest, indices=indices, transform=True, **kwargs):
             #samples = np.random.choice(forest.data, size=neg_samples + 1)
             head_transformed_back, was_reverted = forest.lexicon.transform_idx_back(tree[KEY_HEAD])
             # get selected data
