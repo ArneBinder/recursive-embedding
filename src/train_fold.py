@@ -599,14 +599,11 @@ def init_model_type(config, logdir):
         config.batch_iter = batch_iter_naive.__name__
     # language model (reroot)
     elif config.model_type == MT_CANDIDATES:
-        if config.tree_embedder.strip() == 'HTU_reduceSUM_mapGRU':
-            # set tree_embedder to batched head version
-            config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU'
-        elif config.tree_embedder.strip() == 'HTU_reduceSUM_mapGRU_wd':
-            config.tree_embedder = 'HTUBatchedHead_reduceSUM_mapGRU_wd'
-        if config.tree_embedder.strip() not in ['HTUBatchedHead_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapCCFC', 'HTUBatchedHead_reduceSUM_mapGRU_wd']:
-            raise NotImplementedError('reroot model only implemented for HTUBatchedHead tree_embedder, but it is: %s'
-                                      % config.tree_embedder.strip())
+        if config.tree_embedder.strip().startswith('HTU_'):
+            config.tree_embedder = 'HTUBatchedHead_' + config.tree_embedder.strip()[len('HTU_'):]
+        #if config.tree_embedder.strip() not in ['HTUBatchedHead_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapCCFC', 'HTUBatchedHead_reduceSUM_mapGRU_wd']:
+        #    raise NotImplementedError('reroot model only implemented for HTUBatchedHead tree_embedder, but it is: %s'
+        #                              % config.tree_embedder.strip())
 
         config.batch_iter = batch_iter_fixed_probs.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
