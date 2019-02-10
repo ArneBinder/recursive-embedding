@@ -268,7 +268,7 @@ MODEL_PARAMETERS = TREE_MODEL_PARAMETERS + ['fc_sizes', 'use_tfidf', 'use_circul
 DESCRIPTION_PARAMETERS = MODEL_PARAMETERS + TREE_STRUCTURE_PARAMETERS + ['var_vecs_zero', 'var_vecs_random', 'sample_method']
 FLAGS_FN = 'flags.json'
 
-VALUES_SHORT = {'TRUE': 'T', 'FALSE': 'F'}
+VALUES_SHORT = {'TRUE': 'T', 'FALSE': 'F', 'REROOT': 'LM'}
 
 
 class Config(object):
