@@ -453,7 +453,7 @@ class Lexicon(object):
             logger.debug('dump embeddings (shape=%s) to: %s ...' % (str(self.vecs.shape), fn_vecs))
             numpy_dump(fn_vecs, self.vecs)
 
-        if len(self.ids_fixed) > 0:
+        if self.ids_fixed is not None and len(self.ids_fixed) > 0:
             u = np.unique(self.ids_fixed)
             assert len(u) == len(self.ids_fixed), 'ids_fixed contains replicated entries'
             numpy_dump('%s.%s' % (filename, FE_IDS_VECS_FIXED), self.ids_fixed)
