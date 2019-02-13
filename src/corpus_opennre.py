@@ -8,8 +8,9 @@ from os.path import join
 import plac
 from scipy.sparse import coo_matrix
 
-from constants import TYPE_RELATION, LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, TYPE_LEXEME, TYPE_POS_TAG, \
-    TYPE_DEPENDENCY_RELATION, DTYPE_HASH, TYPE_CONTEXT, TYPE_NAMED_ENTITY, TYPE_SENTENCE, DTYPE_VECS, TYPE_TOKEN
+from constants import LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, \
+    DTYPE_HASH, TYPE_NAMED_ENTITY, DTYPE_VECS, TYPE_TOKEN, \
+    SEMEVAL_RELATION, PREFIX_CONLL, RDF_PREFIXES_MAP, REC_EMB_HAS_PARSE, NIF_SENTENCE
 from corpus import save_class_ids, create_index_files, DIR_BATCHES, DIR_MERGED, \
     annotate_file_w_stanford
 from lexicon import Lexicon
@@ -23,14 +24,11 @@ logger_streamhandler.setLevel(logging.DEBUG)
 logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
-
-type_relation = TYPE_RELATION
-
 DATA_TO_TYPE = {
-    'word': TYPE_LEXEME,
-    'label': type_relation,
-    'stanford_pos': TYPE_POS_TAG,
-    'stanford_deprel': TYPE_DEPENDENCY_RELATION
+    'word': RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=',
+    'label': SEMEVAL_RELATION + u'=',
+    'stanford_pos': RDF_PREFIXES_MAP[PREFIX_CONLL] + u'UPOS=',
+    'stanford_deprel': RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE='
 }
 
 
@@ -92,7 +90,7 @@ def construct_batch(in_path, out_path, fn, lexicon, id2data, id_prefix, root_has
     for k in data:
         logger.info('convert %s ...' % k)
         data_flat = data[k].flatten()
-        dc = [lexicon.get_d(DATA_TO_TYPE[k] + SEPARATOR + id2data[k][d], data_as_hashes=True) for d in data_flat]
+        dc = [lexicon.get_d(DATA_TO_TYPE[k] + id2data[k][d], data_as_hashes=True) for d in data_flat]
         data_converted[k] = np.array(dc, dtype=DTYPE_HASH).reshape(data[k].shape)
 
     # structural data
@@ -272,7 +270,7 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
         data2id[annot.strip()] = _config['annotations2id'][annot.strip()]
     id2data = {}
     for k in data2id:
-        lexicon.add_all(data2id[k], prefix=DATA_TO_TYPE[k] + SEPARATOR)
+        lexicon.add_all(data2id[k], prefix=DATA_TO_TYPE[k])
         id2data[k] = [None] * len(data2id[k])
         for k2, v in data2id[k].items():
             id2data[k][v] = k2
@@ -280,8 +278,8 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     root_string = TYPE_DATASET + SEPARATOR + dataset_id
     root_hash = lexicon.add_and_get(root_string, data_as_hashes=True)
     entity_hash = lexicon.add_and_get(TYPE_NAMED_ENTITY, data_as_hashes=True)
-    context_hash = lexicon.add_and_get(TYPE_CONTEXT, data_as_hashes=True)
-    sentence_hash = lexicon.add_and_get(TYPE_SENTENCE, data_as_hashes=True)
+    context_hash = lexicon.add_and_get(REC_EMB_HAS_PARSE, data_as_hashes=True)
+    sentence_hash = lexicon.add_and_get(NIF_SENTENCE, data_as_hashes=True)
 
     if not os.path.isdir(out_path):
         os.makedirs(out_path)
@@ -316,10 +314,10 @@ def parse(in_path, out_path, sentence_processor=None, dataset_id='OPENNRE', dump
     # init zero vecs
     lexicon.init_vecs(new_vecs=np.zeros(shape=[len(lexicon), vec.shape[-1]], dtype=DTYPE_VECS))
     # set vecs
-    indices_strings = lexicon.set_to_vecs(vecs=vec, strings=strings, prefix=TYPE_LEXEME + SEPARATOR)
+    indices_strings = lexicon.set_to_vecs(vecs=vec, strings=strings, prefix=DATA_TO_TYPE['word'])
     # fix these vecs (except special entries)
     indices_strings_special = lexicon.get_indices(strings=["<START_TOKEN>", "<UNK_TOKEN>", "<PAD_TOKEN>"],
-                                                  prefix=TYPE_LEXEME + SEPARATOR)
+                                                  prefix=DATA_TO_TYPE['word'])
     indices_fix = indices_strings[~np.isin(indices_strings, indices_strings_special)]
     lexicon.init_ids_fixed(ids_fixed=indices_fix)
 
@@ -339,8 +337,8 @@ def main(mode, *args):
         forest_merged, out_path_merged = plac.call(parse, args)
         #elif mode == 'MERGE':
         #forest_merged, out_path_merged = plac.call(merge_batches, args)
-        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(type_relation)
-        save_class_ids(dir_path=out_path_merged, prefix_type=type_relation, classes_ids=relation_ids,
+        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(DATA_TO_TYPE['label'], add_separator=False)
+        save_class_ids(dir_path=out_path_merged, prefix_type=SEMEVAL_RELATION, classes_ids=relation_ids,
                        classes_strings=relation_strings)
         return out_path_merged
     elif mode == 'CREATE_INDICES':
@@ -349,7 +347,7 @@ def main(mode, *args):
         out_path_merged = plac.call(main, ('PARSE',) + args)
         #plac.call(main, ('MERGE',) + args)
         plac.call(main, ('CREATE_INDICES', '--end-root', '2714', '--split-count', '1', '--suffix', 'test', '--merged-forest-path', out_path_merged) + args)
-        plac.call(main, ('CREATE_INDICES', '--start-root', '2714', '--split-count', '4', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
+        plac.call(main, ('CREATE_INDICES', '--start-root', '2714', '--split-count', '10', '--suffix', 'train', '--merged-forest-path', out_path_merged) + args)
     elif mode == 'ALL_TACRED':
         out_path_merged = plac.call(main, ('PARSE',) + args)
         #plac.call(main, ('MERGE',) + args)
