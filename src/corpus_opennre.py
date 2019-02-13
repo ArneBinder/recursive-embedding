@@ -24,9 +24,11 @@ logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
 
+type_relation = TYPE_RELATION
+
 DATA_TO_TYPE = {
     'word': TYPE_LEXEME,
-    'label': TYPE_RELATION,
+    'label': type_relation,
     'stanford_pos': TYPE_POS_TAG,
     'stanford_deprel': TYPE_DEPENDENCY_RELATION
 }
@@ -337,8 +339,8 @@ def main(mode, *args):
         forest_merged, out_path_merged = plac.call(parse, args)
         #elif mode == 'MERGE':
         #forest_merged, out_path_merged = plac.call(merge_batches, args)
-        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(TYPE_RELATION)
-        save_class_ids(dir_path=out_path_merged, prefix_type=TYPE_RELATION, classes_ids=relation_ids,
+        relation_ids, relation_strings = forest_merged.lexicon.get_ids_for_prefix(type_relation)
+        save_class_ids(dir_path=out_path_merged, prefix_type=type_relation, classes_ids=relation_ids,
                        classes_strings=relation_strings)
         return out_path_merged
     elif mode == 'CREATE_INDICES':
