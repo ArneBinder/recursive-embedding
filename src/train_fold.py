@@ -1109,7 +1109,8 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
                                                            optimizer=optimizer,
                                                            learning_rate=config.learning_rate,
                                                            clipping_threshold=config.clipping,
-                                                           use_circular_correlation=config.use_circular_correlation
+                                                           use_circular_correlation=config.use_circular_correlation,
+                                                           embedded_root=('HTUBatchedHeadX_' in config.tree_embedder)
                                                            )
     # BIOASQ MESH, SICK ENTAILMENT, IMDB SENTIMENT or SEMEVAL2010TASK8 RELATION
     elif config.model_type == MT_MULTICLASS:
