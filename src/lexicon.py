@@ -857,12 +857,11 @@ class Lexicon(object):
                 converter[idx_other] = self.mapping[h]
         # set via prefix(es) to certain unknown placeholder(s)
         unknown_dict = {}
-        for h in other.mapping:
-            if h not in self.mapping:
-                s_other = self.get_s(d=h, data_as_hashes=True)
-                for prefix in unknown_prefix_mapping:
-                    if s_other.startswith(prefix):
-                        unknown_dict.setdefault(unknown_prefix_mapping[prefix], []).append(other.mapping[h])
+        for h in set(other.mapping) - set(self.mapping):
+            s_other = self.get_s(d=h, data_as_hashes=True)
+            for prefix in unknown_prefix_mapping:
+                if s_other.startswith(prefix):
+                    unknown_dict.setdefault(unknown_prefix_mapping[prefix], []).append(other.mapping[h])
         for unk in unknown_dict:
             converter[np.array(unknown_dict[unk], dtype=DTYPE_IDX)] = unk
 
