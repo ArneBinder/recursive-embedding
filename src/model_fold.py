@@ -1916,14 +1916,14 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         # assume, we get just root embeddings and score them
         else:
             # regression
-            #with tf.name_scope(name='fc_scoring') as sc:
-                #logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=vecs_reshaped, activation_fn=None,
-                #                                                      num_outputs=1, scope=sc),
-                #                    shape=(-1, self.candidate_count))
+            with tf.name_scope(name='fc_scoring') as sc:
+                logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=vecs_reshaped, activation_fn=None,
+                                                                      num_outputs=1, scope=sc),
+                                    shape=(-1, self.candidate_count))
             # just sum
             #logits = tf.reshape(tf.reduce_sum(vecs_reshaped, axis=-1), shape=(-1, self.candidate_count))
             # l2 norm
-            logits = tf.reshape(tf.sqrt(tf.reduce_sum(tf.square(vecs_reshaped), axis=-1)), shape=(-1, self.candidate_count))
+            #logits = tf.reshape(tf.sqrt(tf.reduce_sum(tf.square(vecs_reshaped), axis=-1)), shape=(-1, self.candidate_count))
 
         # use fully connected layer
         #batch_size = tf.shape(tree_embeddings)[0]
