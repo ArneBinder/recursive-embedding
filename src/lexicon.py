@@ -827,12 +827,14 @@ class Lexicon(object):
         else:
             raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
 
-    def merge(self, other, add_entries=True, replace_vecs=True):
+    def merge(self, other, add_entries=True, replace_vecs=True, unknown_prefix_mapping={}):
         """
         Merge other lexicon into this one.
         :param other: the other lexicon that will be merged into this one
         :param add_entries: If True, add all entries from other to this one.
         :param replace_vecs: If True, replace vecs that are in other with there entries.
+        :param unknown_prefix_mapping: a mapping { prefix_string -> idx } to map all entries from other with prefix
+               that do not occur in self to idx (of self), e.g. use {u'conll:WORD=': 0 } to map words not found to 0.
         :return: a numpy array that can be used to convert data encoded with the other lexicon to the merged one. At
         position i it holds the index of the i'th entry of the other in the merged lexicon. So, converter[d_other]
         produces the new data entry (eventually the entry related to UNKNOWN, if d_other is not in the merged lexicon,
@@ -853,6 +855,16 @@ class Lexicon(object):
             idx_other = other.mapping.get(h, None)
             if idx_other is not None:
                 converter[idx_other] = self.mapping[h]
+        # set via prefix(es) to certain unknown placeholder(s)
+        unknown_dict = {}
+        for h in other.mapping:
+            if h not in self.mapping:
+                s_other = self.get_s(d=h, data_as_hashes=True)
+                for prefix in unknown_prefix_mapping:
+                    if s_other.startswith(prefix):
+                        unknown_dict.setdefault(unknown_prefix_mapping[prefix], []).append(other.mapping[h])
+        for unk in unknown_dict:
+            converter[np.array(unknown_dict[unk], dtype=DTYPE_IDX)] = unk
 
         if other.has_vecs:
             if not self.has_vecs or self.dims == 0:
