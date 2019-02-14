@@ -843,7 +843,8 @@ class Lexicon(object):
 
         if add_entries:
             size_before = len(self)
-            self.add_all(other.strings)
+            # check if strings do not start with unknown prefixes
+            self.add_all((s for s in other.strings if not any((s.startswith(p) for p in unknown_prefix_mapping))))
             logger.debug('added %i entries to lexicon. new size: %i' % (len(self) - size_before, len(self)))
 
         d_unknown = self.get_d(vocab_manual[UNKNOWN_EMBEDDING], data_as_hashes=False)
