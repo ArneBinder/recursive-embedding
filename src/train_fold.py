@@ -673,6 +673,8 @@ def init_model_type(config, logdir):
         # SEMEVAL2010TASK8 RELATION prediction
         elif type_class_long in [SEMEVAL_RELATION, TACRED_RELATION]:
             model_kwargs['exclusive_classes'] = True
+            # multiple subjects or objects cause different offsets
+            fixed_offsets = False
             if config.blank.strip() != '':
                 config.blank = ','.join((config.blank, config.task))
             else:
