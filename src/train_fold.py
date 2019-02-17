@@ -1946,6 +1946,9 @@ if __name__ == '__main__':
                     logger.info('load grid parameters from json: %s' % parameters_fn)
                     with open(parameters_fn, 'r') as infile:
                         grid_parameters = json.load(infile)
+                    if '/' in config.dev_file_indices:
+                        dev_file_indices_parts = config.dev_file_indices.split('/')
+                        grid_parameters['dev_file_indices'] = dev_file_indices_parts
                     parameters_keys, settings = config.explode(grid_parameters, fieldnames_loaded)
                     logger.debug('shuffle created settings')
                     shuffle(settings)
