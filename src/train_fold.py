@@ -2079,7 +2079,8 @@ if __name__ == '__main__':
                             score_writer.writerow(d)
                             csvfile.flush()
                         except Exception as e:
-                            logger.error('error while executing run: %s\n%s' % (c.run_description, str(e)))
+                            logger.error('error while executing run: %s' % c.run_description)
+                            logger.exception(e)
 
         # default: execute single run
         else:
