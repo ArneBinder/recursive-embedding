@@ -22,6 +22,7 @@ VAR_NAME_LEXICON_VAR = 'embeddings'
 VAR_NAME_LEXICON_FIX = 'embeddings_fix'
 VAR_NAME_GLOBAL_STEP = 'global_step'
 VAR_PREFIX_FC_LEAF = 'FC_leaf'
+VAR_PREFIX_FC_PLAIN_LEAF = 'FC_plain_leaf'
 VAR_PREFIX_FC_ROOT = 'FC_root'
 VAR_PREFIX_FC_REVERSE = 'FC_reverse'
 VAR_PREFIX_TREE_EMBEDDING = 'TreeEmbedding'
@@ -248,6 +249,11 @@ class TreeEmbedding(object):
         self._name = VAR_PREFIX_TREE_EMBEDDING + '/' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
+        # handled in TreeEmbedding_HTU_plain_leaf directly (and added only for leafs, not for inner nodes!)
+        #if isinstance(self, TreeEmbedding_HTU_plain_leaf):
+        #    self._leaf_fc_size = self.state_size
+        #    logger.debug('set leaf_fc_size to state_size=%i because model is instance of HTU_plain_leaf'
+        #                 % self._leaf_fc_size)
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._leaf_fc_size:
@@ -256,6 +262,7 @@ class TreeEmbedding(object):
                                           name=VAR_PREFIX_FC_LEAF + '_%d' % leaf_fc_size)
             else:
                 self._leaf_fc = td.Identity()
+            # NOT USED ANYMORE, kept for compatibility (loading old models)
             self._reverse_fc = fc_scoped(num_units=self._dim_embeddings,
                                          activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
                                          name=VAR_PREFIX_FC_REVERSE + '_%d' % self._dim_embeddings)
@@ -266,6 +273,7 @@ class TreeEmbedding(object):
         self._reference_vs_candidate = self.calc_reference_vs_candidate(reference_indices=self.reference_indices,
                                                                         candidate_indices=self.candidate_indices)
 
+    # used only in HTUBatchedHead and FLAT2levels
     def embed(self, max_dims=None):
         # get the head embedding from id
         #res = td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
@@ -824,8 +832,8 @@ class TreeEmbedding_HTU(TreeEmbedding_reduce, TreeEmbedding_map):
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
-        children = self.children() >> td.Map(embed_tree())
-        state = self.new_state(self.head_w_direction, children)
+        state = self.new_state(head=self.head_w_direction,
+                               children=self.children() >> td.Map(embed_tree()))
         embed_tree.resolve_to(state)
         return state
 
@@ -841,15 +849,20 @@ class TreeEmbedding_HTU_plain_leaf(TreeEmbedding_HTU):
 
     def __init__(self, name, **kwargs):
         super(TreeEmbedding_HTU_plain_leaf, self).__init__(name='HTU_' + name, **kwargs)
-        assert self.head_size == self.state_size, 'head_size [%i] has to equal sum of state_sizes [%i] for HTU_plain_leaf' \
-                                                  % (self.head_size, self.state_size)
+        #assert self.head_size == self.state_size, 'head_size [%i] has to equal sum of state_sizes [%i] for HTU_plain_leaf' \
+        #                                          % (self.head_size, self.state_size)
+        with tf.variable_scope(self.name) as scope:
+            self._plain_leaf_fc = fc_scoped(num_units=self.state_size,
+                                            activation_fn=tf.nn.tanh, scope=scope, keep_prob=self.keep_prob,
+                                            name=VAR_PREFIX_FC_PLAIN_LEAF + '_%d' % self.state_size)
 
     def __call__(self):
         embed_tree = td.ForwardDeclaration(input_type=td.PyObjectType(), output_type=self.map.output_type)
         state = td.OneOf(key_fn=self.has_children(),
                          case_blocks={
-                             True: self.new_state(self.head_w_direction, self.children() >> td.Map(embed_tree())),
-                             False: self.head_w_direction()
+                             True: self.new_state(head=self.head_w_direction,
+                                                  children=self.children() >> td.Map(embed_tree())),
+                             False: self.head_w_direction() >> td.GetItem(0) >> self._plain_leaf_fc
                          })
         embed_tree.resolve_to(state)
         return state
