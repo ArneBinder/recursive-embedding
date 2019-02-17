@@ -1947,6 +1947,7 @@ if __name__ == '__main__':
                     with open(parameters_fn, 'r') as infile:
                         grid_parameters = json.load(infile)
                     if '/' in config.dev_file_indices:
+                        logger.warning('overwrite dev_file_indices with flag value: %s' % config.dev_file_indices)
                         dev_file_indices_parts = config.dev_file_indices.split('/')
                         grid_parameters['dev_file_indices'] = dev_file_indices_parts
                     parameters_keys, settings = config.explode(grid_parameters, fieldnames_loaded)
@@ -1957,6 +1958,11 @@ if __name__ == '__main__':
                     with open(parameters_fn, 'r') as infile:
                         list_parameters = [json.loads(line) for line in infile.readlines() if line.strip() != "" and line.strip()[0] != '#']
                     assert len(list_parameters) > 0, 'parameters file does not contain any setting'
+                    if '/' in config.dev_file_indices:
+                        logger.warning('overwrite dev_file_indices with flag value: %s' % config.dev_file_indices)
+                        dev_file_indices_parts = config.dev_file_indices.split('/')
+                        for i in range(len(list_parameters)):
+                            list_parameters[i]['dev_file_indices'] = dev_file_indices_parts
                     parameters_keys, settings = config.create_new_configs(list_parameters, fieldnames_loaded)
                 else:
                     raise ValueError('Unknown parameters file extension: %s. Use ".json" for json files (indicates grid '
