@@ -1961,8 +1961,14 @@ if __name__ == '__main__':
                     if '/' in config.dev_file_indices:
                         logger.warning('overwrite dev_file_indices with flag value: %s' % config.dev_file_indices)
                         dev_file_indices_parts = config.dev_file_indices.split('/')
-                        for i in range(len(list_parameters)):
-                            list_parameters[i]['dev_file_indices'] = dev_file_indices_parts
+                        new_list_parameters = []
+                        # create all combinations
+                        for df_indices in dev_file_indices_parts:
+                            for i in range(len(list_parameters)):
+                                lm = list_parameters[i].copy()
+                                lm['dev_file_indices'] = df_indices
+                                new_list_parameters.append(lm)
+                        list_parameters = new_list_parameters
                     parameters_keys, settings = config.create_new_configs(list_parameters, fieldnames_loaded)
                 else:
                     raise ValueError('Unknown parameters file extension: %s. Use ".json" for json files (indicates grid '
