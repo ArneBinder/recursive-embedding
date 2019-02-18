@@ -15,5 +15,8 @@ echo "ENV_GENERAL=$ENV_GENERAL"
 
 ## SEMEVAL2010T8 relation extraction via LM
 
+## EDGES
+./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/EDGES/LM train-settings/task/re-semeval.env train-settings/model/lm.env train-settings/dataset/corenlp/semeval-edges.env "$ENV_GENERAL"
+
 ## DIRECT + add_heads=EDG (manual adding required for LM model)
 ./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/LM train-settings/task/re-semeval.env train-settings/model/lm.env train-settings/dataset/corenlp/semeval-direct.env train-settings/specific/add-heads-EDG.env "$ENV_GENERAL"
