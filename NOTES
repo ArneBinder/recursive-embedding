@@ -74,6 +74,8 @@ NOTES:
         RECNN: "keep_prob": 0.5
         RNN:   "keep_prob": 0.5
         BW:    "keep_prob": 0.9
+    SA:
+        * consider sequence_length (50 vs 500) and max_depth (20 vs 50) different values!
 
 
 MISC:
@@ -99,3 +101,7 @@ train folder stats:
 
 remove model checkpoint files in subfolders:
     rm $(find . -regex ".*/model.ckpt.*")
+
+
+statistics:
+    https://github.com/facebookincubator/bootstrapped/blob/master/examples/bootstrap_ab_testing.ipynb
