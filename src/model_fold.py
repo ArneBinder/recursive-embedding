@@ -1019,6 +1019,42 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         return self.dimension_embeddings + self.state_size + 1
 
 
+class TreeEmbedding_HTUBatchedHead_init_state(TreeEmbedding_HTU_init_state):
+    """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
+
+    def __init__(self, name, **kwargs):
+        super(TreeEmbedding_HTUBatchedHead_init_state, self).__init__(name=name, **kwargs)
+
+    def __call__(self):
+        _htu_model = super(TreeEmbedding_HTUBatchedHead_init_state, self).__call__()
+        ## dummy_head is just passed through reduce, shouldn't be touched
+        reduced_children = td.OneOf(key_fn=self.has_children(),
+                                    case_blocks={
+                                        True: td.AllOf(td.Void(), td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model))
+                                              >> self.reduce >> td.GetItem(1),
+                                        False: td.Void() >> self._init_state
+                                    }
+                                    )
+
+        # add id to candidate embeddings
+        # do not use leaf_fc for candidates!
+        heads_embedded = td.GetItem(KEY_CANDIDATES) \
+                         >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
+                                   >> td.Concat())
+
+        model = td.AllOf(reduced_children >> td.Broadcast(), heads_embedded) >> td.Zip() \
+                  >> td.Map(td.Function(lambda x, y: tf.concat((x, y), axis=-1)))
+
+        if model.output_type is None:
+            model.set_output_type(tdt.SequenceType(tdt.TensorType(shape=(self.output_size,), dtype='float32')))
+
+        return model
+
+    @property
+    def output_size(self):
+        return self.dimension_embeddings + self.state_size + 1
+
+
 class TreeEmbedding_HTUBatchedHeadX(TreeEmbedding_HTU):
     """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
@@ -1371,6 +1407,11 @@ class TreeEmbedding_HTUBatchedHead_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, 
 class TreeEmbedding_HTUBatchedHead_reduceMAX_mapGRU_wd(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHead):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTUBatchedHead_reduceMAX_mapGRU_wd, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTUBatchedHead_reduceMAX_mapGRU_wd_is(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHead_init_state):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTUBatchedHead_reduceMAX_mapGRU_wd_is, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTUBatchedHeadX_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHeadX):
