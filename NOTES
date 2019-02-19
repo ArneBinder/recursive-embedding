@@ -1,90 +1,94 @@
-CORPUS INFO (bag_of_seealsos=True):
-2018-03-30 18:21:51,468 INFO collect train data from: /root/corpora_out/DBPEDIANIF/1000/merged/forest ...
-2018-03-30 18:21:51,468 INFO found 10 train data files
-2018-03-30 18:21:51,469 INFO use /root/corpora_out/DBPEDIANIF/1000/merged/forest.idx.0.npy for testing
-2018-03-30 18:21:51,469 INFO create tensorflow graph ...
-2018-03-30 18:21:51,469 DEBUG trainable lexicon entries: 782074
-2018-03-30 18:21:51,469 DEBUG fixed lexicon entries:     247032
-2018-03-30 18:22:00,173 INFO init embeddings with external vectors...
-2018-03-30 18:24:04,799 DEBUG load data and parents from /root/corpora_out/DBPEDIANIF/1000/merged/forest ...
-2018-03-30 18:24:15,921 INFO create dev data set ...
-2018-03-30 18:30:29,269 INFO created 79735 tree tuples
-2018-03-30 18:30:31,015 INFO dev data size: 79735
-2018-03-30 18:30:31,016 INFO create train data set ...
-2018-03-30 18:30:31,017 INFO training the model
-2018-03-30 19:35:25,118 INFO created 716843 tree tuples
+
+DT
+==
+
+
+EXPERIMENTS:
+===========
+
+TASK: re/semeval parameters:
+		kp: RNN/RECNN=0.5, LM=0.7
+
+    # RNN (DIRECT,SPAN)@6 DONE
+    { "keep_prob": 0.5, "tree_embedder": "FLAT_GRU" }
+    #{ "keep_prob": 0.5, "tree_embedder": "FLAT_LSTM" }
+
+    # RECNN (DIRECT@0 DONE,EDGES@1 RUNNING...,SPAN@2 DONE)
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU" }
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU" }
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_pl" }
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl" }
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_is" }
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_is" }
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_wd" }
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_wd" }
+    #{ "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceSUM_mapGRU" }
+    #{ "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceMAX_mapGRU" }
+    #{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapLSTM" }
+    #{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapLSTM" }
+
+    # LM (DIRECT, EDGES)    LM@4 RUNNING... LM2@6 RUNNING...
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU"}            LM
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU"}            LM
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES)/LM2(DIRECT)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES)/LM2(DIRECT)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is"}      LM3(EDGES)@0 RUNNING... /LM3(DIRECT)@2 RUNNING...
+    #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd_is"}      LM3(EDGES)/LM3(DIRECT)
+
+    # BOW (DIRECT,SPAN)@6 DONE
+    { "keep_prob": 0.9, "tree_embedder": "FLAT_SUM", "leaf_fc_size": 250}
+    { "keep_prob": 0.9, "tree_embedder": "FLAT_MAX", "leaf_fc_size": 250}
+    #{ "keep_prob": 0.9, "tree_embedder": "FLAT_SUM", "leaf_fc_size": 200}
+    #{ "keep_prob": 0.9, "tree_embedder": "FLAT_MAX", "leaf_fc_size": 200}
+    #{ "keep_prob": 0.9, "tree_embedder": "FLAT_SUM", "leaf_fc_size": 300}
+    #{ "keep_prob": 0.9, "tree_embedder": "FLAT_MAX", "leaf_fc_size": 300}
+
+
+TASK: relatedness
+    # RECNN (DIRECT,EDGES)@6 DONE
+    HTU_reduceSUM_mapGRU_pl
+    HTU_reduceSUM_mapGRU_is
+
+TASK: entailment
+    # RECNN (DIRECT,EDGES)@5 DONE
+    HTU_reduceSUM_mapGRU_pl
+    HTU_reduceSUM_mapGRU_is
+
+TASK: sentiment
+    # RECNN (DIRECT,EDGES)  RECNN@3 RUNNING... RECNN2@5 RUNNING...
+    HTU_reduceMAX_mapGRU_pl     RECNN(DIRECT)/RECNN2(EDGES)
+    HTU_reduceMAX_mapGRU_is     RECNN(DIRECT)/RECNN(EDGES)
+
+
+missing (eventually):
+====================
+* SUM... _wd_is         (LM, DIRECT/EDGES, RE-tasks) needs implementation! (-> implemented)         2
+* HTUrev...SUM/MAX      (RECNN, DIRECT/EDGES/(SPAN), all tasks)                                     4 * 3 + 6 = 18
+* HTU...SUM..._pl/_is   (RECNN, DIRECT/EDGES, SA) but MAX > SUM!                                    4
+* TACRED
 
 
 
-DBPEDIANIF/1000:
-
-resource with root_id=3487167 is erroneous:
-    "http://dbpedia.org/resource",
-    "ROOT_ID:3487167(UNKNOWN)",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Context",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section/seeAlso",
-    "http://www.w3.org/2005/11/its/rdf#taIdentRef/seeAlso",
-    "ROOT_ID:1247029(UNKNOWN)",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Section",
-X   "ROOT_ID:3487168(UNKNOWN)",
-^   "http://purl.org/olia/olia.owl#Lexeme/also",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Title",
-    "http://purl.org/olia/olia.owl#Lexeme/\n",
-    "http://purl.org/olia/olia.owl#Lexeme/*",
-    "http://purl.org/olia/olia.owl#Lexeme/ ",
-    "http://www.w3.org/2005/11/its/rdf#taIdentRef",
-    "ROOT_ID:1247029(UNKNOWN)",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
-    "http://purl.org/olia/olia.owl#Lexeme/unyago",
-    "http://www.w3.org/2005/11/its/rdf#taIdentRef",
-    "ROOT_ID:1247029(UNKNOWN)",
-    "http://purl.org/olia/olia.owl#Lexeme/\n",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
-    "http://purl.org/olia/olia.owl#Lexeme/*",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Sentence",
-    "http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core#Paragraph",
-    "http://dbpedia.org/resource",
-    "ROOT_ID:3487169(UNKNOWN)",
+MISC:
+=====
+train folder stats:
+    abinder@serv-9200:~/train/FINAL$ du -sh *
+    208K	dep
+    880K	dep_2
+    7,6G	ENTAILMENT
+    64K	entailment.merged.tsv
+    228K	entailment.tsv
+    187M	logs
+    33G	RE
+    6,4G	RELATEDNESS
+    20K	relatedness.merged.tsv
+    156K	relatedness.tsv
+    5,8G	RE_semeval_
+    55G	SENTIMENT
+    64K	sentiment.merged.tsv
+    232K	sentiment.tsv
 
 
 
-get NUM'th line of forest.string:
-
-sed "${NUM}q;d" forest.string
-
-# get ids from abstracts longer then 1000 tokens:
-for i in 4543240 3015247 443516 3593651 1449629 2031183 1152555 4829211 2650278 3735375 500635 3592266 4629200 3071249 1449260 1395255 1379622 1988253 91926 2327327 4373033 1760819 4829037 4625711 1878261 1071484 1867254 2444137 4189349 3065838 4165422 3190981 706923 3595955 4409904 1968566 4829227 2141179 2476567 2539434 3710393 3569477 2389490 32865 3813017 1656075 207586 899295 1958826 1438601 1016638 211263 1443553 1449375 44427 2688689 4916421 842377 3627864 75744 2434679 1209664 1589873 3500074 3537364 4394630 566224 1526413 2645492 1084944 2448904 3500028 2645127 67837 4916418 1774913 4916416 1864964 2909186 2942243 2171888 2930807 168773 2381090 2433439 1870873 1445654 2491027 1316269 3275361 2596191 4658248 3918279 3165793 2971528 1456467 1138998 2824997 1098202 1451187 1124227 110843 452753 423644 2947665 49188 2374395 1307512 2409551 4924056 901463 1388209 2456634 130233 3500059 88349 3500119 23182 1449447 3910452 1627645 4523977 432010 498561 3574665 3047721 2376005 622989 2387476 2461427 4294352 4301746 707804 4674216 628338 4138178 4690584 1565957 2044106; do NUM=$((i+2)); sed "${NUM}q;d" forest.root.id.string; done
-
-too long (root indices):
-1322150
-4578529
-
-
-========================================================================================================================
-
-best FLATSUM:
-2018-04-25 15:25:39,576 DEBUG use batch_iter_naive
-2018-04-25 15:26:48,318 INFO epoch=5 step=28220 test : loss=0.278186	roc_micro=0.831780	ranking_loss_inv=0.891471	f1_t33=0.749054	f1_t50=0.763980	f1_t66=0.777751	acc_t33=0.386204	acc_t50=0.453332	acc_t66=0.519944
-
-
-best TFIDF:
-2018-04-25 14:41:02,308 DEBUG use batch_iter_naive
-2018-04-25 14:41:42,748 INFO epoch=2 step=11288 test : loss=0.111811	roc_micro=0.904567	ranking_loss_inv=0.959969	f1_t33=0.813416	f1_t50=0.790862	f1_t66=0.760155	acc_t33=0.645785	acc_t50=0.618048	acc_t66=0.579636
-
-
-best TREE:
-2018-04-26 00:29:46,846 DEBUG use batch_iter_naive
-2018-04-26 00:31:07,276 INFO epoch=23 step=12995 test : loss=0.075533	roc_micro=0.974056	ranking_loss_inv=0.976551	f1_t33=0.920052	f1_t50=0.916146	f1_t66=0.905233	acc_t33=0.845550	acc_t50=0.841280	acc_t66=0.824200
-
-
-best FLATGRU:
-
-
-
-==========================================
-
-# remove model checkpoint files in subfolders
-rm $(find . -regex ".*/model.ckpt.*")
+remove model checkpoint files in subfolders:
+    rm $(find . -regex ".*/model.ckpt.*")
