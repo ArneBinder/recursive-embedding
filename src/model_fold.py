@@ -1001,7 +1001,7 @@ class TreeEmbedding_HTUBatchedHead(TreeEmbedding_HTU):
         # dummy_head is just passed through reduce, shouldn't be touched
         reduced_children = td.AllOf(td.Void(), trees_children) >> self.reduce >> td.GetItem(1)
         # add id to candidate embeddings
-        # do not use leaf_fc for candidates!
+        # do not use leaf_fc, directionality and add_heads for candidates!
         heads_embedded = td.GetItem(KEY_CANDIDATES) \
                          >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
                                    >> td.Concat())
@@ -1037,7 +1037,7 @@ class TreeEmbedding_HTUBatchedHead_init_state(TreeEmbedding_HTU_init_state):
                                     )
 
         # add id to candidate embeddings
-        # do not use leaf_fc for candidates!
+        # do not use leaf_fc, directionality and add_heads for candidates!
         heads_embedded = td.GetItem(KEY_CANDIDATES) \
                          >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
                                    >> td.Concat())
