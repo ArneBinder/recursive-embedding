@@ -293,6 +293,14 @@ OFFSET_CLASS_ROOTS = {
 # global config
 RDF_BASED_FORMAT = True
 DEBUG = False
+DATA_STATS_PATH = None
+#DATA_STATS_PATH = '/mnt/DATA/ML/data/corpora_out/FINAL/SICK_RDF/corenlp_noner_recemb_mc2/STATS'
+#DATA_STATS_PATH = '/mnt/DATA/ML/data/corpora_out/FINAL/SICK_RDF/corenlp_noner_recemb_edges_mc2/STATS'
+#DATA_STATS_PATH = '/mnt/DATA/ML/data/corpora_out/FINAL/IMDB_RDF/corenlp_noner_recemb_mc20/STATS'
+##DATA_STATS_PATH = '/mnt/DATA/ML/data/corpora_out/FINAL/IMDB_RDF/corenlp_noner_recemb_edges_mc20/STATS'
+#DATA_STATS_PATH = '/mnt/DATA/ML/data/corpora_out/FINAL/SEMEVAL2010T8_RDF/corenlp_recemb_mc2/STATS'
+#DATA_STATS_PATH = '/mnt/DATA/ML/data/corpora_out/FINAL/SEMEVAL2010T8_RDF/corenlp_recemb_edges_mc2_FIXED/STATS'
+#DATA_STATS_PATH = '/mnt/DATA/ML/data/corpora_out/FINAL/SEMEVAL2010T8_RDF/corenlp_recemb_span_mc2/STATS'
 
 
 

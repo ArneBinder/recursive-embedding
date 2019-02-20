@@ -1,3 +1,4 @@
+import json
 import logging
 import traceback
 
@@ -15,7 +16,7 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
     REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG, NIF_SENTENCE, NIF_NEXT_SENTENCE, \
-    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT, KEY_DEPTH
+    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT, KEY_DEPTH, DATA_STATS_PATH
 from sequence_trees import Forest, targets
 from mytools import numpy_load
 
@@ -391,18 +392,20 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                     blank_types=blank_types, go_back=reroot,
                                                     add_heads_types=add_heads_types,
                                                     add_heads_dummies=[data_padding] * additional_heads,
-                                                    return_strings=DEBUG, return_depth=DEBUG)
+                                                    return_strings=DEBUG, return_depth=DATA_STATS_PATH is not None)
                 yield tree_context
                 n += 1
-                if DEBUG:
+                if DATA_STATS_PATH is not None:
                     depths.append(tree_context[KEY_DEPTH])
                 # measure progress in percent
                 #if n % x == 0:
                 #    progress = n / x
                 #    logger.debug('%i%%' % progress)
-            if DEBUG:
+            if DATA_STATS_PATH is not None:
+                if not os.path.exists(DATA_STATS_PATH):
+                    os.makedirs(DATA_STATS_PATH)
                 depths = np.array(depths)
-                fn = '/home/arne/DATA/ML/data/corpora_out/FINAL/depth'
+                fn = os.path.join(DATA_STATS_PATH, 'depth')
                 _i = 0
                 while os.path.exists('%s.%i.np' % (fn, _i)):
                     _i += 1
@@ -413,6 +416,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         elif concat_mode == CM_AGGREGATE:
             res = []
             lengths = []
+            all_data_string = []
             for idx in indices:
                 #try:
                 # ATTENTION: idx has to be added to forest.pos_to_component_mapping before!
@@ -430,6 +434,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                     assert len(data_span_cleaned) == len(data_span_cleaned_not_transformed), 'length mismatch'
                     data_string_cleaned = [forest.lexicon.get_s(d, data_as_hashes=forest.data_as_hashes) for d in
                                            data_span_cleaned_not_transformed]
+                    #tokens = [data_string_cleaned[i] for i in range(0, len(data_string_cleaned), nbr_heads_flat)]
+                    all_data_string.append(data_string_cleaned)
                     tree_context_string = {KEY_HEAD: data_flat_root,
                                             KEY_CHILDREN: [{KEY_HEAD: data_string_cleaned[i],
                                                             KEY_CHILDREN: [],
@@ -454,7 +460,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #if len(data_span_cleaned) > max_size_plain * nbr_heads_flat:
                 #    logger.warning('idx:%i: len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
                 #                   % (component_idx, int(len(data_span_cleaned) / nbr_heads_flat), max_size_plain))
-                lengths.append(len(data_span_cleaned) / nbr_heads_flat)
+                if DATA_STATS_PATH is not None:
+                    lengths.append(len(data_span_cleaned) / nbr_heads_flat)
                 # cut tokens in the front to resemble behaviour of max_depth
                 data_span_cleaned = data_span_cleaned[max(len(data_span_cleaned) - max_size_plain * nbr_heads_flat, 0):]
                 tree_context = {KEY_HEAD: data_flat_root,
@@ -471,15 +478,22 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 #except AssertionError as e:
                 #    logger.error(str(e))
                 #    continue
-            if DEBUG:
+            if DATA_STATS_PATH is not None:
+                if not os.path.exists(DATA_STATS_PATH):
+                    os.makedirs(DATA_STATS_PATH)
                 lengths = np.array(lengths)
-                fn = '/home/arne/DATA/ML/data/corpora_out/length'
+                fn = os.path.join(DATA_STATS_PATH, 'length')
                 _i = 0
                 while os.path.exists('%s.%i.np' % (fn, _i)):
                     _i += 1
                 fn = '%s.%i.np' % (fn, _i)
                 logger.debug('dump lengths to: %s' % fn)
                 lengths.dump(fn)
+
+                fn_tokens = '%s.%i.json' % (os.path.join(DATA_STATS_PATH, 'tokens'), _i)
+                logger.debug('dump tokens to: %s' % fn_tokens)
+                with open(fn_tokens, 'w') as f:
+                    json.dump(all_data_string, f)
             #for r in res:
             #    yield r
                 # measure progress in percent
