@@ -5,6 +5,7 @@ DT
 
 EXPERIMENTS:
 ===========
+TIME: 20-44-00:20-2-2019
 
 TASK: re/semeval parameters:
 		kp: RNN/RECNN=0.5, LM=0.7
@@ -16,8 +17,8 @@ TASK: re/semeval parameters:
     # RECNN (DIRECT@0 DONE, edges_recnn(MAX)@1 RUNNING..., edges_recnn2(SUM)@2 RUNNING..., SPAN@2 DONE)
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU" }
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU" }
-    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU", "bidirectional": true }       (edges_recnn@1 RUNNING...) (direct_recnn@0 RUNNING...)
-    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU", "bidirectional": true }       (edges_recnn2@2 RUNNING...) (direct_recnn@0 RUNNING...)
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU", "bidirectional": true }       (edges_recnn@1 RUNNING...) / (direct_recnn@0 RUNNING... 11 runs missing)
+    { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU", "bidirectional": true }       (edges_recnn2@2 RUNNING...) / (direct_recnn@0 RUNNING... 11 runs missing)
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_pl" }
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl" }
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_is" }
@@ -33,10 +34,10 @@ TASK: re/semeval parameters:
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU"}            LM  half done (0,1/2,3/4,5) for EDGES
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU"}            LM  half done (0,1/2,3/4,5) for EDGES
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU", "bidirectional": true }
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }            LM(DIRECT)/edges_lm2@X NEXT
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES) RUNNING... (half...)/direct_lm2@6 RUNNING... (half...)
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES) RUNNING... (half...)/direct_lm2@6 RUNNING... (half...)
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is"}      edges_lm3@0 RUNNING... (ready soon) /direct_lm3@2 DONE
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }            direct_lm3@X NEXT (25 runs missing)/edges_lm2@X NEXT (25 runs missing)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES) RUNNING... (9 runs missing) /direct_lm2@6 RUNNING... (9 runs missing)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES) RUNNING... (10 runs missing)/direct_lm2@6 RUNNING... (10 runs missing)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is"}      edges_lm3@0 RUNNING... (4 runs missing) /direct_lm3@2 DONE
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd_is"}      LM3(EDGES)/LM3(DIRECT)
 
     # BOW (DIRECT,SPAN)@6 DONE
@@ -64,9 +65,12 @@ TASK: sentiment
     HTU_reduceMAX_mapGRU_is     RECNN(DIRECT)/RECNN(EDGES)
 
 
+NOTE: dont set parameters in DIRECT/LM ! (LM@4 should stop before)
+
+
 missing (eventually):
 ====================
-* X MAX... _wd                  (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow) !
+* X MAX... _wd                  (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow) !!
 * X MAX... _wd_is               (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow) !
 * SUM... bidirectional=True     (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
 * X SUM... _wd_is               (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
