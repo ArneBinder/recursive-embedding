@@ -13,9 +13,11 @@ TASK: re/semeval parameters:
     { "keep_prob": 0.5, "tree_embedder": "FLAT_GRU" }
     #{ "keep_prob": 0.5, "tree_embedder": "FLAT_LSTM" }
 
-    # RECNN (DIRECT@0 DONE,EDGES@1 RUNNING...,SPAN@2 DONE)
+    # RECNN (DIRECT@0 DONE, edges_recnn(MAX)@1 RUNNING..., edges_recnn2(SUM)@2 NEXT!, SPAN@2 DONE)
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU" }
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU" }
+    #{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU", "bidirectional": true }       (edges_recnn@1 RUNNING...) (direct_recnn@0 NEXT!)
+    #{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU", "bidirectional": true }       (edges_recnn2@2 NEXT!) (direct_recnn@0 NEXT!)
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_pl" }
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl" }
     { "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_is" }
@@ -27,12 +29,14 @@ TASK: re/semeval parameters:
     #{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapLSTM" }
     #{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapLSTM" }
 
-    # LM (DIRECT, EDGES)    LM@4 RUNNING... LM2@6 RUNNING...
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU"}            LM
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU"}            LM
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES)/LM2(DIRECT)
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES)/LM2(DIRECT)
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is"}      LM3(EDGES)@0 RUNNING... /LM3(DIRECT)@2 RUNNING...
+    # LM (DIRECT, EDGES)    LM@4 RUNNING...
+    #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU"}            LM  half done (0,1/2,3/4,5) for EDGES
+    #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU"}            LM  half done (0,1/2,3/4,5) for EDGES
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU", "bidirectional": true }            LM(DIRECT)/LM??(EDGES)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }            LM(DIRECT)/LM??(EDGES)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES)/direc_lm2@6 RUNNING...
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES)/direc_lm2@6 RUNNING...
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is"}      edges_lm3@0 RUNNING... /direct_lm3@2 RUNNING... (ready soon)
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd_is"}      LM3(EDGES)/LM3(DIRECT)
 
     # BOW (DIRECT,SPAN)@6 DONE
@@ -62,11 +66,15 @@ TASK: sentiment
 
 missing (eventually):
 ====================
-* X MAX... _wd_is       (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
-* X SUM... _wd_is       (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
-* SUM... _wd_is         (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
-* HTUrev...SUM/MAX      (RECNN, DIRECT/EDGES/(SPAN), all tasks)                            2 * (3 * 2 + 1 * 3) = 18
-* HTU...SUM..._pl/_is   (RECNN, DIRECT/EDGES, SA) but MAX > SUM!                           4 (very slow)
+* MAX... bidirectional=True     (RECNN, DIRECT/EDGES, RE_SEMEVAL)                                  2 (slow)
+* MAX... bidirectional=True     (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
+* SUM... bidirectional=True     (RECNN, DIRECT/EDGES, RE_SEMEVAL)                                  2 (slow)
+* SUM... bidirectional=True     (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
+* X MAX... _wd_is               (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow) !
+* X SUM... _wd_is               (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow) !
+* SUM... _wd_is                 (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
+* HTUrev...SUM/MAX              (RECNN, DIRECT/EDGES/(SPAN), all tasks)                            2 * (3 * 2 + 1 * 3) = 18
+* HTU...SUM..._pl/_is           (RECNN, DIRECT/EDGES, SA) but MAX > SUM!                           4 (very slow)
 * TACRED
 
 
