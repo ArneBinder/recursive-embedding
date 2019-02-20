@@ -380,6 +380,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         #logger.debug('create trees with concat_mode=%s' % concat_mode)
         #x = (1 + (len(indices) / 100))
         if concat_mode == CM_TREE:
+            res = []
             depths = []
             for idx in indices:
                 # DEBUG
@@ -394,6 +395,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                                                     add_heads_dummies=[data_padding] * additional_heads,
                                                     return_strings=DEBUG, return_depth=DATA_STATS_PATH is not None)
                 yield tree_context
+                #res.append(tree_context)
                 n += 1
                 if DATA_STATS_PATH is not None:
                     depths.append(tree_context[KEY_DEPTH])
@@ -412,6 +414,9 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 fn = '%s.%i.np' % (fn, _i)
                 logger.debug('dump depths to: %s' % fn)
                 depths.dump(fn)
+                logger.debug('dumped.')
+            #for r in res:
+            #    yield r
 
         elif concat_mode == CM_AGGREGATE:
             res = []
@@ -494,6 +499,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 logger.debug('dump tokens to: %s' % fn_tokens)
                 with open(fn_tokens, 'w') as f:
                     json.dump(all_data_string, f)
+                logger.debug('dumped.')
             #for r in res:
             #    yield r
                 # measure progress in percent
