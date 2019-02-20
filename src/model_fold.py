@@ -1055,23 +1055,32 @@ class TreeEmbedding_HTUBatchedHead_init_state(TreeEmbedding_HTU_init_state):
         return self.dimension_embeddings + self.state_size + 1
 
 
-class TreeEmbedding_HTUBatchedHeadX(TreeEmbedding_HTU):
+class TreeEmbedding_HTUBatchedHeadX_init_state(TreeEmbedding_HTU_init_state):
     """ Calculates batch_size embeddings given a sequence of children and batch_size heads """
 
     def __init__(self, name, **kwargs):
-        super(TreeEmbedding_HTUBatchedHeadX, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_HTUBatchedHeadX_init_state, self).__init__(name=name, **kwargs)
 
     def __call__(self):
-        _htu_model = super(TreeEmbedding_HTUBatchedHeadX, self).__call__()
-        trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
+        _htu_model = super(TreeEmbedding_HTUBatchedHeadX_init_state, self).__call__()
+        #trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
         # dummy_head is just passed through reduce, shouldn't be touched
-        reduced_children = td.AllOf(td.Void(), trees_children) >> self.reduce >> td.GetItem(1)
+        #reduced_children = td.AllOf(td.Void(), trees_children) >> self.reduce >> td.GetItem(1)
+        reduced_children = td.OneOf(key_fn=self.has_children(),
+                                    case_blocks={
+                                        True: td.AllOf(td.Void(), td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model))
+                                              >> self.reduce >> td.GetItem(1),
+                                        False: td.Void() >> self._init_state
+                                    }
+                                    )
         # add id to candidate embeddings
         # do not use leaf_fc for candidates!
         #heads_embedded = td.GetItem(KEY_CANDIDATES) \
         #                 >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
         #                           >> td.Concat())
-        heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed_w_direction())
+        #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed_w_direction())
+        heads_embedded = td.InputTransform(lambda x: [{KEY_HEAD: c, KEY_HEAD_CONCAT: x.get(KEY_HEAD_CONCAT, [])} for c in x[KEY_CANDIDATES]]) \
+                         >> td.Map(self.head_w_direction())
         model = td.AllOf(
             td.AllOf(heads_embedded, reduced_children >> td.Broadcast()) >> td.Zip() >> td.Map(self.map),
             td.GetItem(KEY_CANDIDATES) >> td.Map(td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
@@ -1414,14 +1423,14 @@ class TreeEmbedding_HTUBatchedHead_reduceMAX_mapGRU_wd_is(TreeEmbedding_reduceMA
         super(TreeEmbedding_HTUBatchedHead_reduceMAX_mapGRU_wd_is, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_HTUBatchedHeadX_reduceSUM_mapGRU_wd(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHeadX):
+class TreeEmbedding_HTUBatchedHeadX_reduceSUM_mapGRU_wd_is(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHeadX_init_state):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_HTUBatchedHeadX_reduceSUM_mapGRU_wd, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_HTUBatchedHeadX_reduceSUM_mapGRU_wd_is, self).__init__(name=name, **kwargs)
 
 
-class TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU_wd(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHeadX):
+class TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU_wd_is(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTUBatchedHeadX_init_state):
     def __init__(self, name='', **kwargs):
-        super(TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU_wd, self).__init__(name=name, **kwargs)
+        super(TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU_wd_is, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
