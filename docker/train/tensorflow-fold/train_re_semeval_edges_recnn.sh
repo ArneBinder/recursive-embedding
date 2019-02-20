@@ -18,4 +18,4 @@ echo "ENV_GENERAL=$ENV_GENERAL"
 ## EDGES
 
 # RECNN
-./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/EDGES/RECNN train-settings/task/re-semeval.env train-settings/model/recnn.env train-settings/dataset/corenlp/semeval-edges.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/EDGES/RECNN train-settings/task/re-semeval.env train-settings/model/recnn.env train-settings/dataset/corenlp/semeval-edges-FIXED.env "$ENV_GENERAL"
