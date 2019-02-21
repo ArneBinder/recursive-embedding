@@ -72,16 +72,22 @@ def load_and_merge_scores(out, fn='scores.tsv', semeval=False, exclude_class=Non
         print('read %s ...' % os.path.join(path, fn))
         dir_name = os.path.basename(path)
         new_data = list(csv.DictReader(open(os.path.join(path, fn)), delimiter='\t'))
+        nbr_found = 0
         for d in new_data:
             d['dir'] = dir_name
+            d['path'] = path
             if semeval:
                 try:
                     from eval_semeval2010t8 import eval
                     run_dir = os.path.join(path, d['run_description'])
                     #assert os.path.exists(run_dir), 'path not found: %s' % run_dir
                     if not os.path.exists(run_dir):
-                        print('WARNING: path not found, skip: %s' % run_dir)
+                        #print('WARNING: path not found, skip: %s' % run_dir)
                         continue
+                    else:
+                        nbr_found += 1
+                    #else:
+                    #    print('XXX')
                     t_string = '_t%.2f' % threshold if exclude_class is not None else ''
                     d['f1_wo_norelation_macro' + t_string], d['f1_wo_norelation_micro' + t_string] = eval(path_dir=run_dir,
                                                                                     exclude_class=exclude_class,
@@ -93,6 +99,8 @@ def load_and_merge_scores(out, fn='scores.tsv', semeval=False, exclude_class=Non
             # the sentence processor is added to the run_desc used for arranging same settings
             d['run_desc'] = rd[0] + '_sp' + dir_name.split('_')[-1].upper()
             data.append({k: d[k] for k in d if d[k] != ''})
+        if semeval:
+            print('found prediction results for %i of %i runs' % (nbr_found, len(new_data)))
 
     fieldnames = sorted(list(set([item for sublist in data for item in sublist])))
     with open('%s.tsv' % out, 'w') as f:
