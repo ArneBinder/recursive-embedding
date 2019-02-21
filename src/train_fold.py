@@ -5,63 +5,46 @@ from __future__ import print_function
 import copy
 import csv
 from datetime import datetime, timedelta
-import fnmatch
 import json
 import logging
 import ntpath
 import os
 import re
 from random import shuffle
-from shutil import rmtree
 # import google3
 # import shutil
-from multiprocessing.pool import ThreadPool
 
 import scipy
 from functools import reduce, partial
 import cPickle as pickle
 import Queue
-from threading import Thread, Lock
+from threading import Thread
 
 import numpy as np
 import six
 import tensorflow as tf
 import tensorflow_fold as td
-from scipy.stats.mstats import spearmanr
-from scipy.stats.stats import pearsonr
-from sklearn import metrics
-from sklearn import preprocessing as pp
-#from spacy.strings import StringStore
 from tensorflow.python.client import device_lib
 from scipy.sparse import csr_matrix, vstack
 
-#import lexicon as lex
 from lexicon import Lexicon
 import model_fold
-from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_sparse_matrix_to_sparse_tensor, \
-    convert_sparse_tensor_to_sparse_matrix
+from model_fold import MODEL_TYPE_DISCRETE, MODEL_TYPE_REGRESSION, convert_sparse_tensor_to_sparse_matrix
 
-# model flags (saved in flags.json)
-#import mytools
-from mytools import numpy_load, chunks, flatten, numpy_dump, numpy_exists, logging_init
+from mytools import numpy_load, flatten, numpy_dump, numpy_exists, logging_init
 from sequence_trees import Forest
 from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGREGATE, CM_TREE, M_INDICES, M_TEST, \
-    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, M_NEG_SAMPLES, OFFSET_ID, \
-    M_MODEL_NEAREST, M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_CANDIDATES, MT_CANDIDATES_W_REF, \
+    M_TRAIN, M_MODEL, M_FNAMES, M_TREES, M_TREE_ITER, M_INDICES_TARGETS, M_BATCH_ITER, OFFSET_ID, \
+    M_INDEX_FILE_SIZES, FN_TREE_INDICES, PADDING_EMBEDDING, MT_CANDIDATES, MT_CANDIDATES_W_REF, \
     MT_MULTICLASS, \
-    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, OFFSET_MESH_ROOT, \
-    MT_TUPLE_CONTINOUES, TYPE_ENTAILMENT, TYPE_POLARITY, TASK_MESH_PREDICTION, TASK_ENTAILMENT_PREDICTION, TYPE_MESH, \
-    OFFSET_POLARITY_ROOT, TASK_SENTIMENT_PREDICTION, OFFSET_OTHER_ENTRY_ROOT, OFFSET_ENTAILMENT_ROOT, \
-    OFFSET_CLASS_ROOTS, TASK_RELATION_EXTRACTION_SEMEVAL, TYPE_RELATION, TYPE_FOR_TASK, BLANKED_EMBEDDING, TYPE_LONG, \
-    RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, REC_EMB_GLOBAL_ANNOTATION, JSONLD_DATA, \
-    TYPE_FOR_TASK_OLD, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION, JSONLD_IDX, REC_EMB_HAS_PARSE, SEMEVAL_RELATION, \
-    TACRED_RELATION, TASK_RELATION_EXTRACTION_TACRED, SICK_RELATEDNESS_SCORE, JSONLD_VALUE
-from config import Config, FLAGS_FN, TREE_MODEL_PARAMETERS, MODEL_PARAMETERS
-#from data_iterators import data_tuple_iterator_reroot, data_tuple_iterator_dbpedianif, data_tuple_iterator, \
-#    indices_dbpedianif
+    DTYPE_IDX, UNKNOWN_EMBEDDING, M_EMBEDDINGS, M_INDICES_SAMPLER, M_TREE_ITER_TFIDF, MT_TUPLE_CONTINOUES, TYPE_MESH, \
+    BLANKED_EMBEDDING, TYPE_LONG, RDF_BASED_FORMAT, SICK_ENTAILMENT_JUDGMENT, REC_EMB_HAS_GLOBAL_ANNOTATION, \
+    REC_EMB_GLOBAL_ANNOTATION, IMDB_SENTIMENT, REC_EMB_HAS_PARSE_ANNOTATION, JSONLD_IDX, SEMEVAL_RELATION, \
+    TACRED_RELATION, SICK_RELATEDNESS_SCORE, JSONLD_VALUE, ADD_HEADS_DIMS
+from config import Config, FLAGS_FN
 import data_iterators as diters
-from data_iterators import batch_iter_naive, batch_iter_all, batch_iter_fixed_probs, batch_iter_default, batch_iter_simtuple_dep
-from corpus import FE_CLASS_IDS, load_class_ids, save_class_ids
+from data_iterators import batch_iter_naive, batch_iter_all, batch_iter_fixed_probs, batch_iter_default
+from corpus import load_class_ids, save_class_ids
 from concurrency import RunnerThread, compile_batches_simple, create_trees_simple, prepare_batch, RecompileThread, process_batch
 
 # non-saveable flags
@@ -1545,7 +1528,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         nbr_add_heads = len(add_heads_split)
         tree_iterator_args['additional_heads'] = nbr_add_heads
         #embedding_model_kwargs['additional_heads'] = nbr_add_heads
-        embedding_model_kwargs['additional_heads_dims'] = [50] * nbr_add_heads
+        #embedding_model_kwargs['additional_heads_dims'] = [50] * nbr_add_heads
+        embedding_model_kwargs['additional_heads_dims'] = [ADD_HEADS_DIMS[ah.strip()] for ah in add_heads_split]
         logger.debug('collected %i add_heads types for %i prefixes' % (len(tree_iterator_args['add_heads_types']), nbr_add_heads))
 
     #if config.model_type == MT_REROOT:

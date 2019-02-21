@@ -71,8 +71,8 @@ NOTE: dont set parameters in DIRECT/LM ! (LM@4 should stop before)
 
 missing (eventually):
 ====================
-* X MAX... bidirectional=True   (LM, DIRECT, RE_SEMEVAL)                                           1 (slow) !
-* X MAX... _wd                  (LM, DIRECT, RE_SEMEVAL)                                           1 (slow) !
+* X MAX... bidirectional=True   (LM, DIRECT, RE_SEMEVAL)                                           1 (slow)
+* X MAX... _wd                  (LM, DIRECT, RE_SEMEVAL)                                           1 (slow)
 * X MAX... _wd_is               (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
 * SUM... bidirectional=True     (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
 * X SUM... _wd                  (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)

@@ -271,6 +271,12 @@ TYPE_LONG = {#'REL': TYPE_RELATION,
              #'MAN': vocab_manual.values()
              }
 
+ADD_HEADS_DIMS = {
+    'EDG': 50,
+    'POS': 50,
+    'ARGS': 3,
+}
+
 # structural assumptions
 # general
 OFFSET_ID = 1
