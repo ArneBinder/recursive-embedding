@@ -84,14 +84,13 @@ def load_and_merge_scores(out, fn='scores.tsv', semeval=False, exclude_class=Non
                     if not os.path.exists(run_dir):
                         #print('WARNING: path not found, skip: %s' % run_dir)
                         continue
-                    else:
-                        nbr_found += 1
                     #else:
                     #    print('XXX')
                     t_string = '_t%.2f' % threshold if exclude_class is not None else ''
                     d['f1_wo_norelation_macro' + t_string], d['f1_wo_norelation_micro' + t_string] = eval(path_dir=run_dir,
                                                                                     exclude_class=exclude_class,
                                                                                     threshold=threshold)
+                    nbr_found += 1
                 except Exception as e:
                     print('ERROR while getting semeval scores for %s:\n%s' % (dir_name, e))
             rd = d['run_description'].split('/')
