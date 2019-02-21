@@ -1473,6 +1473,11 @@ class TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU_wd(TreeEmbedding_reduceMAX,
         super(TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU_wd, self).__init__(name=name, **kwargs)
 
 
+class TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU, TreeEmbedding_HTUBatchedHeadX):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTUBatchedHeadX_reduceMAX_mapGRU, self).__init__(name=name, **kwargs)
+
+
 class TreeEmbedding_FLATconcat_GRU_DEP(TreeEmbedding_FLATconcat):
     def __init__(self, **kwargs):
         TreeEmbedding_FLATconcat.__init__(self, name='GRU', **kwargs)
