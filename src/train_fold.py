@@ -1520,6 +1520,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     if config.add_heads and config.add_heads.strip():
         logger.info('add heads with prefixes to their parent: %s' % config.add_heads)
         add_heads_split = config.add_heads.split(',')
+        # TODO: remove add_heads entry from add_heads_split if no ids were found for it!
         add_heads_ids = lexicon.get_ids_for_prefixes_or_types(
             prefixes_or_types=add_heads_split, data_as_hashes=False)
         if config.blank and config.blank.strip():
