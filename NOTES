@@ -35,8 +35,8 @@ TASK: re/semeval parameters:
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU"}            LM  half done (0,1/2,3/4,5) for EDGES
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU", "bidirectional": true }
     { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }           (EDGES only) edges_lm2@2 RUNNING... (25 runs missing)
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES) RUNNING... (9 runs missing) /direct_lm2@6 RUNNING... (9 runs missing)
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES) RUNNING... (10 runs missing)/direct_lm2@6 RUNNING... (10 runs missing)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES) RUNNING... (9 runs missing) /direct_lm2@6 DONE
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES) RUNNING... (10 runs missing)/direct_lm2@6 DONE
     { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is"}      edges_lm3@0 RUNNING... (4 runs missing) /direct_lm3@2 DONE
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd_is"}      LM3(EDGES)/LM3(DIRECT)
     { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd"}         (EDGES only) edges_lm4@5 RUNNING... (25 runs missing)
