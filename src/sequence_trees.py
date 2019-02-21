@@ -677,7 +677,9 @@ class Forest(object):
         if len(add_heads_dummies) > 0:
             current_additional_heads = [self.data[ad] for ad in current_targets if self.data[ad] in add_heads_types]
             if len(current_additional_heads) > 0:
-                seq_node[KEY_HEAD_CONCAT] = current_additional_heads
+                # TODO: transform current_additional_heads??? (add_heads_dummies are already transformed)
+                #seq_node[KEY_HEAD_CONCAT] = current_additional_heads
+                seq_node[KEY_HEAD_CONCAT] = current_additional_heads + add_heads_dummies[len(current_additional_heads):]
             else:
                 seq_node[KEY_HEAD_CONCAT] = add_heads_dummies
             assert len(seq_node[KEY_HEAD_CONCAT]) == len(add_heads_dummies), \
@@ -878,7 +880,7 @@ class Forest(object):
                 break
         return result
 
-    def get_data_span_cleaned(self, idx_start, idx_end, link_types, remove_types, transform=False):
+    def get_data_span_cleaned(self, idx_start, idx_end, link_types, remove_types=(), transform=False):
         data = self.data[idx_start:idx_end]
         ## remove entries
         indices_remove = []
@@ -886,13 +888,15 @@ class Forest(object):
         for link_type in link_types:
             indices_remove.append(np.where(data == link_type)[0] + 1)
         ## remove other entries of specified types
-        for remove_type in remove_types:
-            indices_remove.append(np.where(data == remove_type)[0])
-        indices_remove_np = np.sort(np.concatenate(indices_remove))
         mask = np.ones(data.shape, dtype=bool)
-        mask[indices_remove_np] = False
+        if len(remove_types) > 0:
+            for remove_type in remove_types:
+                indices_remove.append(np.where(data == remove_type)[0])
+
+            indices_remove_np = np.sort(np.concatenate(indices_remove))
+            mask[indices_remove_np] = False
         if transform:
-            return self.lexicon.transform_indices(indices=data[mask])
+            return np.array(self.lexicon.transform_indices(indices=data[mask]), dtype=DTYPE_IDX)
         else:
             return data[mask]
 

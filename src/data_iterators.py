@@ -16,7 +16,8 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
     REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG, NIF_SENTENCE, NIF_NEXT_SENTENCE, \
-    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT, KEY_DEPTH, DATA_STATS_PATH, CONLL_EDGE, CONLL_POS
+    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT, KEY_DEPTH, DATA_STATS_PATH, CONLL_EDGE, CONLL_POS, \
+    CONLL_WORD
 from sequence_trees import Forest, targets
 from mytools import numpy_load
 
@@ -311,7 +312,7 @@ def debug_get_child_ids(d):
 
 def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=0, transform=True,
                   link_cost_ref=None, link_cost_ref_seealso=1, reroot=False, max_size_plain=1000,
-                  keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(), add_heads_types=(), additional_heads=0,
+                  keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=(), add_heads_types=set(), additional_heads=0,
                   **unused):
     """
     create trees rooted at indices
@@ -334,9 +335,20 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         # set fixed nbr of heads for flat models (WORD(real head), DEP, POS)
         # this _can_ be different from additional_heads
         nbr_heads_flat = 3
-        add_heads_default_prefixes = [CONLL_EDGE, CONLL_POS]
+        default_add_heads_prefixes = [CONLL_EDGE + u'=', CONLL_POS + u'=']
+        other_add_heads_types = ()
+        #main_types = None
         assert additional_heads < nbr_heads_flat, 'additional_heads [%i] has to be smaller then nbr_heads_flat [%i]' \
                                                   % (additional_heads, nbr_heads_flat)
+        if len(add_heads_types) > 0:
+            # collect all default add_heads types
+            default_add_heads_types = []
+            for p in default_add_heads_prefixes:
+                # dont transform
+                default_add_heads_types.extend(forest.lexicon.get_ids_for_prefix(prefix=p, add_separator=False)[0])
+            other_add_heads_types = add_heads_types - set(default_add_heads_types)
+            #if len(_other_add_heads_types) > 0:
+            #    other_add_heads_types = _other_add_heads_types
 
         #sys.setrecursionlimit(max(RECURSION_LIMIT_MIN, max_depth + context + RECURSION_LIMIT_ADD))
         sys.setrecursionlimit(1000)
@@ -431,8 +443,8 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 data_span_cleaned = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
                                                                  link_types=link_types,
                                                                  remove_types=remove_types_naive, transform=transform)
-                if DEBUG:
 
+                if DEBUG:
                     data_span_cleaned_not_transformed = forest.get_data_span_cleaned(idx_start=idx, idx_end=idx_end,
                                                                                      link_types=link_types,
                                                                                      remove_types=remove_types_naive,
@@ -463,18 +475,46 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
                 assert len(data_span_cleaned) % nbr_heads_flat == 0, \
                     'idx:%i: len(data_span_cleaned) [%i] is not a multiple of nbr_heads_flat [%i]' \
                     % (component_idx, len(data_span_cleaned), nbr_heads_flat)
+                data_span_cleaned = data_span_cleaned.reshape((len(data_span_cleaned) / nbr_heads_flat, nbr_heads_flat))
+
+                if len(other_add_heads_types) > 0:
+                    data_span_cleaned = data_span_cleaned[:,:additional_heads]
+
+                    # use types of "first" entries of data_span_cleaned and select these entries in data[idx:idx_end]
+                    # sanity check
+                    #for i in range(data_span_cleaned.shape[1]-1):
+                    assert len(set(data_span_cleaned[:, 0]) & set(data_span_cleaned[:, 1:].flatten())) == 0, 'type overlap detected'
+                    mask = np.isin(forest.lexicon.transform_indices(forest.data[idx:idx_end]), data_span_cleaned[:, 0])
+                    indices_main = np.arange(len(mask), dtype=DTYPE_IDX)[mask] + idx
+                    assert len(indices_main) == len(data_span_cleaned), \
+                        'len(indices_main)[%i] != len(data_span_cleaned)[%i]' \
+                        % (len(indices_main), len(data_span_cleaned))
+                    other_add_heads = np.ones(len(indices_main), dtype=DTYPE_IDX) * data_padding
+                    for i, idx_main in enumerate(indices_main):
+                        indices_main_children = targets(forest.graph_out, idx_main)
+                        datas_main_child = forest.data[indices_main_children]
+                        #x = 6
+                        for data_child in datas_main_child:
+                            if data_child in other_add_heads_types:
+                                other_add_heads[i] = forest.lexicon.transform_idx(data_child) if transform else data_child
+                                break
+                    data_span_cleaned = np.append(data_span_cleaned,
+                                                  other_add_heads.reshape((len(other_add_heads), 1)),
+                                                  axis=1)
+                else:
+                    data_span_cleaned = data_span_cleaned[:, :additional_heads+1]
                 #if len(data_span_cleaned) > max_size_plain * nbr_heads_flat:
                 #    logger.warning('idx:%i: len(data_span_cleaned)==%i > max_size_plain==%i. Cut tokens to max_size_plain.'
                 #                   % (component_idx, int(len(data_span_cleaned) / nbr_heads_flat), max_size_plain))
                 if DATA_STATS_PATH is not None:
-                    lengths.append(len(data_span_cleaned) / nbr_heads_flat)
+                    lengths.append(len(data_span_cleaned))
                 # cut tokens in the front to resemble behaviour of max_depth
-                data_span_cleaned = data_span_cleaned[max(len(data_span_cleaned) - max_size_plain * nbr_heads_flat, 0):]
+                data_span_cleaned = data_span_cleaned[max(len(data_span_cleaned) - max_size_plain, 0):]
                 tree_context = {KEY_HEAD: data_flat_root,
-                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i],
+                                KEY_CHILDREN: [{KEY_HEAD: data_span_cleaned[i][0],
                                                 KEY_CHILDREN: [],
-                                                KEY_HEAD_CONCAT: data_span_cleaned[i+1:i+1+additional_heads]}
-                                               for i in range(0, len(data_span_cleaned), nbr_heads_flat)]
+                                                KEY_HEAD_CONCAT:  data_span_cleaned[i][1:]}
+                                               for i in range(len(data_span_cleaned))]
                                 }
 
                 #debug_ids_aggr = debug_get_child_ids(tree_context)

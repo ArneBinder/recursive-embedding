@@ -265,7 +265,8 @@ TYPE_LONG = {#'REL': TYPE_RELATION,
              'WRD': CONLL_WORD + u'=',
              'PAR': [REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION],
              'NIF': RDF_PREFIXES_MAP[PREFIX_NIF],
-             'NIFW': [NIF_WORD]
+             'NIFW': [NIF_WORD],
+             'ARGS': [SEMEVAL_SUBJECT, SEMEVAL_OBJECT],
              # collides with TYPE_LEXEME because of UNKNOWN is added for TYPE_LEXEME:
              #'MAN': vocab_manual.values()
              }
