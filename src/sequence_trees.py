@@ -679,6 +679,8 @@ class Forest(object):
             if len(current_additional_heads) > 0:
                 # TODO: transform current_additional_heads??? (add_heads_dummies are already transformed)
                 #seq_node[KEY_HEAD_CONCAT] = current_additional_heads
+                if transform:
+                    current_additional_heads = self.lexicon.transform_indices(current_additional_heads)
                 seq_node[KEY_HEAD_CONCAT] = current_additional_heads + add_heads_dummies[len(current_additional_heads):]
             else:
                 seq_node[KEY_HEAD_CONCAT] = add_heads_dummies
