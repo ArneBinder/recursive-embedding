@@ -69,15 +69,19 @@ TASK: sentiment
 NOTE: dont set parameters in DIRECT/LM ! (LM@4 should stop before)
 
 
+RUNNING or DONE:
+=======
+* RNN RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS       direct_rnn RUNNING@3 ...
+* BOW RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS       direct_bow RUNNING@1 DONE
+* RECNN RE_SEMEVAL  DIRECT  +add_heads=EDG,ARGS (MAX) direct_recnn RUNNING@6 ...
+* RECNN RTE         DIRECT  +add_heads=EDG   (MAX)    direct_recnn RUNNING@4 ...
+* RECNN RP          DIRECT  +add_heads=EDG   (MAX)    direct_recnn RUNNING@1 ...
+
+
 missing:
 =======
-* RNN RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS     direct_rnn RUNNING@3 ...
-* BOW RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS     direct_bow RUNNING@1 DONE
-* RECNN RE_SEMEVAL  DIRECT  +add_heads=EDG,ARGS     direct_recnn RUNNING@6 ... (MAX)
 * RECNN2 RE_SEMEVAL DIRECT  +add_heads=EDG,ARGS     (SUM)
-* RECNN RTE         DIRECT  +add_heads=EDG   (MAX) direct_recnn RUNNING@4 ... (MAX)
 * RECNN2 RTE         DIRECT  +add_heads=EDG  (SUM)
-* RECNN RP          DIRECT  +add_heads=EDG   (MAX) direct_recnn RUNNING@1 ... (MAX)
 * RECNN2 RP          DIRECT  +add_heads=EDG  (SUM)
 * RECNN SA          DIRECT  +add_heads=EDG
 
@@ -87,7 +91,8 @@ NOTE:
 
 missing (eventually):
 ====================
-* X MAX... bidirectional=True   (LM, DIRECT, RE_SEMEVAL)                                           1 (slow)
+* X MAX... bidirectional=True   (LM, DIRECT, RE_SEMEVAL)                                           1 (slow) !
+* try LM with resampling?
 * X MAX... _wd                  (LM, DIRECT, RE_SEMEVAL)                                           1 (slow)
 * X MAX... _wd_is               (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
 * SUM... bidirectional=True     (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
@@ -136,3 +141,43 @@ remove model checkpoint files in subfolders:
 
 statistics:
     https://github.com/facebookincubator/bootstrapped/blob/master/examples/bootstrap_ab_testing.ipynb
+
+
+
+read RE/SEMEVAL2010T8/SPAN/BOW_NOARGS/scores.tsv ...
+found prediction results for 50 of 50 runs
+read RE/SEMEVAL2010T8/SPAN/RECNN_NOARGS/scores.tsv ...
+found prediction results for 200 of 200 runs
+read RE/SEMEVAL2010T8/SPAN/RNN_NOARGS/scores.tsv ...
+found prediction results for 25 of 25 runs
+read RE/SEMEVAL2010T8/EDGES/RECNN/scores.tsv ...
+found prediction results for 125 of 125 runs
+read RE/SEMEVAL2010T8/EDGES/LM3/scores.tsv ...
+found prediction results for 25 of 25 runs
+read RE/SEMEVAL2010T8/EDGES/RECNN2/scores.tsv ...
+found prediction results for 125 of 125 runs
+read RE/SEMEVAL2010T8/EDGES/LM/scores.tsv ...
+found prediction results for 80 of 80 runs
+read RE/SEMEVAL2010T8/EDGES/LM4/scores.tsv ...
+found prediction results for 17 of 17 runs
+read RE/SEMEVAL2010T8/EDGES/LM2/scores.tsv ...
+found prediction results for 8 of 8 runs
+read RE/SEMEVAL2010T8/EDGES/RECNN_FULLTREE/scores.tsv ...
+found prediction results for 200 of 200 runs
+read RE/SEMEVAL2010T8/DIRECT/RECNN/scores.tsv ...
+found prediction results for 16 of 16 runs
+read RE/SEMEVAL2010T8/DIRECT/RNN/scores.tsv ...
+found prediction results for 18 of 18 runs
+read RE/SEMEVAL2010T8/DIRECT/LM2_NOARGS/scores.tsv ...
+found prediction results for 50 of 50 runs
+read RE/SEMEVAL2010T8/DIRECT/BOW_NOARGS/scores.tsv ...
+found prediction results for 50 of 50 runs
+read RE/SEMEVAL2010T8/DIRECT/RECNN_NOARGS/scores.tsv ...
+found prediction results for 250 of 250 runs
+read RE/SEMEVAL2010T8/DIRECT/RNN_NOARGS/scores.tsv ...
+found prediction results for 25 of 25 runs
+read RE/SEMEVAL2010T8/DIRECT/LM3_NOARGS/scores.tsv ...
+found prediction results for 25 of 25 runs
+read RE/SEMEVAL2010T8/DIRECT/BOW/scores.tsv ...
+found prediction results for 50 of 50 runs
+done
