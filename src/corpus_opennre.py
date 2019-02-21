@@ -10,7 +10,7 @@ from scipy.sparse import coo_matrix
 
 from constants import LOGGING_FORMAT, TYPE_DATASET, SEPARATOR, \
     DTYPE_HASH, TYPE_NAMED_ENTITY, DTYPE_VECS, TYPE_TOKEN, \
-    SEMEVAL_RELATION, PREFIX_CONLL, RDF_PREFIXES_MAP, REC_EMB_HAS_PARSE, NIF_SENTENCE
+    SEMEVAL_RELATION, PREFIX_CONLL, RDF_PREFIXES_MAP, REC_EMB_HAS_PARSE, NIF_SENTENCE, CONLL_WORD, CONLL_POS, CONLL_EDGE
 from corpus import save_class_ids, create_index_files, DIR_BATCHES, DIR_MERGED, \
     annotate_file_w_stanford
 from lexicon import Lexicon
@@ -25,10 +25,10 @@ logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
 logger.addHandler(logger_streamhandler)
 
 DATA_TO_TYPE = {
-    'word': RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=',
+    'word': CONLL_WORD + u'=',
     'label': SEMEVAL_RELATION + u'=',
-    'stanford_pos': RDF_PREFIXES_MAP[PREFIX_CONLL] + u'UPOS=',
-    'stanford_deprel': RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE='
+    'stanford_pos': CONLL_POS + u'=',
+    'stanford_deprel': CONLL_EDGE + u'=',
 }
 
 

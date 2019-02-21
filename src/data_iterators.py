@@ -16,7 +16,7 @@ from constants import TYPE_REF, KEY_HEAD, KEY_CANDIDATES, DTYPE_OFFSET, DTYPE_ID
     OFFSET_SEEALSO_ROOT, OFFSET_RELATEDNESS_SCORE_ROOT, OFFSET_OTHER_ENTRY_ROOT, DTYPE_PROBS, BLANKED_EMBEDDING, \
     KEY_HEAD_CONCAT, RDF_BASED_FORMAT, REC_EMB_HAS_PARSE, REC_EMB_HAS_GLOBAL_ANNOTATION, SICK_VOCAB, \
     REC_EMB_GLOBAL_ANNOTATION, SICK_RELATEDNESS_SCORE, JSONLD_IDX, JSONLD_VALUE, DEBUG, NIF_SENTENCE, NIF_NEXT_SENTENCE, \
-    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT, KEY_DEPTH, DATA_STATS_PATH
+    NIF_NEXT_WORD, NIF_WORD, PADDING_EMBEDDING, NIF_CONTEXT, KEY_DEPTH, DATA_STATS_PATH, CONLL_EDGE, CONLL_POS
 from sequence_trees import Forest, targets
 from mytools import numpy_load
 
@@ -334,6 +334,7 @@ def tree_iterator(indices, forest, concat_mode=CM_TREE, max_depth=9999, context=
         # set fixed nbr of heads for flat models (WORD(real head), DEP, POS)
         # this _can_ be different from additional_heads
         nbr_heads_flat = 3
+        add_heads_default_prefixes = [CONLL_EDGE, CONLL_POS]
         assert additional_heads < nbr_heads_flat, 'additional_heads [%i] has to be smaller then nbr_heads_flat [%i]' \
                                                   % (additional_heads, nbr_heads_flat)
 

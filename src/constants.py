@@ -131,6 +131,10 @@ TACRED_RELATION = RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#relation'
 TACRED_SUBJECT = RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#subj'
 TACRED_OBJECT = RDF_PREFIXES_MAP[PREFIX_TACRED] + u'vocab#obj'
 
+CONLL_POS = RDF_PREFIXES_MAP[PREFIX_CONLL]+u'UPOS'
+CONLL_EDGE = RDF_PREFIXES_MAP[PREFIX_CONLL]+u'EDGE'
+CONLL_WORD = RDF_PREFIXES_MAP[PREFIX_CONLL]+u'WORD'
+
 # these entries have to start with "@" (see corpus_rdf)
 JSONLD_ID = u'@id'
 JSONLD_VALUE = u'@value'
@@ -256,9 +260,9 @@ TYPE_LONG = {#'REL': TYPE_RELATION,
              'ENTJ': SICK_ENTAILMENT_JUDGMENT,
              'MSH': TYPE_MESH,
              'STM': IMDB_SENTIMENT,
-             'EDG': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'EDGE=',
-             'POS': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'UPOS=',
-             'WRD': RDF_PREFIXES_MAP[PREFIX_CONLL]+u'WORD=',
+             'EDG': CONLL_EDGE + u'=',
+             'POS': CONLL_POS + u'=',
+             'WRD': CONLL_WORD + u'=',
              'PAR': [REC_EMB_HAS_PARSE, REC_EMB_HAS_PARSE_ANNOTATION],
              'NIF': RDF_PREFIXES_MAP[PREFIX_NIF],
              'NIFW': [NIF_WORD]

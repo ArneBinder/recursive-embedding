@@ -19,7 +19,7 @@ from constants import DTYPE_IDX, PREFIX_REC_EMB, PREFIX_CONLL, PREFIX_NIF, PREFI
     REC_EMB_SUFFIX_GLOBAL_ANNOTATION, REC_EMB_SUFFIX_NIF_CONTEXT, NIF_WORD, NIF_NEXT_WORD, NIF_SENTENCE, \
     NIF_NEXT_SENTENCE, NIF_IS_STRING, LOGGING_FORMAT, PREFIX_UNIVERSAL_DEPENDENCIES_ENGLISH, RDF_PREFIXES_MAP, \
     NIF_CONTEXT, SICK_OTHER, JSONLD_ID, JSONLD_TYPE, JSONLD_VALUE, SEMEVAL_SUBJECT, SEMEVAL_OBJECT, TACRED_SUBJECT, \
-    TACRED_OBJECT, SEMEVAL_RELATION, TACRED_RELATION, DEBUG
+    TACRED_OBJECT, SEMEVAL_RELATION, TACRED_RELATION, DEBUG, CONLL_WORD, CONLL_EDGE
 from lexicon import Lexicon
 from corpus import create_index_files, save_class_ids
 
@@ -309,7 +309,7 @@ def _to_rdf(element):
 
 
 def get_token_ids_in_span(tokens, start, end, idx_key=RDF_PREFIXES_MAP[PREFIX_CONLL] + 'MISC',
-                          word_key=RDF_PREFIXES_MAP[PREFIX_CONLL] + 'WORD'):
+                          word_key=CONLL_WORD):
     res = []
     for t in tokens:
         if idx_key in t and word_key in t:
@@ -817,7 +817,7 @@ def process_jsonl_file(fn, in_path, **params):
     relink_relation=('re-link relation annotation with LCA of subj / obj entries', 'flag', 'l', bool),
 )
 def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
-                                    word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD=', classes_prefix='',
+                                    word_prefix=CONLL_WORD + u'=', classes_prefix='',
                                     min_count=1, params_json='', link_via_edges=False, mask_with_entity_type=False,
                                     mask_with_argument_type=False,
                                     restrict_span_with_annots=False,
@@ -865,6 +865,7 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
         params['discard_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'MISC',
                                         RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ID',
                                         RDF_PREFIXES_MAP[PREFIX_CONLL] + u'LEMMA',
+                                        # dont mistake for CONLL_POS (= ...UPOS)!
                                         RDF_PREFIXES_MAP[PREFIX_CONLL] + u'POS',
                                         RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY',
                                         NIF_NEXT_WORD,
@@ -899,19 +900,19 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
                                        TACRED_SUBJECT
                                        )
     if 'swap_predicates' not in params:
-        params['swap_predicates'] = (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD',)
+        params['swap_predicates'] = (CONLL_WORD,)
     if 'offset_predicates' not in params:
         params['offset_predicates'] = {}
     if 'replace_literal_predicates' not in params:
         params['replace_literal_predicates'] = {}
     if link_via_edges:
         logger.info('link via dependency edges')
-        params['revert_predicates'] = params['revert_predicates'] + (RDF_PREFIXES_MAP[PREFIX_CONLL] + u'EDGE',)
+        params['revert_predicates'] = params['revert_predicates'] + (CONLL_EDGE,)
         params['offset_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'HEAD'] = (0, 1)
         params['offset_predicates'][REC_EMB_HAS_PARSE] = (0, 1)
     if mask_with_entity_type:
         logger.info('replace words with entity type, if available')
-        params['replace_literal_predicates'][RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD'] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'
+        params['replace_literal_predicates'][CONLL_WORD] = RDF_PREFIXES_MAP[PREFIX_CONLL] + u'ENTITY'
     if mask_with_argument_type:
         if mask_with_entity_type:
             logger.info('append argument type (subj / obj) to words, if available')
@@ -992,7 +993,7 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
     glove_file=('glove vector file', 'option', 'g', str),
     word_prefix=('prefix of words in lexicon', 'option', 'w', str),
 )
-def add_glove_vecs(out_path, glove_file, word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD='):
+def add_glove_vecs(out_path, glove_file, word_prefix=CONLL_WORD + u'='):
     fn = os.path.join(out_path, 'forest')
     lex = Lexicon(filename=fn, load_vecs=False)
     logger.info('init vecs with glove file: %s...' % glove_file)
@@ -1004,7 +1005,7 @@ def add_glove_vecs(out_path, glove_file, word_prefix=RDF_PREFIXES_MAP[PREFIX_CON
     out_path=('corpora output path', 'option', 'o', str),
     word_prefix=('prefix of words in lexicon', 'option', 'w', str),
 )
-def add_spacy_vecs(out_path, word_prefix=RDF_PREFIXES_MAP[PREFIX_CONLL] + u'WORD='):
+def add_spacy_vecs(out_path, word_prefix=CONLL_WORD + u'=',):
     import spacy
     logger.debug('load spacy...')
     nlp = spacy.load('en')
