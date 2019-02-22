@@ -85,9 +85,7 @@ RTE "HTU_reduceSUM_mapGRU/..is/..pl", "add_heads": "EDG"    direct_recnn2@6 RUNN
 RE_SEMEVAL "HTU_reduceSUM_mapGRU/+..is/+..pl/+..wd/+bidirectional=True", "add_heads": "EDG,ARGS" direct_recnn2@2 RUNNING...
 
 
-missing:
-=======
-* RECNN2 RE_SEMEVAL DIRECT  +add_heads=EDG,ARGS     (SUM)
+
 
 NOTE:
     RE_SEMEVAL, SPAN, +add_heads=EDG,ARGS, RNN/BOW/RECNN is missing, too        (but we do not focus on SPAN anymore!)
