@@ -36,10 +36,10 @@ TASK: re/semeval parameters:
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU", "bidirectional": true }
     { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }           (EDGES only) edges_lm2@2 RUNNING... (25 runs missing)
     { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd"}         LM(EDGES) DONE /direct_lm2@6 DONE
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES) RUNNING... (2 runs missing)/direct_lm2@6 DONE
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd"}         LM(EDGES) DONE /direct_lm2@6 DONE
     { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is"}      edges_lm3@0 DONE /direct_lm3@2 DONE
     #{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceSUM_mapGRU_wd_is"}      LM3(EDGES)/LM3(DIRECT)
-    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd"}         (EDGES only) edges_lm4@5 RUNNING... (25 runs missing)
+    { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd"}         (EDGES only) edges_lm4@5 DONE
 
     # BOW (DIRECT,SPAN)@6 DONE
     { "keep_prob": 0.9, "tree_embedder": "FLAT_SUM", "leaf_fc_size": 250}
@@ -71,11 +71,16 @@ NOTE: dont set parameters in DIRECT/LM ! (LM@4 should stop before)
 
 RUNNING or DONE:
 =======
-* RNN RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS       direct_rnn RUNNING@3 ...
-* BOW RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS       direct_bow RUNNING@1 DONE
+* RNN RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS       direct_rnn@3 DONE
+* BOW RE_SEMEVAL    DIRECT  +add_heads=EDG,ARGS       direct_bow@1 DONE
 * RECNN RE_SEMEVAL  DIRECT  +add_heads=EDG,ARGS (MAX) direct_recnn RUNNING@6 ...
-* RECNN RTE         DIRECT  +add_heads=EDG   (MAX)    direct_recnn RUNNING@4 ...
-* RECNN RP          DIRECT  +add_heads=EDG   (MAX)    direct_recnn RUNNING@1 ...
+* RECNN RTE         DIRECT  +add_heads=EDG   (MAX)    direct_recnn@4 DONE
+* RECNN RP          DIRECT  +add_heads=EDG   (MAX)    direct_recnn@1 DONE
+* RECNN SA          DIRECT  +add_heads=EDG (MAX)      direct_recnn@1 RUNNING ...
+* RECNN2 SA          DIRECT  +add_heads=EDG (SUM)     direct_recnn2@3 RUNNING ...
+{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true } edges_lm@4 RUNNING ...
+{ "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd", "nbr_trees": "3000" } edges_lm3@5 RUNNING ...
+
 
 
 missing:
@@ -83,7 +88,6 @@ missing:
 * RECNN2 RE_SEMEVAL DIRECT  +add_heads=EDG,ARGS     (SUM)
 * RECNN2 RTE         DIRECT  +add_heads=EDG  (SUM)
 * RECNN2 RP          DIRECT  +add_heads=EDG  (SUM)
-* RECNN SA          DIRECT  +add_heads=EDG
 
 NOTE:
     RE_SEMEVAL, SPAN, +add_heads=EDG,ARGS, RNN/BOW/RECNN is missing, too
@@ -91,8 +95,6 @@ NOTE:
 
 missing (eventually):
 ====================
-* X MAX... bidirectional=True   (LM, DIRECT, RE_SEMEVAL)                                           1 (slow) !
-* try LM with resampling?
 * X MAX... _wd                  (LM, DIRECT, RE_SEMEVAL)                                           1 (slow)
 * X MAX... _wd_is               (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
 * SUM... bidirectional=True     (LM, DIRECT/EDGES, RE_SEMEVAL)                                     2 (slow)
