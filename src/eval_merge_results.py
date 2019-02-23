@@ -60,9 +60,12 @@ def collect_subpaths_with_fn(path, fn):
     threshold=('probability threshold to use exclude_class', 'option', 't', float),
     paths=('paths to folders', 'positional', None, str),
 )
-def load_and_merge_scores(out, fn='scores.tsv', semeval=False, exclude_class=None, threshold=0.5, *paths):
+def load_and_merge_scores(out=None, fn='scores.tsv', semeval=False, exclude_class=None, threshold=0.5, *paths):
     data = []
     assert len(paths) > 0, 'no folders given'
+    if out is None:
+        out = '-'.join([p.replace('/', '_').lower() for p in paths])
+        print('set out file name: %s' % out)
     all_paths = []
     for path in paths:
         _paths = collect_subpaths_with_fn(path, fn)
