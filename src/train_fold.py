@@ -608,7 +608,8 @@ def init_model_type(config, logdir):
         #    tree_iterator_args['classes_ids'] = classes_ids_list
 
     # discrete classification
-    elif config.model_type == MT_MULTICLASS:
+    elif config.model_type in [MT_MULTICLASS, 'mclass']:
+        config.model_type = MT_MULTICLASS
         if config.tree_embedder.strip() == 'HTUBatchedHead_reduceSUM_mapGRU':
             logger.warning('tree_embedder HTUBatchedHead_reduceSUM_mapGRU not allowed for model_type == %s. It will be changed to: HTU_reduceSUM_mapGRU' % MT_MULTICLASS)
             config.tree_embedder = 'HTU_reduceSUM_mapGRU'
