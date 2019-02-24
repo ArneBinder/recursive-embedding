@@ -97,6 +97,25 @@ direct_recnn@1
 { "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceMAX_mapGRU", "add_heads": "EDG,ARGS", "bidirectional": true }
 { "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceSUM_mapGRU", "add_heads": "EDG,ARGS", "bidirectional": true }
 
+direct_recnn_fulltree@0 RUNNING ...
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU", "add_heads": "EDG,ARGS"  }
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU", "add_heads": "EDG,ARGS"  }
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_pl", "add_heads": "EDG,ARGS"  }
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl", "add_heads": "EDG,ARGS"  }
+direct_recnn_fulltree2@1 RUNNING ...
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_is", "add_heads": "EDG,ARGS"  }
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_is", "add_heads": "EDG,ARGS"  }
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceSUM_mapGRU_wd", "add_heads": "EDG,ARGS"  }
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_wd", "add_heads": "EDG,ARGS"  }
+direct_recnn_fulltree3@2 RUNNING ...
+{ "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceMAX_mapGRU", "add_heads": "EDG,ARGS" }
+{ "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceSUM_mapGRU", "add_heads": "EDG,ARGS" }
+{ "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceMAX_mapGRU", "add_heads": "EDG,ARGS", "bidirectional": true }
+{ "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceSUM_mapGRU", "add_heads": "EDG,ARGS", "bidirectional": true }
+
+
+
+
 RELATEDNESS
 edges_recnn@2 DONE
 { "tree_embedder": "HTUrev_reduceMAX_mapGRU" }
