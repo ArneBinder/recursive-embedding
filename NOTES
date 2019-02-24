@@ -85,7 +85,7 @@ RTE "HTU_reduceSUM_mapGRU/..is/..pl", "add_heads": "EDG"    direct_recnn2@6 DONE
 RE_SEMEVAL "HTU_reduceSUM_mapGRU/+..is/+..pl/+..wd/+bidirectional=True", "add_heads": "EDG,ARGS" direct_recnn2@2 DONE
 RE_SEMEVAL { "keep_prob": 0.7, "tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd", "nbr_trees": "1000" }  edges_lm3@5 DONE
 
-RE/SEMEVAL@
+RE/SEMEVAL
 edges_recnn@0
 { "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceMAX_mapGRU" }
 { "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceMAX_mapGRU" }
@@ -98,18 +98,18 @@ direct_recnn@1
 { "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceSUM_mapGRU", "add_heads": "EDG,ARGS", "bidirectional": true }
 
 RELATEDNESS
-edges_recnn@2 RUNNING ...
+edges_recnn@2 DONE
 { "tree_embedder": "HTUrev_reduceMAX_mapGRU" }
 { "tree_embedder": "HTUrev_reduceSUM_mapGRU" }
-direct_recnn@3 RUNNING ...
+direct_recnn@3 DONE
 { "tree_embedder": "HTUrev_reduceMAX_mapGRU", "add_heads": "EDG" }
 { "tree_embedder": "HTUrev_reduceSUM_mapGRU", "add_heads": "EDG" }
 
 ENTAILMENT
-edges_recnn@4 RUNNING ...
+edges_recnn@4 DONE
 { "tree_embedder": "HTUrev_reduceMAX_mapGRU" }
 { "tree_embedder": "HTUrev_reduceSUM_mapGRU" }
-direct_recnn@5 RUNNING ...
+direct_recnn@5 DONE
 { "tree_embedder": "HTUrev_reduceMAX_mapGRU", "add_heads": "EDG" }
 { "tree_embedder": "HTUrev_reduceSUM_mapGRU", "add_heads": "EDG" }
 
