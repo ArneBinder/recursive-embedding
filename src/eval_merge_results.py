@@ -1,4 +1,5 @@
 import csv
+import numpy as np
 import os
 import re
 
@@ -52,15 +53,23 @@ def collect_subpaths_with_fn(path, fn):
     return res
 
 
+def get_mean_abs_error(run_dir, fn_predicted='values_predicted.np', fn_gold='values_gold.np'):
+    scores_p = np.load(os.path.join(run_dir, fn_predicted))
+    scores_g = np.load(os.path.join(run_dir, fn_gold))
+    _mean = np.mean(np.abs(scores_p - scores_g))
+    return _mean
+
+
 @plac.annotations(
     out=('output file name', 'option', 'o', str),
     fn=('input file name', 'option', 'f', str),
     semeval=('output file name', 'flag', 'e', bool),
+    relatedness=('output file name', 'flag', 'r', bool),
     exclude_class=('excluded class', 'option', 'c', str),
     threshold=('probability threshold to use exclude_class', 'option', 't', float),
     paths=('paths to folders', 'positional', None, str),
 )
-def load_and_merge_scores(out=None, fn='scores.tsv', semeval=False, exclude_class=None, threshold=0.5, *paths):
+def load_and_merge_scores(out=None, fn='scores.tsv', semeval=False, relatedness=False, exclude_class=None, threshold=0.5, *paths):
     data = []
     assert len(paths) > 0, 'no folders given'
     if out is None:
@@ -94,6 +103,12 @@ def load_and_merge_scores(out=None, fn='scores.tsv', semeval=False, exclude_clas
                                                                                     exclude_class=exclude_class,
                                                                                     threshold=threshold)
                     nbr_found += 1
+                except Exception as e:
+                    print('ERROR while getting semeval scores for %s:\n%s' % (dir_name, e))
+            elif relatedness:
+                try:
+                    run_dir = os.path.join(path, d['run_description'])
+                    d['abs_error'] = get_mean_abs_error(run_dir)
                 except Exception as e:
                     print('ERROR while getting semeval scores for %s:\n%s' % (dir_name, e))
             rd = d['run_description'].split('/')
