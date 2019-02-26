@@ -110,7 +110,7 @@ def load_and_merge_scores(out=None, fn='scores.tsv', semeval=False, relatedness=
                     run_dir = os.path.join(path, d['run_description'])
                     d['abs_error'] = get_mean_abs_error(run_dir)
                 except Exception as e:
-                    print('ERROR while getting semeval scores for %s:\n%s' % (dir_name, e))
+                    print('ERROR while getting relatedness scores for %s:\n%s' % (dir_name, e))
             rd = d['run_description'].split('/')
             # ATTENTION: assume that dir_name is of format: something_SENTENCEPROCESSOR
             # the sentence processor is added to the run_desc used for arranging same settings
