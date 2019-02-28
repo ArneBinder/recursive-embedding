@@ -99,7 +99,7 @@ def load_and_merge_scores(out=None, fn='scores.tsv', semeval=False, relatedness=
                     #else:
                     #    print('XXX')
                     t_string = '_t%.2f' % threshold if exclude_class is not None else ''
-                    d['f1_wo_norelation_macro' + t_string], d['f1_wo_norelation_micro' + t_string] = eval(path_dir=run_dir,
+                    d['f1_macro' + t_string], d['f1_wo_norelation_micro' + t_string] = eval(path_dir=run_dir,
                                                                                     exclude_class=exclude_class,
                                                                                     threshold=threshold)
                     nbr_found += 1
