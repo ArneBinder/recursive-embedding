@@ -136,23 +136,29 @@ direct_recnn@5 DONE
 RE-CS
 n=3000
     red=MAX l=EDGES (edges-FULLTREE)
-        # feat: X, bidirectionality: True     NEXT
-        {"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }
-        # feat: WD-X                          NEXT
-        {"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }
-        # feat: -, bidirectionality: True     NEXT
-        {"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }
-        # feat: WD,                           NEXT
-        {"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }
-        # feat: IS-WD,                        NEXT
-        {"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }
+# feat: X, bidirectionality: True
+{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm@1
+# feat: WD-X
+#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          RUNNING ... edges_lm2@2
+# feat: -, bidirectionality: True
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm3@3
+# feat: WD
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           RUNNING ... edges_lm4@5
+# feat: IS-WD
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        RUNNING ... edges_lm5@7
+
 
     red=MAX l=DIRECT (direct-FULLTREE)
-        feat: X, bidirectionality: True     NEXT
-        feat: -, bidirectionality: True     NEXT
-        feat: WD,                           NEXT
-        feat: IS-WD,                        NEXT
-        feat: WD-X                          NEXT
+# feat: X, bidirectionality: True
+{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       NEXT
+# feat: WD-X
+#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          NEXT
+# feat: -, bidirectionality: True
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       NEXT
+# feat: WD
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           NEXT
+# feat: IS-WD
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        NEXT
 
 
 
