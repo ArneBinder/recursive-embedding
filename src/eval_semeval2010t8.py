@@ -63,8 +63,8 @@ def eval(path_dir, exclude_class=None, threshold=0.5, class_strings=(SEMEVAL_REL
     fn_predicted_tsv = fn_max_strings + '.tsv'
     if not os.path.exists(fn_gold_tsv) or not os.path.exists(fn_predicted_tsv):
         if os.path.exists(fn_gold_strings + '.txt') and os.path.exists(fn_max_strings + '.txt'):
-            open(fn_gold_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_gold_strings + '.txt').readlines())))
-            open(fn_predicted_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_max_strings + '.txt').readlines())))
+            open(fn_gold_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_gold_strings + '.txt').readlines()) if l.startswith(SEMEVAL_RELATION) or l.startswith(TACRED_RELATION)))
+            open(fn_predicted_tsv, 'w').writelines(('%i\t%s\n' % (i, format_rel(l)) for i, l in enumerate(open(fn_max_strings + '.txt').readlines()) if l.startswith(SEMEVAL_RELATION) or l.startswith(TACRED_RELATION)))
         else:
             print('%s or %s not found, create from probabilities...' % (fn_max_strings, fn_gold_strings))
             convert_values(path=path_dir, fn_gold_tsv=fn_gold_tsv, fn_predicted_tsv=fn_predicted_tsv,
