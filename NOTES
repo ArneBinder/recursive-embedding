@@ -133,6 +133,30 @@ direct_recnn@5 DONE
 { "tree_embedder": "HTUrev_reduceSUM_mapGRU", "add_heads": "EDG" }
 
 
+RE-CS
+n=3000
+    red=MAX l=EDGES (edges-FULLTREE)
+        # feat: X, bidirectionality: True     NEXT
+        {"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }
+        # feat: WD-X                          NEXT
+        {"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }
+        # feat: -, bidirectionality: True     NEXT
+        {"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }
+        # feat: WD,                           NEXT
+        {"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }
+        # feat: IS-WD,                        NEXT
+        {"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }
+
+    red=MAX l=DIRECT (direct-FULLTREE)
+        feat: X, bidirectionality: True     NEXT
+        feat: -, bidirectionality: True     NEXT
+        feat: WD,                           NEXT
+        feat: IS-WD,                        NEXT
+        feat: WD-X                          NEXT
+
+
+
+
 NOTE:
     RE_SEMEVAL, SPAN, +add_heads=EDG,ARGS, RNN/BOW/RECNN is missing, too        (but we do not focus on SPAN anymore!)
     RE_SEMEVAL, DIRECT, +add_heads=EDG,ARGS, LM is missing, too !
