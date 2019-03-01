@@ -134,18 +134,18 @@ direct_recnn@5 DONE
 
 
 RE-CS
-n=3000
+n=3000 dir_clean=LM_LCA_NEW
     red=MAX l=EDGES (edges-FULLTREE)
 # feat: X, bidirectionality: True
-{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm@1
+{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm@2
 # feat: WD-X
-#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          RUNNING ... edges_lm2@2
+#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          RUNNING ... edges_lm2@4
 # feat: -, bidirectionality: True
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm3@3
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm3@5
 # feat: WD
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           RUNNING ... edges_lm4@5
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           RUNNING ... edges_lm4@7
 # feat: IS-WD
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        RUNNING ... edges_lm5@7
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        NEXT
 
 
     red=MAX l=DIRECT (direct-FULLTREE)
