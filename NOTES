@@ -134,34 +134,47 @@ direct_recnn@5 DONE
 
 
 RE-CS
+parameters: simplified (X), bidirectional (WD), init state (IS)
+
 n=3000 dir_clean=LM_LCA_NEW
-    red=MAX l=EDGES (edges-FULLTREE)
+red=MAX l=EDGES (edges-LCA)
 # feat: X, bidirectionality: True
-{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm@2
+{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       DONE edges_lm@2
 # feat: WD-X
-#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          RUNNING ... edges_lm2@4
+#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          DONE edges_lm2@4
 # feat: -, bidirectionality: True
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       RUNNING ... edges_lm3@5
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       DONE edges_lm3@5
 # feat: WD
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           RUNNING ... edges_lm4@7
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           DONE edges_lm4@7
 # feat: IS-WD
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        NEXT
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        RUNNING ... edges_lm5@0
+# feat: IS-WD-X
+{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd_is" }                        RUNNING ... edges_lm@4
 
-
-    red=MAX l=DIRECT (direct-FULLTREE)
+red=MAX l=DIRECT (direct-LCA)
 # feat: X, bidirectionality: True
-{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       NEXT
+{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU", "bidirectional": true }       LATER
 # feat: WD-X
-#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          NEXT
+#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd" }                          LATER
 # feat: -, bidirectionality: True
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       NEXT
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU", "bidirectional": true }       LATER
 # feat: WD
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           NEXT
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd" }                           LATER
 # feat: IS-WD
-#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        NEXT
+#{"tree_embedder": "HTUBatchedHead_reduceMAX_mapGRU_wd_is" }                        LATER
+# feat: IS-WD-X
+#{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd_is" }
 
+SA
+{"tree_embedder": "HTUrev_reduceMAX_mapGRU" } EDGES_RECNN@2  RUNNING ...
+{"tree_embedder": "HTU_reduceMAX_mapGRU_pl" } DIRECT_RECNN@3 RUNNING ...
 
-
+RE/SEMEVAL2010T8, EDGES, HTUrev_reduceMAX_mapGRU (was trained falsely with d=True)
+ { "keep_prob": 0.5, "tree_embedder": "HTUrev_reduceMAX_mapGRU" }  edges_recnn_FULLTREE@1   RUNNING ...
+ { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl", "bidirectional": true }    direct_recnn@7  RUNNING ...
+ { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_is", "bidirectional": true }    edges_recnn@5   RUNNING ...
+ { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl", "bidirectional": true }    direct_recnn@7  RUNNING ...
+ { "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_is", "bidirectional": true }    edges_recnn@5   RUNNING ...
 
 NOTE:
     RE_SEMEVAL, SPAN, +add_heads=EDG,ARGS, RNN/BOW/RECNN is missing, too        (but we do not focus on SPAN anymore!)
@@ -179,6 +192,10 @@ missing (eventually):
 * HTU...SUM..._pl/_is           (RECNN, DIRECT/EDGES, SA) but MAX > SUM!                           4 (very slow)
 * TACRED
 
+
+TODO:
+check RE:
+    REV RECNN_LCA   ForT(d)  EDGES 	0.722 	0.734 	0.690 	207.094 	50(count)
 
 NOTES:
 =====
