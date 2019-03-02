@@ -15,7 +15,7 @@ echo "ENV_GENERAL=$ENV_GENERAL"
 
 ## SEMEVAL2010T8 relation extraction
 
-## DIRECT
+## DIRECT + add_heads=EDG,ARGS (manual adding required for SEMEVAL)
 
 # RECNN
-./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/RECNN train-settings/task/re-semeval.env train-settings/model/recnn.env train-settings/dataset/corenlp/semeval-direct.env "$ENV_GENERAL"
+./train.sh "$USE_GPUS" RE/SEMEVAL2010T8/DIRECT/RECNN train-settings/task/re-semeval.env train-settings/model/recnn.env train-settings/dataset/corenlp/semeval-direct.env train-settings/specific/add-heads-EDG-ARGS.env "$ENV_GENERAL"
