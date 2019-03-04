@@ -1275,6 +1275,11 @@ class TreeEmbedding_HTU_reduceMAX_mapGRU_wd(TreeEmbedding_reduceMAX, TreeEmbeddi
         super(TreeEmbedding_HTU_reduceMAX_mapGRU_wd, self).__init__(name=name, **kwargs)
 
 
+class TreeEmbedding_HTU_reduceMAX_mapGRU_pl_wd(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTU_plain_leaf):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceMAX_mapGRU_pl_wd, self).__init__(name=name, **kwargs)
+
+
 class TreeEmbedding_HTU_reduceSUM_mapGRU_pl(TreeEmbedding_reduceSUM, TreeEmbedding_mapGRU, TreeEmbedding_HTU_plain_leaf):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceSUM_mapGRU_pl, self).__init__(name=name, **kwargs)
@@ -1293,6 +1298,11 @@ class TreeEmbedding_HTU_reduceSUM_mapGRU_is(TreeEmbedding_reduceSUM, TreeEmbeddi
 class TreeEmbedding_HTU_reduceMAX_mapGRU_is(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU, TreeEmbedding_HTU_init_state):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceMAX_mapGRU_is, self).__init__(name=name, **kwargs)
+
+
+class TreeEmbedding_HTU_reduceMAX_mapGRU_is_wd(TreeEmbedding_reduceMAX, TreeEmbedding_mapGRU_w_direction, TreeEmbedding_HTU_init_state):
+    def __init__(self, name='', **kwargs):
+        super(TreeEmbedding_HTU_reduceMAX_mapGRU_is_wd, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_HTU_reduceSUM_mapLSTM(TreeEmbedding_reduceSUM, TreeEmbedding_mapLSTM, TreeEmbedding_HTU):
