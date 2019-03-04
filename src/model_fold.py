@@ -1986,13 +1986,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         if not isinstance(fc_sizes, (list, tuple)):
             fc_sizes = [fc_sizes]
 
-        # add multiple fc layers
-        #for s in fc_sizes:
-        #    if s > 0:
-        #        # disabled, because it should be asymmetric
-        #        raise NotImplementedError('fc_sizes are currently not implemented')
-        #        fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
-        #        final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
+
 
         # add circular self correlation
         #if use_circular_correlation:
@@ -2008,6 +2002,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         # assume, we get vectors that are concatenations of: (aggregated children, candidate head)
         # HeadBatched_... (simplified)
         if not embedded_root:
+
             ## split vecs into two
             #assert concat_embeddings_dim % 2 == 0, \
             #    'dimension of concatenated embeddings has to be multiple of two, but it is: %i' % _shape[-1]
@@ -2018,6 +2013,14 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
             vecs_reference = vecs_reshaped[:, :reference_dims]
             vecs_candidate = tf.expand_dims(vecs_reshaped[:, reference_dims:], axis=1)
             with tf.name_scope(name='fc_reference') as sc:
+                # add multiple fc layers
+                for s in fc_sizes:
+                    if s > 0:
+                        # disabled, because it should be asymmetric
+                        #raise NotImplementedError('fc_sizes are currently not implemented')
+                        logger.warning('use additional fc_reference layer (size: %i)' % s)
+                        vecs_reference = tf.contrib.layers.fully_connected(inputs=vecs_reference, num_outputs=s, scope=sc)
+
                 fc_reference = tf.contrib.layers.fully_connected(inputs=vecs_reference, num_outputs=candidate_dims, scope=sc)
                 vecs_reference_scaled = tf.expand_dims(tf.nn.dropout(fc_reference, keep_prob=tree_model.keep_prob), axis=1)
             final_vecs_split = tf.concat((vecs_reference_scaled, vecs_candidate), axis=1)
