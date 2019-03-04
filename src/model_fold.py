@@ -2041,7 +2041,8 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
             with tf.name_scope(name='fc_scoring') as sc:
                 for s in fc_sizes:
                     if s > 0:
-                        vecs_reshaped = tf.contrib.layers.fully_connected(inputs=vecs_reshaped, num_outputs=s, scoep=sc)
+                        logger.warning('use additional fc_scoring layer (size: %i)' % s)
+                        vecs_reshaped = tf.contrib.layers.fully_connected(inputs=vecs_reshaped, num_outputs=s, scope=sc)
                 # regression
                 logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=vecs_reshaped, activation_fn=None,
                                                                       num_outputs=1, scope=sc),
