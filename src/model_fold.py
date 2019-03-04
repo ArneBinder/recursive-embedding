@@ -1987,12 +1987,12 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
             fc_sizes = [fc_sizes]
 
         # add multiple fc layers
-        for s in fc_sizes:
-            if s > 0:
-                # disabled, because it should be asymmetric
-                raise NotImplementedError('fc_sizes are currently not implemented')
-                fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
-                final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
+        #for s in fc_sizes:
+        #    if s > 0:
+        #        # disabled, because it should be asymmetric
+        #        raise NotImplementedError('fc_sizes are currently not implemented')
+        #        fc = tf.contrib.layers.fully_connected(inputs=final_vecs, num_outputs=s)
+        #        final_vecs = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
 
         # add circular self correlation
         #if use_circular_correlation:
@@ -2033,8 +2033,11 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
                 logits = tf.reshape(sim_cosine(final_vecs_split), shape=(-1, self.candidate_count))
         # assume, we get just root embeddings and score them
         else:
-            # regression
             with tf.name_scope(name='fc_scoring') as sc:
+                for s in fc_sizes:
+                    if s > 0:
+                        vecs_reshaped = tf.contrib.layers.fully_connected(inputs=vecs_reshaped, num_outputs=s, scoep=sc)
+                # regression
                 logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=vecs_reshaped, activation_fn=None,
                                                                       num_outputs=1, scope=sc),
                                     shape=(-1, self.candidate_count))
