@@ -2006,6 +2006,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         vecs_reshaped = tf.reshape(final_vecs, shape=(-1, concat_embeddings_dim))
 
         # assume, we get vectors that are concatenations of: (aggregated children, candidate head)
+        # HeadBatched_... (simplified)
         if not embedded_root:
             ## split vecs into two
             #assert concat_embeddings_dim % 2 == 0, \
@@ -2032,6 +2033,7 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
             else:
                 logits = tf.reshape(sim_cosine(final_vecs_split), shape=(-1, self.candidate_count))
         # assume, we get just root embeddings and score them
+        # HeadBatchedX_...
         else:
             with tf.name_scope(name='fc_scoring') as sc:
                 for s in fc_sizes:
