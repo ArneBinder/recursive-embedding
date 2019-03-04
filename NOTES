@@ -180,6 +180,16 @@ NOTE:
     RE_SEMEVAL, SPAN, +add_heads=EDG,ARGS, RNN/BOW/RECNN is missing, too        (but we do not focus on SPAN anymore!)
     RE_SEMEVAL, DIRECT, +add_heads=EDG,ARGS, LM is missing, too !
 
+train_SENTIMENT_IMDB_DIRECT_RECNN3_gpu1 RUNNING ...
+train_SENTIMENT_IMDB_DIRECT_RECNN2_gpu0 RUNNING ...
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl_wd" } direct_recnn@3 RUNNING ...
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_is_wd" } edges_recnn@5 RUNNING ...
+
+try for RE-CS:
+regression (BatchedHead) with additional scoring layer (implemented; just set "fc_sizes": "750")
+simplified (BatchedHeadX) with SUM
+
+
 missing (eventually):
 ====================
 * X MAX... _wd                  (LM, DIRECT, RE_SEMEVAL)                                           1 (slow)
