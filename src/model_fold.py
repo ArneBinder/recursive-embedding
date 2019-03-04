@@ -2012,15 +2012,16 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
             reference_dims = concat_embeddings_dim - candidate_dims
             vecs_reference = vecs_reshaped[:, :reference_dims]
             vecs_candidate = tf.expand_dims(vecs_reshaped[:, reference_dims:], axis=1)
-            with tf.name_scope(name='fc_reference') as sc:
-                # add multiple fc layers
-                for s in fc_sizes:
-                    if s > 0:
-                        # disabled, because it should be asymmetric
-                        #raise NotImplementedError('fc_sizes are currently not implemented')
-                        logger.warning('use additional fc_reference layer (size: %i)' % s)
-                        vecs_reference = tf.contrib.layers.fully_connected(inputs=vecs_reference, num_outputs=s, scope=sc)
 
+            # add multiple fc layers
+            for s in fc_sizes:
+                if s > 0:
+                    # disabled, because it should be asymmetric
+                    # raise NotImplementedError('fc_sizes are currently not implemented')
+                    logger.warning('use additional fc_reference layer (size: %i)' % s)
+                    vecs_reference = tf.contrib.layers.fully_connected(inputs=vecs_reference, num_outputs=s, scope=sc)
+
+            with tf.name_scope(name='fc_reference') as sc:
                 fc_reference = tf.contrib.layers.fully_connected(inputs=vecs_reference, num_outputs=candidate_dims, scope=sc)
                 vecs_reference_scaled = tf.expand_dims(tf.nn.dropout(fc_reference, keep_prob=tree_model.keep_prob), axis=1)
             final_vecs_split = tf.concat((vecs_reference_scaled, vecs_candidate), axis=1)
@@ -2038,12 +2039,12 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         # assume, we get just root embeddings and score them
         # HeadBatchedX_...
         else:
+            for s in fc_sizes:
+                if s > 0:
+                    logger.warning('use additional fc_scoring layer (size: %i)' % s)
+                    vecs_reshaped = tf.contrib.layers.fully_connected(inputs=vecs_reshaped, num_outputs=s)
+            # regression
             with tf.name_scope(name='fc_scoring') as sc:
-                for s in fc_sizes:
-                    if s > 0:
-                        logger.warning('use additional fc_scoring layer (size: %i)' % s)
-                        vecs_reshaped = tf.contrib.layers.fully_connected(inputs=vecs_reshaped, num_outputs=s, scope=sc)
-                # regression
                 logits = tf.reshape(tf.contrib.layers.fully_connected(inputs=vecs_reshaped, activation_fn=None,
                                                                       num_outputs=1, scope=sc),
                                     shape=(-1, self.candidate_count))
