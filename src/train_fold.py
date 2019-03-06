@@ -462,13 +462,14 @@ def log_shapes_info(reader, tree_embedder_prefix='TreeEmbedding/', optimizer_suf
     logger.debug(shapes_nte_total)
 
 
-def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, logdir_continue=None, dont_dump=False,
+def get_lexicon(logdir, train_data_path=None, logdir_pretrained=None, #logdir_continue=None,
+                dont_dump=False,
                 no_fixed_vecs=False, all_vecs_fixed=False, var_vecs_zero=False, var_vecs_random=False,
                 additional_vecs_path=None, vecs_pretrained=None):
     checkpoint_fn = tf.train.latest_checkpoint(logdir)
-    if logdir_continue:
-        raise NotImplementedError('usage of logdir_continue not implemented')
-        assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
+    #if logdir_continue:
+    #    raise NotImplementedError('usage of logdir_continue not implemented')
+    #    assert checkpoint_fn is not None, 'could not read checkpoint from logdir: %s' % logdir
     #old_checkpoint_fn = None
     #fine_tune = False
     prev_config = None
@@ -1447,7 +1448,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     ## get lexicon
     lexicon, checkpoint_fn, prev_config = get_lexicon(
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=load_embeddings or logdir_pretrained,
-        logdir_continue=logdir_continue, no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
+        #logdir_continue=logdir_continue,
+        no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
         var_vecs_zero=config.var_vecs_zero, var_vecs_random=config.var_vecs_random,
         additional_vecs_path=config.additional_vecs, vecs_pretrained=vecs_pretrained)
     # use previous tree model config values
@@ -1881,6 +1883,9 @@ if __name__ == '__main__':
             score_writer.writeheader()
             for i, logdir in enumerate(logdirs, 1):
                 logger.info('START RUN %i of %i' % (i, len(logdirs)))
+                if logdir.strip() == '':
+                    logger.info('empty logdir string, skip run %i' % i)
+                    continue
                 config = Config(logdir=logdir)
                 config_dict = config.as_dict()
                 stats = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,

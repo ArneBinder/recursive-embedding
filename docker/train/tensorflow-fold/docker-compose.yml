@@ -24,6 +24,7 @@ services:
         --train_data_path=/root/corpora_out/${TRAIN_DATA}
         --logdir=/root/train/${TRAIN_LOGDIR}
         --logdir_pretrained=/root/train/${LOGDIR_PRETRAINED}
+        --logdir_continue=/root/train/${LOGDIR_CONTINUE}
         --vecs_pretrained=/root/train/${VECS_PRETRAINED}
         --model_type=${MODEL_TYPE}
         --task=${TASK}
