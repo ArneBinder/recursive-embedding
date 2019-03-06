@@ -312,7 +312,7 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
                  #                     indices_forest_to_tree],
                  batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
                  batch_iter_fixed_probs: [forest_indices, number_of_samples],
-                 batch_iter_default: [forest_indices, indices_targets, nbr_embeddings_in, not debug],
+                 batch_iter_default: [forest_indices, indices_targets, nbr_embeddings_in, not debug and train],
                  #batch_iter_simtuple_dep: [forest_indices, indices_targets, nbr_embeddings_in, not debug]
                  }
 
