@@ -1585,6 +1585,8 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         # dump tree indices
         if not loaded_from_checkpoint:
             numpy_dump(os.path.join(logdir, '%s.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
+        else:
+            numpy_dump(os.path.join(logdir, '%s.loaded.%s' % (FN_TREE_INDICES, m)), meta[m][M_INDICES])
 
     if config.model_type == MT_CANDIDATES_W_REF:
         if M_TEST in meta and M_TRAIN in meta \
