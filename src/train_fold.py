@@ -1889,6 +1889,10 @@ if __name__ == '__main__':
                 if logdir.strip() == '':
                     logger.info('empty logdir string, skip run %i' % i)
                     continue
+
+                if logdirs[0].startswith('/root/train/'):
+                    if not logdir.startswith('/root/train/'):
+                        logdir = os.path.join('/root/train', logdir)
                 config = Config(logdir=logdir)
                 config_dict = config.as_dict()
                 stats = execute_run(config, logdir_continue=logdir, logdir_pretrained=logdir_pretrained,
