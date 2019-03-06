@@ -181,16 +181,16 @@ NOTE:
     RE_SEMEVAL, DIRECT, +add_heads=EDG,ARGS, LM is missing, too !
 
 SA:
-{ "tree_embedder": "HTUrev_reduceMAX_mapGRU" } DIRECT_RECNN2@0 RUNNING (ready soon -3)...
-{ "tree_embedder": "HTU_reduceMAX_mapGRU_is" } DIRECT_RECNN3@1 RUNNING (-6)...
+{ "tree_embedder": "HTUrev_reduceMAX_mapGRU" } DIRECT_RECNN2@0 DONE
+{ "tree_embedder": "HTU_reduceMAX_mapGRU_is" } DIRECT_RECNN3@1 DONE
 
 RE:
-{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl_wd" } direct_recnn@3 RUNNING ...
-{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_is_wd" } edges_recnn@5 RUNNING ...
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_pl_wd" } direct_recnn@3  DONE
+{ "keep_prob": 0.5, "tree_embedder": "HTU_reduceMAX_mapGRU_is_wd" } edges_recnn@5   DONE
 
 try for RE-CS:
 regression (BatchedHead) with additional scoring layer (implemented; just set "fc_sizes": "750"):
-{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd", "fc_sizes": "750" }  edges_lm@2 RUNNING ...
+{"tree_embedder": "HTUBatchedHeadX_reduceMAX_mapGRU_wd", "fc_sizes": "750" }  edges_lm@2    DONE
 
 simplified (BatchedHeadX) with SUM
 
