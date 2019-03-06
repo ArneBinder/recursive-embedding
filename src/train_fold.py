@@ -1876,6 +1876,9 @@ if __name__ == '__main__':
         logdirs = logdir_continue.split(',')
         logger.info('execute %i runs ...' % len(logdirs))
         stats_prefix = 'score_'
+        if not os.path.exists(FLAGS.logdir):
+            os.makedirs(FLAGS.logdir)
+
         with open(os.path.join(FLAGS.logdir, 'scores_new.tsv'), 'w') as csvfile:
             fieldnames = Config(logdir=logdirs[0]).as_dict().keys() \
                          + [stats_prefix + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION]
