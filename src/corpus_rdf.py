@@ -841,6 +841,8 @@ def convert_corpus_jsonld_to_recemb(in_path, out_path=None, glove_file='',
         out_path += '_span'
     if link_via_edges:
         out_path += '_edges'
+    if relink_relation:
+        out_path += '_lca'
     if min_count > 1:
         out_path += '_mc' + str(min_count)
     if not os.path.exists(out_path):

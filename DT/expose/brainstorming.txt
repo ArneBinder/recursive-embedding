@@ -1,4 +1,0 @@
-topic:
- * impact of structural information on semantic aware composition models
- * impact of structural complexity on semantic aware composition
-

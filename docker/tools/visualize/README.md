@@ -1,8 +1,8 @@
 # Visualize Corpus Data
 
-TODO: add description
+Visualize corpus data that is preprocessed and converted to rec-emb format.
 
-Useful Postman collection: [Visualize](https://raw.githubusercontent.com/ArneBinder/recursive-embedding/master/docker/tools/visualize/Visualize.postman_collection.json)
+Useful Postman collection: [Visualize](Visualize.postman_collection.json)
 
 ## HOW TO visualize
 

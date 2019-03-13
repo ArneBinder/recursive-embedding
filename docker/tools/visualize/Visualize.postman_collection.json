@@ -1,135 +1,10 @@
 {
 	"info": {
+		"_postman_id": "0f35dbe1-98c8-4130-8a5c-5fd3c49288a9",
 		"name": "Recursive Embedding",
-		"_postman_id": "49506acd-8ac7-44a6-46b0-12ee4c30f1d5",
-		"description": "",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"item": [
-		{
-			"name": "load corpus SICK",
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {},
-				"url": {
-					"raw": "127.0.0.1:5000/api/load?path=/media/arne/WIN/Users/Arne/ML/data/test/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "5000",
-					"path": [
-						"api",
-						"load"
-					],
-					"query": [
-						{
-							"key": "path",
-							"value": "/media/arne/WIN/Users/Arne/ML/data/test/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
-							"equals": true
-						}
-					]
-				},
-				"description": ""
-			},
-			"response": []
-		},
-		{
-			"name": "load corpus DBPEDIANIF",
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {},
-				"url": {
-					"raw": "127.0.0.1:5000/api/load?path=/mnt/DATA/ML/data/corpora_out/corpora/DBPEDIANIF/100/merged/forest",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "5000",
-					"path": [
-						"api",
-						"load"
-					],
-					"query": [
-						{
-							"key": "path",
-							"value": "/mnt/DATA/ML/data/corpora_out/corpora/DBPEDIANIF/100/merged/forest",
-							"equals": true
-						}
-					]
-				},
-				"description": ""
-			},
-			"response": []
-		},
-		{
-			"name": "load corpus SICK docker",
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {},
-				"url": {
-					"raw": "127.0.0.1:5000/api/load?path=/root/corpora_out/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "5000",
-					"path": [
-						"api",
-						"load"
-					],
-					"query": [
-						{
-							"key": "path",
-							"value": "/root/corpora_out/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
-							"equals": true
-						}
-					]
-				},
-				"description": ""
-			},
-			"response": []
-		},
-		{
-			"name": "load corpus DBPEDIANIF docker",
-			"request": {
-				"method": "POST",
-				"header": [],
-				"body": {},
-				"url": {
-					"raw": "127.0.0.1:5000/api/load?path=/root/corpora_out/DBPEDIANIF/10/merged/forest",
-					"host": [
-						"127",
-						"0",
-						"0",
-						"1"
-					],
-					"port": "5000",
-					"path": [
-						"api",
-						"load"
-					],
-					"query": [
-						{
-							"key": "path",
-							"value": "/root/corpora_out/DBPEDIANIF/10/merged/forest",
-							"equals": true
-						}
-					]
-				},
-				"description": ""
-			},
-			"response": []
-		},
 		{
 			"name": "visualize corpus",
 			"request": {
@@ -146,7 +21,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "127.0.0.1:5000/api/visualize?concat_mode=sequence&idx_tuple_file=idx.0.npy&data_iterator=data_tuple_iterator_dbpedianif&bag_of_seealsos=false&tuple_start=0&tuple_end=1&link_cost_ref=-1",
+					"raw": "127.0.0.1:5000/api/visualize?root_start=0&root_end=1&edge_source_blacklist=[\"rem:hasParseAnnotation\"]",
 					"host": [
 						"127",
 						"0",
@@ -162,155 +37,282 @@
 						{
 							"key": "concat_mode",
 							"value": "sequence",
-							"equals": true
+							"disabled": true
 						},
 						{
 							"key": "inner_concat_mode",
 							"value": "tree",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "sentence_processor",
 							"value": "process_sentence1",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "blacklist",
 							"value": "[\"embeddings\"]",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "vis_mode",
 							"value": "text",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "whitelist",
 							"value": "[\"sequences\", \"data_sequences\", \"scores_gold\", \"embeddings\"]",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "new_format",
-							"value": "",
-							"equals": false,
+							"value": null,
 							"disabled": true
 						},
 						{
 							"key": "train_file",
 							"value": "train.0",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "data_sequences",
 							"value": "[[[15257222758774098384,7095888835028705416,17020651602125609711,17363939781103767631,2007231750365824700,13174294208886216065,4142355532546494618,11415421697822986676,6607090180553833538,3004922937159543833,14382990620989331654,15175819821497900688,10272459072112049200,17393592800002338756,496269811068056373,7255417493271970900,4848302574626789671,15632707021087115480,5201378493872138034,15869325152462176443,2776930383840921749,7255417493271970900,1019474950307159402,9013330616542979849,15632707021087115480,914320874936237650,3646315399731001586,14979098212568940709,15928844807591808461,4097408450413929089,12640908844818360127,7255417493271970900,12473097637651452911,10935981563963380981,5552484096182734969,17107932288051226308,14224506732169407514,1777420212406521088,3004922937159543833,14382990620989331654,6289702574050312764,17393592800002338756,15484114009983242351,7255417493271970900,7514666922315514764,15632707021087115480,5201378493872138034,10807713411545736805,322756543403876119,7255417493271970900,1829779195152435474,15632707021087115480,3511580257707747137,5552484096182734969,404148550380678882,10135081933053609242,5826655466767707382,10135081933053609242,16624345059483990260,6607090180553833538,11637083280872770663,17434311858886073951,13716853667102033558,3511580257707747137,5552484096182734969,6288021692515627313,15257222758774098384,4313386797920683091,17020651602125609711,17363939781103767631,2007231750365824700,17103017127760420655,4142355532546494618,8609630962017593474,17960835341370814414,17450770521872437079,14805408534094121357,7255417493271970900,14921924524938235879,15632707021087115480,6607090180553833538,17434311858886073951,577098633802913052,5607187638163892089,13890662634483150161,12455956376277751658,1211634638545222723,9040580730541162169,15869325152462176443,10879156853849301957,5613924335654329342,1282500366118286006,17393592800002338756,561987621082953146,11227945771170366962,17393592800002338756,2145866080024830326,3511580257707747137,5552484096182734969,14251826811576681383,12592951065456654425,6607090180553833538,9040580730541162169,12713072604560887814,15334355185816359254,5099330206081180047,16006394382055373818,10127253066666670072,8420796321625598517,5607187638163892089,58768221066248084,7255417493271970900,14258661861970876904,17790257483546095671,18261695492095582510,15632707021087115480,10520152564793768180,10342483618130997957,14960960709962011480,17434311858886073951,4658642555641055089,5607187638163892089,16172778625664511393,1211634638545222723,12143818944954462832,14224506732169407514,2299829539962885016,9040580730541162169,13424289428987350065,12143818944954462832,867527236625923986,9040580730541162169,144271160005308082,1282500366118286006,13253541472277441977,11174521320062070709,3511580257707747137,5552484096182734969,8609630962017593474,14921924524938235879,6607090180553833538,7913337373783133334,7003867803789656731,17960835341370814414,17696560239074455341,17393592800002338756,13589983905708775074,3511580257707747137,5552484096182734969,6288021692515627313,10435112656839267827,15450207082250029344,5607187638163892089,58768221066248084,17393592800002338756,8536144901457059030,17952903907259352891,17960835341370814414,13360559979086882666,17434311858886073951,5613924335654329342,11741841324005039215,7371871657065846346,5607187638163892089,1211634638545222723,17952903907259352891,14979098212568940709,17960835341370814414,17450770521872437079,14805408534094121357,10127253066666670072,13778759349871564151,16250426589662533699,7255417493271970900,14624694636914523235,15632707021087115480,17952903907259352891,8793168982381093304,6340306888156339890,15334355185816359254,3662425446678024314,6481211970139097847,5607187638163892089,14979098212568940709,14921924524938235879,3511580257707747137,5552484096182734969,3086059878379244285,13760731200981161173,14761755907339841798,14979098212568940709,14624694636914523235,14224506732169407514,9040580730541162169,16425265278143341778,5232792738513750923,7003867803789656731,16172778625664511393,16265396900304131103,3173336031889612234,14761755907339841798,1282500366118286006,5201378493872138034,17450770521872437079,3086059878379244285,3511580257707747137,5552484096182734969,6288021692515627313,14921924524938235879,5201378493872138034,14624694636914523235,17952903907259352891,6181102674994702689,2976821202800715146,3874265705440363075,780206699333011923,17952903907259352891,14224506732169407514,14092051124711807756,7913337373783133334,5201378493872138034,14221807258723630925,854976473943339629,14979098212568940709,14921924524938235879,17393592800002338756,14040301334086177491,13246393487253453290,14624694636914523235,18071151266403907500,12231197103183983674,3731664877115224910,3511580257707747137,5552484096182734969,6288021692515627313],[0,-1,-2,-3,-1,-1,-4,2,1,25,-1,1,-2,-1,-1,-3,-4,-5,-6,1,-8,-1,1,-3,-4,1,-6,2,1,-3,-1,2,1,-3,19,1,2,1,15,-1,-1,-1,-1,-3,-4,-5,-6,1,-8,-1,-2,-3,-14,11,4,3,2,1,1,5,-1,1,-3,-4,1,-59,0,-1,-2,-3,-1,-1,-4,3,1,1,4,-1,-2,-3,18,1,-2,-1,2,1,-3,-5,6,-1,-2,3,-1,-1,-7,-1,-1,-17,39,1,1,17,1,-2,2,1,-3,-1,-1,-1,-1,-1,2,1,-4,-5,2,1,19,1,-2,-1,1,-2,2,1,-3,1,-10,1,-2,-3,3,2,1,-4,-18,11,1,2,1,7,-1,1,-2,-1,-1,-6,1,-77,8,-1,-1,-1,-1,-1,2,1,28,3,1,1,-4,-1,-1,-3,3,1,1,-7,-1,1,-2,-1,-2,-3,-14,-15,-1,2,1,-3,-1,1,-2,-27,20,5,1,-2,1,-2,14,2,1,-3,-1,1,-2,-1,-1,3,-1,-2,-4,-13,1,-135,11,-1,-2,-3,-4,-1,1,-2,-8,2,1,14,-1,-2,-1,1,-2,-1,-1,-3,3,1,1,-7,-13,1,-162]]]",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "sequences",
 							"value": "[\"The boy likes beer. A girl loves pasta.\"]",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "prefix_blacklist",
-							"value": "[\"DEPENDENCY\", \"http://purl.org/olia/olia.owl\", \"http://www.w3.org/2005/11/its/rdf\", \"http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core\"]",
-							"equals": true,
+							"value": "[]",
 							"disabled": true
 						},
 						{
 							"key": "idx_tuple_file",
 							"value": "idx.0.npy",
-							"equals": true
+							"disabled": true
 						},
 						{
 							"key": "data_iterator",
 							"value": "data_tuple_iterator_dbpedianif",
-							"equals": true
+							"disabled": true
 						},
 						{
 							"key": "bag_of_seealsos",
 							"value": "false",
-							"equals": true
+							"disabled": true
 						},
 						{
 							"key": "tuple_start",
 							"value": "0",
-							"equals": true
+							"disabled": true
 						},
 						{
 							"key": "tuple_end",
 							"value": "1",
-							"equals": true
+							"disabled": true
 						},
 						{
 							"key": "idx_start",
 							"value": "0",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "idx_end",
 							"value": "200",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "root_start",
-							"value": "0",
-							"equals": true,
-							"disabled": true
+							"value": "0"
 						},
 						{
 							"key": "root_end",
-							"value": "10",
-							"equals": true,
-							"disabled": true
+							"value": "1"
 						},
 						{
 							"key": "idx",
 							"value": "0",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "data_as_hashes",
 							"value": "1",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "root_ids",
 							"value": "[7095888835028705416,496269811068056373]",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "max_depth",
 							"value": "20",
-							"equals": true,
 							"disabled": true
 						},
 						{
 							"key": "link_cost_ref",
 							"value": "-1",
-							"equals": true
+							"disabled": true
 						},
 						{
 							"key": "context",
 							"value": "1",
-							"equals": true,
 							"disabled": true
+						},
+						{
+							"key": "edge_source_blacklist",
+							"value": "[\"rem:hasParseAnnotation\"]"
 						}
 					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "load corpus SICK",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
 				},
-				"description": ""
+				"url": {
+					"raw": "{{api_endpoint}}/load?path={{corpora_out}}/FINAL/SICK_RDF/corenlp_noner_recemb_mc2/forest",
+					"host": [
+						"{{api_endpoint}}"
+					],
+					"path": [
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "{{corpora_out}}/FINAL/SICK_RDF/corenlp_noner_recemb_mc2/forest"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "load corpus SEMEVAL",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "{{api_endpoint}}/load?path={{corpora_out}}/FINAL/SEMEVAL2010T8_RDF/corenlp_recemb_ner_mc2/forest",
+					"host": [
+						"{{api_endpoint}}"
+					],
+					"path": [
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "{{corpora_out}}/FINAL/SEMEVAL2010T8_RDF/corenlp_recemb_ner_mc2/forest"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "load corpus TACRED",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "{{api_endpoint}}/load?path={{corpora_out}}/FINAL/TACRED_RDF/None_recemb_ner_mc20/forest",
+					"host": [
+						"{{api_endpoint}}"
+					],
+					"path": [
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "{{corpora_out}}/FINAL/TACRED_RDF/None_recemb_ner_mc20/forest"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "DEP load corpus SICK docker",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "127.0.0.1:5000/api/load?path=/root/corpora_out/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"api",
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "/root/corpora_out/SICK/process_sentence10/SICK_cmSEQUENCE_icmTREE_onehotdep"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "DEP load corpus DBPEDIANIF",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "127.0.0.1:5000/api/load?path=/mnt/DATA/ML/data/corpora_out/corpora/DBPEDIANIF/100/merged/forest",
+					"host": [
+						"127",
+						"0",
+						"0",
+						"1"
+					],
+					"port": "5000",
+					"path": [
+						"api",
+						"load"
+					],
+					"query": [
+						{
+							"key": "path",
+							"value": "/mnt/DATA/ML/data/corpora_out/corpora/DBPEDIANIF/100/merged/forest"
+						}
+					]
+				}
 			},
 			"response": []
 		}
