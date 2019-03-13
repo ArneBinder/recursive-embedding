@@ -387,13 +387,18 @@ def parse_to_rdf(in_path, out_path, reader_rdf, file_names, parser='spacy', no_n
         if parser.strip() == 'spacy':
             _parsers = (spacy.load('en'), not no_ner)
         elif parser.strip() == 'corenlp':
+            if 'CORENLP_SERVER_URL' in os.environ and os.environ['CORENLP_SERVER_URL'].strip() != '':
+                corenlp_url = os.environ['CORENLP_SERVER_URL']
+            else:
+                corenlp_url = 'http://localhost:9000'
+            logger.info('use corenlp_url=%s' % corenlp_url)
             if no_ner:
-                dep_parser = CoreNLPDependencyParser(url='http://localhost:9000')
+                dep_parser = CoreNLPDependencyParser(url=corenlp_url)
                 _parsers = (dep_parser, None)
             else:
                 # a distinct NER tagger returns more types (and is faster)
-                ner_tagger = CoreNLPParser(url='http://localhost:9000', tagtype='ner')
-                dep_parser = CoreNLPDependencyParser(url='http://localhost:9000')
+                ner_tagger = CoreNLPParser(url=corenlp_url, tagtype='ner')
+                dep_parser = CoreNLPDependencyParser(url=corenlp_url)
                 #dep_parser = CoreNLPDependencyParser(url='http://localhost:9000', tagtype='ner')
                 #ner_tagger = dep_parser
                 _parsers = (dep_parser, ner_tagger)

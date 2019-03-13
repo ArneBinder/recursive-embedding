@@ -1,0 +1,23 @@
+
+spacy>=2.0.0
+pprint
+scipy
+plac
+nltk
+
+# visualization
+#svgutils
+pydot
+#flask
+#flask_cors
+ast
+sklearn
+
+
+# misc
+#tqdm
+#plac
+
+# from python:
+# csv json itertools functools errno math copy logging fnmatch os ntpath re random sys time math multiprocessing datetime
+

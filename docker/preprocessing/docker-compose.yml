@@ -1,0 +1,53 @@
+version: '2.3'
+services:
+  corenlp-server:
+    image: "graham3333/corenlp-complete"
+    ports:
+      - "9000:9000"
+  corpus-parse:
+    build:
+      context: ../..
+      dockerfile: docker/preprocessing/Dockerfile
+    volumes:
+      - ../../src:/root/recursive-embedding/src
+      - ./scripts:/root/scripts
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    depends_on:
+      - corenlp-server
+    environment:
+      - CORENLP_SERVER_URL=http://corenlp-server:9000
+    command: >
+       ${SET_OWNER_SERVER_PREFIX} /root/scripts/parse_corpora.sh
+
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-convert:
+    build:
+      context: ../..
+      dockerfile: docker/preprocessing/Dockerfile
+    volumes:
+      - ../../src:/root/recursive-embedding/src
+      - ./scripts:/root/scripts
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+      - ${HOST_GLOVE_DIR}:/root/glove_dir
+    command: >
+      ${SET_OWNER_SERVER_PREFIX} /root/scripts/convert_corpora.sh
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}
+
+  corpus-indices:
+    build:
+      context: ../..
+      dockerfile: docker/preprocessing/Dockerfile
+    volumes:
+      - ../../src:/root/recursive-embedding/src
+      - ./scripts:/root/scripts
+      - ${HOST_CORPORA_IN}:/root/corpora_in
+      - ${HOST_CORPORA_OUT}:/root/corpora_out
+    command: >
+      ${SET_OWNER_SERVER_PREFIX} /root/scripts/create_indices.sh
+    cpuset: ${CPU_SET}
+    mem_limit: ${MEM_LIMIT}

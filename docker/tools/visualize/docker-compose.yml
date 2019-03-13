@@ -17,7 +17,7 @@ services:
       - ${HOST_CORPORA_OUT}:/root/corpora_out
       - ${HOST_TRAIN}:/root/train
     command: >
-      /root/set-user-with-folder.sh /root/recursive-embedding/src python embedding_api.py
+      ${SET_OWNER_SERVER_PREFIX} python embedding_api.py
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
     network_mode: "bridge"
