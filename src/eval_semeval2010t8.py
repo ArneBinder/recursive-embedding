@@ -51,7 +51,7 @@ def convert_values(path, class_strings, fn_gold_tsv, fn_predicted_tsv, exclude_c
 
 
 def eval(path_dir, exclude_class=None, threshold=0.5, class_strings=(SEMEVAL_RELATION, TACRED_RELATION, 'RELS', 'RELT'),
-         fn_script='~/recursive-embedding/docker/create-corpus/semeval2010task8/data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2_tacred.pl'):
+         fn_script='~/recursive-embedding/docker/preprocessing/SemEval2010_task8_all_data/SemEval2010_task8_scorer-v1.2/semeval2010_task8_scorer-v1.2_tacred.pl'):
 
     fn_gold_strings = os.path.join(path_dir, 'values_gold_strings')
     fn_max_strings = os.path.join(path_dir, 'values_predicted_strings')

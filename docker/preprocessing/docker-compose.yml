@@ -37,17 +37,3 @@ services:
       ${SET_OWNER_SERVER_PREFIX} /root/scripts/convert_corpora.sh
     cpuset: ${CPU_SET}
     mem_limit: ${MEM_LIMIT}
-
-  corpus-indices:
-    build:
-      context: ../..
-      dockerfile: docker/preprocessing/Dockerfile
-    volumes:
-      - ../../src:/root/recursive-embedding/src
-      - ./scripts:/root/scripts
-      - ${HOST_CORPORA_IN}:/root/corpora_in
-      - ${HOST_CORPORA_OUT}:/root/corpora_out
-    command: >
-      ${SET_OWNER_SERVER_PREFIX} /root/scripts/create_indices.sh
-    cpuset: ${CPU_SET}
-    mem_limit: ${MEM_LIMIT}

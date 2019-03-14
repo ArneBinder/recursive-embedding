@@ -40,7 +40,7 @@ echo "NVIDIA_VISIBLE_DEVICES: $NVIDIA_VISIBLE_DEVICES"
 PROJECT_NAME=${TRAIN_LOGDIR//\//_}
 CONTAINER_NAME=${PROJECT_NAME}_gpu${NVIDIA_VISIBLE_DEVICES}
 export CONTAINER_NAME
-## create log dir (not TRAIN_LOGDIR!) if it does nto exist
+## create log dir (not TRAIN_LOGDIR!) if it does not exist
 mkdir -p "$HOST_TRAIN/logs"
 LOG_FN="$HOST_TRAIN/logs/$CONTAINER_NAME.log"
 

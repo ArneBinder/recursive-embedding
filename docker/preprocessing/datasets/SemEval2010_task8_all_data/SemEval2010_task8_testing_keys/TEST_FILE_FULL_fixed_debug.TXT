@@ -1,0 +1,4 @@
+10665	"The <e1>cabinet</e1> encloses a 6 1/2 inch cone <e2>woofer</e2>, 4 inch cone midrange, and a 7/8 inch balanced dome tweeter."
+Component-Whole(e2,e1)
+Comment:
+

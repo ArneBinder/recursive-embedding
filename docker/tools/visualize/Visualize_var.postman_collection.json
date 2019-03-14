@@ -21,11 +21,16 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "{{api_endpoint}}/visualize?root_start=0&root_end=10&edge_source_blacklist=[\"rem:hasParseAnnotation\"]",
+					"raw": "127.0.0.1:5000/api/visualize?root_start=0&root_end=10&edge_source_blacklist=[\"rem:hasParseAnnotation\"]",
 					"host": [
-						"{{api_endpoint}}"
+						"127",
+						"0",
+						"0",
+						"1"
 					],
+					"port": "5000",
 					"path": [
+						"api",
 						"visualize"
 					],
 					"query": [
@@ -152,7 +157,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "{{api_endpoint}}/load?path=/root/corpora_out/SICK_RDF/corenlp_noner_recemb_mc2/forest",
+					"raw": "{{api_endpoint}}/load?path={{corpora_out}}/SICK_RDF/corenlp_noner_recemb_mc2/forest",
 					"host": [
 						"{{api_endpoint}}"
 					],
@@ -162,7 +167,7 @@
 					"query": [
 						{
 							"key": "path",
-							"value": "/root/corpora_out/SICK_RDF/corenlp_noner_recemb_mc2/forest"
+							"value": "{{corpora_out}}/SICK_RDF/corenlp_noner_recemb_mc2/forest"
 						}
 					]
 				}
@@ -179,7 +184,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "{{api_endpoint}}/load?path=/root/corpora_out/IMDB_RDF/corenlp_noner_recemb_edges_mc20/forest",
+					"raw": "{{api_endpoint}}/load?path={{corpora_out}}/IMDB_RDF/corenlp_noner_recemb_edges_mc20/forest",
 					"host": [
 						"{{api_endpoint}}"
 					],
@@ -189,7 +194,7 @@
 					"query": [
 						{
 							"key": "path",
-							"value": "/root/corpora_out/IMDB_RDF/corenlp_noner_recemb_edges_mc20/forest"
+							"value": "{{corpora_out}}/IMDB_RDF/corenlp_noner_recemb_edges_mc20/forest"
 						}
 					]
 				}
@@ -206,7 +211,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "{{api_endpoint}}/load?path=/root/corpora_out/SEMEVAL2010T8_RDF/corenlp_recemb_mc2/forest",
+					"raw": "{{api_endpoint}}/load?path={{corpora_out}}/SEMEVAL2010T8_RDF/corenlp_recemb_mc2/forest",
 					"host": [
 						"{{api_endpoint}}"
 					],
@@ -216,7 +221,7 @@
 					"query": [
 						{
 							"key": "path",
-							"value": "/root/corpora_out/SEMEVAL2010T8_RDF/corenlp_recemb_mc2/forest"
+							"value": "{{corpora_out}}/SEMEVAL2010T8_RDF/corenlp_recemb_mc2/forest"
 						}
 					]
 				}
@@ -233,7 +238,7 @@
 					"raw": ""
 				},
 				"url": {
-					"raw": "{{api_endpoint}}/load?path=/root/corpora_out/TACRED_RDF/None_recemb_ner_arg_span_mc20/forest",
+					"raw": "{{api_endpoint}}/load?path={{corpora_out}}/TACRED_RDF/None_recemb_ner_arg_span_mc20/forest",
 					"host": [
 						"{{api_endpoint}}"
 					],
@@ -243,7 +248,7 @@
 					"query": [
 						{
 							"key": "path",
-							"value": "/root/corpora_out/TACRED_RDF/None_recemb_ner_arg_span_mc20/forest"
+							"value": "{{corpora_out}}/TACRED_RDF/None_recemb_ner_arg_span_mc20/forest"
 						}
 					]
 				}
