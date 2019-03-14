@@ -21,6 +21,7 @@ cd recursive-embedding/docker/train/tensorflow-fold
 5. Start training process by executing: `./<TRAIN_SCRIPT> <GPU_ID> <GENERAL_TRAIN_SETTING_FILE>`, e.g. `./train_entailment_sick_direct_recnn.sh 0 train-settings/general/cpu-train-dev.env`
 
 NOTE:
+ * When training is started the first time, it needs quite a long time (up to 2h!) to start because tensorflow fold and tensorflow have to be compiled for the machine.
  * The `<GPU_ID>` will not be used for cpu settings, but is still required as placeholder.
  * DONT use `train.sh` as `<TRAIN_SCRIPT>`. It is called by the specific train setting scripts and sets an appropriate container name and saves the logging output `$HOST_TRAIN/logs/$PROJECT_NAME.log` (see `.env` files in [train-settings/general](train-settings/general)).
 

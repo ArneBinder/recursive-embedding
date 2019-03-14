@@ -1772,6 +1772,8 @@ if __name__ == '__main__':
         # pylint: enable=protected-access
         # keep (TREE_)MODEL_PARAMETERS
         config.update_with_flags(FLAGS, keep_model_parameters=logdir_continue or logdir_pretrained)
+
+        print('FLAGS.dont_test: %s' % str(FLAGS.dont_test))
         #if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
         if FLAGS.run_count >= 1:
             if not os.path.exists(FLAGS.logdir):
