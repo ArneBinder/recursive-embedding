@@ -24,6 +24,14 @@ To start the REST endpoint, execute from project root:
 docker-compose up
 ```
 
+The workflow is as follows:
+1. load a dataset via `http://0.0.0.0:5000/api/load?path=/root/corpora_out/<DATASET>/<CONVERSION>/forest`
+2. visualize via `http://0.0.0.0:5000/visualize?root_start=0&root_end=10&edge_source_blacklist=["rem:hasParseAnnotation"]`
+
+`<DATASET>` might by `SICK_RDF` and `<CONVERSION>`=`corenlp_noner_recemb_mc2` (see your `HOST_CORPORA_OUT` content). Do not forget the trailing `/forest`!
+
+Nodes with symbol types that have pre-trained embeddings (from GloVe) are shown in blue, other in green.
+
 Optional:
  * install [Postman](https://www.getpostman.com/)
  * load [this Postman Collection](Visualize.postman_collection.json) into Postman: File \> Import \> Import from Link

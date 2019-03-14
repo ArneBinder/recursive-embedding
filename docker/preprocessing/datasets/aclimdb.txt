@@ -1,2 +1,2 @@
-1) obtain from here: http://ai.stanford.edu/~amaas/data/sentiment/
+1) obtain packed dataset from here: http://ai.stanford.edu/~amaas/data/sentiment/
 2) extract "aclimdb" into this folder

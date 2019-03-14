@@ -11,8 +11,7 @@ The preprocessing happens in two steps:
 1. parsing: this results in json line file per input file / dir containing records in an intermediate format that is a very much simplified version of [NIF](http://persistence.uni-leipzig.org/nlp2rdf/)
 2. conversion: convert into compact, graph based format to train the models with
 
-The latter can be visualized with the [visualization tool](../tools/visualize/README.md)
-
+The latter can be visualized with the [visualization tool](../tools/visualize/README.md).
 
 
 ## HOW TO preprocess
