@@ -36,8 +36,7 @@ import data_iterators
 from data_iterators import OFFSET_CONTEXT_ROOT
 import data_iterators as diter
 from mytools import numpy_dump, softmax, numpy_load
-from train_fold import get_lexicon, create_models, init_model_type
-from model_fold import convert_sparse_matrix_to_sparse_tensor
+from mytools_tf import get_lexicon
 
 TEMP_FN_SVG = 'temp_forest.svg'
 
@@ -509,7 +508,7 @@ def get_or_calc_scores(params):
     if 'scores' in params:
         params['scores'] = np.array(params['scores'])
     else:
-        import model_fold
+        from model_fold import TreeEmbedding_HTUBatchedHead
 
         if 'dump' in params:
             dump_dir = params['dump']
@@ -521,7 +520,7 @@ def get_or_calc_scores(params):
         params['scores'] = []
         current_forest = get_or_calc_tree_dicts_or_forests(params)
         if 'candidates_data' in params:
-            assert isinstance(model_tree.embedder, model_fold.TreeEmbedding_HTUBatchedHead), \
+            assert isinstance(model_tree.embedder, TreeEmbedding_HTUBatchedHead), \
                 'embedder of tree model has to be TreeEmbedding_HTUBatchedHead'
             # we modify the number of trees, so we remove other tree data as well
             if 'sequences' in params:
@@ -662,6 +661,7 @@ def get_or_calc_scores(params):
 
 def calc_missing_embeddings(indices, forest, concat_mode, model_tree, max_depth=10, batch_size=100):
     global embeddings, embedding_indices
+    from model_fold import convert_sparse_matrix_to_sparse_tensor
     if embedding_indices is None:
         new_indices = indices
     else:
@@ -1325,7 +1325,8 @@ def main(data_source, logdir_pretrained=None):
 
     # load model
     if checkpoint_fn:
-        import model_fold
+        from train_fold import create_models, init_model_type
+        from model_fold import VAR_NAME_LEXICON_VAR, VAR_NAME_LEXICON_FIX
         # model_config = Config(logdir=data_source)
         # should not happen
         assert loaded_config is not None, 'config was not loaded correctly from data_source=%s or logdir_pretrained=%s' \
@@ -1366,9 +1367,9 @@ def main(data_source, logdir_pretrained=None):
 
                 #if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                 lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                                 scope=model_fold.VAR_NAME_LEXICON_VAR) \
+                                                 scope=VAR_NAME_LEXICON_VAR) \
                                + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
-                                                   scope=model_fold.VAR_NAME_LEXICON_FIX)
+                                                   scope=VAR_NAME_LEXICON_FIX)
 
                 vars_all = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
                 vars_without_embed = [v for v in vars_all if v not in lexicon_vars]
