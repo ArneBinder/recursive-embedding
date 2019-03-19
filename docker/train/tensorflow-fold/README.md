@@ -66,3 +66,9 @@ result is written to `TASK_PARENT_FOLDER.tsv`.
 NOTE: You can use the flag `-e` to automatically calculate F1 macro scores for
 the RE task with the official SemEval 2010 Task 8 evaluation script.
 
+See the [eval.ipynb notebook](../../../DT/experiments/eval.ipynb) for
+evaluation of model prediction results. This notebook was used to examine
+overall prediction quality and resource consumption. Furthermore, it
+contains record wise result evaluation.
+
+

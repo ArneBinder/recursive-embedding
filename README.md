@@ -118,6 +118,13 @@ Task instances:
  * Relation Extraction on SemEval2010 Task 8.
 
 
+## Evaluation
+
+See the [eval notebook](../../../DT/experiments/eval.ipynb) for
+evaluation of model prediction results. This notebook was used to examine
+overall prediction quality and resource consumption. Furthermore, it
+contains record wise result evaluation.
+
 ## License
 
 Copyright 2018 Arne Binder
