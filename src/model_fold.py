@@ -14,7 +14,6 @@ from scipy.sparse import csr_matrix
 
 from constants import KEY_HEAD, KEY_CHILDREN, KEY_CANDIDATES, LOGGING_FORMAT, KEY_HEAD_CONCAT
 
-# DEFAULT_SCOPE_TREE_EMBEDDER = 'tree_embedder'   # DEPRECATED
 DEFAULT_SCOPE_SCORING = 'scoring'
 # DIMENSION_EMBEDDINGS = 300     use lexicon.dimension_embeddings
 DIMENSION_SIM_MEASURE = 300
@@ -221,7 +220,6 @@ class TreeEmbedding(object):
         self._lex_size_fix = lex_size_fix
         self._lex_size_var = lex_size_var
         self._dim_embeddings = dimension_embeddings
-        #self._additional_heads = additional_heads
         self._additional_heads_dims = additional_heads_dims
 
         self._lexicon_var, self._lexicon_var_placeholder, self._lexicon_var_init = create_lexicon(lex_size=self._lex_size_var,
@@ -249,11 +247,7 @@ class TreeEmbedding(object):
         self._name = VAR_PREFIX_TREE_EMBEDDING + '/' + name  # + '_%d' % self._state_size
 
         self._leaf_fc_size = leaf_fc_size
-        # handled in TreeEmbedding_HTU_plain_leaf directly (and added only for leafs, not for inner nodes!)
-        #if isinstance(self, TreeEmbedding_HTU_plain_leaf):
-        #    self._leaf_fc_size = self.state_size
-        #    logger.debug('set leaf_fc_size to state_size=%i because model is instance of HTU_plain_leaf'
-        #                 % self._leaf_fc_size)
+
         with tf.variable_scope(self.name) as scope:
             self._scope = scope
             if self._leaf_fc_size:
@@ -276,16 +270,6 @@ class TreeEmbedding(object):
     # used only in HTUBatchedHead and FLAT2levels
     def embed(self, max_dims=None):
         # get the head embedding from id
-        #res = td.OneOf(key_fn=(lambda x: x // self.lexicon_size),
-        #                case_blocks={
-        #                    # normal embedding
-        #                    0: td.Scalar(dtype='int32')
-        #                       >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size))),
-        #                    # "reverted" edge embedding
-        #                    1: td.Scalar(dtype='int32')
-        #                       >> td.Function(lambda x: tf.gather(self._lexicon, tf.mod(x, self.lexicon_size)))
-        #                       >> self._reverse_fc,
-        #                })
         res = td.Scalar(dtype='int32') >> td.Function(lambda x: tf.gather(self._lexicon, x))
         if max_dims is not None:
             res = td.Pipe(res, td.Function(lambda x: x[:, :max_dims]))
@@ -303,7 +287,6 @@ class TreeEmbedding(object):
         return td.Pipe(td.GetItem(KEY_HEAD), self.embed(), self.leaf_fc, name=name)
 
     def head_w_direction(self, name='head_embed_w_direction'):
-        #return td.Pipe(td.GetItem(KEY_HEAD), self.embed_w_direction(), name=name)
         comp = td.Composition(name=name)
         with comp.scope():
             head = td.GetItem(KEY_HEAD).reads(comp.input)
@@ -462,8 +445,7 @@ class TreeEmbedding_TREE_LSTM(TreeEmbedding):
         cases = td.AllOf(self.head(), children) >> treelstm
         embed_tree.resolve_to(cases)
 
-        # TODO: use only h state. DONE, but needs testing!
-        #return cases >> td.Concat() >> self.output_fc
+        # use only h state
         return cases >> td.GetItem(1) #>> self.root_fc
 
 
@@ -503,16 +485,6 @@ class TreeEmbedding_reduce(TreeEmbedding):
         :return: the mapping function
         """
         return lambda x: x
-
-
-# TODO: does not work like this! TreeEmbedding_map.map requires: (input, state_in) -> state_out
-#class TreeEmbedding_mapIDENTITY(TreeEmbedding_map):
-#    def __init__(self, name, **kwargs):
-#        super(TreeEmbedding_mapIDENTITY, self).__init__(name='mapIDENTITY_' + name, **kwargs)
-#
-#    @property
-#    def map(self):
-#        return td.Identity()
 
 
 def gru_cell(scope, state_size, keep_prob, input_size):
@@ -645,10 +617,6 @@ class TreeEmbedding_mapLSTM(TreeEmbedding_map):
 
     @property
     def map(self):
-        #return td.AllOf(td.GetItem(0), td.GetItem(1) # requires: state_is_tuple=True
-        #                >> td.Function(lambda v: tf.split(value=v, num_or_size_splits=2, axis=1))) \
-        #       >> self._rnn_cell >> td.GetItem(1) >> td.Concat()
-        #return td.AllOf(td.GetItem(0), td.GetItem(1)) >> self._rnn_cell >> td.GetItem(1)  # requires: state_is_tuple=False
         return self.input_wo_direction >> self._rnn_cell >> td.GetItem(1)  # requires: state_is_tuple=False
 
 
@@ -726,9 +694,6 @@ class TreeEmbedding_reduceSUM(TreeEmbedding_reduce):
 
     @property
     def reduce(self):
-        #_reduced = td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Sum())
-        #_reduced.set_output_type(tdt.TupleType(td.GetItem(0).output_type, td.GetItem(1).output_type))
-        #return _reduced
         return td.AllOf(td.GetItem(0), td.GetItem(1) >> td.Sum())
 
 
@@ -773,10 +738,6 @@ class TreeEmbedding_reduceATT(TreeEmbedding_reduce):
         # head_in, children_sequence --> head_out, children_reduced
         #return td.AllOf(td.GetItem(0) >> self._fc_map, td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> AttentionReduce())
         return td.AllOf(td.GetItem(0), td.AllOf(td.GetItem(1), td.GetItem(0) >> self._fc_att) >> self._att)
-
-    #@property
-    #def reduce_output_size_mapping(self):
-    #    return lambda _: self.state_size
 
 
 class TreeEmbedding_reduceATTsplit(TreeEmbedding_reduce):
@@ -1027,7 +988,7 @@ class TreeEmbedding_HTUBatchedHead_init_state(TreeEmbedding_HTU_init_state):
 
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHead_init_state, self).__call__()
-        ## dummy_head is just passed through reduce, shouldn't be touched
+        # dummy_head is just passed through reduce, shouldn't be touched
         reduced_children = td.OneOf(key_fn=self.has_children(),
                                     case_blocks={
                                         True: td.AllOf(td.Void(), td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model))
@@ -1063,9 +1024,7 @@ class TreeEmbedding_HTUBatchedHeadX_init_state(TreeEmbedding_HTU_init_state):
 
     def __call__(self):
         _htu_model = super(TreeEmbedding_HTUBatchedHeadX_init_state, self).__call__()
-        #trees_children = td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model)
         # dummy_head is just passed through reduce, shouldn't be touched
-        #reduced_children = td.AllOf(td.Void(), trees_children) >> self.reduce >> td.GetItem(1)
         reduced_children = td.OneOf(key_fn=self.has_children(),
                                     case_blocks={
                                         True: td.AllOf(td.Void(), td.GetItem(KEY_CHILDREN) >> td.Map(_htu_model))
@@ -1075,10 +1034,6 @@ class TreeEmbedding_HTUBatchedHeadX_init_state(TreeEmbedding_HTU_init_state):
                                     )
         # add id to candidate embeddings
         # do not use leaf_fc for candidates!
-        #heads_embedded = td.GetItem(KEY_CANDIDATES) \
-        #                 >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
-        #                           >> td.Concat())
-        #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed_w_direction())
         heads_embedded = td.InputTransform(lambda x: [{KEY_HEAD: c, KEY_HEAD_CONCAT: x.get(KEY_HEAD_CONCAT, [])} for c in x[KEY_CANDIDATES]]) \
                          >> td.Map(self.head_w_direction())
         model = td.AllOf(
@@ -1093,7 +1048,6 @@ class TreeEmbedding_HTUBatchedHeadX_init_state(TreeEmbedding_HTU_init_state):
 
     @property
     def output_size(self):
-        #return self.dimension_embeddings + self.state_size + 1
         return self.state_size + 1
 
 
@@ -1110,10 +1064,6 @@ class TreeEmbedding_HTUBatchedHeadX(TreeEmbedding_HTU):
 
         # add id to candidate embeddings
         # do not use leaf_fc for candidates!
-        #heads_embedded = td.GetItem(KEY_CANDIDATES) \
-        #                 >> td.Map(td.AllOf(self.embed(), td.InputTransform(lambda x: [x]) >> td.Vector(size=1))
-        #                           >> td.Concat())
-        #heads_embedded = td.GetItem(KEY_CANDIDATES) >> td.Map(self.embed_w_direction())
         heads_embedded = td.InputTransform(lambda x: [{KEY_HEAD: c, KEY_HEAD_CONCAT: x.get(KEY_HEAD_CONCAT, [])} for c in x[KEY_CANDIDATES]]) \
                          >> td.Map(self.head_w_direction())
         model = td.AllOf(
@@ -1163,9 +1113,6 @@ class TreeEmbedding_FLAT2levels(TreeEmbedding_FLAT):
             if KEY_CHILDREN not in x:
                 return []
             res = [c for c in x[KEY_CHILDREN] if KEY_CHILDREN in c and len(c[KEY_CHILDREN]) > 0]
-            #if len(res) != len(x[KEY_CHILDREN]):
-                # warn, if children have been removed
-                #logging.warning('removed children: %i' % (len(x[KEY_CHILDREN]) - len(res)))
             return res
         return td.InputTransform(get_children, name=name)
 
@@ -1190,7 +1137,6 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
     """
     def __init__(self, name, sequence_length, padding_id, merge_factor=1, **kwargs):
         assert merge_factor == 1, 'merge_factor is deprecated, but it is set to %i' % merge_factor
-        #self._merge_factor = merge_factor
         self._sequence_length = sequence_length
         self._padding_id = padding_id
         super(TreeEmbedding_FLATconcat, self).__init__(name='FLATconcat_' + name, **kwargs)
@@ -1236,10 +1182,6 @@ class TreeEmbedding_FLATconcat(TreeEmbedding):
     @property
     def sequence_length(self):
         return self._sequence_length
-
-    #@property
-    #def merge_factor(self):
-    #    return self._merge_factor
 
 
 #######################################
@@ -1373,12 +1315,6 @@ class TreeEmbedding_HTU_reduceATTsplit_mapGRU(TreeEmbedding_reduceATTsplit, Tree
 class TreeEmbedding_HTU_reduceATTsingle_mapGRU(TreeEmbedding_reduceATTsingle, TreeEmbedding_mapGRU, TreeEmbedding_HTU):
     def __init__(self, name='', **kwargs):
         super(TreeEmbedding_HTU_reduceATTsingle_mapGRU, self).__init__(name=name, **kwargs)
-
-
-#TODO: check this!
-#class TreeEmbedding_HTU_reduceGRU_mapIDENTITY(TreeEmbedding_reduceGRU, TreeEmbedding_mapIDENTITY, TreeEmbedding_HTU):
-#    def __init__(self, name='', **kwargs):
-#        super(TreeEmbedding_HTU_reduceGRU_mapIDENTITY, self).__init__(name=name, **kwargs)
 
 
 class TreeEmbedding_FLAT_AVG(TreeEmbedding_reduceAVG, TreeEmbedding_FLAT):
@@ -1601,12 +1537,6 @@ class TreeEmbedding_FLATconcat_AVG(TreeEmbedding_FLATconcat):
 ########################################################################################################################
 
 
-def sim_cosine_DEP(e1, e2):
-    e1 = tf.nn.l2_normalize(e1, dim=1)
-    e2 = tf.nn.l2_normalize(e2, dim=1)
-    return tf.reduce_sum(e1 * e2, axis=1)
-
-
 def sim_cosine(embeddings, normalize=True, clip=True):
     """
     :param embeddings: paired embeddings with shape = [batch_count, 2, embedding_dimension]
@@ -1619,6 +1549,12 @@ def sim_cosine(embeddings, normalize=True, clip=True):
         return tf.clip_by_value(cos, 0.0, 1.0)
     else:
         return cos
+
+
+def sim_cosine_DEP(e1, e2):
+    e1 = tf.nn.l2_normalize(e1, dim=1)
+    e2 = tf.nn.l2_normalize(e2, dim=1)
+    return tf.reduce_sum(e1 * e2, axis=1)
 
 
 def sim_manhattan_DEP(e1, e2):
@@ -1688,8 +1624,6 @@ class TreeModel(object):
                 prepared_embeddings_plain = tf.zeros_like(prepared_embeddings_plain)
             self._embeddings_plain = tf.concat((self._embeddings_plain, prepared_embeddings_plain), axis=-1)
 
-        #self._output_size = int(self._embeddings_plain.shape[-1])
-
         i = 0
         for s in self._root_fc_sizes:
             if s > 0:
@@ -1697,7 +1631,6 @@ class TreeModel(object):
                     fc = tf.contrib.layers.fully_connected(inputs=self._embeddings_plain, num_outputs=s,
                                                            activation_fn=tf.nn.tanh, scope=scope)
                     self._embeddings_plain = tf.nn.dropout(fc, keep_prob=self._keep_prob)
-                    #self._output_size = s
                     i += 1
 
     @property
@@ -1711,7 +1644,6 @@ class TreeModel(object):
     @property
     def tree_output_size(self):
         return int(self._embeddings_plain.shape[-1])
-        #return self._output_size
 
 
 class SequenceTreeModel(TreeModel):
@@ -1830,7 +1762,6 @@ class BaseTrainModel(object):
         else:
             self._train_op = None
 
-        #self._metrics = {'auc': tf.metrics.auc(labels=self.gold_eval, predictions=self.predicted_eval)}
         self._metrics = metrics
         self._reset_metrics = metric_reset_op
 
@@ -1975,7 +1906,6 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
 
     def __init__(self, tree_model, nbr_embeddings_in, fc_sizes=1000, use_circular_correlation=False, embedded_root=False, **kwargs):
         self._labels_gold = tf.placeholder(dtype=tf.float32)
-        #self._candidate_count = tf.shape(self._labels_gold)[-1]
         self._nbr_embeddings_in = nbr_embeddings_in
         tree_embeddings = tf.reshape(tree_model.embeddings_all,
                                      shape=[-1, self.nbr_embeddings_in, tree_model.tree_output_size])
@@ -1985,7 +1915,6 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
 
         if not isinstance(fc_sizes, (list, tuple)):
             fc_sizes = [fc_sizes]
-
 
 
         # add circular self correlation
@@ -2002,11 +1931,6 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         # assume, we get vectors that are concatenations of: (aggregated children, candidate head)
         # HeadBatched_... (simplified)
         if not embedded_root:
-
-            ## split vecs into two
-            #assert concat_embeddings_dim % 2 == 0, \
-            #    'dimension of concatenated embeddings has to be multiple of two, but it is: %i' % _shape[-1]
-            #final_vecs_split = tf.reshape(final_vecs, shape=(-1, 2, concat_embeddings_dim // 2))
 
             candidate_dims = tree_model.embedder.dimension_embeddings
             reference_dims = concat_embeddings_dim - candidate_dims
@@ -2062,8 +1986,6 @@ class TreeScoringModel_with_candidates(BaseTrainModel):
         self._probs = tf.nn.softmax(logits)
         self._scores = tf.sigmoid(logits)
 
-        # m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
-        # m_ts = [0.5]
         m_ts = [0.33, 0.5, 0.66]
         map_ts = lambda x: str(int(x * 100))  # format thresholds
         with tf.variable_scope("reset_metrics_scope") as scope:
@@ -2173,8 +2095,7 @@ class TreeMultiClassModel(BaseTrainModel):
             cross_entropy = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=logits,
                                                                                    labels=labels_gold_dense))
             self._probs = tf.sigmoid(logits)
-        #m_ts = [0.1, 0.33, 0.5, 0.66, 0.9]
-        #m_ts = [0.5]
+
         m_ts = [0.33, 0.5, 0.66]
         map_ts = lambda x: str(int(x*100))  # format thresholds
         with tf.variable_scope("reset_metrics_scope") as scope:
@@ -2207,114 +2128,10 @@ class TreeMultiClassModel(BaseTrainModel):
         return MODEL_TYPE_DISCRETE
 
 
-# not used
-class ScoredSequenceTreeTupleModel(BaseTrainModel):
-    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
-
-    def __init__(self, tree_model, probs_count=2, **kwargs):
-
-        # TODO: check shapes! (is embeddings_shaped correct?)
-        self._prediction_logits = tf.contrib.layers.fully_connected(tree_model.embeddings_all, probs_count,
-                                                                    activation_fn=None, scope=DEFAULT_SCOPE_SCORING)
-        loss = tf.reduce_mean(
-            tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.values_gold, logits=self._prediction_logits))
-
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
-
-
-# DEPRECATED
-class ScoredSequenceTreeTupleModel_independent(BaseTrainModel):
-    """A Fold model for similarity scored sequence tree (SequenceNode) tuple."""
-
-    def __init__(self, tree_model, count=None, **kwargs):
-        if count is None:
-            count = tree_model.tree_count
-        #assert tree_model.prob_count >= count, 'tree_model produces %i prob values per batch entry, but count=%i ' \
-        #                                        'requested' % (tree_model.prob_count, count)
-        assert tree_model.tree_count >= count, 'tree_model produces %i tree embeddings per batch entry, but count=%i ' \
-                                               'requested' % (tree_model.tree_count, count)
-        # cut inputs to 'count'
-        #probs = tree_model.probs_gold[:, :count]
-        #trees = tree_model.embeddings_all[:, :count * tree_model.tree_output_size]
-        #input_layer = tf.reshape(trees, [-1, count, tree_model.tree_output_size, 1])
-
-        #conv = tf.layers.conv2d(inputs=input_layer, filters=1,
-        #                        kernel_size=[1, tree_model.tree_output_size], activation=None,
-        #                        name=DEFAULT_SCOPE_SCORING)
-        #self._prediction_logits = tf.reshape(conv, shape=[-1, count])
-
-
-        _weights = tf.Variable(tf.truncated_normal([tree_model.tree_output_size, 1],
-                                                   stddev=1.0 / math.sqrt(float(tree_model.tree_output_size))),
-                               name='scoring_weights')
-        _bias = tf.Variable(tf.truncated_normal([1]), name='scoring_bias')
-        _prediction_logits = tf.reshape(tf.matmul(tree_model.embeddings_all, _weights) + _bias, shape=[-1])
-        #loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=probs, logits=self._prediction_logits))
-        loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=tree_model.values_gold_shaped, logits=_prediction_logits))
-
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=loss, **kwargs)
-
-
-#not used
-# test this!
-class SequenceTreeRerootModel(BaseTrainModel):
-
-    def __init__(self, tree_model, candidate_count, fc_sizes=1000, **kwargs):
-
-        # unpack tree embeddings
-        tree_embeddings = tf.reshape(tree_model.embeddings_all, shape=[-1, tree_model.tree_output_size])
-        #batch_size = tf.shape(tree_model.embeddings_shaped)[0] // (tree_model.neg_samples + 1)
-
-        # create labels_gold: first entry is the correct one
-        #labels_gold_batched = tf.zeros(shape=(batch_size, tree_model.neg_samples + 1), dtype=tf.int32)
-        #labels_gold_batched[:, 0] = 1
-        # flatten labels_gold
-        #self._labels_gold = tf.reshape(labels_gold_batched, shape=[batch_size * (tree_model.neg_samples + 1)])
-
-        # unpack (flatten) labels_gold
-        #self._labels_gold = tf.reshape(tree_model.values_gold, shape=[tf.shape(tree_embeddings)[0]])
-
-        self._labels_gold = tf.placeholder(dtype=tf.int32, shape=[None, candidate_count])
-
-        if not isinstance(fc_sizes, (list, tuple)):
-            fc_sizes = [fc_sizes]
-
-        # add multiple fc layers
-        for s in fc_sizes:
-            if s > 0:
-                fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=s)
-                tree_embeddings = tf.nn.dropout(fc, keep_prob=tree_model.keep_prob)
-
-        #fc = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=1000)
-        logits = tf.contrib.layers.fully_connected(inputs=tree_embeddings, num_outputs=2, activation_fn=None)
-        cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self._labels_gold, logits=logits)
-
-        BaseTrainModel.__init__(self, tree_model=tree_model, loss=tf.reduce_mean(cross_entropy), **kwargs)
-
-        softmax = tf.nn.softmax(logits)
-        self._probs = softmax[:, 1]
-
-    @property
-    def values_gold(self):
-        return self._labels_gold
-
-    @property
-    def values_predicted(self):
-        return self._probs
-
-    @property
-    def model_type(self):
-        return MODEL_TYPE_DISCRETE
-
-
 class HighestSimsModel:
 
     def __init__(self, number_of_embeddings, embedding_size):
-        #self._sparse = sparse
-        #self._normed_reference_embedding = tf.placeholder(tf.float32, [embedding_size])
         self._reference_idx = tf.placeholder(tf.int32, shape=[])
-        #self._number_of_embeddings = tf.placeholder(tf.int32, shape=[])
-        #self._normed_embeddings = tf.placeholder(tf.float32, [None, embedding_size])
         self._normed_embeddings = tf.Variable(tf.constant(0.0, shape=[number_of_embeddings, embedding_size]),
                                               trainable=False, name='EMBEDDED_DOCS')
         #if sparse:
@@ -2334,10 +2151,6 @@ class HighestSimsModel:
 
         self._sims = tf.reduce_sum(_reference_embedding_tiled * self._normed_embeddings, axis=-1)
 
-    #@property
-    #def normed_reference_embedding(self):
-    #    return self._normed_reference_embedding
-
     @property
     def reference_idx(self):
         return self._reference_idx
@@ -2354,14 +2167,7 @@ class HighestSimsModel:
     def normed_embeddings_init(self):
         return self._normed_embeddings_init
 
-    #@property
-    #def number_of_embeddings(self):
-    #    return self._number_of_embeddings
-
     @property
     def sims(self):
         return self._sims
 
-    #@property
-    #def sparse(self):
-    #    return self._sparse

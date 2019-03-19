@@ -1024,34 +1024,6 @@ def visualize():
     return response
 
 
-@app.route("/api/show_tree_rerooted", methods=['POST'])
-def show_rooted_tree_dict():
-    try:
-        start = time.time()
-        logging.info('Reroot requested')
-        params = get_params(request)
-        init_forest(data_path)
-        idx = params['idx']
-        max_depth = params.get('max_depth', 9999)
-        rerooted_dict = forest.get_tree_dict_rooted(idx, max_depth=max_depth)
-        rerooted_forest = Forest(tree_dict=rerooted_dict, lexicon=lexicon)
-
-        mode = params.get('vis_mode', 'image')
-        if mode == 'image':
-            rerooted_forest.visualize(filename=TEMP_FN_SVG)
-            response = send_file(TEMP_FN_SVG)
-        elif mode == 'text':
-            return_type = params.get('HTTP_ACCEPT', False) or 'application/json'
-            json_data = json.dumps(make_serializable(filter_result(params)))
-            response = Response(json_data, mimetype=return_type)
-        else:
-            ValueError('Unknown mode=%s. Use "image" (default) or "text".')
-        logging.info("Time spent handling the request: %f" % (time.time() - start))
-    except Exception as e:
-        raise InvalidUsage('%s: %s' % (type(e).__name__, e.message))
-    return response
-
-
 @app.route("/api/show_tree", methods=['POST'])
 def show_enhanced_tree_dict():
     try:

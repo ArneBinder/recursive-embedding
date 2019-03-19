@@ -17,7 +17,6 @@ FE_PARENTS = 'parent'
 FE_DATA_HASHES = 'data.hash'
 FE_CHILDREN = 'child'
 FE_CHILDREN_POS = 'child.pos'
-#FE_ROOTS = 'root'
 FE_ROOT_ID = 'root.id'
 FE_ROOT_POS = 'root.pos'
 FE_GRAPH_IN = 'graph.in'
@@ -27,11 +26,6 @@ MAX_DEPTH = 9999
 
 logger = logging.getLogger('sequence_trees')
 logger.setLevel(logging.DEBUG)
-#logger_streamhandler = logging.StreamHandler()
-#logger_streamhandler.setLevel(logging.DEBUG)
-#logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
-#logger.addHandler(logger_streamhandler)
-#logger.propagate = False
 
 
 def targets(g, idx):
@@ -64,14 +58,12 @@ def get_path(g, data, idx_start, stop_data):
     assert g.shape[0] == g.shape[1] == len(data), 'shape mismatch: %s vs. %i' % (str(g.shape), len(data))
     d = data[idx_start]
     path = []
-    #path_d = []
     while d != stop_data:
         path.append(idx_start)
         _indices = targets(g, idx_start)
         assert len(_indices) == 1, 'wrong nbr of indices [%i], expected 1.' % len(_indices)
         idx_start = _indices[0]
         d = data[idx_start]
-        #path_d.append(d)
     return path
 
 
@@ -93,48 +85,6 @@ def get_lca_from_paths(paths, root):
     if idx == 0:
         return root
     return paths[0][idx]
-
-
-# unused
-def _calc_depth(children, parents, depth, start):
-    idx = start
-    children_idx = list()
-    if start in children:
-        # if len(children[start]) > 0:
-        children_idx.append(0)
-        while len(children_idx) > 0:
-            current_child_idx = children_idx.pop()
-            # go down
-            # idx = children[idx][current_child_idx]
-            idx += children[idx][current_child_idx]
-            # not already calculated?
-            if depth[idx] < 0:
-                # no children --> depth == 0
-                if idx not in children:
-                    # if len(children[idx]) == 0:
-                    depth[idx] = 0
-                else:
-                    # calc children
-                    children_idx.append(current_child_idx)
-                    children_idx.append(0)
-                    continue
-
-            parent_depth = depth[idx + parents[idx]]
-            # update parent, if this path is longer
-            if parent_depth < depth[idx] + 1:
-                depth[idx + parents[idx]] = depth[idx] + 1
-
-            # go up
-            idx += parents[idx]
-
-            # go only to next child, if it exists
-            if current_child_idx + 1 < len(children[idx]):
-                children_idx.append(current_child_idx + 1)
-            # otherwise, go up again
-            else:
-                idx += parents[idx]
-    else:
-        depth[start] = 0
 
 
 def _sequence_node_to_sequence_trees(seq_tree):
@@ -395,39 +345,21 @@ class Forest(object):
         self._lexicon_roots = lexicon_roots
         self._root_strings = None
 
-    def split_lexicon_to_lexicon_and_lexicon_roots(self):#, min_count=1):
+    def split_lexicon_to_lexicon_and_lexicon_roots(self):
         assert self.data_as_hashes, 'can not split lexicon to lexicon and lexicon_roots if data_as_hashes == False'
         mask_no_ids = np.ones_like(self.data, dtype=bool)
         mask_no_ids[self.pos_ids] = False
         hashes = self.data[mask_no_ids]
         u, c = np.unique(hashes, return_counts=True)
-        #indices_min = np.argwhere(c >= min_count).flatten()
-        #logger.info('take %i of %i lexicon entries (min_count: %i)' % (len(indices_min), len(u), min_count))
         hashes_ids = self.data[self.pos_ids]
         lex = self.lexicon.create_subset_with_hashes(u, add_vocab_manual=True)
         lex_ids = self.lexicon.create_subset_with_hashes(hashes_ids)
         self.set_lexicon(lex)
         self.set_lexicon_roots(lex_ids)
 
-    # deprecated
-    def set_root_ids(self, root_ids):
-        assert len(root_ids) == len(self.roots), 'wrong amount of root ids=%i (amount of roots=%i)' \
-                                                 % (len(root_ids), len(self.roots))
-        if self.data_as_hashes:
-            assert root_ids.dtype == DTYPE_HASH, 'wrong dtype of new root_ids=%s (expected: %s)' \
-                                                 % (str(root_ids.dtype), str(DTYPE_HASH))
-        else:
-            assert root_ids.dtype == DTYPE_IDX, 'wrong dtype of new root_ids=%s (expected: %s)' \
-                                                % (str(root_ids.dtype), str(DTYPE_IDX))
-        self._root_data = root_ids
-        self._root_strings = None
-
     def set_root_data_by_offset(self):
-        #if self.data_as_hashes:
         self._root_data = self.data[self.roots + OFFSET_ID]
         self._root_strings = None
-        #else:
-        #    self._root_data = -self.data[self.roots + OFFSET_ID] - 1
 
     def dump(self, filename, save_root_ids=True, save_root_pos=True, save_graph_in=True, save_graph_out=True):
         logger.debug('dump data ...')
@@ -485,8 +417,6 @@ class Forest(object):
             self.set_root_data_by_offset()
         else:
             self._data = self.lexicon.convert_data_hashes_to_indices(self.data)
-        #if self._root_data is not None:
-        #    self._root_data = self.lexicon.convert_data_hashes_to_indices(self._root_data, id_offset_mapping)
         self._as_hashes = False
 
     def convert_data(self, converter, new_idx_unknown):
@@ -509,7 +439,6 @@ class Forest(object):
 
     def get_slice(self, root=None, indices=None, root_exclude=None):
         if indices is None:
-            #indices = np.sort(self.get_descendant_indices(root, show_links=show_links))
             idx_start = self.roots[root]
             idx_end = self.pos_end(component_idx=root)
             indices = np.arange(idx_start, idx_end)
@@ -524,28 +453,6 @@ class Forest(object):
                       lexicon_roots=self.lexicon_roots,
                       data_as_hashes=self.data_as_hashes)
 
-    # DEPRECATED
-    # TODO: fix this!
-    # show_links==True does not show http://www.w3.org/2005/11/its/rdf#taIdentRef/SeeAlso links and
-    # show_links==False does not adapt parents correctly (see ID:http://dbpedia.org/resource/14.5mm_JDJ)
-    def trees(self, root_indices=None, show_links=True):
-        raise NotImplementedError('forest.trees is not implemented for graph. use forest.splice')
-        if root_indices is None:
-            root_indices = self.roots
-        for i in root_indices:
-            descendant_indices = sorted(self.get_descendant_indices(i, show_links=show_links))
-            # if the slice is not continuous, fix parents
-            if len(descendant_indices) < descendant_indices[-1] - descendant_indices[0]:
-                descendant_indices_map = {idx: i for i, idx in enumerate(descendant_indices)}
-                parents_targets_old = self.parents[descendant_indices] + descendant_indices
-                new_parents = []
-                for i, p_target_old in enumerate(parents_targets_old):
-                    p_target_new = descendant_indices_map.get(p_target_old, i)
-                    new_parents.append(p_target_new - i)
-                yield self.data[descendant_indices], np.array(new_parents, dtype=DTYPE_OFFSET)
-            else:
-                yield self.data[descendant_indices], self.parents[descendant_indices]
-
     def _set_depths(self, indices, current_depth):
         self._depths[indices] = current_depth
         child_positions = self.get_child_positions_batched(indices)
@@ -556,42 +463,6 @@ class Forest(object):
     def trees_equal(self, root1, root2):
         _cmp = _compare_tree_dicts(self.get_tree_dict_cached(root1), self.get_tree_dict_cached(root2))
         return _cmp == 0
-
-    # not used
-    # TODO: check!
-    def sample_all(self, sample_count=1, retry_count=10):
-        if self.data_as_hashes:
-            raise NotImplementedError('sample_all not implemented for data hashes')
-        logger.info('create negative samples for all data points ...')
-        sampled_sim_tuples = []
-        max_depth = np.max(self.depths)
-        # sample for every depth only from trees with this depth
-        for current_depth, indices in enumerate(self.depths_collected):
-            if current_depth == max_depth:
-                # add all leafs
-                #for idx in indices:
-                #    # pad to (sample_count + 1)
-                #    sampled_sim_tuples.append([idx] * (sample_count + 1))
-                continue
-
-            for idx in indices:
-                idx_data = self.data[idx]
-                current_sampled_indices = [idx]
-                for _ in range(retry_count):
-                    candidate_indices = np.random.choice(indices, 100 * sample_count)
-                    for candidate_idx in candidate_indices:
-                        if idx_data != self.data[candidate_idx] and not self.trees_equal(idx, candidate_idx):
-                            current_sampled_indices.append(candidate_idx)
-                        if len(current_sampled_indices) > sample_count:
-                            break
-                    if len(current_sampled_indices) > sample_count:
-                        break
-                if len(current_sampled_indices) <= sample_count:
-                    logger.warning('sampled less candidates (%i) than sample_count (%i) for idx=%i. Skip it.'
-                                    % (len(current_sampled_indices) - 1, sample_count, idx))
-                else:
-                    sampled_sim_tuples.append(current_sampled_indices)
-        return sampled_sim_tuples
 
     # not used
     def get_tree_dict_cached(self, idx):
@@ -614,7 +485,6 @@ class Forest(object):
         self._dicts[idx] = seq_node
         return self._dicts[idx]
 
-    # TODO(graph): test!
     def get_tree_dict(self, idx, visited=None, max_depth=MAX_DEPTH, context=0, transform=False, costs={}, link_types=[],
                       link_content_offset=OFFSET_CONTEXT_ROOT, data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0,
                       revert=False, blank_types=(), go_back=False, add_heads_types=(), add_heads_dummies=(),
@@ -636,21 +506,7 @@ class Forest(object):
                                    beneath the link
         :return: the dict version of the subtree
         """
-        #if idx is None:
-        #    idx = self.roots[0]
 
-        # caching
-        #if self._dicts is not None:
-        #    depth = min(self.depths[idx], max_depth)
-        #    seq_node = self._dicts.get((idx, depth), None)
-        #    if seq_node is not None:
-        #        logger.debug('got tree from cache')
-        #        return seq_node
-        #if revert:
-        #    if visited_reverse is None:
-        #        visited_reverse = set()
-        #    visited_reverse.add(idx)
-        #else:
         visited = set(visited or [])
         visited.add(idx)
         data_head = self.data[idx]
@@ -787,100 +643,6 @@ class Forest(object):
             seq_node[KEY_DEPTH] = max_child_depth + 1
         return seq_node
 
-    # DEPRECATED. use get_tree_dict with go_back=True
-    def get_tree_dict_rooted(self, idx, visited=None, revert=False, max_depth=9999, costs={},
-                             link_types=[],  data_blank=None, keep_prob_blank=1.0, keep_prob_node=1.0, blank_types=()):
-        #result = None
-        # if current data is a link, start at parent NOT NECESSARY (will be transformed to IDENTITY entry)
-        #if self.parents[idx] != 0:
-        #    parent_idx = idx + self.parents[idx]
-        #    if self.data[parent_idx] in link_types:
-        #        d_target = self.lexicon.get_d(s=vocab_manual[TARGET_EMBEDDING], data_as_hashes=False)
-        #        result = {KEY_HEAD: self.lexicon.transform_idx(d_target), KEY_CHILDREN: []}
-
-        #if result is None:
-        #if visited_reverse is None:
-        #    visited_reverse = set()
-
-        result = self.get_tree_dict(idx, visited=visited, revert=revert,
-                                    max_depth=max_depth, transform=True,
-                                    costs=costs,  link_types=link_types, data_blank=data_blank,
-                                    keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                    blank_types=blank_types)
-        visited = set(visited or [idx])
-        #cost = costs.get(self.data[idx], 1)
-        cost = 1
-        if max_depth > 0:
-            for target_back in targets(self.graph_in, idx):
-                if visited is not None and target_back in visited:
-                    continue
-                # full node dropout
-                if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
-                    continue
-                result_back = self.get_tree_dict_rooted(target_back, visited=visited, revert=True,
-                                                        max_depth=max_depth-cost, costs=costs,
-                                                        link_types=link_types, data_blank=data_blank,
-                                                        keep_prob_blank=keep_prob_blank, keep_prob_node=keep_prob_node,
-                                                        blank_types=blank_types)
-                result[KEY_CHILDREN].append(result_back)
-        return result
-
-    # not used
-    # TODO(graph)
-    def get_tree_dict_parent(self, idx, max_depth=9999, costs={}, link_types=[], data_blank=None, keep_prob_blank=1.0,
-                             keep_prob_node=1.0):
-        raise NotImplementedError('not implemented for graph. use get_tree_dict_reroot')
-        assert self.lexicon is not None, 'lexicon is not set'
-
-        if self.parents[idx] == 0:
-            return None
-        previous_id = idx
-        current_id = idx + self.parents[idx]
-        #data_head = self.lexicon.reverse_idx(self.data[current_id])
-        #if transform:
-        # blank node dropout
-        if keep_prob_blank < 1.0 and keep_prob_blank < np.random.uniform():
-            data_head = self.lexicon.transform_idx(data_blank, revert=True)
-        else:
-            data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
-        result = {KEY_HEAD: data_head, KEY_CHILDREN: []}
-        current_dict_tree = result
-        while max_depth > 0:
-            # TODO: respect blanked node for costs?
-            current_d = self.data[current_id]
-            current_cost_down = costs.get(current_d, 1)
-
-            # if link is not disabled (cost < 0) ...
-            if current_cost_down >= 0:
-                # ... add other children
-                for child_idx in targets(self.graph_out, current_id):
-                    if child_idx != previous_id:
-                        # full node dropout
-                        if not (keep_prob_node < 1.0 and keep_prob_node < np.random.uniform()):
-                            current_dict_tree[KEY_CHILDREN].append(
-                                self.get_tree_dict(child_idx, max_depth=max_depth - current_cost_down, transform=True, costs=costs,
-                                                   link_types=link_types))
-            # go up
-            if self.parents[current_id] != 0:
-                # full node dropout
-                if keep_prob_node < 1.0 and keep_prob_node < np.random.uniform():
-                    break
-                previous_id = current_id
-                current_id = current_id + self.parents[current_id]
-                #data_head = self.lexicon.reverse_idx(self.data[current_id])
-                #if transform:
-                # blank node dropout
-                if keep_prob_blank < 1.0 and keep_prob_blank < np.random.uniform():
-                    data_head = self.lexicon.transform_idx(data_blank, revert=True)
-                else:
-                    data_head = self.lexicon.transform_idx(self.data[current_id], revert=True)
-                new_parent_child = {KEY_HEAD: data_head, KEY_CHILDREN: []}
-                current_dict_tree[KEY_CHILDREN].append(new_parent_child)
-                current_dict_tree = new_parent_child
-                max_depth -= 1
-            else:
-                break
-        return result
 
     def get_data_span_cleaned(self, idx_start, idx_end, link_types, remove_types=(), transform=False):
         data = self.data[idx_start:idx_end]
@@ -902,7 +664,7 @@ class Forest(object):
         else:
             return data[mask]
 
-    def get_tree_dict_string(self, idx, stop_types=(), index_types=(), data_types=()): #, delete_target_types=True, merge_target_dict=True):
+    def get_tree_dict_string(self, idx, stop_types=(), index_types=(), data_types=()):
         # TODO: use constants
         res = {}
         if idx - OFFSET_ID in self.roots:
@@ -915,7 +677,6 @@ class Forest(object):
         res[JSONLD_TYPE] = type_parts[0]
         if res[JSONLD_TYPE] in index_types:
             res[JSONLD_IDX] = int(idx)
-            #return res
         if res[JSONLD_TYPE] in data_types:
             res[JSONLD_DATA] = int(self.data[idx])
         if res[JSONLD_TYPE] in stop_types:
@@ -928,7 +689,6 @@ class Forest(object):
         for t_elem in targed_elements:
             if JSONLD_TYPE in t_elem:
                 _t = t_elem[JSONLD_TYPE]
-                #if delete_target_types:
                 del t_elem[JSONLD_TYPE]
                 l = target_dict.setdefault(_t, [])
                 if len(t_elem) > 0:
@@ -936,11 +696,7 @@ class Forest(object):
             elif JSONLD_ID in t_elem:
                 res[JSONLD_ID] = t_elem[JSONLD_ID]
 
-        #if merge_target_dict:
         res.update(target_dict)
-        #else:
-        #    if len(target_dict) > 0:
-        #        res['@outgoing'] = target_dict
 
         return res
 
@@ -1196,17 +952,6 @@ class Forest(object):
                         s = 'ID:%s' % self.lexicon_roots.get_s(d if self.data_as_hashes else -d - 1, self.data_as_hashes)
                     else:
                         s = self.lexicon.get_s(d, self.data_as_hashes)
-                #root_id = self.root_id_mapping.get(d, None)
-                #if self.data_as_hashes:
-                #    d = self.lexicon.mapping[self.lexicon.strings[s]]
-                #if root_id is not None:
-                #    if self.lexicon_roots is not None:
-                #        root_s = self.lexicon_roots.get_s(root_id, self.data_as_hashes)
-                #        s = 'ID:%s' % root_s
-                #    else:
-                #        s = 'ID:%s(%s)' % (root_id, s)
-                #if s == vocab_manual[UNKNOWN_EMBEDDING]:
-                #    s = 'ID:%s(%s)' % (d, s)
 
                 l = "'%s'" % Forest.filter_and_shorten_label(s, blacklist, do_filter=blacklist is not None)
                 if l is not None:
@@ -1219,10 +964,12 @@ class Forest(object):
 
     # deprecated, use self.nbr_out[idx] > 0 directly
     def has_children(self, idx):
+        #logger.warning('self.has_children(idx) is deprecated, use self.nbr_out[idx] > 0')
         return self.nbr_out[idx] > 0
 
     # deprecated, use targets(self.graph_out, idx) directly
     def get_children(self, idx):
+        #logger.warning('self.get_children(idx) is deprecated, use self.targets(self.graph_out, idx)')
         return targets(self.graph_out, idx)
 
     def get_child_positions_batched(self, indices):
@@ -1234,44 +981,8 @@ class Forest(object):
 
     # deprecated, use self.nbr_out[indices] directly
     def get_children_counts(self, indices):
+        #logger.warning('self.get_children_counts is deprecated, use self.nbr_out[indices]')
         return self.nbr_out[indices]
-
-    def set_parents_with_children(self):
-        raise NotImplementedError('set_parents_with_children not implemented for graph structure')
-        logger.warning('set_parents_with_children ...')
-        assert self._children is not None and self._children_pos is not None, 'children arrays are None, can not ' \
-                                                                              'create parents'
-        self._parents = np.zeros(shape=len(self), dtype=DTYPE_OFFSET)
-        for p_idx, c_pos in enumerate(self._children_pos):
-            c_count = self._children[c_pos]
-            for c_offset in self._children[c_pos+1:c_pos+1+c_count]:
-                c_idx = p_idx + c_offset
-                self._parents[c_idx] = -c_offset
-        #print('set parents')
-
-    #def resolve_and_clean_ids(self):
-    #    link_parent_positions = np.isin(self.data, self.link_types).nonzero()[0]
-    #    link_positions_list = []
-    #    for idx in link_parent_positions:
-    #        link_positions = self.get_children(idx, offset=idx)
-    #        link_ids = self.data[link_positions]
-    #        link_target_positions = [self.root_id_pos[link_id] for link_id in link_ids]
-    #        all_link_positions.append(link_positions)
-    #    all_link_positions = np.concatenate(link_positions_list)
-    #    identity_positions = np.array(self.root_id_pos.values(), dtype=DTYPE_IDX) + 1
-    #    d_identity = self.lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=self.data_as_hashes)
-    #    self.data[identity_positions] = d_identity
-    #    self.data[link_parent_positions] = d_identity
-
-    # deprecated
-    def get_path_indices(self, start, end=None):
-        raise NotImplementedError('set_parents_with_children not implemented for graph structure')
-        res = []
-        idx = start
-        while self.parents[idx] != 0 and idx != end:
-            idx += self.parents[idx]
-            res.append(idx)
-        return res
 
     def pos_end(self, idx=None, component_idx=None):
         if component_idx is None:
@@ -1313,12 +1024,6 @@ class Forest(object):
         collision with sequence data. Can be used with lexicon_roots to get the string representation of the root id.
         :return: a plain numpy array holding root data entries referencing elements in lexicon_roots
         """
-        #if self._root_data is None:
-        #    logger.debug('get root_ids from lexicon_roots')
-        #    assert self.lexicon_roots is not None, 'can not create root_ids because lexicon_roots is None'
-        #    self._root_data = np.arange(len(self.lexicon_roots), dtype=DTYPE_IDX)
-        #if self._root_data is None:
-        #    self.set_root_ids_with_data()
         if self._root_data is None:
             self.set_root_data_by_offset()
         return self._root_data

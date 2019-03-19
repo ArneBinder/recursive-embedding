@@ -43,7 +43,7 @@ from constants import vocab_manual, IDENTITY_EMBEDDING, LOGGING_FORMAT, CM_AGGRE
     TACRED_RELATION, SICK_RELATEDNESS_SCORE, JSONLD_VALUE, ADD_HEADS_DIMS
 from config import Config
 import data_iterators as diters
-from data_iterators import batch_iter_naive, batch_iter_all, batch_iter_fixed_probs, batch_iter_default
+from data_iterators import batch_iter_fixed_probs, batch_iter_default
 from corpus import load_class_ids, save_class_ids
 from concurrency import RunnerThread, compile_batches_simple, create_trees_simple, prepare_batch, RecompileThread, process_batch
 
@@ -308,12 +308,12 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
     #indices_forest_to_tree = np.vectorize(_map.get)
     indices_forest_to_tree = {idx: i for i, idx in enumerate(forest_indices)}
     nbr_embeddings_in = model.nbr_embeddings_in
-    iter_args = {batch_iter_naive: [number_of_samples, forest_indices, indices_targets, indices_forest_to_tree],
+    iter_args = {#batch_iter_naive: [number_of_samples, forest_indices, indices_targets, indices_forest_to_tree],
                  # batch_iter_nearest is DEPRECATED
                  #batch_iter_nearest: [number_of_samples, forest_indices, indices_targets, sess,
                  #                     model.tree_model, highest_sims_model, dataset_trees, tree_model_batch_size,
                  #                     indices_forest_to_tree],
-                 batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
+                 #batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
                  batch_iter_fixed_probs: [forest_indices, number_of_samples],
                  batch_iter_default: [forest_indices, indices_targets, nbr_embeddings_in, not debug and train],
                  #batch_iter_simtuple_dep: [forest_indices, indices_targets, nbr_embeddings_in, not debug]
@@ -427,15 +427,6 @@ def init_model_type(config, logdir):
         indices_getter = partial(diters.indices_value, nbr_embeddings_in=2, meta_value_getter=meta_value_getter)
         load_parents = (tree_iterator_args['context'] > 0)
         config.batch_iter = batch_iter_default.__name__
-    # seeAlso prediction (dbpedianif)
-    elif config.model_type == MT_CANDIDATES_W_REF:
-        tree_iterator_args = {'max_depth': config.max_depth, 'context': config.context, 'transform': True,
-                              'concat_mode': config.concat_mode, 'link_cost_ref': config.link_cost_ref,
-                              'bag_of_seealsos': False}
-
-        indices_getter = diters.indices_dbpedianif
-        load_parents = (tree_iterator_args['context'] > 0)
-        config.batch_iter = batch_iter_naive.__name__
     # language model (reroot)
     elif config.model_type == MT_CANDIDATES:
         if config.tree_embedder.strip().startswith('HTU_'):

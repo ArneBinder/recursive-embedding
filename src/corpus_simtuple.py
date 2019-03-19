@@ -331,6 +331,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
     # DEPRECATED
     # UNIQUE_EMBEDDING: u'UNIQUE'
     if FLAGS.create_unique:
+        raise NotImplementedError('this is deprecated')
         if forest.data_as_hashes:
             raise NotImplementedError('create_unique not implemented for data_as_hashes')
         # use unique by now
@@ -381,6 +382,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
             path_suffix += '.adapt'
         sampled_roots_fn = '%s.idx.negs%i%s' % (out_path, FLAGS.sample_count, path_suffix)
         if not os.path.isfile(sampled_roots_fn) or overwrite:
+            raise NotImplementedError('this is deprecated')
             trees = list(forest.trees())
             if FLAGS.create_unique:
                 unique_root_data = forest.indices_to_forest(forest.roots)[0]
@@ -433,6 +435,7 @@ def create_corpus(reader_sentences, reader_scores, corpus_name, file_names, outp
                                 path_suffix='.negs%i%s' % (FLAGS.sample_count, path_suffix))
 
     if FLAGS.sample_all and FLAGS.sample_count:
+        raise NotImplementedError('this is deprecated')
         all_samples = forest.sample_all(sample_count=FLAGS.sample_count)
         logging.info('write sim_tuple_indices to: %s.idx.negs%i' % (out_path, FLAGS.sample_count))
         np.array(all_samples).dump('%s.idx.negs%i' % (out_path, FLAGS.sample_count))
