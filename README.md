@@ -6,6 +6,11 @@ Train embeddings for hierarchically structured data. rec-emb is a research proje
 
 A lot of real world phenomena are structured hierarchically. Creating a semantic model that exploits tree structure seems to be a native need.
 
+**TL;DR**, the `docker` folder provides several starting points:
+ * [Preprocessing of datasets](docker/preprocessing)
+ * [REST endpoint for corpus visualization](docker/tools/visualize)
+ * [Training](docker/train/tensorflow-fold)
+
 
 ### The Embedding Model
 
@@ -21,12 +26,6 @@ The rec-emb data model
  * is optimized for fast training of the rec-emb embedding model
  * identifies data by integer ids or hashes -- i.e. is content agnostic
  * links data with directed, unlabeled edges -- i.e. is relation agnostic
-
-
-**TL;DR**, the `docker` folder provides several starting points:
- * [Preprocessing of datasets](docker/preprocessing)
- * [REST endpoint for corpus visualization](docker/tools/visualize)
- * [Training](docker/train/tensorflow-fold)
 
 
 ## Preprocessing
