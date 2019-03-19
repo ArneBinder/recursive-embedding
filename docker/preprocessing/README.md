@@ -37,17 +37,18 @@ The final rec-emb data can be visualized with the [visualization tool](../tools/
 git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding/docker/preprocessing
 ```
-3. Rename [`.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
-4. Set execution permission for `scripts`: `chmod +x scripts/*.sh`
-5. Optional: adapt the script files, e.g.
+3. Download and extract `glove.840B.300d.txt`, e.g. from [here](https://nlp.stanford.edu/projects/glove).
+4. Rename [`.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
+5. Set execution permission for `scripts`: `chmod +x scripts/*.sh`
+6. Optional: adapt the script files, e.g.
     * use Spacy instead of CoreNLP (parameter `--parser`),
     * restrict output to create only **direct** (default) or **edge** (flag `-e`) linked structure, or
     * adjust the minimal node type count (parameter `-m`): node types (e.g. words) that occur less then this value are replaced with the `UNKNOWN` type.
-6. To start the parsing process, execute from current folder:
+8. To start the parsing process, execute from current folder:
 ```bash
 docker-compose up corpus-parse
 ```
-7. Afterwards, convert to rec-emb data format:
+9. Afterwards, convert to rec-emb data format:
 ```bash
 docker-compose up corpus-convert
 ```
