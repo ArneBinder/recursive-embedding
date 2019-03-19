@@ -106,10 +106,10 @@ Task instances:
 
 ### TASK: Multiclass Prediction
 
-Predict, if a tree matches one (or multiple) labels
+Predict, if a tree matches one (or multiple) labels.
 
 The [similarity score](#Similarity-Scoring) between one (or multiple concatenated) tree embeddings and
-the class label embedding is used as probability that the instance belongs to that class.
+the class label embedding is used as probability for that the instance belongs to that class.
 In general, one FC is applied to the (concatenated in the case of RTE) tree embedding(s).
 
 Task instances:
