@@ -32,7 +32,7 @@ The final rec-emb data can be visualized with the [visualization tool](../tools/
 ## HOW TO preprocess
 
 1. Install [docker](https://docs.docker.com/) and [docker-compose](https://docs.docker.com/compose/).
-2. Clone this repo and **switch into this folder**:
+2. Clone the repo and switch into this folder:
 ```bash
 git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding/docker/preprocessing

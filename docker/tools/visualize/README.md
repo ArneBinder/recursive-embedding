@@ -8,7 +8,7 @@ Useful Postman collection: [Visualize](Visualize.postman_collection.json)
 
 Install [docker](https://docs.docker.com/) and [docker-compose](https://docs.docker.com/compose/).
 
-Clone this repo and switch into this folder:
+Clone the repo and switch into this folder:
 ```bash
 git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding/docker/tools/visualize
