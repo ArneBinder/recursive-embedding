@@ -51,8 +51,9 @@ See the [preprocessing docker setup](docker/preprocessing) for how to parse and 
 
 ## The rec-emb Embedding Model
 
-Create a single embedding for any tree generated out of the graph structure.
-Use `reduce` to combine children and apply `map` along edges. Together, they form a **Headed Tree Unit (HTU)**. Both functions
+The embedding model creates a single embedding for any tree generated from the graph structure.
+It utilizes a `reduce` function to combine children and apply a `map` function along edges.
+Together, they form a **Headed Tree Unit (HTU)**. Both functions
 *can* depend on the node data (at least one of them *should* depend on it).
 
 Implemented `reduce` functions:
