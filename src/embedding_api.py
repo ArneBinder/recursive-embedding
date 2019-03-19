@@ -414,9 +414,6 @@ def get_or_calc_tree_dicts_or_forests(params):
         params['transformed_idx'] = False
         params['indices'] = [current_forest.roots[0]]
 
-    #if return_forests and 'tree_dicts' in params:
-    #    _forests = tree_dicts_to_forests(params['tree_dicts'], current_forest)
-
     if 'candidates_prefixes' in params:
         params['candidates_data'] = current_forest.lexicon.get_ids_for_prefixes_or_types(
             prefixes_or_types=params['candidates_prefixes'], data_as_hashes=current_forest.data_as_hashes)
@@ -430,11 +427,6 @@ def get_or_calc_tree_dicts_or_forests(params):
     if _forests is not None:
         params['forests'] = _forests
         params['sequences'] = [f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False)) for f in _forests]
-        #params['data_sequences'], params['sequences'] = zip(*[([f.data, f.graph_out], f.get_text_plain(blacklist=params.get('prefix_blacklist', None), transformed=params.get('transformed_idx', False))) for f in _forests])
-    #if params.get('calc_depths', False):
-    #    params['depths'] = [f.depths for f in _forests]
-    #if params.get('calc_depths_max', False):
-    #    params['depths_max'] = np.array([np.max(f.depths) for f in _forests])
     return current_forest
 
 
@@ -1330,13 +1322,7 @@ def main(data_source, logdir_pretrained=None):
 
                 if model_config.tree_embedder == 'tfidf':
                     raise NotImplementedError('tfidf model not implemented for embedding_api')
-                    #_indices, _tfidf = zip(*[(tree_indices[m], prepared_embeddings[m]) for m in tree_indices.keys()])
-                    #tfidf_data = scipy.sparse.vstack(_tfidf)
-                    #logging.info('total tfidf shape: %s' % str(tfidf_data.shape))
-                    #tfidf_indices = np.concatenate(_indices)
-                    #logging.debug('number of tfidf_indices: %i' % len(tfidf_indices))
 
-                #if FLAGS.external_lexicon or FLAGS.merge_nlp_lexicon:
                 lexicon_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
                                                  scope=VAR_NAME_LEXICON_VAR) \
                                + tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES,
@@ -1348,8 +1334,6 @@ def main(data_source, logdir_pretrained=None):
                     saver = tf.train.Saver(var_list=vars_without_embed)
                 else:
                     saver = None
-                #else:
-                #    saver = tf.train.Saver()
 
                 sess = tf.Session()
                 # Restore variables from disk.
@@ -1376,7 +1360,6 @@ def main(data_source, logdir_pretrained=None):
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-    #mytools.logging_init()
     FLAGS._parse_flags()
     main(FLAGS.data_source)
     logging.info('Starting the API')

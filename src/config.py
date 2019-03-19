@@ -24,7 +24,6 @@ default_config = {'train_data_path': ['DEFINE_string',
                                       'data'],
                   'additional_vecs': ['DEFINE_string',
                                       '',
-                                       # '/mnt/DATA/ML/data/embeddings/biomed/converted/biolex_lowercase',
                                       'Path to lexicon containing additional vecs, e.g. biomedical embeddings., that are '
                                       'concatenated with default embeddings.',
                                       None
@@ -39,13 +38,6 @@ default_config = {'train_data_path': ['DEFINE_string',
                                     'Batch iterator used in do_epoch. If not set, choose one in do_epoch.',
                                     None
                                     ],
-                  # DEPRECATED use only batch_iter
-                  #'batch_iter_test': ['DEFINE_string',
-                  #               '',
-                  #               # '50,100,50',
-                  #               'DEPRECATED Test batch iterator used in do_epoch. If not set, use batch_iter.',
-                  #               'bitert'
-                  #               ],
                   'epochs': ['DEFINE_integer',
                              1000000,
                              'The number of epochs.',
@@ -54,14 +46,6 @@ default_config = {'train_data_path': ['DEFINE_string',
                                      "0",
                                      'Which file(s) of the train data files should be used as test data.',
                                      'dfidx'],
-                  #'sim_measure': ['DEFINE_string',
-                  #                'sim_cosine',
-                  #                'similarity measure implementation (tensorflow) from model_fold for similarity score '
-                  #                'calculation. Currently implemented:'
-                  #                '"sim_cosine" -> cosine'
-                  #                '"sim_layer" -> similarity measure similar to the one defined in [Tai, Socher 2015]'
-                  #                '"sim_manhattan" -> l1-norm based similarity measure (taken from MaLSTM) [Mueller et al., 2016]',
-                  #                'sm'],
                   'tree_embedder': ['DEFINE_string',
                                     'FLAT_AVG',
                                     'TreeEmbedder implementation from model_fold that produces a tensorflow fold block on '
@@ -137,15 +121,6 @@ default_config = {'train_data_path': ['DEFINE_string',
                                 'Keep probability for full node dropout (subtree dropping)',
                                 'kpn'
                                 ],
-                  #'auto_restore': ['DEFINE_boolean',
-                  #                 False,
-                  #                 #   True,
-                  #                 'Iff enabled, restore from last checkpoint if no improvements during epoch on test data.',
-                  #                 'restore'],
-                  #'extensions': ['DEFINE_string',
-                  #               '',
-                  #               'extensions of the files to use as train/test files (appended to .idx.<NR> file names)',
-                  #               'xt'],
                   'clipping': ['DEFINE_float',
                                5.0,
                                'global norm threshold for clipping gradients',
@@ -199,11 +174,6 @@ default_config = {'train_data_path': ['DEFINE_string',
                                   'count of negative samples per tree',
                                   'ns'
                                   ],
-                  #'neg_samples_test': ['DEFINE_string',
-                  #                '',
-                  #                'count of negative samples per tree',
-                  #                'nst'
-                  #                ],
                   'nbr_trees': ['DEFINE_string',
                                 "",
                                 'number of trees for one epoch when training the REROOT model',
@@ -277,7 +247,6 @@ class Config(object):
             self.set_from_logdir(logdir)
         elif logdir_pretrained:
             self.set_from_logdir(logdir_pretrained)
-            #self.__dict__['__values']['train_data_path'] = default_config['train_data_path']
         elif values is not None:
             self.__dict__['__values'] = values
         else:
@@ -372,16 +341,12 @@ class Config(object):
         return self.serialize(filter_flags=['sequence_length'])
 
     def set_run_description(self):
-        #if 'run_description' not in self.__dict__['__values']:
         run_desc = self.serialize()
         self.__dict__['__values']['run_description'] = ['DEFINE_string',
                                                         run_desc,
                                                         'short string description of the current run',
                                                         None]
         logging.debug('set run description: %s' % self.run_description)
-            # if 'run_description' not in config:
-            #    config['run_description'] = ['DEFINE_string', '_'.join(run_desc), 'short string description of the current run', None]
-            #    logging.info('serialized run description: ' + config['run_description'][1])
 
     def update_with_flags(self, flags, keep_model_parameters=True):
         blacklist = []
