@@ -17,76 +17,73 @@ The rec-emb embedding model
 ### The Data Model
 
 The rec-emb data model
- * is a simple serialization format for data that is structured in trees
+ * is a simple serialization format for data that is structured in directed, typed graphs
  * is optimized for fast training of the rec-emb embedding model
  * identifies data by integer ids or hashes -- i.e. is content agnostic
  * links data with directed, unlabeled edges -- i.e. is relation agnostic
 
 
 **TL;DR**, the `docker` folder provides several starting points:
- * [preprocessing of BioASQ data](docker/create-corpus/bioasq)
- * [preprocessing of DBpedia-NIF data](docker/create-corpus/dbpedia-nif)
- * [preprocessing of SICK corpus data](docker/create-corpus/sick)
+ * [Preprocessing of datasets](docker/preprocessing)
  * [REST endpoint for corpus visualization](docker/tools/visualize)
- * [training](docker/train/tensorflow-fold)
+ * [Training](docker/train/tensorflow-fold)
 
 
 ## Preprocessing
 
 The **rec-emb data model** includes the following:
- * a **lexicon**: it holds id-string mappings, id-stringhash mappings and embedding vectors
- * a **forest**: a serialized forest consists of two numpy arrays. One **data** array is holding the data ids or string hashes (can 
- be switched when a lexicon is provided), the other holds **parent** offsets for every data point. Data ids point to 
- embedding vector entries. For training, the parent array can be converted into two arrays, **children** and 
- **children position**. The children array holds amounts of children for every data point followed by the child offsets. 
- The children position array indicates for every data point, where to look in the children array. 
+ * a **lexicon**: it holds id-string mappings, string-hash mappings and embedding vectors
+ * a **structure**: a serialized typed graph that consists of two numpy arrays. One **data**
+ array is holding the symbol type for each node. That are string hashes which can be converted
+ into lexicon ids. The other is a sparse adjacency matrix encoding edge data.
 
 Currently, the project provides three data sources:
- * [SICK corpus](http://clic.cimec.unitn.it/marco/publications/marelli-etal-sick-lrec2014.pdf) data. The SICK corpus
- consists of sentence pairs extracted from image descriptions that are annotated
- with a *relatedness score*. See [preprocessing of SICK corpus data](docker/create-corpus/sick) for a docker
- image that assists to create a **rec-emb data model** for SICK.
- * [DBpedia-NIF 2016-10](http://wiki.dbpedia.org/downloads-2016-10) data. This corpus builds on
- [DBpedia](http://wiki.dbpedia.org/), but includes preprocessed
- [NIF](http://persistence.uni-leipzig.org/nlp2rdf/ontologies/nif-core/nif-core.html) data. It consists of (1)
- cleaned full text of wikipedia articles, (2) structural information like segmentation into sections, paragraphs, etc.,
- and (3) annotations of links that point to other wikipedia articles. See
- [preprocessing of DBpedia-NIF data](docker/create-corpus/dbpedia-nif) for a docker image that assists to
- create a **rec-emb data model** for DBpedia-NIF.
- * [BioASQ Task 6a](http://bioasq.org/participate/challenges) data. This data contains 13,486,072 annotated articles
- from [PubMed](https://www.ncbi.nlm.nih.gov/pubmed/), where annotated means that [MeSH](https://www.nlm.nih.gov/mesh/)
- terms have been assigned to the articles by the human curators in PubMed. See
- [preprocessing of BioASQ data](docker/create-corpus/bioasq) for a docker image that assists to  create a
- **rec-emb data model** for BioASQ data.
+ * [SICK corpus](http://clic.cimec.unitn.it/composes/sick.html)([paper](http://clic.cimec.unitn.it/marco/publications/marelli-etal-sick-lrec2014.pdf)). The SICK corpus
+ consists of english sentence pairs extracted from image descriptions that are annotated
+ with a *relatedness score* and an *entailment class* (one of `neutral`, `entailment`, or `contradiction`).
+ * [SemEval 2010 Task 8 relation extraction corpus](http://semeval2.fbk.eu/semeval2.php?location=tasks#T11)([paper](http://www.aclweb.org/anthology/S10-1006)). It contains
+ english sentences where argument pairs are annotated with one out of nine abstract relation types, e.g. `cause-effect` or `message-topic`.
+ * [Large Movie Review Dataset (IMDB)](http://ai.stanford.edu/~amaas/data/sentiment)([paper](http://ai.stanford.edu/~amaas/papers/wvSent_acl2011.pdf)). This binary sentiment analysis dataset
+ consists of 50,000 english [IMDB](www.imdb.com) movie reviews with clear ratings: negative reviews have a score <= 4 out of 10,
+and a positive reviews have a score >= 7 out of 10.
+
+See the [preprocessing docker setup](docker/preprocessing) for how to parse and convert these datasets into the rec-emb format.
 
 
 ## The rec-emb Embedding Model
 
-Create a single embedding for any tree in the forest. Use `reduce` to combine children and apply `map` along edges. Both functions *can* depend on the node data (at least one of them *should* depend on it).
+Create a single embedding for any tree generated out of the graph structure.
+Use `reduce` to combine children and apply `map` along edges. Both functions
+*can* depend on the node data (at least one of them *should* depend on it). Together, they form a **Headed Tree Unit (HTU)**.
 
 Implemented `reduce` functions:
- * summation
- * averaging
- * max
- * attention (default: use node data mapped via a FC as attention weights; split: use a dedicated part of the node data as attention weights; single: use attention weights independent of node data)
+ * SUM
+ * AVG
+ * MAX
+ * ATT (attention; default: use node data mapped via a FC as attention weights; split: use a dedicated part of the node data as attention weights; single: use attention weights independent of node data)
  * LSTM
  * GRU
  
 Implemented `map` functions:
  * FC (fully connected layer)
- * LSTM
- * GRU
+ * LSTM (optionally stacked)
+ * GRU (optionally stacked)
 
-Selected setting:
- * `reduce`: summation
- * `map`: GRU step
- * application order: apply `reduce` before `map` (`reduce > map`)
- 
-### Scoring
+HTU implementations:
+ * default: Aggregate all child embeddings with `reduce` and incorporate the node data via one `map` execution.
+ * reverted: Contextualize each child via `map` individually and reduce afterwards.
+ * special leaf handling: A substantial amount of nodes are leafs. We propose two HTU variants that take this into account.
+    * init state: Use a trainable initialization state instead of the null vector.
+    * leaf passing: Omit the `map` step at all. Just execute one FC to allow for different
+    dimensionality of (word) embeddings and internal state.
 
-Given two embeddings of trees, calculate a floating point value.
+### Similarity Scoring
 
-Implemented scoring functions:
+Given two embeddings, calculate a floating point value that indicates their similarity. Here, one embedding may consist of one or
+multiple concatenated tree embeddings, eventually further transformed with one or multiple FCs.
+Furthermore, one embedding may be a class label embedding.
+
+Implemented similarity functions:
  * cosine
 
 
@@ -94,19 +91,31 @@ Implemented scoring functions:
 
 ### TASK: Predict Relatedness Scores (regression)
 
-Predict, **how strongly** two trees are related.
+Predict, how strongly two trees are related.
 
 "Related" can be interpreted in several ways, e.g., in the case of SICK, several annotators scored pairs of sentences intuitively and the resulting scores are averaged.
 
-The [score](#Scoring) is used as measure for the strength of the relatedness.
+The [similarity score](#Similarity-Scoring) between two tree embeddings is used as measure for the strength of the relatedness.
+In general, one FC is applied to each tree embedding before scoring.
 
-### TASK: Predict Matches (binary classification)
+Task instances:
+ * Relatedness Prediction on SICK.
 
-Predict, **if** two trees belong together or not. 
+### TASK: Multiclass Prediction
 
-"Belonging together" can be interpreted in several ways, e.g., in the case of DBpedia-NIF we selected to match article abstracts against abstracts of other wikipedia articles, that are linked within the section "See also".
+Predict, if a tree matches one (or multiple) labels
 
-The [score](#Scoring) is used as probability for the case that the trees belong together.
+The [similarity score](#Similarity-Scoring) between one (or multiple concatenated) tree embeddings and
+the class label embedding is used as probability that the instance belongs to that class.
+In general, one FC is applied to the (concatenated) tree embedding(s).
+
+Task instances:
+ * Recognizing Textual Entailment on SICK.
+ * Binary Sentiment Analysis on IMDB.
+ * Relation Extraction on SemEval2010 Task 8.
+
+See the [training docker setup](docker/train/tensorflow-fold) for how to train and test models for individual tasks.
+
 
 ## License
 

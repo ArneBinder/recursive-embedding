@@ -30,7 +30,7 @@ NOTE:
 In general, settings are configured to create a `scores.tsv` file located per train execution. Note that some train scripts execute several settings. All `scores.tsv` for one kind of task (relatedness prediction, recognizing textual entailment, sentiment analysis, or relation extraction) can be collect in a final tsv with help of [/src/eval_merge_results.py](/src/eval_merge_results.py). It requires the python packages `numpy` and `plac`. When training for all runs is finished, call it like:
 
 ```bash
-cd PATH/TO/HOST_TRAIN # see
+cd PATH/TO/HOST_TRAIN
 python /PATH/TO/recursive_embedding/src/eval_merge_results.py TASK/PARENT/FOLDER
 ```
 where `TASK/PARENT/FOLDER` is the relative path to the parent of the directories containing `scores.tsv` files (arbitrary nested) you are interested in. The merged result is written to `TASK_PARENT_FOLDER.tsv`.
