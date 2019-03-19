@@ -33,8 +33,8 @@ The final rec-emb data can be visualized with the [visualization tool](../tools/
 
 1. Preparation:
     1. Install:
-     * docker
-     * docker-compose
+        * docker
+        * docker-compose
     2. Clone this repo and **switch into this folder**:
     ```bash
     git clone https://github.com/ArneBinder/recursive-embedding.git
