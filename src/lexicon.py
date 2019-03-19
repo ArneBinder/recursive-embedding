@@ -16,88 +16,6 @@ from mytools import numpy_dump, numpy_load, numpy_exists, getOrAdd
 
 logger = logging.getLogger('lexicon')
 logger.setLevel(logging.DEBUG)
-#logger_streamhandler = logging.StreamHandler()
-#logger_streamhandler.setLevel(logging.DEBUG)
-#logger_streamhandler.setFormatter(logging.Formatter(LOGGING_FORMAT))
-#logger.addHandler(logger_streamhandler)
-#logger.propagate = False
-
-
-# DEPRECATED
-# TODO: adapt for StringStore
-def sort_and_cut_and_fill_dict_DEP(seq_data, vecs, strings, types, count_threshold=1):
-    logger.info('sort, cut and fill embeddings ...')
-    new_max_size = len(strings)
-    logger.info('initial vecs shape: %s ' % str(vecs.shape))
-    logger.info('initial strings size: %i' % len(strings))
-    # count types
-    logger.debug('calculate counts ...')
-    counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
-    for d in seq_data:
-        counts[d] += 1
-
-    logger.debug('argsort ...')
-    sorted_indices = np.argsort(counts)
-
-    # take mean and variance from previous vectors
-    vecs_mean = np.mean(vecs, axis=0)
-    vecs_variance = np.var(vecs, axis=0)
-    new_vecs = np.zeros(shape=(new_max_size, vecs.shape[1]), dtype=vecs.dtype)
-    # new_vecs = np.random.standard_normal(size=(new_max_size, vecs.shape[1])) * 0.1
-    new_counts = np.zeros(shape=new_max_size, dtype=DTYPE_COUNT)
-    #new_types = [None] * new_max_size
-    new_types = np.zeros(shape=(new_max_size,), dtype=DTYPE_HASH)
-    converter = -np.ones(shape=new_max_size, dtype=DTYPE_IDX)
-
-    logger.debug('process reversed(sorted_indices) ...')
-    new_idx = 0
-    new_idx_unknown = -1
-    new_count = 0
-    added_types = []
-    for old_idx in reversed(sorted_indices):
-        # keep unknown and save new unknown index
-        if types[old_idx] == strings[constants.vocab_manual[constants.UNKNOWN_EMBEDDING]]:
-            logger.debug('idx_unknown moved from ' + str(old_idx) + ' to ' + str(new_idx))
-            new_idx_unknown = new_idx
-        # skip vecs with count < threshold, but keep vecs from vocab_manual
-        elif counts[old_idx] < count_threshold and strings[types[old_idx]] not in constants.vocab_manual.values():
-            continue
-        if old_idx < vecs.shape[0]:
-            new_vecs[new_idx] = vecs[old_idx]
-
-        else:
-            # init missing vecs with previous vecs distribution
-            #if not new_as_one_hot:
-            new_vecs[new_idx] = np.random.standard_normal(size=vecs.shape[1]) * vecs_variance + vecs_mean
-            #else:
-            #    if new_count >= vecs.shape[1]:
-            #        logger.warning('Adding more then vecs-size=%i new lex entries with new_as_one_hot=True (use '
-            #                        'one-hot encodings). That overrides previously added new fake embeddings!'
-            #                        % vecs.shape[1])
-            #    new_vecs[new_idx][new_count % vecs.shape[1]] = 1.0
-            new_count += 1
-            added_types.append(strings[types[old_idx]])
-            # print(types[old_idx] + '\t'+str(counts[old_idx]))
-
-        new_types[new_idx] = types[old_idx]
-        new_counts[new_idx] = counts[old_idx]
-        converter[old_idx] = new_idx
-        new_idx += 1
-
-    assert new_idx_unknown >= 0, 'UNKNOWN_EMBEDDING not in types'
-
-    logger.info('new lex_size: ' + str(new_idx))
-    logger.debug('added ' + str(new_count) + ' new vecs to vocab')
-    logger.debug(added_types)
-
-    # cut arrays
-    new_vecs = new_vecs[:new_idx, :]
-    new_counts = new_counts[:new_idx]
-    new_types = new_types[:new_idx]
-
-    new_strings = StringStore([strings[t] for t in new_types])
-
-    return converter, new_vecs, new_strings, new_counts, new_idx_unknown
 
 
 def sort_and_cut_dict(seq_data, keep, count_threshold=1):
@@ -172,76 +90,7 @@ def add_and_get_idx(vecs, types, new_type, new_vec=None, overwrite=False):
     return vecs, types, idx
 
 
-# TODO: adapt for StringStore
-# deprecated
-def merge_dicts(vecs1, types1, vecs2, types2, add=True, remove=True):
-    """
-    Replace all embeddings in vecs1 which are contained in vecs2 (indexed via types).
-    If remove=True remove the embeddings not contained in vecs2.
-    If add=True add the embeddings from vecs2, which are not already in vecs1.
-
-    Inplace modification of vecs1 and types1!
-
-    :param vecs1: embeddings from first dict
-    :param types1: types from first dict
-    :param vecs2: embeddings from second dict
-    :param types2: types from second dict
-    :param remove: if remove=True remove the embeddings not contained in vecs2
-    :param add: if add=True add the embeddings from vecs2, which are not already in vecs1
-    :return: the modified embeddings and types
-    """
-    assert vecs1.shape[0] == len(types1), 'count of embeddings in vecs1 = %i does not equal length of types1 = %i' \
-                                          % (vecs1.shape[0], len(types1))
-    assert vecs2.shape[0] == len(types2), 'count of embeddings in vecs2 = %i does not equal length of types2 = %i' \
-                                          % (vecs2.shape[0], len(types2))
-    logger.info('size of dict1: %i' % len(types1))
-    logger.info('size of dict2: %i' % len(types2))
-    mapping2 = mapping_from_list(types2)
-    logger.debug(len(mapping2))
-    logger.debug(np.array_equal(vecs1, vecs2))
-    logger.debug(types1 == types2)
-
-    indices_delete = []
-    indices2_added = []
-    indices2_added_debug = []
-    for idx, t in enumerate(types1):
-        indices2_added_debug.append(idx)
-        if t in mapping2:
-            idx2 = mapping2[t]
-            types1[idx] = types2[idx2]
-            vecs1[idx] = vecs2[idx2]
-            if add:
-                indices2_added.append(idx2)
-        else:
-            if remove:
-                indices_delete.append(idx)
-
-    if remove:
-        for idx in reversed(indices_delete):
-            del types1[idx]
-
-        vecs1 = np.delete(vecs1, indices_delete, axis=0)
-        logger.info('removed %i entries from dict1' % len(indices_delete))
-
-    if add:
-        indices_types2 = sorted(range(len(types2)))
-        indices_types2_set = set(indices_types2)
-        indices2_added = sorted(indices2_added)
-        logger.debug(indices_types2 == indices2_added)
-        logger.debug(indices_types2 == indices2_added_debug)
-        logger.debug(indices2_added_debug == indices2_added)
-
-        types2_indices_add = list(indices_types2_set.difference(indices2_added))
-
-        types1.extend([types2[idx] for idx in types2_indices_add])
-        vecs1 = np.concatenate((vecs1, vecs2[types2_indices_add]), axis=0)
-        logger.info('added %i entries to dict1' % len(types2_indices_add))
-    return vecs1, types1
-
-
 def get_dict_from_vocab(vocab):
-    #manual_vocab_reverted = revert_mapping_to_map(constants.vocab_manual)
-    #manual_vocab_reverted = {constants.vocab_manual[k]: k for k in constants.vocab_manual}
     manual_vocab_values = set(constants.vocab_manual.values())
     size = len(vocab) + len(manual_vocab_values)
     # vecs = np.zeros(shape=(size, vocab.vectors_length), dtype=np.float32)
@@ -270,15 +119,6 @@ def get_dict_from_vocab(vocab):
         types = types[:i]
 
     return vecs, types
-
-
-# unused
-def read_types(out_path):
-    logger.debug('read types from file: ' + out_path + '.type ...')
-    with open(out_path + '.type') as csvfile:
-        reader = csv.reader(csvfile, delimiter='\t', quotechar='|')
-        types = [row[0].decode("utf-8") for row in reader]
-    return types
 
 
 def mapping_from_list(l):
@@ -313,30 +153,8 @@ def revert_mapping_to_np(mapping):
 
 
 # unused
-def load(fn):
-    logger.debug('load vecs from file: ' + fn + '.vec ...')
-    v = np.load(fn + '.vec')
-    t = read_types(fn)
-    logger.debug('vecs.shape: ' + str(v.shape) + ', len(types): ' + str(len(t)))
-    return v, t
-
-
-# unused
 def exist(filename):
     return os.path.isfile('%s.vec' % filename) and os.path.isfile('%s.type' % filename)
-
-
-# unused
-def create_or_read_dict(fn, vocab=None, dont_read=False):
-    if os.path.isfile(fn + '.vec') and os.path.isfile(fn + '.type'):
-        if dont_read:
-            return
-        v, t = load(fn)
-    else:
-        logger.debug('extract word embeddings from spaCy ...')
-        v, t = get_dict_from_vocab(vocab)
-        dump(fn, vecs=v, types=t)
-    return v, t
 
 
 # unused
@@ -381,7 +199,6 @@ class Lexicon(object):
         self.init_ids_fixed(filename if load_ids_fixed else None, ids_fixed=ids_fixed, assert_exists=False)
         if filename is not None:
             self._strings = StringStore().from_disk('%s.%s' % (filename, FE_STRINGS))
-            #self.init_ids_fixed(filename if load_ids_fixed else None, ids_fixed=ids_fixed, assert_exists=False)
             if add_vocab_manual:
                 self.add_all(vocab_manual.values())
             if checkpoint_reader is not None:
@@ -392,27 +209,19 @@ class Lexicon(object):
                 # set dummy vecs
                 self.init_vecs()
         elif types is not None:
-            #types_dep = types
             self._strings = StringStore(types)
             if add_vocab_manual:
                 self.add_all(vocab_manual.values())
             if vecs is not None:
                 self._vecs = vecs
-                #self.init_ids_fixed(ids_fixed=ids_fixed)
             else:
                 # set dummy vecs
                 self.init_vecs()
         elif nlp_vocab is not None:
             self._vecs, types = get_dict_from_vocab(nlp_vocab)
-            #self.init_ids_fixed(ids_fixed=ids_fixed)
             self._strings = StringStore(types)
             if add_vocab_manual:
                 self.add_all(vocab_manual.values())
-        #else:
-            #self.init_ids_fixed(ids_fixed=ids_fixed)
-        #elif string_list is not None:
-        #    self._strings = StringStore(string_list)
-        #    self.init_vecs()
 
         # create empty lexicon
         if self._strings is None:
@@ -462,8 +271,6 @@ class Lexicon(object):
     def exist(filename, types_only=False, vecs_only=False):
         strings_exist = vecs_only or os.path.isfile('%s.%s' % (filename, FE_TYPES)) \
                         or os.path.isfile('%s.%s' % (filename, FE_STRINGS))
-        #vecs_exist = types_only or os.path.isfile('%s.%s' % (filename, FE_VECS)) \
-        #             or os.path.isfile('%s.%s.npy' % (filename, FE_VECS))
         vecs_exist = types_only or numpy_exists('%s.%s' % (filename, FE_VECS))
         return strings_exist and vecs_exist
 
@@ -499,7 +306,6 @@ class Lexicon(object):
         if filename is not None:
             assert self._ids_fixed is not None, 'ids_fixed is None'
             new_vecs = numpy_load('%s.%s' % (filename, FE_VECS), assert_exists=True)
-            #self.init_ids_fixed(filename, assert_exists=False)
         elif checkpoint_reader is not None:
             assert self._ids_fixed is not None, 'ids_fixed is None'
             import model_fold
@@ -508,7 +314,6 @@ class Lexicon(object):
                 new_vecs = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_VAR)
             if model_fold.VAR_NAME_LEXICON_FIX in saved_shapes:
                 new_vecs_fixed = checkpoint_reader.get_tensor(model_fold.VAR_NAME_LEXICON_FIX)
-            #assert new_vecs is not None or new_vecs_fixed is not None, 'no vecs and no vecs_fixed found in checkpoint'
             if new_vecs is None and new_vecs_fixed is None:
                 logger.warning('No vecs and no vecs_fixed found in checkpoint. Set vecs to None.')
                 new_vecs = None
@@ -519,7 +324,6 @@ class Lexicon(object):
             assert new_vecs is None, 'no new_vecs is allowed if vocab is given (triggers init_vecs_with_spacy_vocab)'
             self.init_vecs_with_spacy_vocab(vocab=vocab, prefix=vocab_prefix)
 
-        # TODO: check _fixed
         if new_vecs_fixed is not None:
             assert new_vecs_fixed.shape[0] == self.len_fixed, \
                 'amount of vecs in new_vecs_fixed=%i is different then len_fixed=%i' \
@@ -668,20 +472,6 @@ class Lexicon(object):
         logger.debug('new lexicon size: %i' % len(self.strings))
         self.clear_cached_values()
 
-        ## convert vecs, if available
-        #if self.vecs is not None:
-        #    vecs_new = np.zeros(shape=(len(converter), self.vec_size), dtype=self.vecs.dtype)
-        #    for i in range(len(vecs_new)):
-        #        if i < len(converter):
-        #            vecs_new[converter[i]] = self.vecs[i]
-
-        ## convert fixed indices
-        #self._ids_fixed = set([converter[i] for i in self._ids_fixed])
-        #self._ids_fixed_dict = None
-        #self._ids_var_dict = None
-
-        #return converter, new_counts
-
     def get_ids_for_prefix(self, prefix, add_separator=True):
         if add_separator:
             prefix = prefix + SEPARATOR
@@ -823,7 +613,6 @@ class Lexicon(object):
                 raise ValueError('Unknown padding type: %s. Use "random" or "zero".' % pad_with)
 
             self._vecs = np.concatenate([self.vecs, new_vecs])
-            #self._dumped_vecs = False
         else:
             raise IndexError('len(self)==len(types)==%i < len(vecs)==%i' % (len(self), len(self.vecs)))
 
@@ -885,24 +674,12 @@ class Lexicon(object):
 
     def replicate_types(self, prefix='', suffix=''):
         assert len(prefix) + len(suffix) > 0, 'please provide a prefix or a suffix.'
-        #self._types.extend([prefix + t + suffix for t in self.types])
         for s in self.strings:
             self._strings.add(prefix + s + suffix)
         self.clear_cached_values()
 
-    # self._ids_fixed is a numpy array!
-    #def update_fix_ids_and_abs_data(self, new_data):
-    #    new_ids_fix = new_data[new_data < 0]
-    #    if len(new_ids_fix) > 0:
-    #        np.abs(new_data, out=new_data)
-    #        self._ids_fixed = self._ids_fixed.update(new_ids_fix.tolist())
-    #        self._ids_fixed_dict = None
-    #        self._ids_var_dict = None
-
     def convert_data_hashes_to_indices(self, data, convert_dtype=True):
         s_uk = constants.vocab_manual[constants.UNKNOWN_EMBEDDING]
-        #data_new = np.zeros(shape=data.shape, dtype=DTYPE_IDX)
-        #assert s_uk in self.strings, '%s not in lexicon' % s_uk
         for i in range(len(data)):
             d = data[i]
             if d in self.mapping:
@@ -913,7 +690,6 @@ class Lexicon(object):
         if convert_dtype:
             data = data.astype(DTYPE_IDX)
         return data
-        #return data_new
 
     def read_data(self, reader, reader_args={}, expand_dict=True, return_hashes=False, as_graph=False,
                   dont_parse=False, *args, **kwargs):
@@ -1153,8 +929,6 @@ class Lexicon(object):
                 res = len(self)
                 self._strings.add(item)
                 self.clear_cached_values()
-                #self._mapping[new_h] = res
-                #self._types.append(item)
             return res
         else:
             idx = abs(item)
@@ -1163,7 +937,6 @@ class Lexicon(object):
             return self.strings[self.hashes[abs(item)]]
 
     def __len__(self):
-        #assert self.vecs is None or self.vecs.shape[0] == 0 or self.vecs.shape[0] == len(self.strings), 'nbr of vecs (%i) does not match nbr of strings (%i)' % (self.vecs.shape[0], len(self.strings))
         return len(self.strings)
 
     def __contains__(self, item):
@@ -1181,8 +954,6 @@ class Lexicon(object):
     @property
     def len_var(self):
         x = len(self) - self.len_fixed
-        #assert x == len(self.ids_var), \
-        #    'len(self) - self.len_fixed [%i] does not match len(self.ids_var) [%i]' % (x, len(self.ids_var))
         return x
 
     @property
@@ -1199,7 +970,6 @@ class Lexicon(object):
 
     @property
     def ids_fixed(self):
-        #return np.array(sorted(list(self._ids_fixed)))
         return self._ids_fixed
 
     @property
@@ -1220,26 +990,19 @@ class Lexicon(object):
     def ids_var(self):
         if self._ids_var is None:
             logger.debug('lexicon: create ids_var with ids_fixed (%i)' % len(self.ids_fixed))
-            #self._ids_var = np.array([i for i in range(len(self)) if i not in self._ids_fixed])
             mask = np.ones(len(self), dtype=bool)
             mask[self.ids_fixed] = False
             self._ids_var = np.arange(len(self), dtype=DTYPE_IDX)[mask]
-            #assert len(self._ids_var) == self.len_var, \
-            #    'len(self._ids_var) [%i] does not equal len(self) [%i] - len(self.ids_fix)[%i] == self.len_var [%i]; len(self.ids_fixed) [%i]' \
-            #    % (len(self._ids_var), len(self), len(self.ids_fixed), self.len_var, len(self.ids_fixed))
         return self._ids_var
 
     @property
     def hashes(self):
         # maps positions to hashes
-        #return self._types
         if self._hashes is None:
             logger.debug('lexicon: create hashes from strings (%i)' % len(self.strings))
             self._hashes = np.zeros(shape=(len(self.strings),), dtype=DTYPE_HASH)
             for i, s in enumerate(self.strings):
                 self._hashes[i] = self.strings[s]
-        #assert len(self._hashes) == len(self), 'nbr of hashes [%i] does not match lexicon size [%i]' \
-        #                                       % (len(self._hashes), len(self))
         return self._hashes
 
     @property
@@ -1251,12 +1014,9 @@ class Lexicon(object):
         # maps hashes to positions
         if self._mapping is None:
             logger.debug('lexicon: create mapping from strings (%i)' % len(self.strings))
-            #self._mapping = mapping_from_list(self._types)
             self._mapping = {}
             for i, s in enumerate(self.strings):
                 self._mapping[self.strings[s]] = i
-        #assert len(self._mapping) == len(self), 'nbr of mapping entries [%i] does not match lexicon size [%i]' \
-        #                                        % (len(self._mapping), len(self))
         return self._mapping
 
     @property
@@ -1275,12 +1035,3 @@ class Lexicon(object):
     @property
     def frozen(self):
         return self._frozen
-
-
-
-# one_hot_types = [u'DEP#det', u'DEP#punct', u'DEP#pobj', u'DEP#ROOT', u'DEP#prep', u'DEP#aux', u'DEP#nsubj',
-            # u'DEP#dobj', u'DEP#amod', u'DEP#conj', u'DEP#cc', u'DEP#compound', u'DEP#nummod', u'DEP#advmod', u'DEP#acl',
-            # u'DEP#attr', u'DEP#auxpass', u'DEP#expl', u'DEP#nsubjpass', u'DEP#poss', u'DEP#agent', u'DEP#neg', u'DEP#prt',
-            # u'DEP#relcl', u'DEP#acomp', u'DEP#advcl', u'DEP#case', u'DEP#npadvmod', u'DEP#xcomp', u'DEP#ccomp', u'DEP#pcomp',
-            # u'DEP#oprd', u'DEP#nmod', u'DEP#mark', u'DEP#appos', u'DEP#dep', u'DEP#dative', u'DEP#quantmod', u'DEP#csubj',
-            # u'DEP#']
