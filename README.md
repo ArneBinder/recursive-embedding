@@ -126,7 +126,7 @@ contains record wise result evaluation.
 
 ## License
 
-Copyright 2018 Arne Binder
+Copyright 2019 Arne Binder
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
