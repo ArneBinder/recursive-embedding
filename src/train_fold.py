@@ -49,8 +49,7 @@ from concurrency import RunnerThread, compile_batches_simple, create_trees_simpl
 
 from mytools_tf import get_lexicon
 
-# non-saveable flags
-
+# flags which are not logged in logdir/flags.json
 tf.flags.DEFINE_string('logdir',
                        # '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsUntrainable_simLayer_modelTreelstm_normalizeTrue_batchsize250',
                        #  '/home/arne/ML_local/tf/supervised/log/dataPs2aggregate_embeddingsTrainable_simLayer_modelAvgchildren_normalizeTrue_batchsize250',
@@ -121,23 +120,14 @@ tf.flags.DEFINE_boolean('skip_unfinished_runs',
                         'If enabled, do not continue runs (logdir exists already) that are not finished (has no entry in scores.tsv).')
 
 
-# flags which are not logged in logdir/flags.json
-#tf.flags.DEFINE_string('master', '',
-#                       'Tensorflow master to use.')
-#tf.flags.DEFINE_integer('task', 0,
-#                        'Task ID of the replica running the training.')
-#tf.flags.DEFINE_integer('ps_tasks', 0,
-#                        'Number of PS tasks in the job.')
 FLAGS = tf.flags.FLAGS
 
 # NOTE: the first entry (of both lists) defines the value used for early stopping and other statistics
-#METRIC_KEYS_DISCRETE = ['roc_micro', 'ranking_loss_inv', 'f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'acc_t10', 'acc_t33', 'acc_t50', 'acc_t66', 'acc_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90']
 METRIC_KEYS_DISCRETE = ['f1_t10', 'f1_t33', 'f1_t50', 'f1_t66', 'f1_t90', 'precision_t10', 'precision_t33', 'precision_t50', 'precision_t66', 'precision_t90', 'recall_t10', 'recall_t33', 'recall_t50', 'recall_t66', 'recall_t90', 'recall@1', 'recall@2', 'recall@3', 'recall@5', 'accuracy_t50', 'accuracy_t33', 'accuracy_t66']
 METRIC_DISCRETE = 'f1_t33'
 #STAT_KEY_MAIN_DISCRETE = 'roc_micro'
 METRIC_KEYS_REGRESSION = ['pearson_r', 'mse']
 METRIC_REGRESSION = 'pearson_r'
-#STAT_KEY_MAIN_REGRESSION = 'pearson_r'
 
 TREE_EMBEDDER_PREFIX = 'TreeEmbedding_'
 
@@ -158,9 +148,6 @@ def get_available_cpus():
     local_device_protos = device_lib.list_local_devices()
     return [x.name for x in local_device_protos if x.device_type == 'CPU']
 
-
-#def get_devices():
-#    return get_available_cpus() + get_available_gpus()
 
 
 def get_ith_best_device(i):
@@ -275,11 +262,8 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
     :return:
     """
     logger.debug('use %i forest_indices for this epoch' % len(forest_indices))
-    #dataset_indices = np.arange(len(forest_indices))
-    #np.random.shuffle(dataset_indices)
     logger.debug('reset metrics...')
     sess.run(model.reset_metrics)
-    #step = test_step
     feed_dict = {}
     execute_vars = {'loss': model.loss, 'update_metrics': model.update_metrics, 'step': model.global_step}
     if return_values:
@@ -308,22 +292,14 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
     #indices_forest_to_tree = np.vectorize(_map.get)
     indices_forest_to_tree = {idx: i for i, idx in enumerate(forest_indices)}
     nbr_embeddings_in = model.nbr_embeddings_in
-    iter_args = {#batch_iter_naive: [number_of_samples, forest_indices, indices_targets, indices_forest_to_tree],
-                 # batch_iter_nearest is DEPRECATED
-                 #batch_iter_nearest: [number_of_samples, forest_indices, indices_targets, sess,
-                 #                     model.tree_model, highest_sims_model, dataset_trees, tree_model_batch_size,
-                 #                     indices_forest_to_tree],
-                 #batch_iter_all: [forest_indices, indices_targets, number_of_samples + 1],
-                 batch_iter_fixed_probs: [forest_indices, number_of_samples],
+    iter_args = {batch_iter_fixed_probs: [forest_indices, number_of_samples],
                  batch_iter_default: [forest_indices, indices_targets, nbr_embeddings_in, not debug and train],
-                 #batch_iter_simtuple_dep: [forest_indices, indices_targets, nbr_embeddings_in, not debug]
                  }
 
     assert batch_iter.strip() != '', 'empty batch_iter'
     _iter = globals()[batch_iter]
     logger.debug('use %s' % _iter.__name__)
     _batch_iter = _iter(*iter_args[_iter])
-    #_result_all_dict = {}
 
     compilation_required = hasattr(model.tree_model, 'compiler') and hasattr(model.tree_model.compiler, 'loom_input_tensor')
     sparse_embeddings_required = hasattr(model.tree_model, 'prepared_embeddings_placeholder') \
@@ -373,7 +349,6 @@ def do_epoch(supervisor, sess, model, epoch, forest_indices, batch_iter, indices
         result_all = {k: [] for k in execute_vars.keys()}
 
     # if train, set step to last executed step
-    #if train and len(_result_all) > 0:
     step = result_all['step'][-1]
 
     candidate_indices_all = None
@@ -416,7 +391,6 @@ def csv_test_writer(logdir, mode='w'):
 
 def init_model_type(config, logdir):
     ## set index and tree getter
-
     model_kwargs = {}
     tree_iterator = diters.tree_iterator
     # relatedness prediction (SICK)
@@ -431,9 +405,6 @@ def init_model_type(config, logdir):
     elif config.model_type == MT_CANDIDATES:
         if config.tree_embedder.strip().startswith('HTU_'):
             config.tree_embedder = 'HTUBatchedHead_' + config.tree_embedder.strip()[len('HTU_'):]
-        #if config.tree_embedder.strip() not in ['HTUBatchedHead_reduceSUM_mapGRU', 'HTUBatchedHead_reduceSUM_mapCCFC', 'HTUBatchedHead_reduceSUM_mapGRU_wd']:
-        #    raise NotImplementedError('reroot model only implemented for HTUBatchedHead tree_embedder, but it is: %s'
-        #                              % config.tree_embedder.strip())
 
         config.batch_iter = batch_iter_fixed_probs.__name__
         logger.debug('set batch_iter to %s' % config.batch_iter)
@@ -442,17 +413,6 @@ def init_model_type(config, logdir):
 
         indices_getter = diters.indices_reroot
         load_parents = True
-
-        # if task is not None or empty
-        #if config.task and config.task.strip():
-        #    classes_ids_list = []
-        #    for c in config.task.split(','):
-        #        #type_class = TYPE_FOR_TASK[c.strip()]
-        #        classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=c.strip())
-        #        save_class_ids(dir_path=os.path.join(logdir, 'data'), prefix_type=c.strip(), classes_ids=classes_ids,
-        #                       classes_strings=classes_strings)
-        #        classes_ids_list.append(classes_ids)
-        #    tree_iterator_args['classes_ids'] = classes_ids_list
 
     # discrete classification
     elif config.model_type in [MT_MULTICLASS, 'mclass']:
@@ -468,10 +428,6 @@ def init_model_type(config, logdir):
         meta_args = {}
         meta_class_indices_getter = None
         model_kwargs['nbr_embeddings_in'] = 1
-        #if RDF_BASED_FORMAT:
-        #    type_class = TYPE_FOR_TASK[config.task]
-        #else:
-        #    type_class = TYPE_FOR_TASK_OLD[config.task]
         config.task = config.task.strip()
         type_class_long = TYPE_LONG.get(config.task, config.task)
         classes_ids, classes_strings = load_class_ids(config.train_data_path, prefix_type=type_class_long)
@@ -554,13 +510,10 @@ def init_model_type(config, logdir):
 
 def get_index_file_names(config, parent_dir, test_files=None, test_only=False, dont_test=False):
 
-    #if config.model_type == MT_REROOT:
-    #    return [], []
-
     fnames_train = None
     fnames_test = None
     if FLAGS.train_files is not None and FLAGS.train_files.strip() != '' and not test_only:
-        #logger.info('use train data index files: %s' % FLAGS.train_files)
+        #logger.debug('use train data index files: %s' % FLAGS.train_files)
         fnames_train = [os.path.join(parent_dir, fn) for fn in FLAGS.train_files.split(',')]
     if test_files is not None and test_files.strip() != '' and not dont_test:
         fnames_test = [os.path.join(parent_dir, fn) for fn in FLAGS.test_files.split(',')]
@@ -575,7 +528,7 @@ def get_index_file_names(config, parent_dir, test_files=None, test_only=False, d
         if fnames_test is None and not dont_test:
             df_indices = [int(idx.strip()) for idx in config.dev_file_indices.split(',')]
             fnames_test = [fnames_train[idx] for idx in df_indices]
-            #logger.info('use %s for testing' % str(fnames_test))
+            #logger.debug('use %s for testing' % str(fnames_test))
             # sort reverse to avoid index shift when deleting
             for idx in sorted(df_indices, reverse=True):
                 del fnames_train[idx]
@@ -659,6 +612,7 @@ def compile_trees(tree_iterators, compiler, cache_dir=None, index_file_names=Non
                 # TODO: handle caching
                 continue
 
+        # caching
         if cache_dir is None:
             #try:
             if use_pool:
@@ -864,13 +818,6 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
             _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
             embedding_model_kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
 
-        #elif issubclass(tree_embedder, model_fold.TreeEmbedding_FLAT):
-        #    embedding_model_kwargs['sequence_length'] = 10000
-        #    for k in tree_iterators.keys():
-        #        tree_iterators[k] = partial(tree_iterators[k], max_size_plain=embedding_model_kwargs['sequence_length'])
-        #    _padding_idx = lexicon.get_d(vocab_manual[PADDING_EMBEDDING], data_as_hashes=False)
-        #    embedding_model_kwargs['padding_id'] = lexicon.transform_idx(_padding_idx)
-
         # nbr_trees_out has to be defined for the reroot model because TreeEmbedding_HTUBatchedHead generates a
         # sequence of trees with unspecified length
         if config.model_type == MT_CANDIDATES:
@@ -893,7 +840,6 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
                                                   prepared_embeddings_sparse=True,
                                                   discard_tree_embeddings=discard_tree_embeddings,
                                                   discard_prepared_embeddings=discard_prepared_embeddings,
-                                                  # data_transfomed=data_transformed
                                                   # keep_prob_fixed=config.keep_prob # to enable full head dropout
                                                   **embedding_model_kwargs
                                                   )
@@ -907,7 +853,6 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
                                            index_file_names=index_file_names, index_file_sizes=index_file_sizes,
                                            indices=indices)
         elif M_TEST in tree_iterators:
-            # TODO: check, if correct
             compiled_trees = compile_trees(tree_iterators={M_TEST: tree_iterators[M_TEST]},
                                            compiler=model_tree.compiler,
                                            cache_dir=None if not config.dump_trees else cache_dir,
@@ -917,8 +862,6 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
 
     if use_inception_tree_model:
         inception_tree_model = model_fold.DummyTreeModel(embeddings_dim=model_tree.tree_output_size, sparse=False,
-                                                         # TODO: check, if disabling this is correct
-                                                         #nbr_trees_out=nbr_trees_out,
                                                          keep_prob=config.keep_prob, root_fc_sizes=0)
     else:
         inception_tree_model = model_tree
@@ -957,7 +900,6 @@ def create_models(config, lexicon, tree_iterators, tree_iterators_tfidf, indices
     # sim tuple
     elif config.model_type == MT_TUPLE_CONTINOUES:
         model = model_fold.TreeTupleModel(tree_model=inception_tree_model,
-                                          #fc_sizes=[int(s) for s in ('0' + config.fc_sizes).split(',')],
                                           optimizer=optimizer,
                                           learning_rate=config.learning_rate,
                                           clipping_threshold=config.clipping,
@@ -987,28 +929,6 @@ def create_models_nearest(prepared_embeddings, model_tree):
                 embedding_size=model_tree.tree_output_size,
             )
     return models_nearest
-
-
-# unused
-def blank_kwargs(kwargs, discard_kwargs):
-    discard_kwargs_split = {dk.split('.')[0]: dk.split('.')[1:] for dk in discard_kwargs}
-    new_kwargs = {}
-    for k, v in kwargs.items():
-        if k in discard_kwargs_split:
-            dk_remaining = discard_kwargs_split[k]
-            if len(dk_remaining) > 0:
-                assert isinstance(v, dict) or isinstance(v, Config), \
-                    'value has to be dict like if subentry is selected via dotted notation (e.g. "config.logdir")'
-                # ATTENTION: deepcopy should work on v
-                new_kwargs[k] = copy.deepcopy(v)
-                p = new_kwargs[k]
-                for k_deep in dk_remaining[:-1]:
-                    p = p[k_deep]
-                del p[dk_remaining[-1]]
-
-        else:
-            new_kwargs[k] = v
-    return new_kwargs
 
 
 def exec_cached(cache, func, discard_kwargs=(), add_kwargs=None, *args, **kwargs):
@@ -1067,10 +987,8 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 test_writer=test_writer,
                 test_result_writer=test_result_writer,
                 number_of_samples=neg_samples,
-                # number_of_samples=None,
                 batch_iter=meta[M_TEST][M_BATCH_ITER],
                 debug=debug,
-                #work_forests=work_forests
             )
             if M_TRAIN not in meta:
                 if values_all is None or values_all_gold is None:
@@ -1195,7 +1113,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 batch_iter=meta[M_TRAIN][M_BATCH_ITER],
                 return_values=False,
                 debug=debug,
-                #work_forests=work_forests
             )
 
             if M_TREES in meta[M_TRAIN] and (clean_train_trees or train_tree_queue is not None):
@@ -1220,7 +1137,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                     batch_iter=meta[M_TEST][M_BATCH_ITER],
                     return_values=False,
                     debug=debug,
-                    #work_forests=work_forests
                 )
             else:
                 loss_test, stats_test = loss_train, stats_train
@@ -1257,7 +1173,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
                 supervisor.saver.save(sess, checkpoint_path(logdir, step_test))
 
             if 0 < config.early_stopping_window < len(stat_queue):
-                #logger.info('last metrics (last rank: %i): %s' % (rank, str(stat_queue)))
                 logger.info('last metrics (rank: %i): %s' % (rank, str(stat_queue[-1])))
                 logger.info('best metrics: %s' % str(stat_queue_sorted[0]))
                 if recompile_thread is not None:
@@ -1269,11 +1184,6 @@ def execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_chec
 def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embeddings=None, test_files=None,
                 init_only=None, test_only=None, precompile=True, debug=False, discard_tree_embeddings=False,
                 discard_prepared_embeddings=False, vecs_pretrained=None):
-    # config.set_run_description()
-    #try:
-    #    config.run_description
-    #except AttributeError:
-    #    config.set_run_description()
 
     logdir = logdir_continue or os.path.join(FLAGS.logdir, config.run_description)
     logger.info('logdir: %s' % logdir)
@@ -1294,23 +1204,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
     ## get lexicon
     lexicon, checkpoint_fn, prev_config = get_lexicon(
         logdir=logdir, train_data_path=config.train_data_path, logdir_pretrained=load_embeddings or logdir_pretrained,
-        #logdir_continue=logdir_continue,
         no_fixed_vecs=config.no_fixed_vecs, all_vecs_fixed=config.all_vecs_fixed,
         var_vecs_zero=config.var_vecs_zero, var_vecs_random=config.var_vecs_random,
         additional_vecs_path=config.additional_vecs, vecs_pretrained=vecs_pretrained)
-    # use previous tree model config values
-    #restore_only_tree_embedder = prev_config is not None and config.model_type != prev_config.model_type
-    #if prev_config is not None and config.model_type != prev_config.model_type:
-    #    if config.model_type != prev_config.model_type:
-        #    reuse_parameters = TREE_MODEL_PARAMETERS
-    #        restore_only_tree_embedder = True
-        #else:
-        #    reuse_parameters = MODEL_PARAMETERS
-        #logger.info('use (tree) model parameters from previous model: %s'
-        #            % ', '.join(['%s: %s' % (p, prev_config.__getattr__(p)) for p in reuse_parameters]))
-        #for p in reuse_parameters:
-        #    v = prev_config.__getattr__(p)
-        #    config.__setattr__(p, v)
 
     fine_tune = bool(logdir_pretrained)
     loaded_from_checkpoint = checkpoint_fn is not None and not fine_tune and not load_embeddings
@@ -1357,7 +1253,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         lexicon_roots = Lexicon(filename=lexicon_root_fn, load_vecs=False)
     else:
         lexicon_roots = None
-    #forest = Forest(filename=config.train_data_path, lexicon=lexicon, load_parents=load_parents, lexicon_roots=lexicon_roots)
     forest = Forest(filename=config.train_data_path, lexicon=lexicon, lexicon_roots=lexicon_roots)
 
     if config.blank and config.blank.strip():
@@ -1377,12 +1272,9 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         tree_iterator_args['add_heads_types'] = set(add_heads_ids)
         nbr_add_heads = len(add_heads_split)
         tree_iterator_args['additional_heads'] = nbr_add_heads
-        #embedding_model_kwargs['additional_heads'] = nbr_add_heads
-        #embedding_model_kwargs['additional_heads_dims'] = [50] * nbr_add_heads
         embedding_model_kwargs['additional_heads_dims'] = [ADD_HEADS_DIMS[ah.strip()] for ah in add_heads_split]
         logger.debug('collected %i add_heads types for %i prefixes' % (len(tree_iterator_args['add_heads_types']), nbr_add_heads))
 
-    #if config.model_type == MT_REROOT:
     logger.debug('set ids to IDENTITY')
     d_identity = lexicon.get_d(s=vocab_manual[IDENTITY_EMBEDDING], data_as_hashes=False)
     forest.data[forest.roots + OFFSET_ID] = d_identity
@@ -1391,7 +1283,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         if config.task and config.task.strip():
             lexicon_indices_list = []
             for prefix in config.task.split(','):
-                #type_class = TYPE_FOR_TASK[c.strip()]
                 types_or_prefix = TYPE_LONG.get(prefix.strip(), prefix.strip())
                 if isinstance(types_or_prefix, list):
                     _strings = types_or_prefix
@@ -1405,20 +1296,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 lexicon_indices_list.append(np.array(_ids, dtype=DTYPE_IDX))
             tree_iterator_args['classes_ids'] = lexicon_indices_list
 
-    ## DEBUG
-    #ids_new = np.load('/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT/relation_toendsplit_ps1_TEST.bk/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtREROOT_ns8_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/values_max_indices.np')
-    #ids_gold = np.load('/mnt/DATA/ML/training/supervised/log/DEBUG/SEMEVAL/REROOT/relation_toendsplit_ps1_TEST.bk/avfFALSE_bs100_bRELATION_clp5.0_cmTREE_cntxt0_dfidx0_dtFALSE_fc0_kp0.9_leaffc0_lr0.003_lc-1_dpth10_mtREROOT_ns8_nfvFALSE_optADAMOPTIMIZER_rootfc0_sl1000_st150_tkR-T_dataMERGED_teHTUBATCHEDHEADREDUCESUMMAPGRU_ccFALSE_tfidfFALSE_vvrFALSE_vvzFALSE/values_gold_indices.np')
-    #pos_after = forest.roots[len(ids_new)]
-    #prefix = u'RELATION/TYPE'
-    #ids, id_strings = lexicon.get_ids_for_prefix(prefix)
-    #mask = np.isin(forest.data, ids)
-    #mask[pos_after:] = False
-    #print(np.count_nonzero(mask))
-    #assert np.array_equal(forest.data[mask], ids_gold), 'gold values do not match'
-    #forest.data[mask] = ids_new
-    #print('ids overwritten for prefix: %s' % prefix)
-
-    # TODO: use this?
+    # TODO: use this? (pre-transform data)
     #if config.model_type == MT_REROOT:
     #    logger.info('transform data ...')
     #    data_transformed = [forest.lexicon.transform_idx(forest.data[idx], root_id_pos=forest.root_id_pos) for idx in range(len(forest))]
@@ -1449,7 +1327,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
         meta[M_TEST][M_BATCH_ITER] = config.batch_iter
     if M_TRAIN in meta:
         meta[M_TRAIN][M_BATCH_ITER] = config.batch_iter
-
 
 
     # set tree iterator
@@ -1540,7 +1417,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                                            #data_indices_selected=data_indices_selected,
                                            **_tree_iterator_args)
         else:
-            #if precompile:
             if m == M_TRAIN:
                 _tree_iterator_args = {'keep_prob_blank': config.keep_prob_blank, 'keep_prob_node': config.keep_prob_node}
                 _tree_iterator_args.update(tree_iterator_args)
@@ -1549,8 +1425,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
             meta[m][M_TREE_ITER] = partial(tree_iterator, forest=forest, **_tree_iterator_args)
             if tree_iterator_args_tfidf is not None:
                 meta[m][M_TREE_ITER_TFIDF] = partial(tree_iterator, forest=forest, **tree_iterator_args_tfidf)
-            #else:
-            #    meta[m][M_TREE_ITER] = partial(tree_iterator, **tree_iterator_args)
 
     # MODEL DEFINITION #################################################################################################
 
@@ -1568,7 +1442,6 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 data_dir=parent_dir,
                 index_file_names={m: meta[m][M_FNAMES] for m in meta},
                 index_file_sizes={m: meta[m][M_INDEX_FILE_SIZES] for m in meta},
-                #work_forests=work_forests if precompile else None,
                 indices={m: meta[m][M_INDICES] for m in meta},
                 precompile=precompile,
                 create_tfidf_embeddings=config.use_tfidf,
@@ -1578,6 +1451,7 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
                 embedding_model_kwargs=embedding_model_kwargs
             )
 
+            ## init model to calculate nearest neighbours
             #models_nearest = create_models_nearest(model_tree=model_tree,
             #                                       prepared_embeddings={m: prepared_embeddings[m] for m in meta.keys()
             #                                                            if M_BATCH_ITER in meta[m]
@@ -1641,24 +1515,14 @@ def execute_run(config, logdir_continue=None, logdir_pretrained=None, load_embed
 
             # Set up the supervisor.
             supervisor = tf.train.Supervisor(
-                # saver=None,# my_saver,
                 logdir=logdir,
                 saver=tf.train.Saver(tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES), max_to_keep=1),
-                #is_chief=(FLAGS.task == 0),
                 save_summaries_secs=10,
                 save_model_secs=0,
                 summary_writer=tf.summary.FileWriter(os.path.join(logdir, 'train'), graph),
                 init_fn=load_pretrain if fine_tune else None
             )
-            #if dev_iterator is not None or test_iterator is not None:
             test_writer = tf.summary.FileWriter(os.path.join(logdir, 'test'), graph) if M_TEST in meta else None
-            #sess = supervisor.PrepareSession(FLAGS.master)
-            #sess = supervisor.PrepareSession('')
-            # TODO: try
-            #sess = supervisor.PrepareSession(FLAGS.master, config=tf.ConfigProto(log_device_placement=True))
-
-            #if precompile:
-            #    work_forests = None
             res = execute_session(supervisor, model_tree, lexicon, init_only, loaded_from_checkpoint, meta, test_writer,
                                   test_result_writer, logdir, neg_samples=int('0' + config.neg_samples),
                                   debug=debug, clean_train_trees=not precompile)
@@ -1765,7 +1629,6 @@ if __name__ == '__main__':
         config.update_with_flags(FLAGS, keep_model_parameters=logdir_continue or logdir_pretrained)
 
         print('FLAGS.dont_test: %s' % str(FLAGS.dont_test))
-        #if FLAGS.grid_config_file is not None and FLAGS.grid_config_file.strip() != '':
         if FLAGS.run_count >= 1:
             if not os.path.exists(FLAGS.logdir):
                 os.makedirs(FLAGS.logdir)
@@ -1775,15 +1638,12 @@ if __name__ == '__main__':
             run_descriptions_done = []
             scores_done = []
             if os.path.isfile(scores_fn):
-                #file_mode = 'a'
                 with open(scores_fn, 'r') as csvfile:
                     scores_done_reader = csv.DictReader(csvfile, delimiter='\t')
                     fieldnames_loaded = scores_done_reader.fieldnames
                     scores_done = list(scores_done_reader)
                 run_descriptions_done = {s_d['run_description']: s_d for s_d in scores_done}
                 logger.debug('already finished: %s' % ', '.join(run_descriptions_done))
-            #else:
-                #file_mode = 'w'
 
             logger.info('write scores to: %s' % scores_fn)
 
@@ -1836,11 +1696,8 @@ if __name__ == '__main__':
 
             fieldnames_expected = sorted(list(parameters_keys)) + [stats_prefix_dev + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] \
                                   + [stats_prefix_test + k for k in METRIC_KEYS_DISCRETE + METRIC_KEYS_REGRESSION] + ['time_s', 'steps_train', 'run_description']
-            #assert fieldnames_loaded is None or set(fieldnames_loaded) == set(fieldnames_expected), 'field names in tsv file are not as expected'
-            #fieldnames = fieldnames_loaded or fieldnames_expected
             with open(scores_fn, 'w') as csvfile:
                 score_writer = csv.DictWriter(csvfile, fieldnames=fieldnames_expected, delimiter='\t', extrasaction='ignore')
-                #if file_mode == 'w':
                 score_writer.writeheader()
                 score_writer.writerows(scores_done)
                 csvfile.flush()
@@ -1848,8 +1705,6 @@ if __name__ == '__main__':
                 logger.info('execute %i different settings, repeat each %i times' % (len(settings), FLAGS.run_count))
                 for _c, d in settings:
                     assert _c.early_stopping_window > 0, 'early_stopping_window has to be set (i.e. >0) if multiple runs are executed'
-                    #cache_dev = {}
-                    #cache_test = {}
                     best_previous_logdir = None
                     best_previous_metric = None
                     for i in range(FLAGS.run_count):
@@ -1858,7 +1713,6 @@ if __name__ == '__main__':
                             _c.var_vecs_random = False
 
                         _c.set_run_description()
-                        #run_desc_backup = _c.run_description
 
                         logger.info(
                             'RUN: %i train ==============================================================================' % i)
@@ -1892,7 +1746,6 @@ if __name__ == '__main__':
                                                    best_previous_logdir, best_previous_metric or -1))
                                             best_previous_logdir = os.path.join(FLAGS.logdir, c.run_description)
                                             best_previous_metric = run_descriptions_done[c.run_description][FLAGS.early_stopping_metric]
-                                    #c.run_description = run_desc_backup
                                     continue
                                 else:
                                     if FLAGS.skip_unfinished_runs:
@@ -1938,7 +1791,6 @@ if __name__ == '__main__':
                                 add_metrics(d, metrics_test, metric_keys=metrics, prefix=stats_prefix_test)
                                 logger.info('test score (%s): %f' % (metric_main, metrics_test[metric_main]))
 
-                            #c.run_description = run_desc_backup
                             score_writer.writerow(d)
                             csvfile.flush()
                         except Exception as e:
