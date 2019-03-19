@@ -109,10 +109,10 @@ Predict, if a tree matches one (or multiple) labels
 
 The [similarity score](#Similarity-Scoring) between one (or multiple concatenated) tree embeddings and
 the class label embedding is used as probability that the instance belongs to that class.
-In general, one FC is applied to the (concatenated) tree embedding(s).
+In general, one FC is applied to the (concatenated in the case of RTE) tree embedding(s).
 
 Task instances:
- * Recognizing Textual Entailment on SICK.
+ * Recognizing Textual Entailment (RTE) on SICK.
  * Binary Sentiment Analysis on IMDB.
  * Relation Extraction on SemEval2010 Task 8.
 
