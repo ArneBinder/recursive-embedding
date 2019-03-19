@@ -53,14 +53,13 @@ python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/SEME
 # ...
 
 
-# DEBUG OFF!
-#echo "convert IMDB corpus (TAKES A WHILE)..."
-##python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/spacy_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20
-#python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/corenlp_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20
-##python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/spacy_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20 -e
-#python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/corenlp_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20 -e
-#echo "create train indices for IMDB..."
-##python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/spacy_noner_recemb_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
-#python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/corenlp_noner_recemb_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
-##python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/spacy_noner_recemb_edges_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
-#python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/corenlp_noner_recemb_edges_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
+echo "convert IMDB corpus (TAKES A WHILE)..."
+#python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/spacy_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20
+python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/corenlp_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20
+#python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/spacy_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20 -e
+python src/corpus_rdf.py CONVERT -i "$CORPORA_OUT"/IMDB_RDF/corenlp_noner -c imdb:vocab#sentiment -g "$GLOVE_TXT" -m 20 -e
+echo "create train indices for IMDB..."
+#python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/spacy_noner_recemb_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
+python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/corenlp_noner_recemb_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
+#python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/spacy_noner_recemb_edges_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
+python src/corpus_rdf.py CREATE_INDICES --merged-forest-path "$CORPORA_OUT"/IMDB_RDF/corenlp_noner_recemb_edges_mc20/forest --split-count "$SPLIT_COUNT" 2>&1
