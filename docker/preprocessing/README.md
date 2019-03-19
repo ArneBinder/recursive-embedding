@@ -35,29 +35,22 @@ Install:
  * docker
  * docker compose
 
-Clone this repo and switch into this folder:
+1. Clone this repo and switch into this folder:
 ```bash
 git clone https://github.com/ArneBinder/recursive-embedding.git
 cd recursive-embedding/docker/preprocessing
 ```
-
-Rename [`.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
-
-Set execution permission of `scripts`: `chmod +x scripts/*.sh`
-
-Optional: adapt the script files, e.g.
- * use Spacy instead of CoreNLP (parameter `--parser`),
- * restrict output to create only **direct** (default) or **edge** (flag `-e`) linked structure, or
- * adjust the minimal node type count (parameter `-m`): node types (e.g. words) that occur less then this value are replaced with the `UNKNOWN` type.
-
-To start the parsing process, execute from current folder:
-
+2. Rename [`.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
+3. Set execution permission of `scripts`: `chmod +x scripts/*.sh`
+4. Optional: adapt the script files, e.g.
+    * use Spacy instead of CoreNLP (parameter `--parser`),
+    * restrict output to create only **direct** (default) or **edge** (flag `-e`) linked structure, or
+    * adjust the minimal node type count (parameter `-m`): node types (e.g. words) that occur less then this value are replaced with the `UNKNOWN` type.
+5. To start the parsing process, execute from current folder:
 ```bash
 docker-compose up corpus-parse
 ```
-
-Afterwards, convert to rec-emb data format:
-
+6. Afterwards, convert to rec-emb data format:
 ```bash
 docker-compose up corpus-convert
 ```
