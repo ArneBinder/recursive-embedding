@@ -21,10 +21,10 @@ NOTE: SICK and SemEval2010T8 are included here ([datasets folder](datasets)). Th
 
 The preprocessing happens in two steps:
 
- 1. parsing: This results in json line file per input file (or directory in the case of IMDB) containing records in an intermediate format that is a very much simplified version of [NIF](http://persistence.uni-leipzig.org/nlp2rdf/)
+ 1. parsing: This results in one jsonline file per input file (or directory in the case of IMDB) containing records in an intermediate format that is a very much simplified version of [NIF](http://persistence.uni-leipzig.org/nlp2rdf/)
  2. conversion: Convert into compact, graph based format (rec-emb format) to train the models with.
 
-NOTE: Per default, two structural variants are created: (1) word nodes are linked **directly**, or (2) word nodes are linked via dependency **edge** type nodes.
+NOTE: Per default, two structural variants are created in the conversion step: (1) word nodes are linked **directly**, or (2) word nodes are linked via dependency **edge** type nodes.
 
 The final rec-emb data can be visualized with the [visualization tool](../tools/visualize/README.md).
 

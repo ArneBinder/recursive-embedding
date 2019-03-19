@@ -1,4 +1,4 @@
-# recursive-embedding (rec-emb)
+# Recursive-Embedding (rec-emb)
 
 Train embeddings for hierarchically structured data. rec-emb is a research project.
 
