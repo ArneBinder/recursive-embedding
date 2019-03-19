@@ -24,7 +24,10 @@ The preprocessing happens in two steps:
  1. parsing: This results in one jsonline file per input file (or directory in the case of IMDB) containing records in an intermediate format that is a very much simplified version of [NIF](http://persistence.uni-leipzig.org/nlp2rdf/)
  2. conversion: Convert into compact, graph based format (rec-emb format) to train the models with.
 
-NOTE: Per default, two structural variants are created in the conversion step: (1) word nodes are linked **directly**, or (2) word nodes are linked via dependency **edge** type nodes.
+NOTE: Per default, two structural variants are created in the conversion step:
+(1) word nodes are linked **directly**, or (2) word nodes are linked via
+dependency **edge** type nodes. However, the former still includes dependency type data by adding
+that as direct children of the respective word nodes.
 
 The final rec-emb data can be visualized with the [visualization tool](../tools/visualize/README.md).
 
