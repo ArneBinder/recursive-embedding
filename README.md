@@ -33,7 +33,7 @@ The rec-emb data model
 
 The **rec-emb data model** includes the following:
  * a **lexicon**: it holds id-string mappings, string-hash mappings and embedding vectors
- * a **structure**: a serialized typed graph that consists of two numpy arrays. One **data**
+ * a **structure**: a serialized, typed graph that consists of two numpy arrays. One **data**
  array is holding the symbol type for each node. That are string hashes which can be converted
  into lexicon ids. The other is a sparse adjacency matrix encoding edge data.
 
@@ -89,6 +89,9 @@ Implemented similarity functions:
 
 ## Training
 
+See the [training docker setup](docker/train/tensorflow-fold) for how to train and test models for individual tasks.
+
+
 ### TASK: Predict Relatedness Scores (regression)
 
 Predict, how strongly two trees are related.
@@ -113,8 +116,6 @@ Task instances:
  * Recognizing Textual Entailment on SICK.
  * Binary Sentiment Analysis on IMDB.
  * Relation Extraction on SemEval2010 Task 8.
-
-See the [training docker setup](docker/train/tensorflow-fold) for how to train and test models for individual tasks.
 
 
 ## License

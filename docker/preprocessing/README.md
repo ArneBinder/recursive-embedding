@@ -2,7 +2,7 @@
 
 The **rec-emb data model** is optimized for fast training of rec-emb models. It includes the following:
  * a **lexicon**: it holds id-string mappings, string-hash mappings and embedding vectors
- * a **structure**: a serialized typed graph that consists of two numpy arrays. One **data**
+ * a **structure**: a serialized, typed graph that consists of two numpy arrays. One **data**
  array is holding the symbol type for each node. That are string hashes which can be converted
  into lexicon ids. The other is a sparse adjacency matrix encoding edge data.
 
