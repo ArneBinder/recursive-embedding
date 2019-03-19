@@ -31,17 +31,17 @@ The final rec-emb data can be visualized with the [visualization tool](../tools/
 
 ## HOW TO preprocess
 
-Install:
- * docker
- * docker compose
-
-1. Clone this repo and switch into this folder:
-```bash
-git clone https://github.com/ArneBinder/recursive-embedding.git
-cd recursive-embedding/docker/preprocessing
-```
+1. Preparation:
+    1. Install:
+     * docker
+     * docker-compose
+    2. Clone this repo and **switch into this folder**:
+    ```bash
+    git clone https://github.com/ArneBinder/recursive-embedding.git
+    cd recursive-embedding/docker/preprocessing
+    ```
 2. Rename [`.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
-3. Set execution permission of `scripts`: `chmod +x scripts/*.sh`
+3. Set execution permission for `scripts`: `chmod +x scripts/*.sh`
 4. Optional: adapt the script files, e.g.
     * use Spacy instead of CoreNLP (parameter `--parser`),
     * restrict output to create only **direct** (default) or **edge** (flag `-e`) linked structure, or
