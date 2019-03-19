@@ -92,7 +92,7 @@ Implemented similarity functions:
 See the [training docker setup](docker/train/tensorflow-fold) for how to train and test models for individual tasks.
 
 
-### TASK: Predict Relatedness Scores (regression)
+### TASK: Predict Relatedness Scores
 
 Predict, how strongly two trees are related.
 
