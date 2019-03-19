@@ -6,9 +6,7 @@ Useful Postman collection: [Visualize](Visualize.postman_collection.json)
 
 ## HOW TO visualize
 
-Install:
- * docker
- * docker compose
+Install [docker](https://docs.docker.com/) and [docker-compose](https://docs.docker.com/compose/).
 
 Clone this repo and switch into this folder:
 ```bash

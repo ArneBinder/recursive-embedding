@@ -31,26 +31,23 @@ The final rec-emb data can be visualized with the [visualization tool](../tools/
 
 ## HOW TO preprocess
 
-1. Preparation:
-    1. Install:
-        * docker
-        * docker-compose
-    2. Clone this repo and **switch into this folder**:
-    ```bash
-    git clone https://github.com/ArneBinder/recursive-embedding.git
-    cd recursive-embedding/docker/preprocessing
-    ```
-2. Rename [`.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
-3. Set execution permission for `scripts`: `chmod +x scripts/*.sh`
-4. Optional: adapt the script files, e.g.
+1. Install [docker](https://docs.docker.com/) and [docker-compose](https://docs.docker.com/compose/).
+2. Clone this repo and **switch into this folder**:
+```bash
+git clone https://github.com/ArneBinder/recursive-embedding.git
+cd recursive-embedding/docker/preprocessing
+```
+3. Rename [`.env.dev`](.env.dev) (or copy) to `.env` and adapt its parameters.
+4. Set execution permission for `scripts`: `chmod +x scripts/*.sh`
+5. Optional: adapt the script files, e.g.
     * use Spacy instead of CoreNLP (parameter `--parser`),
     * restrict output to create only **direct** (default) or **edge** (flag `-e`) linked structure, or
     * adjust the minimal node type count (parameter `-m`): node types (e.g. words) that occur less then this value are replaced with the `UNKNOWN` type.
-5. To start the parsing process, execute from current folder:
+6. To start the parsing process, execute from current folder:
 ```bash
 docker-compose up corpus-parse
 ```
-6. Afterwards, convert to rec-emb data format:
+7. Afterwards, convert to rec-emb data format:
 ```bash
 docker-compose up corpus-convert
 ```
