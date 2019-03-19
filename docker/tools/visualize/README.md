@@ -25,6 +25,7 @@ docker-compose up
 ```
 
 The workflow is as follows:
+
 1. load a dataset via `http://0.0.0.0:5000/api/load?path=/root/corpora_out/<DATASET>/<CONVERSION>/forest`
 2. visualize via `http://0.0.0.0:5000/visualize?root_start=0&root_end=10&edge_source_blacklist=["rem:hasParseAnnotation"]`
 
