@@ -410,9 +410,21 @@ class Lexicon(object):
             raise ValueError('unknown mode=%s' % mode)
 
     def init_vecs_with_glove_file(self, filename, prefix=u''):
+        _types = None
+        # if two file names are provided (separated by comma), the first file has to contain the string types and
+        # the second the vecs
+        if ',' in filename:
+            fn_types, fn_vecs = filename.split(',')
+            logger.debug('load all type strings from: %s...' % fn_types)
+            with io.open(fn_types, encoding='utf8') as f:
+                _types = f.readlines()
+            filename = fn_vecs
+
         with io.open(filename, encoding='utf8') as f:
             first_line = f.readline()
-            dims = len(first_line.split()) -1
+            dims = len(first_line.split())
+            if _types is None:
+                dims -= 1
             logger.debug('number of dims: %i' % dims)
             f.seek(0)
             # NOTE: unpack does not work with different column datatypes for genfromtxt
@@ -424,14 +436,21 @@ class Lexicon(object):
             vecs_new = np.zeros(shape=[len(self), dims], dtype=DTYPE_VECS)
             for idx_source, line in enumerate(f):
                 parts = line.split(' ')
-                if len(parts) != dims + 1:
-                    logger.warning('line %i has wrong number of columns (%i), skip it: %s...' % (idx_source, len(parts), line[:100]))
+                if _types is None:
+                    parts_vec = parts[1:]
+                    word = parts[0]
+                else:
+                    parts_vec = parts
+                    # elements in _types still contain the newline character
+                    word = _types[idx_source][:-1]
+                if len(parts_vec) != dims:
+                    logger.warning('line %i has wrong number of columns (%i), skip it: %s...' % (idx_source, len(parts_vec), line[:100]))
                     continue
-                word = prefix + parts[0]
+                word = prefix + word
                 if word in self.strings:
                     _hash = hash_string(word)
                     idx = self.mapping[_hash]
-                    vecs_new[idx] = np.asarray(parts[1:], dtype=DTYPE_VECS)
+                    vecs_new[idx] = np.asarray(parts_vec, dtype=DTYPE_VECS)
                     if idx in ids_added:
                         logger.warning('vector for word: %s was already added before (%s)' % (word, ids_added[idx]))
                     ids_added[idx] = word
