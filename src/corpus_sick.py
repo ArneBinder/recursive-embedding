@@ -2,6 +2,10 @@ import csv
 import json
 import logging
 import os
+# conda install backports.csv
+from backports import csv
+from io import open
+
 import spacy
 
 import plac
@@ -49,8 +53,8 @@ def create_record_rdf(row, record_id_prefix, A_or_B, A_or_B_other):
 
 def reader_rdf(base_path, file_name):
     n = 0
-    with open(os.path.join(base_path, file_name)) as tsvin:
-        tsv = csv.DictReader(tsvin, delimiter='\t')
+    with open(os.path.join(base_path, file_name), encoding='utf-8') as tsvin:
+        tsv = csv.DictReader(tsvin, dialect='excel-tab')
         for row in tsv:
             record_id_prefix = u'%s%s/%s/' % (RDF_PREFIXES_MAP[PREFIX_SICK], file_name, row['pair_ID'])
             record_A = create_record_rdf(row, record_id_prefix=record_id_prefix, A_or_B=u'A', A_or_B_other=u'B')
@@ -200,7 +204,9 @@ def parse(in_path, out_path, sentence_processor=None, n_threads=4, parser_batch_
 )
 def parse_rdf(in_path, out_path, parser='spacy', do_ner=False):
     file_names = {'sick_test_annotated/SICK_test_annotated.txt': 'test.jsonl',
-                  'sick_train/SICK_train.txt': 'train.jsonl'}
+                  'sick_train/SICK_train.txt': 'train.jsonl',
+                  #'SICK_format/data.tsv': 'test_bio.jsonl'
+                  }
     parse_to_rdf(in_path=in_path, out_path=out_path, reader_rdf=reader_rdf, parser=parser, file_names=file_names,
                  no_ner=not do_ner)
 
